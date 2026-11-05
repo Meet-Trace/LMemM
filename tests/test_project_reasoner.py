@@ -160,6 +160,34 @@ class RunTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             r.OllamaModel("m", url="https://api.example.com")
 
+    def test_a_reply_wrapped_in_a_fence_still_parses(self):
+        self.assertEqual(r.parse_json('Sure:\n```json\n{"choice": 2}\n```'), {"choice": 2})
+        with self.assertRaises(ValueError):
+            r.parse_json("no json here")
+
+    def test_an_engine_without_structured_output_is_asked_without_a_schema(self):
+        import urllib.error
+        model, sent = r.OllamaModel("m"), []
+
+        def post(body):
+            sent.append(dict(body))
+            if "format" in body:
+                raise urllib.error.HTTPError("u", 501, "Not Implemented", {}, None)
+            return {"ok": True}
+        model._post = post
+        self.assertEqual(model("s", "u", {"type": "object"}), {"ok": True})
+        self.assertNotIn("format", sent[-1])
+
+    def test_graph_mode_runs_code_only_from_the_cli(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "scripts", "reason_projects.py")
+        spec = importlib.util.spec_from_file_location("reason_projects", path)
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(["--mistakes", "0", "--model", "none", "--mode", "graph"])
+        self.assertIn("model: none (graph)", out.getvalue())
+
     def test_cli_scores_a_run(self):
         path = os.path.join(os.path.dirname(__file__), "..", "scripts", "reason_projects.py")
         spec = importlib.util.spec_from_file_location("reason_projects", path)

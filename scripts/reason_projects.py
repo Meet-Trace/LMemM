@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import project_grouping_eval as pge  # noqa: E402
 import project_reasoner as reasoner  # noqa: E402
+import project_reasoner_graph as graph  # noqa: E402
 import project_reasoner_steps as steps  # noqa: E402
 import project_reasoner_tiny as tiny  # noqa: E402
 
@@ -28,11 +29,12 @@ DEFAULT_DAY = ROOT / "tests" / "fixtures" / "project_grouping" / "sample_day.jso
 def main(argv=None, model=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--day", type=Path, default=DEFAULT_DAY)
-    p.add_argument("--model", default="qwen2.5:7b", help="an Ollama model name")
+    p.add_argument("--model", default="qwen2.5:7b", help="an Ollama model name, or none (graph mode: code only)")
     p.add_argument("--url", default="http://127.0.0.1:11434", help="Ollama on this Mac")
-    p.add_argument("--mode", choices=("steps", "one-shot", "tiny"), default="steps",
+    p.add_argument("--mode", choices=("steps", "one-shot", "tiny", "graph"), default="steps",
                    help="steps: many small questions (default); one-shot: one big question per sitting; "
-                        "tiny: fill-in-the-blank and multiple choice, for models under 1B")
+                        "tiny: fill-in-the-blank and multiple choice, for models under 1B; "
+                        "graph: the model only copies names and picks from 4, code builds the groups")
     p.add_argument("--votes", type=int, default=1, help="tiny mode: ask each question this many times, keep the majority")
     p.add_argument("--out", type=Path, help="write predictions, projects and the decision log here")
     p.add_argument("--mistakes", type=int, default=5)
@@ -42,16 +44,27 @@ def main(argv=None, model=None):
         timeline = json.loads(args.day.read_text()).get("timeline")
         if not timeline:
             raise ValueError("This day has no \"timeline\", so there are no sittings to reason over.")
-        model = model or reasoner.OllamaModel(args.model, args.url)
+        if model is None and not (args.mode == "graph" and args.model == "none"):
+            model = reasoner.OllamaModel(args.model, args.url)
     except (OSError, ValueError) as error:
         sys.exit(str(error))
     started = time.monotonic()
-    if args.mode == "tiny":
+    if args.mode == "graph":
+        assigned, projects, log = graph.run(items, timeline, model)
+    elif args.mode == "tiny":
         assigned, projects, log = tiny.run(items, timeline, model, votes=args.votes)
     else:
         assigned, projects, log = (steps if args.mode == "steps" else reasoner).run(items, timeline, model)
     took = time.monotonic() - started
     for entry in log:
+        if args.mode == "graph":
+            if "skipped" in entry:
+                print(f"SKIPPED {entry.get('step')}: {entry['skipped']}")
+            elif entry.get("step") in ("names", "check", "link", "project", "loner", "calls"):
+                what = entry.get("place") or entry.get("pair") or entry.get("tasks") or ""
+                extra = entry.get("names") if entry["step"] == "names" else entry.get("picked")
+                print(f"{entry['step']:8} {what} {entry.get('decision') or ''} {'' if extra is None else extra}")
+            continue
         if "skipped" in entry:
             print(f"SKIPPED {entry.get('step') or entry.get('sitting')}: {entry['skipped']}")
         elif "place" in entry or entry.get("step") == "calls":

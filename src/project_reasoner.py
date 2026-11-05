@@ -201,20 +201,35 @@ class OllamaModel:
         body = {"model": self.model, "stream": False, "format": schema, "think": False,
                 "options": {"temperature": temperature, "num_ctx": 8192},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
-        try:
-            return self._post(body)
-        except urllib.error.HTTPError as error:
-            if error.code != 400:
-                raise
-            body.pop("think")                  # models without a thinking switch refuse the flag
-            return self._post(body)
+        for _ in range(3):
+            try:
+                return self._post(body)
+            except urllib.error.HTTPError as error:
+                if error.code == 400 and "think" in body:
+                    body.pop("think")          # models without a thinking switch refuse the flag
+                elif error.code == 501 and "format" in body:
+                    body.pop("format")         # engines without structured output (Ollama's MLX runner)
+                else:
+                    raise
+        return self._post(body)
 
     def _post(self, body):
         req = urllib.request.Request(self.url + "/api/chat", data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             content = json.loads(resp.read())["message"]["content"]
+        return parse_json(content)
+
+
+def parse_json(content):
+    """The JSON object in a model's reply, also when it is wrapped in prose or a ``` fence."""
+    try:
         return json.loads(content)
+    except ValueError:
+        start, end = content.find("{"), content.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        return json.loads(content[start:end + 1])
 
 
 def run(items, timeline, model, gap=GAP_SECONDS):

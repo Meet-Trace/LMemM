@@ -349,7 +349,10 @@ To score how well things are grouped into projects (step 0 of automatic projects
 precision and recall. Pass `--day` for a day you labelled yourself; keep real days out of the repo.
 `python3 scripts/reason_projects.py --model qwen2.5:7b` lets a local Ollama model group the same
 day sitting by sitting (`src/project_reasoner.py`) and scores it the same way. Prototype only: it
-never touches your memory or projects.
+never touches your memory or projects. `--mode graph --model gemma3:1b` is the version built for
+tiny models (`src/project_reasoner_graph.py`): the model only copies names and picks one of four
+options, and code builds the groups; `--model none` runs it with code alone. A second, held-out
+day is `tests/fixtures/project_grouping/held_out_day.json`.
 
 [docs/architecture.md](docs/architecture.md) covers how the modules fit and where to extend it.
 [docs/](docs/) has specs, plans and the development history.

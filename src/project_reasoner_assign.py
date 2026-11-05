@@ -96,7 +96,9 @@ def entities(item, names=()):
         for w in tokens(n):
             if not w.isdigit() and w not in weak:        # a workspace or a person stays what it is
                 add(w, "name")
-    lines = [item.get("title") or ""] + [l for f in ("typed", "received", "notes", "read", "screen") for l in texts[f]]
+    # not "screen": a screenshot's text includes every other window and LMemM's own pill, so on real days
+    # it ties unrelated places together
+    lines = [item.get("title") or ""] + [l for f in ("typed", "received", "notes", "read") for l in texts[f]]
     for w in tokens(" ".join(lines)):
         add(w, "number" if w.replace(".", "").isdigit() else "word")
     return out
@@ -162,6 +164,42 @@ def _conflict(a, b):
     return not any(x in y or y in x for x in strong_a for y in strong_b)
 
 
+def _complete_link(here, ev):
+    """Group the places of one sitting so that every two places in a group are linked by TASK_LINK of
+    evidence (complete linkage). Union-find let one place that touched two pieces of work (a chat window
+    used for both) join them; here a bridge cannot."""
+    groups = [[p] for p in here]
+
+    def strength(g, h):
+        return min(ev.get(frozenset((a, b)), 0.0) for a in g for b in h)
+    while len(groups) > 1:
+        best, pair = TASK_LINK, None
+        for i, g in enumerate(groups):
+            for j in range(i + 1, len(groups)):
+                s = strength(g, groups[j])
+                if s >= best:
+                    best, pair = s, (i, j)
+        if pair is None:
+            break
+        i, j = pair
+        groups[i] = groups[i] + groups.pop(j)
+    # a place left on its own joins the one group it is most linked to on average; it joins only one,
+    # so it can never bridge two groups
+    cores = [g for g in groups if len(g) > 1]
+    out = [list(g) for g in cores]
+    for g in groups:
+        if len(g) > 1:
+            continue
+        p = g[0]
+        scores = [(sum(ev.get(frozenset((p, q)), 0.0) for q in c) / len(c), k) for k, c in enumerate(cores)]
+        best = max(scores, default=(0.0, None))
+        if best[1] is not None and best[0] >= TASK_LINK:
+            out[best[1]].append(p)
+        else:
+            out.append([p])
+    return out
+
+
 def _switches(timeline):
     """Pairs of places visited one straight after the other."""
     order = [v["item"] for v in sorted(timeline, key=lambda v: v["from"])]
@@ -210,26 +248,16 @@ def run(items, timeline, model=None):
     tasks, next_to = [], _switches(timeline)
     for sitting in sittings(timeline):
         here = [p for p in sitting if p in ents]
-        up = {p: p for p in here}
-
-        def find(x):
-            while up[x] != x:
-                up[x] = up[up[x]]
-                x = up[x]
-            return x
+        ev = {}
         for i, a in enumerate(here):
             for b in here[i + 1:]:
-                shared = ents[a].keys() & ents[b].keys()
                 if _conflict(ents[a], ents[b]):
                     continue
                 adj = frozenset((a, b)) in next_to
-                ev = sum(_task_weight(min(ents[a][k], ents[b][k]), adj) * idf[k] for k in shared)
-                if ev >= TASK_LINK:
-                    up[find(a)] = find(b)
-        groups = defaultdict(list)
-        for p in here:
-            groups[find(p)].append(p)
-        tasks.extend(groups.values())
+                ev[frozenset((a, b))] = sum(_task_weight(min(ents[a][k], ents[b][k]), adj) * idf[k]
+                                            for k in ents[a].keys() & ents[b].keys())
+        groups = _complete_link(here, ev)
+        tasks.extend(groups)
 
     reg = Projects()
     task_project, task_sub, made = {}, {}, 0

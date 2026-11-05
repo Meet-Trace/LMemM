@@ -44,6 +44,7 @@ MAX_WAITING = 3
 SHELVE_AFTER_DAYS = 3      # unanswered this long: set aside to make room (H7)
 SHELF_REST_DAYS = 7        # set aside this long: offered again when there is room
 LOG_NAME = "grouping_log.jsonl"
+OWN_APPS = {"LMemM", "python3", "Python", "UserNotificationCenter"}   # LMemM's own windows are not your work
 SKIP_FIELDS = {"screenshot", "project", "project_id", "also_in", "not_in", "declined_projects", "label", "label_status"}
 
 
@@ -52,6 +53,7 @@ def recent(items, visits, now, days=LOOKBACK_DAYS):
     cannot copy it (it only steers the result afterwards, H3)."""
     since = (now - timedelta(days=days)).isoformat(timespec="seconds")
     timeline = [v for v in visits if v["from"] >= since and v["item"] in items]
+    timeline = [v for v in timeline if items[v["item"]].get("app") not in OWN_APPS]
     used = dict.fromkeys(v["item"] for v in timeline)
     return {i: {k: v for k, v in items[i].items() if k not in SKIP_FIELDS} for i in used}, timeline
 
@@ -84,7 +86,7 @@ def name_for(items, ids, keys_of):
     top = sorted(score, key=lambda k: (-score[k], k))[:2]
     if not top:
         return None
-    if len(top) == 2 and (score[top[1]] < 0.6 * score[top[0]] or top[0] in top[1] or top[1] in top[0]):
+    if len(top) == 2 and (score[top[1]] < 0.9 * score[top[0]] or top[0] in top[1] or top[1] in top[0]):
         top = top[:1]
     return " ".join(_spelling(k, items, ids) for k in top)
 
@@ -102,7 +104,7 @@ def plan(reg, items, groups, keys_of=None):
             filed_things = len(ids) - len(loose)
             if loose and in_it >= 2 and in_it / filed_things >= JOIN_SHARE:
                 why = f"Used alongside {in_it} things already in it"
-                out.append((g["tasks"] + in_it, "items", (pid, loose, why)))
+                out.append((1000 + g["tasks"] + in_it, "items", (pid, loose, why)))   # your projects first
             continue
         if g["tasks"] >= NEW_MIN_TASKS and len(ids) >= NEW_MIN_THINGS:
             name = name_for(items, ids, keys_of) if keys_of else None
@@ -200,9 +202,9 @@ def offer(sug, reg, items, planned, now=None):
     return added
 
 
-def propose(reg, items, visits, sug, now=None, model=None):
+def propose(reg, items, visits, sug, now=None, model=None, days=LOOKBACK_DAYS):
     """find + offer in one call (for tests and the CLI)."""
-    return offer(sug, reg, items, find(reg, items, visits, now, model), now)
+    return offer(sug, reg, items, find(reg, items, visits, now, model, days), now)
 
 
 def log_path():

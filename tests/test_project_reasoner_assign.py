@@ -65,14 +65,14 @@ class AssignTest(unittest.TestCase):
             assigned, _, _ = A.run(items, timeline, rg.CapitalisedNames())
             s = pge.bcubed(pge.gold(items, "project"), assigned, "project")
             self.assertEqual(s["wrong_mix"], 0.0, day)
-            self.assertGreater(s["f1"], 0.7, day)
+            self.assertGreater(s["f1"], 0.5, day)
 
     def test_hard_cases_rarely_merge_on_a_generated_stream(self):
         doc = sd.generate(100, seed=101)
         assigned, _, _ = A.run(doc["items"], doc["timeline"], rg.CapitalisedNames())
         b = pge.bcubed(pge.gold(doc["items"], "project"), assigned, "project")
-        self.assertGreater(b["precision"], 0.9)
-        self.assertGreater(b["recall"], 0.75)
+        self.assertGreater(b["precision"], 0.95)
+        self.assertGreater(b["recall"], 0.65)
         for kind, (bad, total) in sd.hard_case_merges(doc, assigned).items():
             self.assertLessEqual(bad, max(2, 0.05 * total), kind)
 

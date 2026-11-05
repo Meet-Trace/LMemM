@@ -1,6 +1,6 @@
 {
  "version": 1,
- "about": "Invented day for scoring project grouping (step 0 of design/auto-project-creation-plan.md). Not real data. Items use the memory.json item shape plus 'label': the project paths each item belongs to, 'Project/Sub-project'. An empty list means it belongs to no project.",
+ "about": "Invented day for scoring project grouping (step 0 of design/auto-project-creation-plan.md). Not real data. Items use the memory.json item shape plus 'label'; 'timeline' is the order things were on screen (sessions/<id>.json style): the project paths each item belongs to, 'Project/Sub-project'. An empty list means it belongs to no project.",
  "items": {
   "word-proposal": {
    "id": "word-proposal",
@@ -288,6 +288,37 @@
     "180DC Northwind pricing/Client meetings"
    ]
   },
+  "slack-rohan": {
+   "id": "slack-rohan",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "Rohan Iyer",
+   "doing": "Working on \"Rohan Iyer\"",
+   "state": {
+    "chat": "Rohan Iyer",
+    "workspace": "LMemM"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Rohan Iyer: build_resume_packet still includes archived projects, can you make it skip them before the demo?"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T12:55:00",
+   "last_seen": "2026-11-03T12:58:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM/Resume"
+   ],
+   "label_note": "the instruction; the VS Code edit right after implements it"
+  },
   "vscode-resume": {
    "id": "vscode-resume",
    "app": "Visual Studio Code",
@@ -302,7 +333,8 @@
     "typing": {
      "seconds": 30,
      "text": [
-      "def build_resume_packet(project_id):"
+      "def build_resume_packet(project_id):",
+      "if project.archived: continue  # skip archived projects"
      ]
     },
     "reading": {
@@ -679,5 +711,182 @@
    ],
    "label_note": "belongs to two projects"
   }
- }
+ },
+ "timeline": [
+  {
+   "item": "gmail-inbox",
+   "from": "2026-11-03T08:55:00",
+   "to": "2026-11-03T09:00:00"
+  },
+  {
+   "item": "slack-general",
+   "from": "2026-11-03T09:00:00",
+   "to": "2026-11-03T09:02:00"
+  },
+  {
+   "item": "word-proposal",
+   "from": "2026-11-03T09:02:00",
+   "to": "2026-11-03T09:12:00"
+  },
+  {
+   "item": "excel-model",
+   "from": "2026-11-03T09:12:00",
+   "to": "2026-11-03T09:20:00"
+  },
+  {
+   "item": "word-proposal",
+   "from": "2026-11-03T09:20:00",
+   "to": "2026-11-03T09:26:00"
+  },
+  {
+   "item": "slack-pricing",
+   "from": "2026-11-03T09:26:00",
+   "to": "2026-11-03T09:30:00"
+  },
+  {
+   "item": "excel-model",
+   "from": "2026-11-03T09:30:00",
+   "to": "2026-11-03T09:42:00"
+  },
+  {
+   "item": "gmail-flights",
+   "from": "2026-11-03T09:42:00",
+   "to": "2026-11-03T09:43:00"
+  },
+  {
+   "item": "excel-model",
+   "from": "2026-11-03T09:43:00",
+   "to": "2026-11-03T09:50:00"
+  },
+  {
+   "item": "gsheet-competitors",
+   "from": "2026-11-03T09:50:00",
+   "to": "2026-11-03T10:00:00"
+  },
+  {
+   "item": "excel-model",
+   "from": "2026-11-03T10:00:00",
+   "to": "2026-11-03T10:05:00"
+  },
+  {
+   "item": "slack-pricing",
+   "from": "2026-11-03T10:05:00",
+   "to": "2026-11-03T10:10:00"
+  },
+  {
+   "item": "gdoc-notes",
+   "from": "2026-11-03T10:12:00",
+   "to": "2026-11-03T10:14:00"
+  },
+  {
+   "item": "slack-pricing",
+   "from": "2026-11-03T10:14:00",
+   "to": "2026-11-03T10:20:00"
+  },
+  {
+   "item": "gdoc-pricing-playbook",
+   "from": "2026-11-03T10:30:00",
+   "to": "2026-11-03T10:45:00"
+  },
+  {
+   "item": "gmail-northwind",
+   "from": "2026-11-03T11:00:00",
+   "to": "2026-11-03T11:20:00"
+  },
+  {
+   "item": "mail-northwind-invite",
+   "from": "2026-11-03T11:25:00",
+   "to": "2026-11-03T11:27:00"
+  },
+  {
+   "item": "teams-northwind",
+   "from": "2026-11-03T11:30:00",
+   "to": "2026-11-03T11:45:00"
+  },
+  {
+   "item": "word-agenda",
+   "from": "2026-11-03T11:50:00",
+   "to": "2026-11-03T12:05:00"
+  },
+  {
+   "item": "slack-rohan",
+   "from": "2026-11-03T12:55:00",
+   "to": "2026-11-03T12:58:00"
+  },
+  {
+   "item": "vscode-resume",
+   "from": "2026-11-03T12:58:00",
+   "to": "2026-11-03T13:20:00"
+  },
+  {
+   "item": "github-pr26",
+   "from": "2026-11-03T13:20:00",
+   "to": "2026-11-03T13:35:00"
+  },
+  {
+   "item": "claude-resume",
+   "from": "2026-11-03T13:40:00",
+   "to": "2026-11-03T13:55:00"
+  },
+  {
+   "item": "vscode-resume",
+   "from": "2026-11-03T13:55:00",
+   "to": "2026-11-03T14:10:00"
+  },
+  {
+   "item": "figma-pill",
+   "from": "2026-11-03T14:20:00",
+   "to": "2026-11-03T14:30:00"
+  },
+  {
+   "item": "slack-design",
+   "from": "2026-11-03T14:30:00",
+   "to": "2026-11-03T14:38:00"
+  },
+  {
+   "item": "figma-pill",
+   "from": "2026-11-03T14:38:00",
+   "to": "2026-11-03T14:50:00"
+  },
+  {
+   "item": "slack-design",
+   "from": "2026-11-03T14:50:00",
+   "to": "2026-11-03T14:55:00"
+  },
+  {
+   "item": "gdoc-investor",
+   "from": "2026-11-03T15:00:00",
+   "to": "2026-11-03T15:30:00"
+  },
+  {
+   "item": "slack-general",
+   "from": "2026-11-03T15:12:00",
+   "to": "2026-11-03T15:13:00"
+  },
+  {
+   "item": "gmail-investor",
+   "from": "2026-11-03T15:35:00",
+   "to": "2026-11-03T15:40:00"
+  },
+  {
+   "item": "gmail-flights",
+   "from": "2026-11-03T16:00:00",
+   "to": "2026-11-03T16:05:00"
+  },
+  {
+   "item": "gsheet-trip",
+   "from": "2026-11-03T16:10:00",
+   "to": "2026-11-03T16:20:00"
+  },
+  {
+   "item": "safari-villa",
+   "from": "2026-11-03T16:20:00",
+   "to": "2026-11-03T16:30:00"
+  },
+  {
+   "item": "gmail-inbox",
+   "from": "2026-11-03T16:35:00",
+   "to": "2026-11-03T16:40:00"
+  }
+ ]
 }

@@ -104,7 +104,7 @@ class SampleDayTest(unittest.TestCase):
         truth = pge.gold(self.items, "project")
         app = pge.score(truth, pge.baseline_app_labels(self.items))
         recent = pge.score(truth, pge.baseline_recent(self.items))
-        self.assertEqual(app["true_pairs"], 76)
+        self.assertEqual(app["true_pairs"], 84)
         self.assertLess(app["recall"], 0.1)
         self.assertLess(recent["recall"], 0.1)
 

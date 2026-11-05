@@ -14,6 +14,9 @@ proposals that suggestions.py already holds and the window and pill already show
         filed in one of your projects, the rest is offered for that project, not as a new one.
     H4  Never a flood: at most MAX_WAITING proposals wait at once; the strongest are offered first.
     H5  Refusals stick: suggestions.py never offers a declined name or a "Not here" thing again (R14).
+    H7  Unanswered is not refused: a suggestion left SHELVE_AFTER_DAYS is set aside to make room, and
+        offered again once it has rested SHELF_REST_DAYS and there is room. Meanwhile the same group is
+        not offered as if it were new.
     H6  Every offer and every answer goes to a local log (grouping_log.jsonl beside memory.json), so your
         answers become labels to score the method against. It never leaves this Mac.
 
@@ -38,6 +41,8 @@ NEW_MIN_TASKS = 2          # sittings a group must show up in before it is offer
 NEW_MIN_THINGS = 3
 JOIN_SHARE = 0.5           # filed share of a group that steers the rest into that project
 MAX_WAITING = 3
+SHELVE_AFTER_DAYS = 3      # unanswered this long: set aside to make room (H7)
+SHELF_REST_DAYS = 7        # set aside this long: offered again when there is room
 LOG_NAME = "grouping_log.jsonl"
 SKIP_FIELDS = {"screenshot", "project", "project_id", "also_in", "not_in", "declined_projects", "label", "label_status"}
 
@@ -119,16 +124,75 @@ def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS):
     return plan(reg, items, groups, {i: _keys(things[i]) for i in things})
 
 
-def offer(sug, reg, items, planned):
-    """Add the strongest planned proposals to `sug` while there is room (H4). Returns the entries added."""
+def _when(text):
+    try:
+        return datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def shelve(sug, now):
+    """Set aside what has waited SHELVE_AFTER_DAYS without an answer, so new suggestions have room (H7).
+    Returns how many were set aside. Nothing is declined: a set-aside suggestion comes back later."""
+    shelf, moved = sug.setdefault("shelved", []), 0
+    for kind in ("projects", "items"):
+        for e in list(sug[kind]):
+            offered = _when(e.setdefault("offered", now.isoformat(timespec="seconds")))
+            if offered and now - offered >= timedelta(days=SHELVE_AFTER_DAYS):
+                sug[kind].remove(e)
+                shelf.append({"kind": kind, "entry": e, "shelved": now.isoformat(timespec="seconds")})
+                record("shelve", sid=e["id"], target=e.get("name") or e.get("pid"), ids=list(e["ids"]))
+                moved += 1
+    return moved
+
+
+def _same(kind, entry, target, ids):
+    if (kind == "items") != ("pid" in entry):
+        return False
+    first = entry.get("pid") if kind == "items" else projects.key(entry["name"])
+    return first == (target if kind == "items" else projects.key(target)) or set(entry["ids"]) == set(ids)
+
+
+def _put(sug, reg, items, kind, target, ids, why, now):
+    entry = (suggestions.offer_items(sug, reg, items, target, ids, why) if kind == "items"
+             else suggestions.offer_project(sug, items, target, ids, why))
+    if entry is not None:
+        entry.setdefault("offered", now.isoformat(timespec="seconds"))
+    return entry
+
+
+def offer(sug, reg, items, planned, now=None):
+    """Make room (H7), bring back what has rested long enough, then add the strongest planned proposals
+    while there is room (H4). Returns the entries added or brought back."""
+    now = now or datetime.now()
+    shelve(sug, now)
     suggestions.tidy(sug, reg, items)
     room = MAX_WAITING - len(sug["projects"]) - len(sug["items"])
     added, waiting = [], {id(e) for e in sug["projects"] + sug["items"]}
+    shelf = sug.setdefault("shelved", [])
+    for s in sorted(shelf, key=lambda s: s["shelved"]):
+        rested = _when(s["shelved"])
+        if len(added) >= room or (rested and now - rested < timedelta(days=SHELF_REST_DAYS)):
+            continue
+        e = s["entry"]
+        kind = "items" if s["kind"] == "items" else "project"
+        target = e["pid"] if kind == "items" else e["name"]
+        if kind == "items" and not projects.exists(reg, target):
+            shelf.remove(s)
+            continue
+        entry = _put(sug, reg, items, kind, target, e["ids"], e["reason"], now)
+        shelf.remove(s)                        # back on the list, or no longer makes sense (S3)
+        if entry is not None and id(entry) not in waiting:
+            entry["offered"] = now.isoformat(timespec="seconds")
+            waiting.add(id(entry))
+            added.append(entry)
+            record("unshelve", kind=kind, sid=entry["id"], target=target, ids=list(entry["ids"]))
     for _, kind, (target, ids, why) in planned:
         if len(added) >= room:
             break
-        entry = (suggestions.offer_items(sug, reg, items, target, ids, why) if kind == "items"
-                 else suggestions.offer_project(sug, items, target, ids, why))
+        if any(_same(kind, s["entry"], target, ids) for s in shelf):
+            continue                           # set aside already: it comes back on its own (H7)
+        entry = _put(sug, reg, items, kind, target, ids, why, now)
         if entry is not None and id(entry) not in waiting:
             waiting.add(id(entry))
             added.append(entry)
@@ -138,9 +202,7 @@ def offer(sug, reg, items, planned):
 
 def propose(reg, items, visits, sug, now=None, model=None):
     """find + offer in one call (for tests and the CLI)."""
-    if MAX_WAITING - len(sug["projects"]) - len(sug["items"]) <= 0:
-        return []
-    return offer(sug, reg, items, find(reg, items, visits, now, model))
+    return offer(sug, reg, items, find(reg, items, visits, now, model), now)
 
 
 def log_path():

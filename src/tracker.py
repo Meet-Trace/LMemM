@@ -1182,6 +1182,9 @@ class Tracker:
         try:
             reg = projects.load()
             with self.lock:
+                if project_shadow.shelve(self.sug, datetime.now()):    # unanswered for days: make room
+                    self.save_sug()
+                    self.sync_pill()
                 if len(self.sug["projects"]) + len(self.sug["items"]) >= project_shadow.MAX_WAITING:
                     return
                 items = copy.deepcopy(self.items)

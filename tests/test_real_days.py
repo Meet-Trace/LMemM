@@ -63,6 +63,15 @@ class RealDaysTest(unittest.TestCase):
         self.assertEqual(before, os.path.getmtime(os.path.join(self.mem, "memory.json")))
 
 
+class SessionTimesTest(unittest.TestCase):
+    def test_time_only_visits_take_the_session_date_and_cross_midnight(self):
+        out = real_days._full_times("20261015-231500", [{"item": "a", "from": "23:15:00", "to": "23:58:00"},
+                                                  {"item": "b", "from": "00:02:00", "to": "00:10:00"},
+                                                  {"item": "c", "from": "2026-10-20T09:00:00", "to": "2026-10-20T09:05:00"}])
+        self.assertEqual([(v["item"], v["from"]) for v in out],
+                         [("a", "2026-10-15T23:15:00"), ("b", "2026-10-16T00:02:00"), ("c", "2026-10-20T09:00:00")])
+
+
 class BcubedTest(unittest.TestCase):
     def test_perfect_partial_and_unfiled(self):
         truth = {"a": {"P"}, "b": {"P"}, "c": {"Q"}, "d": set()}

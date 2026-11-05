@@ -13,7 +13,7 @@ used on several days shows the same text on each of them.
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 ABOUT = ("Real day exported from memory.json and sessions/. Contains your screen text: keep it on this Mac, "
          "never commit or upload it. label = project paths ('Project/Sub-project'); [] = belongs to nothing.")
@@ -33,8 +33,37 @@ def read_items(memory_dir):
     return {i["id"]: i for i in items if isinstance(i, dict) and i.get("id")}
 
 
+def _full_times(session, timeline):
+    """Session files keep visit times as "21:17:18"; the date is in the session id ("20261015-211718").
+    Turn them into full ISO times, moving to the next day when a time goes backwards (past midnight).
+    Times that are already full are kept."""
+    try:
+        day = datetime.strptime(str(session)[:8], "%Y%m%d").date()
+    except ValueError:
+        day = None
+    last, out = None, []
+    for v in timeline:
+        pair = []
+        for key in ("from", "to"):
+            text = str(v[key])
+            if "T" in text or " " in text.strip() or len(text) > 8:
+                at = datetime.fromisoformat(text)
+            elif day is None:
+                break
+            else:
+                at = datetime.combine(day, datetime.strptime(text, "%H:%M:%S").time())
+                if last is not None and at < last - timedelta(hours=1):
+                    day += timedelta(days=1)
+                    at += timedelta(days=1)
+            last = at
+            pair.append(at.isoformat(timespec="seconds"))
+        if len(pair) == 2:
+            out.append({"item": v["item"], "from": pair[0], "to": pair[1]})
+    return out
+
+
 def read_visits(memory_dir):
-    """Every on-screen visit from every session file: [{item, from, to}], oldest first."""
+    """Every on-screen visit from every session file: [{item, from, to}] with full ISO times, oldest first."""
     folder = os.path.join(memory_dir, "sessions")
     visits = []
     for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
@@ -42,11 +71,11 @@ def read_visits(memory_dir):
             continue
         try:
             doc = read_json(os.path.join(folder, name))
-        except (OSError, ValueError):
+            timeline = [v for v in doc.get("timeline") or []
+                        if isinstance(v, dict) and v.get("item") and v.get("from") and v.get("to")]
+            visits.extend(_full_times(doc.get("session") or name[:-5], timeline))
+        except (OSError, ValueError, TypeError, AttributeError):
             continue
-        for v in doc.get("timeline") or []:
-            if isinstance(v, dict) and v.get("item") and v.get("from") and v.get("to"):
-                visits.append({"item": v["item"], "from": v["from"], "to": v["to"]})
     return sorted(visits, key=lambda v: v["from"])
 
 

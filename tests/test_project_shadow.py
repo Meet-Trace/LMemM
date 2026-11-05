@@ -85,6 +85,38 @@ class ShadowTest(unittest.TestCase):
         log = sh.read_log()
         self.assertTrue(any(e["event"] == "offer" and "Northwind" in e["target"] for e in log))
 
+    def test_unanswered_suggestions_are_set_aside_and_come_back(self):
+        from datetime import timedelta
+        sug = sg.empty()
+        sh.MAX_WAITING, old = 1, sh.MAX_WAITING
+        try:
+            first = sh.propose(self.reg, self.items, self.visits, sug, now=NOW)[0]
+            self.assertEqual(sh.propose(self.reg, self.items, self.visits, sug, now=NOW + timedelta(days=1)), [])
+            later = sh.propose(self.reg, self.items, self.visits, sug, now=NOW + timedelta(days=3))
+            self.assertEqual(len(later), 1)                            # room made, the other group offered
+            self.assertNotEqual(later[0]["name"], first["name"])
+            self.assertEqual([s["entry"]["name"] for s in sug["shelved"]], [first["name"]])
+            self.assertEqual(sh.propose(self.reg, self.items, self.visits, sug, now=NOW + timedelta(days=4)), [])
+            back = sh.propose(self.reg, self.items, self.visits, sug, now=NOW + timedelta(days=10))
+            self.assertEqual([e["name"] for e in back], [first["name"]])   # rested a week: back first
+            self.assertTrue(any(s["entry"]["name"] == later[0]["name"] for s in sug["shelved"]))
+            self.assertEqual(len(sug["projects"]), 1)                  # never more than the room
+            events = [e["event"] for e in sh.read_log()]
+            self.assertIn("shelve", events)
+            self.assertIn("unshelve", events)
+        finally:
+            sh.MAX_WAITING = old
+
+    def test_a_set_aside_suggestion_you_dismissed_meanwhile_does_not_return(self):
+        from datetime import timedelta
+        sug = sg.empty()
+        first = sh.propose(self.reg, self.items, self.visits, sug, now=NOW)[0]
+        sg.run(self.reg, self.items, sug, "dismiss_project", first["id"])
+        sug["shelved"] = [{"kind": "projects", "entry": first, "shelved": NOW.isoformat()}]
+        back = sh.propose(self.reg, self.items, self.visits, sug, now=NOW + timedelta(days=8))
+        self.assertNotIn(first["name"], [e["name"] for e in back])
+        self.assertNotIn(first["name"], [s["entry"]["name"] for s in sug["shelved"]])
+
     @unittest.skipIf(tracker is None, "tracker needs macOS")
     def test_the_tracker_looks_on_a_copy_and_offers_under_its_lock(self):
         class Fake:

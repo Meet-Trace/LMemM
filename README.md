@@ -358,6 +358,12 @@ project it clearly fits, starts a new one, or stays unfiled, and nothing is join
 `python3 scripts/stress_projects.py --projects 1000 --seed 101` measures it on a generated stream
 (`src/synthetic_days.py`) with shared playbooks, shared colleagues, same-client projects, one Slack
 workspace and renames built in; tune on seeds 1-99 and report on 100 and up.
+Shadow mode (`src/project_shadow.py`) runs that method inside the app: while you are idle, at most every
+30 minutes, it looks at the last two weeks and offers what it finds as the usual suggestions (Create /
+Dismiss, Add / Not here). It never files anything, offers a new project only once it has come up in two
+separate sittings, keeps at most three suggestions waiting, and writes every offer and answer to
+`grouping_log.jsonl` beside memory.json so your answers become labels. `python3 lmemm.py look-for-projects`
+looks now; `--dry-run` only prints what it would suggest. Turn it off with `SHADOW_PROJECTS` in `src/config.py`.
 To score on your own days: `python3 scripts/export_real_days.py --list`, then
 `--from YYYY-MM-DD --to YYYY-MM-DD` writes day files under `data/labelled-days/` (git-ignored; they hold
 your screen text). `python3 scripts/label_days.py` opens a labelling page on 127.0.0.1, and

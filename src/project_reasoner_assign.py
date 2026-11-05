@@ -283,5 +283,12 @@ def run(items, timeline, model=None):
         projects.setdefault(path, f"{multi[proj]} tasks")
         for p in tasks[t_idx]:
             assigned[p].add(path)
+    groups = defaultdict(lambda: {"tasks": 0, "places": set()})
+    for t_idx, proj in task_project.items():
+        groups[proj]["tasks"] += 1
+        groups[proj]["places"].update(tasks[t_idx])
+    log.append({"step": "projects", "projects": {p: {"label": labels[p], "tasks": g["tasks"], "places": sorted(g["places"]),
+                                                     "names": [k for k, _ in reg.names[p].most_common(5)]}
+                                                 for p, g in groups.items()}})
     log.append({"step": "calls", "decision": f"{ask.calls} model calls, {len(labels)} projects, {len(tasks)} tasks"})
     return {i: sorted(v) for i, v in assigned.items()}, projects, log

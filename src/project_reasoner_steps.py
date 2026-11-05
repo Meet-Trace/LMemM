@@ -46,11 +46,9 @@ DESCRIBE_SCHEMA = {"type": "object", "properties": {"doing": {"type": "string"},
                    "required": ["doing", "main_place"]}
 
 BELONGS = ("A person was doing a piece of work. You see that work, the main place it was done in, and one other "
-           "place they also had on screen. Answer yes only if the other place itself is about this work or was used "
-           "FOR it: it asks for it, discusses it, is a reference for it, or is part of it. Answer no if it is about "
-           "something else. Also answer no if it is a list, feed or general channel (an inbox, #general, a news feed, "
-           "search results) that merely mentions this work among other things, even if one line matches. "
-           "Judge only by the subject matter. "
+           "place they also had on screen. Answer yes if the other place was used FOR this work: it asks for it, "
+           "discusses it, is a reference for it, or is part of it. Answer no if it is about something else, or is a "
+           "general inbox, feed or notification that merely passed by. Judge only by the subject matter. "
            + _RULES + ' Shape: {"answer": "yes" | "no", "why": "..."}')
 BELONGS_SCHEMA = {"type": "object", "properties": {"answer": {"type": "string", "enum": ["yes", "no"]},
                                                    "why": {"type": "string"}}, "required": ["answer", "why"]}
@@ -100,7 +98,7 @@ def tasks_in(places, model, log):
     by_id = {p["id"]: p for p in places if p.get("kind") not in HUB_KINDS}
     for p in places:
         if p.get("kind") in HUB_KINDS:
-            log.append({"step": "hub", "places": [p["id"]], "skipped": "a list of other places, never filed itself"})
+            log.append({"step": f"hub {p['id']}", "places": [p["id"]], "skipped": "a list of other places, never filed itself"})
     remaining, tasks = list(by_id), []
     while len(remaining) and len(tasks) < MAX_TASKS:
         d = _ask(model, DESCRIBE, {"places": [digest(by_id[i]) for i in remaining]}, DESCRIBE_SCHEMA, log, "describe")
@@ -185,10 +183,13 @@ def nest(projects, model, log):
                                                      "recent_work": projects[b]["recent"][-RECENT_WORK:]}},
                        PARENT_SCHEMA, log, "parent")
             conf, parent = _conf(ans, "same_bigger_work"), _clean(ans["parent_name"]) if ans else ""
+            entry = {"step": "parent", "places": [], "doing": f"{a} + {b}", "project": parent or None,
+                     "confidence": conf, "why": str(ans["why"])[:300] if ans else ""}
             if conf < PARENT_CONFIDENCE or not parent:
+                said = "no answer" if ans is None else f"said {ans['same_bigger_work']} at {ans.get('confidence')}"
+                log.append({**entry, "decision": f"not nested ({said})"})
                 continue
-            log.append({"step": "parent", "places": [], "doing": f"{a} + {b}", "project": parent,
-                        "confidence": conf, "decision": "nested under a parent", "why": str(ans["why"])[:300]})
+            log.append({**entry, "decision": "nested under a parent"})
             ra, rb = root(a), root(b)
             if ra != rb:
                 group[rb] = ra

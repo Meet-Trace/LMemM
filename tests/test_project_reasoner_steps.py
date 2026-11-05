@@ -102,7 +102,7 @@ class StepsTest(unittest.TestCase):
         assigned, _, log = rs.run(self.items, self.timeline, spy)
         self.assertNotIn("gmail-inbox", assigned)
         self.assertFalse(any('"id": "gmail-inbox"' in u for u in seen))
-        self.assertTrue(any(e.get("step") == "hub" for e in log))
+        self.assertTrue(any(e.get("step") == "hub gmail-inbox" for e in log))
 
     def test_the_description_never_sees_projects(self):
         seen = []

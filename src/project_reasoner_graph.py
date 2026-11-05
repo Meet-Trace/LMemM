@@ -177,6 +177,19 @@ class Model:
         return answer if isinstance(answer, dict) else None
 
 
+class CapitalisedNames:
+    """No model: answers the names question with every capitalised word longer than 3 letters in the
+    card. The baseline a model has to beat; it scored within 1 to 4 points of gemma3:1b on the two
+    invented days. It cannot answer the pick question."""
+
+    def __call__(self, system, user, schema):
+        if system != NAMES:
+            raise ValueError("the capitalised-word rule only copies names")
+        text = json.dumps(json.loads(user)["card"], ensure_ascii=False).replace('"', " ")
+        words = sorted({w.strip(".,:;()[]{}") for w in text.split()})
+        return {"names": [w for w in words if w[:1].isupper() and len(w) > 3][:MAX_NAMES]}
+
+
 def model_names(ask, item, log):
     """Names the model copied from the card, kept only if they really appear in it."""
     answer = ask(NAMES, {"card": card(item)}, NAMES_SCHEMA, f"names {item['id']}")
@@ -305,9 +318,10 @@ def _label(graph, places, exclude=()):
     return forms[best].strip("#").strip()
 
 
-def run(items, timeline, model=None):
-    """Group a day. `model(system, user, schema) -> dict`, or None for code only.
-    Returns (assigned {id: [paths]}, projects {path: summary}, log)."""
+def run(items, timeline, model=None, check_pairs=False):
+    """Group a day. `model(system, user, schema) -> dict`, or None for code only. The 4-option pick
+    check (step 4) is off by default: gemma3:1b answered option 1 every time, so it added calls and no
+    signal. Returns (assigned {id: [paths]}, projects {path: summary}, log)."""
     log = []
     ask = Model(model, log)
     places = [i for i in items if items[i].get("kind") not in HUB_KINDS]
@@ -337,7 +351,7 @@ def run(items, timeline, model=None):
                 if score >= STRONG:
                     decision = "linked: shares " + ", ".join(why)
                     union.join(a, b)
-                elif pair in near and score >= WEAK and check(ask, graph, a, b, here, log):
+                elif check_pairs and pair in near and score >= WEAK and check(ask, graph, a, b, here, log):
                     decision = "linked after check"
                     union.join(a, b)
                 else:

@@ -46,9 +46,15 @@ def load_day(path):
     items = doc.get("items")
     if not isinstance(items, dict) or not items:
         raise ValueError("A labelled day needs an \"items\" object with at least one thing.")
+    todo = []
     for iid, item in items.items():
         if not isinstance(item.get("label"), list):
             raise ValueError(f"“{iid}” has no \"label\" list. Use [] for a thing that belongs to no project.")
+        if item.get("label_status") == "todo":
+            todo.append(iid)
+    if todo:
+        raise ValueError(f"{len(todo)} of {len(items)} things in this day are not labelled yet "
+                         f"(first: {todo[0]}). Finish labelling before scoring.")
     return items
 
 
@@ -85,6 +91,50 @@ def score(truth, predicted, level="project"):
     return {"level": level, "precision": precision, "recall": recall, "f1": f1,
             "true_pairs": len(true_pairs), "predicted_pairs": len(pred_pairs), "correct_pairs": len(hit),
             "false_merges": sorted(pred_pairs - true_pairs), "missed": sorted(true_pairs - pred_pairs)}
+
+
+def _mates(memberships, ids):
+    """{id: set of ids sharing at least one group with it, itself included}."""
+    by_group = {}
+    for iid in ids:
+        for g in memberships.get(iid) or ():
+            by_group.setdefault(g, set()).add(iid)
+    return {iid: set().union({iid}, *(by_group[g] for g in memberships.get(iid) or ())) for iid in ids}
+
+
+def bcubed(truth, predicted, level="project"):
+    """B-cubed precision, recall and F1, averaged over every thing in the day, plus how much was filed.
+
+    For each thing: precision = share of the things filed with it that truly belong with it; recall =
+    share of the things that truly belong with it that were filed with it. Unlike pair counts, every
+    thing weighs the same, so one big project cannot dominate. A thing may be in several groups; its
+    mates are everything sharing any group with it (an overlapping-cluster reading of B-cubed).
+
+    filed      share of things that truly belong to a project that got at least one project
+    wrong_mix  share of filed things grouped with at least one thing they do not belong with"""
+    ids = sorted(truth)
+    pred = {iid: _at(predicted.get(iid), level) for iid in ids}
+    gold_m, pred_m = _mates(truth, ids), _mates(pred, ids)
+    if not ids:
+        return {"level": level, "precision": None, "recall": None, "f1": None, "filed": None, "wrong_mix": None}
+    p = sum(len(pred_m[i] & gold_m[i]) / len(pred_m[i]) for i in ids) / len(ids)
+    r = sum(len(pred_m[i] & gold_m[i]) / len(gold_m[i]) for i in ids) / len(ids)
+    belongs = [i for i in ids if truth[i]]
+    filed = [i for i in ids if pred[i]]
+    wrong = [i for i in filed if pred_m[i] - gold_m[i]]
+    return {"level": level, "precision": p, "recall": r, "f1": 2 * p * r / (p + r) if p + r else None,
+            "filed": sum(1 for i in belongs if pred[i]) / len(belongs) if belongs else None,
+            "wrong_mix": len(wrong) / len(filed) if filed else None}
+
+
+def summarise(runs):
+    """Mean, low and high of each number across repeated runs of the same grouping."""
+    out = {}
+    for key in runs[0] if runs else {}:
+        vals = [r[key] for r in runs if isinstance(r.get(key), (int, float))]
+        if vals:
+            out[key] = (sum(vals) / len(vals), min(vals), max(vals))
+    return out
 
 
 # ---------------------------------------------------------------- baselines to beat
@@ -127,6 +177,12 @@ def report(items, groupings, mistakes=5):
                         details.append(f"  {name}: {kind}: {titles[a]}  +  {titles[b]}")
                     if len(rows) > mistakes:
                         details.append(f"  {name}: {kind}: … and {len(rows) - mistakes} more")
+    lines += ["", f"{'grouping':32} {'level':12} {'B3 prec':>8} {'B3 rec':>7} {'B3 F1':>6} {'filed':>6} {'wrong mix':>10}"]
+    for name, predicted in groupings.items():
+        for level in LEVELS:
+            b = bcubed(gold(items, level), predicted, level)
+            lines.append(f"{name[:32]:32} {level:12} {_pct(b['precision']):>8} {_pct(b['recall']):>7} {_pct(b['f1']):>6}"
+                         f" {_pct(b['filed']):>6} {_pct(b['wrong_mix']):>10}")
     if details:
         lines += ["", "Mistakes at project level:"] + details
     return "\n".join(lines)

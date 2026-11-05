@@ -353,6 +353,10 @@ never touches your memory or projects. `--mode graph --model gemma3:1b` is the v
 tiny models (`src/project_reasoner_graph.py`): the model only copies names and picks one of four
 options, and code builds the groups; `--model none` runs it with code alone. A second, held-out
 day is `tests/fixtures/project_grouping/held_out_day.json`.
+To score on your own days: `python3 scripts/export_real_days.py --list`, then
+`--from YYYY-MM-DD --to YYYY-MM-DD` writes day files under `data/labelled-days/` (git-ignored; they hold
+your screen text). `python3 scripts/label_days.py` opens a labelling page on 127.0.0.1, and
+`reason_projects.py --mode graph --day data/labelled-days/<day>.json --model caps|none|gemma3:1b` scores it.
 
 [docs/architecture.md](docs/architecture.md) covers how the modules fit and where to extend it.
 [docs/](docs/) has specs, plans and the development history.

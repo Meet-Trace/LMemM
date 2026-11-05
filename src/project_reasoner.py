@@ -192,12 +192,13 @@ class OllamaModel:
     """A local Ollama server (default port). Temperature 0 and a JSON schema, so answers are stable
     and parseable. Nothing leaves the machine."""
 
-    def __init__(self, model, url="http://127.0.0.1:11434", timeout=180):
+    def __init__(self, model, url="http://127.0.0.1:11434", timeout=180, temperature=0):
         if not url.startswith(("http://127.0.0.1", "http://localhost")):
             raise ValueError("The reasoning model must run on this Mac (a 127.0.0.1 or localhost URL).")
-        self.model, self.url, self.timeout = model, url.rstrip("/"), timeout
+        self.model, self.url, self.timeout, self.temperature = model, url.rstrip("/"), timeout, temperature
 
-    def __call__(self, system, user, schema=SCHEMA, temperature=0):
+    def __call__(self, system, user, schema=SCHEMA, temperature=None):
+        temperature = self.temperature if temperature is None else temperature
         body = {"model": self.model, "stream": False, "format": schema, "think": False,
                 "options": {"temperature": temperature, "num_ctx": 8192},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}

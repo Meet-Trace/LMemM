@@ -29,13 +29,17 @@ DEFAULT_DAY = ROOT / "tests" / "fixtures" / "project_grouping" / "sample_day.jso
 def main(argv=None, model=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--day", type=Path, default=DEFAULT_DAY)
-    p.add_argument("--model", default="qwen2.5:7b", help="an Ollama model name, or none (graph mode: code only)")
+    p.add_argument("--model", default="qwen2.5:7b",
+                   help="an Ollama model name; graph mode also takes none (code only) and caps (capitalised-word rule)")
     p.add_argument("--url", default="http://127.0.0.1:11434", help="Ollama on this Mac")
     p.add_argument("--mode", choices=("steps", "one-shot", "tiny", "graph"), default="steps",
                    help="steps: many small questions (default); one-shot: one big question per sitting; "
                         "tiny: fill-in-the-blank and multiple choice, for models under 1B; "
-                        "graph: the model only copies names and picks from 4, code builds the groups")
+                        "graph: the model only copies names, code builds the groups")
     p.add_argument("--votes", type=int, default=1, help="tiny mode: ask each question this many times, keep the majority")
+    p.add_argument("--check", action="store_true", help="graph mode: turn the 4-option pick check back on (off by default)")
+    p.add_argument("--temperature", type=float, default=0.0, help="Ollama temperature; above 0 makes repeats differ")
+    p.add_argument("--repeat", type=int, default=1, help="run this many times and report mean, low and high")
     p.add_argument("--out", type=Path, help="write predictions, projects and the decision log here")
     p.add_argument("--mistakes", type=int, default=5)
     args = p.parse_args(argv)
@@ -44,18 +48,29 @@ def main(argv=None, model=None):
         timeline = json.loads(args.day.read_text()).get("timeline")
         if not timeline:
             raise ValueError("This day has no \"timeline\", so there are no sittings to reason over.")
-        if model is None and not (args.mode == "graph" and args.model == "none"):
-            model = reasoner.OllamaModel(args.model, args.url)
+        if model is None and args.mode == "graph" and args.model == "caps":
+            model = graph.CapitalisedNames()
+        elif model is None and not (args.mode == "graph" and args.model == "none"):
+            model = reasoner.OllamaModel(args.model, args.url, temperature=args.temperature)
     except (OSError, ValueError) as error:
         sys.exit(str(error))
-    started = time.monotonic()
-    if args.mode == "graph":
-        assigned, projects, log = graph.run(items, timeline, model)
-    elif args.mode == "tiny":
-        assigned, projects, log = tiny.run(items, timeline, model, votes=args.votes)
-    else:
-        assigned, projects, log = (steps if args.mode == "steps" else reasoner).run(items, timeline, model)
-    took = time.monotonic() - started
+    runs = []
+    for _ in range(max(1, args.repeat)):
+        started = time.monotonic()
+        if args.mode == "graph":
+            assigned, projects, log = graph.run(items, timeline, model, check_pairs=args.check)
+        elif args.mode == "tiny":
+            assigned, projects, log = tiny.run(items, timeline, model, votes=args.votes)
+        else:
+            assigned, projects, log = (steps if args.mode == "steps" else reasoner).run(items, timeline, model)
+        took = time.monotonic() - started
+        runs.append({"seconds": took, **{f"{k} {lvl}": v for lvl in pge.LEVELS
+                                         for k, v in (("F1", pge.score(pge.gold(items, lvl), assigned, lvl)["f1"]),
+                                                      ("B3 F1", pge.bcubed(pge.gold(items, lvl), assigned, lvl)["f1"]),
+                                                      ("wrong mix", pge.bcubed(pge.gold(items, lvl), assigned, lvl)["wrong_mix"]))}})
+        if len(runs) == 1:
+            first = (assigned, projects, log, took)
+    assigned, projects, log, took = first
     for entry in log:
         if args.mode == "graph":
             if "skipped" in entry:
@@ -81,8 +96,14 @@ def main(argv=None, model=None):
                 print(f"    why:   {entry['why']}")
     print(f"\nProjects it made: {', '.join(projects) or 'none'}   ({took:.0f}s)\n")
     name = f"model: {args.model} ({args.mode}{', votes ' + str(args.votes) if args.mode == 'tiny' and args.votes > 1 else ''})"
+    print("(scores below are from the first run)" if len(runs) > 1 else "", end="\n" if len(runs) > 1 else "")
     print(pge.report(items, {**{n: f(items) for n, f in pge.BASELINES.items()}, name: assigned},
                      mistakes=args.mistakes))
+    if len(runs) > 1:
+        print(f"\nAcross {len(runs)} runs (mean, low-high):")
+        for key, (mean, low, high) in pge.summarise(runs).items():
+            fmt = (lambda x: f"{x:.0f}s") if key == "seconds" else (lambda x: f"{x * 100:.0f}%")
+            print(f"  {key:24} {fmt(mean):>6}  {fmt(low)}-{fmt(high)}")
     if args.out:
         args.out.write_text(json.dumps({"model": args.model, "mode": args.mode, "seconds": round(took, 1), "predicted": assigned,
                                         "projects": projects, "log": log}, indent=1, ensure_ascii=False))

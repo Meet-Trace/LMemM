@@ -92,5 +92,22 @@ class GraphTest(unittest.TestCase):
         self.assertTrue({"LMemM", "180DC", "Kestrel", "Meera Shah", "kestrelhealth"} <= set(names))
 
 
+
+class BaselineAndCheckTest(unittest.TestCase):
+    def test_capitalised_rule_is_a_model_free_baseline(self):
+        items, timeline = load("held_out_day.json")
+        assigned, _, log = rg.run(items, timeline, rg.CapitalisedNames())
+        s = pge.score(pge.gold(items, "project"), assigned, "project")
+        self.assertEqual(s["precision"], 1.0)
+        self.assertFalse(any(e["step"] == "check" for e in log))
+
+    def test_pick_check_is_off_unless_asked(self):
+        items, timeline = load("sample_day.json")
+        _, _, off = rg.run(items, timeline, Honest(items))
+        _, _, on = rg.run(items, timeline, Honest(items), check_pairs=True)
+        self.assertFalse(any(e["step"] == "check" for e in off))
+        self.assertTrue(any(e["step"] == "check" for e in on))
+
+
 if __name__ == "__main__":
     unittest.main()

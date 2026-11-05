@@ -66,7 +66,7 @@ def main(argv=None, out=print, embed=None, name_model=None):
         out(f"\n== names for the {len(off)} groups (code / finder / {args.name_model or 'model'})")
         for g in sorted(off.values(), key=lambda g: -len(g["places"])):
             ids = [i for i in g["places"] if i in things]
-            r = group_names.suggest(ask, things, ids, fallback=g["label"])
+            r = group_names.suggest(ask, things, ids, fallback=finder.name_for(things, ids, keys) or g["label"])
             out(f"  {len(ids):>3} things  {g['label'][:16]:16} {str(finder.name_for(things, ids, keys))[:20]:20} "
                 f"-> {r['name'][:40]} ({r['by']})")
     if args.no_vectors:

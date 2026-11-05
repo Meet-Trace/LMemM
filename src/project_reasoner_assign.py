@@ -351,7 +351,8 @@ def run(items, timeline, model=None, vectors=None, embed=None):
     # names and paths
     def label(proj):
         c = reg.names.get(proj) or Counter()
-        top = [k for k, _ in sorted(c.items(), key=lambda x: (-x[1], x[0]))[:3]]
+        words = {k: n for k, n in c.items() if not k.replace(".", "").isdigit()} or c   # "468" is not a name
+        top = [k for k, _ in sorted(words.items(), key=lambda x: (-x[1], x[0]))[:3]]
         return (top[0] if top else proj).title()
     labels = {p: label(p) for p in set(task_project.values())}
     assigned, projects = defaultdict(set), {}

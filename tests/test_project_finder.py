@@ -1,4 +1,4 @@
-"""project_shadow.py: shadow mode notices projects in what you did and only ever suggests them."""
+"""project_finder.py: project finder notices projects in what you did and only ever suggests them."""
 
 import copy
 import tempfile
@@ -7,7 +7,7 @@ import unittest
 from datetime import datetime, timedelta
 
 import config
-import project_shadow as sh
+import project_finder as sh
 import projects
 import suggestions as sg
 import synthetic_days as sd
@@ -31,7 +31,7 @@ def truth(ids):
     return {DOC["items"][i]["label"][0].split("/")[0] for i in ids if DOC["items"][i]["label"]}
 
 
-class ShadowTest(unittest.TestCase):
+class FinderTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.paths = config.use_paths(self.tmp.name)
@@ -133,27 +133,27 @@ class ShadowTest(unittest.TestCase):
         class Fake:
             pass
         t = Fake()
-        t.lock, t.items, t.sug, t.shadow_busy = threading.Lock(), self.items, sg.empty(), True
+        t.lock, t.items, t.sug, t.finder_busy = threading.Lock(), self.items, sg.empty(), True
         t.saved = 0
         t.save_sug = lambda: setattr(t, "saved", t.saved + 1)
         t.sync_pill = lambda: None
         sh_find = sh.find
         sh.find = lambda reg, items, visits: sh_find(reg, items, self.visits, now=NOW, days=DAYS)
         try:
-            tracker.Tracker.shadow_pass(t)
+            tracker.Tracker.finder_pass(t)
         finally:
             sh.find = sh_find
         self.assertTrue(t.sug["projects"])
-        self.assertFalse(t.shadow_busy)
+        self.assertFalse(t.finder_busy)
 
     @unittest.skipIf(tracker is None, "tracker needs macOS")
     def test_a_failed_look_never_raises(self):
         class Fake:
             pass
         t = Fake()
-        t.lock, t.items, t.sug, t.shadow_busy = None, {}, sg.empty(), True       # no lock: it fails inside
-        tracker.Tracker.shadow_pass(t)
-        self.assertFalse(t.shadow_busy)
+        t.lock, t.items, t.sug, t.finder_busy = None, {}, sg.empty(), True       # no lock: it fails inside
+        tracker.Tracker.finder_pass(t)
+        self.assertFalse(t.finder_busy)
 
 
 if __name__ == "__main__":

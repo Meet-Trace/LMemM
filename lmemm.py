@@ -248,16 +248,16 @@ def cmd_suggest_for(args):
 
 
 def cmd_look_for_projects(args):
-    """Shadow mode now (project_shadow.py): what you did lately, offered as projects. Never files anything."""
+    """Project finder now (project_finder.py): what you did lately, offered as projects. Never files anything."""
     if "--dry-run" in args:
-        import project_shadow
+        import project_finder
         import projects
         import real_days
         memory_dir = config.paths().memory_dir
         try:
             items = real_days.read_items(memory_dir)
-            days = int(args[args.index("--days") + 1]) if "--days" in args else project_shadow.LOOKBACK_DAYS
-            planned = project_shadow.find(projects.load(), items, real_days.read_visits(memory_dir), days=days)
+            days = int(args[args.index("--days") + 1]) if "--days" in args else project_finder.LOOKBACK_DAYS
+            planned = project_finder.find(projects.load(), items, real_days.read_visits(memory_dir), days=days)
         except (OSError, ValueError, IndexError) as error:
             sys.exit(f"Could not look: {error}")
         print(f"Looked at the last {days} days in {memory_dir}")

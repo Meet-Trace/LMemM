@@ -41,14 +41,14 @@ def stores(support=None):
     return sorted(found, key=lambda p: os.path.getmtime(p), reverse=True)
 
 
-def _read(path, url, host):
+def _read(path, url, origin):
     tmp = tempfile.mkdtemp(prefix="lmemm-fav-")
     try:
         copy = os.path.join(tmp, "Favicons")
         shutil.copy2(path, copy)
         db = sqlite3.connect(f"file:{copy}?mode=ro", uri=True)
         try:
-            for where, arg in (("m.page_url = ?", url), ("m.page_url LIKE ?", f"%://{host}/%")):
+            for where, arg in (("m.page_url = ?", url), ("m.page_url LIKE ?", origin + "/%")):
                 rows = db.execute(
                     "SELECT b.width, b.image_data FROM icon_mapping m JOIN favicon_bitmaps b ON b.icon_id = m.icon_id "
                     f"WHERE {where} AND b.image_data IS NOT NULL", (arg,)).fetchall()
@@ -66,12 +66,14 @@ def _read(path, url, host):
 
 def icon_bytes(url, support=None):
     """PNG bytes of the page's icon from the first browser profile that has one, else None."""
-    host = host_of(url)
-    if not host:
+    if not host_of(url):
         return None
+    u = urlparse(url)
+    origin = f"{u.scheme}://{u.netloc}"                  # includes the port: localhost:8000 is not localhost
+    url = u._replace(fragment="").geturl()               # the browser files an icon under the page without its #part
     for path in stores(support):
         try:
-            data = _read(path, url, host)
+            data = _read(path, url, origin)
         except (OSError, sqlite3.Error):
             continue                      # a locked, missing or different-version store is just "no icon here"
         if data:
@@ -95,3 +97,22 @@ def page_url(item):
         if host_of(url):
             return url
     return None
+
+
+def address(app, kind, url):
+    """The page address to look an icon up by: the thing's own, else its well-known site
+    (a WhatsApp chat has no page address of its own, but lives on web.whatsapp.com)."""
+    if host_of(url):
+        return url
+    import understand
+    for host, name in understand.SITES.items():
+        if name == app and is_web(app, kind, None):
+            return f"https://{host}/"
+    return None
+
+
+if __name__ == "__main__":      # python3 src/favicons.py http://localhost:8000/  -> which stores exist, and whether the page has an icon
+    import sys
+    print("stores:", *stores(), sep="\n  ")
+    for arg in sys.argv[1:]:
+        print(arg, "->", len(icon_bytes(arg) or b""), "bytes")

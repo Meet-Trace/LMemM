@@ -38,6 +38,17 @@ class FaviconTests(unittest.TestCase):
         got = favicons.icon_bytes("https://docs.google.com/other", self.tmp.name)
         self.assertIn(got, (PNG + b"16", PNG + b"32"))                  # any page on the site
 
+    def test_port_and_fragment(self):
+        make_store(self.tmp.name, "BraveSoftware/Brave-Browser", "Default", [("http://localhost:8000/", 32, PNG + b"t")])
+        got = favicons.icon_bytes("http://localhost:8000/#waitlist", self.tmp.name)
+        self.assertEqual(got, PNG + b"t")
+        self.assertIsNone(favicons.icon_bytes("http://localhost:9000/", self.tmp.name))
+
+    def test_address_falls_back_to_well_known_site(self):
+        self.assertEqual(favicons.address("WhatsApp", "chat", None), "https://web.whatsapp.com/")
+        self.assertEqual(favicons.address("X", "", "https://x.org/a"), "https://x.org/a")
+        self.assertIsNone(favicons.address("Keynote", "document", None))
+
     def test_no_icon_cases_return_none(self):
         make_store(self.tmp.name, "Google/Chrome", "Profile 1", [("https://a.com/", 16, b"not a png")])
         self.assertIsNone(favicons.icon_bytes("https://a.com/", self.tmp.name))     # not a PNG

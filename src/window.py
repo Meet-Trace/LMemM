@@ -891,17 +891,31 @@ class MainWindow:
         kit.tile(parent, "folder.fill", hue_color(hue), x, y, size)
 
     def _app_icon(self, parent, app, x, y, size=30, kind="", url=None):
-        """The app's own icon. A web page (`url`, `kind`) wears its own favicon from the browser,
-        or a globe when the browser has none; anything else this Mac cannot find is a plain square."""
-        web = favicons.is_web(app, kind, url)
-        image = self._favicon(url) if favicons.host_of(url) else self._app_image(app)
+        """The best real icon there is: the installed app's, else the web page's favicon from the
+        browser (`url`, `kind`), else a dimmed LMemM mark as a placeholder."""
+        url = favicons.address(app, kind, url)
+        image = self._app_image(app)                      # an installed app (WhatsApp.app) has its own icon
+        if image is None and url:
+            image = self._favicon(url)                    # else the tab's icon from the browser
         if image is None:
-            symbols = ("globe", "network") if web else ("doc.fill", "app.fill")
-            kit.tile(parent, symbols, kit.mute(), x, y, size)
+            self._placeholder(parent, x, y, size)         # nothing to be had: LMemM's own mark, dimmed
             return
         holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
         holder.setImage_(image)
         holder.setImageScaling_(3)
+        holder.setAccessibilityElement_(False)
+        parent.addSubview_(holder)
+
+    def _placeholder(self, parent, x, y, size):
+        """For a thing whose own icon we cannot find: the LMemM icon at half strength."""
+        mark = NSApplication.sharedApplication().applicationIconImage()
+        if mark is None:
+            kit.tile(parent, ("circle.dashed", "app.fill"), kit.mute(), x, y, size)
+            return
+        holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
+        holder.setImage_(mark)
+        holder.setImageScaling_(3)
+        holder.setAlphaValue_(0.5)
         holder.setAccessibilityElement_(False)
         parent.addSubview_(holder)
 

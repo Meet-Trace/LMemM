@@ -169,8 +169,8 @@ class OllamaModel:
             raise ValueError("The reasoning model must run on this Mac (a 127.0.0.1 or localhost URL).")
         self.model, self.url, self.timeout = model, url.rstrip("/"), timeout
 
-    def __call__(self, system, user):
-        body = {"model": self.model, "stream": False, "format": SCHEMA, "think": False,
+    def __call__(self, system, user, schema=SCHEMA):
+        body = {"model": self.model, "stream": False, "format": schema, "think": False,
                 "options": {"temperature": 0, "num_ctx": 8192},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
         req = urllib.request.Request(self.url + "/api/chat", data=json.dumps(body).encode(),

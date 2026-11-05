@@ -149,7 +149,7 @@ class RunTest(unittest.TestCase):
         spec.loader.exec_module(cli)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            cli.main(["--mistakes", "0", "--model", "oracle"], model=self.oracle)
+            cli.main(["--mistakes", "0", "--model", "oracle", "--mode", "one-shot"], model=self.oracle)
         rows = [l for l in out.getvalue().splitlines() if l.startswith("model: oracle")]
         self.assertTrue(rows and all("100%" in l for l in rows), out.getvalue())
 

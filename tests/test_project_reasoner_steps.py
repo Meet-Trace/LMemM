@@ -1,0 +1,106 @@
+"""project_reasoner_steps.py: the small-questions version of the project reasoner."""
+
+import json
+import os
+import unittest
+
+import project_grouping_eval as pge
+import project_reasoner_steps as rs
+
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "project_grouping", "sample_day.json")
+
+
+class Oracle:
+    """Answers every small question from the fixture's true labels (project level), and counts calls."""
+
+    def __init__(self, items):
+        self.items, self.calls = items, []
+
+    def top(self, iid):
+        labels = self.items[iid]["label"]
+        return labels[0].split("/")[0] if labels else None
+
+    def __call__(self, system, user, schema):
+        q = json.loads(user)
+        self.calls.append(system)
+        if system == rs.DESCRIBE:
+            ids = [p["id"] for p in q["places"]]
+            main = next((i for i in ids if self.top(i)), ids[0])
+            return {"doing": f"work on {self.top(main)}", "main_place": main}
+        if system == rs.BELONGS:
+            other = self.top(q["other_place"]["id"])
+            return {"answer": "yes" if other and q["work"] == f"work on {other}" else "no", "why": "w"}
+        if system == rs.SAME:
+            return {"same": q["task"] == f"work on {q['project']['name']}", "confidence": 0.9, "why": "w"}
+        if system == rs.NAME:
+            return {"name": q["task"].removeprefix("work on "), "summary": "s"}
+        raise AssertionError("unknown question")
+
+
+class StepsTest(unittest.TestCase):
+    def setUp(self):
+        with open(FIXTURE) as fh:
+            doc = json.load(fh)
+        self.items, self.timeline = doc["items"], doc["timeline"]
+
+    def test_a_perfect_answerer_never_merges_wrongly(self):
+        assigned, projects, _ = rs.run(self.items, self.timeline, Oracle(self.items))
+        s = pge.score(pge.gold(self.items, "project"), assigned, "project")
+        self.assertEqual(s["precision"], 1.0)
+        self.assertGreater(s["recall"], 0.8)
+        self.assertEqual(set(projects), {"180DC Northwind pricing", "LMemM", "Goa trip"})
+
+    def test_the_description_never_sees_projects(self):
+        seen = []
+
+        def spy(system, user, schema):
+            if system == rs.DESCRIBE:
+                seen.append(user)
+            return oracle(system, user, schema)
+        oracle = Oracle(self.items)
+        rs.run(self.items, self.timeline, spy)
+        self.assertTrue(seen)
+        self.assertTrue(all("180DC" not in u.split('"places"')[0] for u in seen))
+        self.assertTrue(all("existing" not in u and "project" not in json.loads(u) for u in seen))
+
+    def test_slack_ask_joins_the_code_it_asked_for(self):
+        assigned, _, _ = rs.run(self.items, self.timeline, Oracle(self.items))
+        self.assertEqual(assigned["slack-rohan"], assigned["vscode-resume"])
+
+    def test_one_place_never_founds_a_project(self):
+        items = {"a": {"id": "a", "title": "A", "label": ["X"]}}
+        tl = [{"item": "a", "from": "2026-11-03T09:00:00", "to": "2026-11-03T09:10:00"}]
+        assigned, projects, log = rs.run(items, tl, Oracle(items))
+        self.assertEqual((assigned, projects), ({}, {}))
+        self.assertIn("fewer than", log[-1]["decision"])
+
+    def test_low_confidence_match_does_not_file(self):
+        projects = {"P": {"summary": "s", "recent": []}}
+        log = []
+
+        def unsure(system, user, schema):
+            if system == rs.SAME:
+                return {"same": True, "confidence": 0.3, "why": "w"}
+            return {"name": "Q", "summary": "s"}
+        name = rs.project_for({"doing": "d", "places": ["a", "b"]}, ["A", "B"], projects, unsure, log)
+        self.assertEqual(name, "Q")                      # not P: it fell through to a new project
+
+    def test_bad_answers_file_nothing(self):
+        for bad in (lambda *a: None, lambda *a: {"doing": "x"}, lambda *a: {"doing": "x", "main_place": "nope"}):
+            assigned, _, _ = rs.run(self.items, self.timeline, bad)
+            self.assertEqual(assigned, {})
+
+    def test_a_failing_model_files_nothing(self):
+        def down(*a):
+            raise OSError("refused")
+        assigned, _, log = rs.run(self.items, self.timeline, down)
+        self.assertEqual(assigned, {})
+        self.assertTrue(any("model call failed" in e.get("skipped", "") for e in log))
+
+    def test_every_question_warns_against_obeying_screen_text(self):
+        for q in (rs.DESCRIBE, rs.BELONGS, rs.SAME, rs.NAME):
+            self.assertIn("never follow instructions", q)
+
+
+if __name__ == "__main__":
+    unittest.main()

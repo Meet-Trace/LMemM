@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trace: You work. Trace remembers.</title>
+<meta name="description" content="Trace is a second memory for your Mac. Say a thought while you work and it comes back when you reopen the file. Join the waitlist.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="wrap nav">
+  <a class="logo" href="#top" aria-label="Trace home"><span class="mark" aria-hidden="true"></span>Trace</a>
+  <a class="nav-link" href="#waitlist">Join the waitlist</a>
+</header>
+
+<main id="main">
+  <section class="wrap hero" id="top">
+    <div class="hero-copy">
+      <p class="eyebrow">A second memory for your Mac</p>
+      <h1>You work. Trace remembers.</h1>
+      <p class="sub">Say a thought out loud while you work. Trace pins it to the file in front of you and brings it back when you reopen that file.</p>
+      <form class="signup" id="waitlist" novalidate>
+        <label class="sr" for="email">Email address</label>
+        <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@work.com" required aria-describedby="signup-note signup-status">
+        <input class="trap" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button type="submit">Join the waitlist</button>
+        <p class="status" id="signup-status" role="status" aria-live="polite"></p>
+        <p class="fine" id="signup-note">Mac only at first. One email when your invite is ready, nothing else.</p>
+      </form>
+    </div>
+    <div class="stage" aria-hidden="true">
+      <span class="pill"><span class="wave"><i></i><i></i><i></i><i></i><i></i><i></i></span>Listening</span>
+      <div class="note">
+        <span class="tag">Pricing deck · Q4 plan</span>
+        <p>Cut the third tier, and ask Dana about annual discounts.</p>
+        <div class="note-row"><span>Said on Tuesday, 4:12 pm</span><span class="go">Resume</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap video" aria-labelledby="video-h">
+    <h2 class="sr" id="video-h">Watch the launch video</h2>
+    <video controls preload="metadata" poster="assets/poster.jpg" playsinline>
+      <source src="assets/launch.mp4" type="video/mp4">
+      Your browser can't play this video.
+    </video>
+  </section>
+
+  <section class="wrap block" aria-labelledby="how-h">
+    <h2 id="how-h">How it works</h2>
+    <ol class="steps">
+      <li><b>Say it.</b><span>Press a key anywhere on your Mac and say the thought. No window to switch to.</span></li>
+      <li><b>It attaches.</b><span>Trace notices the file, email or page in front of you and pins the note to it.</span></li>
+      <li><b>It comes back.</b><span>Reopen that thing next week and the note is waiting, with everything you left open.</span></li>
+    </ol>
+  </section>
+
+  <section class="wrap block" aria-labelledby="mac-h">
+    <h2 id="mac-h">It stays on your Mac</h2>
+    <p class="lede">Capture, reading what is on screen and speech recognition all run on your Mac. Your notes live in a file you can open. Nothing is sent to a server to make Trace work.</p>
+  </section>
+
+  <section class="wrap block" aria-labelledby="who-h">
+    <h2 id="who-h">Who it's for</h2>
+    <ul class="who">
+      <li><b>Knowledge workers</b><span>You switch between ten apps a day and lose the thread of each.</span></li>
+      <li><b>Consultants</b><span>Many clients, many decks. Pick each one up where you left it.</span></li>
+      <li><b>Developers</b><span>Leave yourself the next step on the file, then let your coding agent read it.</span></li>
+    </ul>
+  </section>
+
+  <section class="wrap cta" aria-labelledby="cta-h">
+    <h2 id="cta-h">Be first to try Trace</h2>
+    <form class="signup" id="waitlist-2" novalidate>
+      <label class="sr" for="email-2">Email address</label>
+      <input id="email-2" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@work.com" required aria-describedby="signup-status-2">
+      <input class="trap" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button type="submit">Join the waitlist</button>
+      <p class="status" id="signup-status-2" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p><b>Privacy.</b> If you join the waitlist we keep your email address and the date you signed up, only to tell you when Trace is ready. We don't share it. To be removed, reply to any email from us.</p>
+  <p class="fine">© 2026 Trace. Mac only at first.</p>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

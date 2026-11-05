@@ -1190,7 +1190,8 @@ class Tracker:
                     return
                 items = copy.deepcopy(self.items)
             visits = real_days.read_visits(config.paths().memory_dir)
-            namer = (project_reasoner.OllamaModel(config.NAME_MODEL, config.NAME_MODEL_URL, timeout=30)
+            namer = (project_reasoner.OllamaModel(config.NAME_MODEL, config.NAME_MODEL_URL, timeout=30,
+                                                  keep_alive="20s")
                      if config.NAME_MODEL else None)
             planned = project_finder.find(reg, items, visits, namer=namer)
             with self.lock:

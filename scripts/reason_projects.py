@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import project_grouping_eval as pge  # noqa: E402
 import project_reasoner as reasoner  # noqa: E402
 import project_reasoner_assign as assign  # noqa: E402
+import project_reasoner_judge as judge  # noqa: E402
 import project_reasoner_graph as graph  # noqa: E402
 import project_reasoner_steps as steps  # noqa: E402
 import project_reasoner_tiny as tiny  # noqa: E402
@@ -33,11 +34,12 @@ def main(argv=None, model=None):
     p.add_argument("--model", default="qwen2.5:7b",
                    help="an Ollama model name; graph and assign modes also take none (code only) and caps (capitalised-word rule)")
     p.add_argument("--url", default="http://127.0.0.1:11434", help="Ollama on this Mac")
-    p.add_argument("--mode", choices=("steps", "one-shot", "tiny", "graph", "assign"), default="steps",
+    p.add_argument("--mode", choices=("steps", "one-shot", "tiny", "graph", "assign", "judge"), default="steps",
                    help="steps: many small questions (default); one-shot: one big question per sitting; "
                         "tiny: fill-in-the-blank and multiple choice, for models under 1B; "
                         "graph: the model only copies names, code builds the groups; "
-                        "assign: the same names, then each task is assigned to a lasting project or left unfiled")
+                        "assign: the same names, then each task is assigned to a lasting project or left unfiled; "
+                        "judge: the model decides every grouping by answering 'related work?' about two things")
     p.add_argument("--votes", type=int, default=1, help="tiny mode: ask each question this many times, keep the majority")
     p.add_argument("--check", action="store_true", help="graph mode: turn the 4-option pick check back on (off by default)")
     p.add_argument("--temperature", type=float, default=0.0, help="Ollama temperature; above 0 makes repeats differ")
@@ -64,6 +66,8 @@ def main(argv=None, model=None):
             assigned, projects, log = graph.run(items, timeline, model, check_pairs=args.check)
         elif args.mode == "assign":
             assigned, projects, log = assign.run(items, timeline, model)
+        elif args.mode == "judge":
+            assigned, projects, log = judge.run(items, timeline, model)
         elif args.mode == "tiny":
             assigned, projects, log = tiny.run(items, timeline, model, votes=args.votes)
         else:
@@ -77,6 +81,12 @@ def main(argv=None, model=None):
             first = (assigned, projects, log, took)
     assigned, projects, log, took = first
     for entry in log:
+        if args.mode == "judge":
+            if entry.get("step") in ("switch", "bridge", "candidate", "assign", "calls"):
+                what = entry.get("pair") or entry.get("task") or ""
+                print(f"{entry['step']:9} {', '.join(what) if isinstance(what, list) else what} "
+                      f"{entry.get('verdict') or entry.get('decision') or ''}")
+            continue
         if args.mode == "assign":
             if "skipped" in entry:
                 print(f"SKIPPED {entry.get('step')}: {entry['skipped']}")

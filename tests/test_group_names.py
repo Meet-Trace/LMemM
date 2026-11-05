@@ -34,5 +34,20 @@ class NameTest(unittest.TestCase):
         self.assertEqual(gn.suggest(None, items, items, fallback="X")["by"], "code")
 
 
+class FinderTest(unittest.TestCase):
+    def test_finder_uses_the_namer_only_for_names(self):
+        from datetime import datetime
+        import project_finder
+        import projects
+        import synthetic_days as sd
+        doc = sd.generate(12, seed=4)
+        reg = projects.empty()
+        now = datetime.fromisoformat(max(v["to"] for v in doc["timeline"]))
+        plain = project_finder.find(reg, doc["items"], doc["timeline"], now=now)
+        named = project_finder.find(reg, doc["items"], doc["timeline"], now=now, namer=says("unsure"))
+        self.assertTrue(plain)
+        self.assertEqual([p[2][1] for p in plain], [p[2][1] for p in named])
+
+
 if __name__ == "__main__":
     unittest.main()

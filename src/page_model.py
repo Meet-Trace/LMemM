@@ -492,7 +492,8 @@ def search(reg, items, q, now):
             "meta": f"{plural(len(found_projects), 'project')} · {plural(len(things), 'thing')} · {plural(len(hits), 'note')}",
             "projects": [{"id": p, "name": reg["projects"][p]["name"], "hue": hue(p), "path": " › ".join(projects.path_names(reg, p))}
                          for p in found_projects[:lim["projects"]]],
-            "notes": [{"text": n["text"], "thing": title_of(i), "id": i["id"]} for i, n in hits[:lim["notes"]]],
+            "notes": [{"text": n["text"], "thing": title_of(i), "id": i["id"], "app": i.get("app", ""),
+                       "kind": i.get("kind", ""), "url": favicons.page_url(i)} for i, n in hits[:lim["notes"]]],
             "things": [_thing(reg, i, now) for i in things[:lim["things"]]],
             "things_more": max(0, len(things) - lim["things"]),
             "none": not (found_projects or things or hits)}

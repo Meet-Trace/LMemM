@@ -1764,7 +1764,7 @@ class MainWindow:
             y = self._section(doc, "Notes", x, y + 8, w)
             for n in page["notes"]:
                 row = self._tap(doc, x, y, w, 42, (lambda i=n["id"]: self.press("thing", i)))
-                kit.tile(row, ("note.text", "doc.text.fill"), kit.mute(), 0, 6, 30)
+                self._app_icon(row, n.get("app", ""), 0, 6, 30, n.get("kind", ""), n.get("url"))
                 kit.put_text(row, n["text"], 42, 4, w - 42, 14, 500, wrap=False, height=20)
                 kit.put_text(row, n["thing"], 42, 22, w - 42, 12, 400, kit.mute(), wrap=False, height=16)
                 y += 46

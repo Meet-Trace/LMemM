@@ -1,0 +1,683 @@
+{
+ "version": 1,
+ "about": "Invented day for scoring project grouping (step 0 of design/auto-project-creation-plan.md). Not real data. Items use the memory.json item shape plus 'label': the project paths each item belongs to, 'Project/Sub-project'. An empty list means it belongs to no project.",
+ "items": {
+  "word-proposal": {
+   "id": "word-proposal",
+   "app": "Microsoft Word",
+   "kind": "document",
+   "title": "Northwind_Pricing_Proposal_v3.docx",
+   "doing": "Working on \"Northwind_Pricing_Proposal_v3.docx\"",
+   "state": {
+    "file": "~/Clients/180DC/Northwind/Northwind_Pricing_Proposal_v3.docx"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Tiered pricing for Northwind Logistics: Starter, Growth, Enterprise"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Prepared by 180 Degrees Consulting for Northwind Logistics",
+      "See Northwind_Price_Model.xlsx for unit economics"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T09:02:00",
+   "last_seen": "2026-11-03T09:40:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Pricing model"
+   ]
+  },
+  "excel-model": {
+   "id": "excel-model",
+   "app": "Microsoft Excel",
+   "kind": "spreadsheet",
+   "title": "Northwind_Price_Model.xlsx",
+   "doing": "Working on \"Northwind_Price_Model.xlsx\"",
+   "state": {
+    "file": "~/Clients/180DC/Northwind/Northwind_Price_Model.xlsx",
+    "sheet": "Unit economics"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Growth tier 4,800/month"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "CAC",
+      "Gross margin 62%",
+      "Northwind fleet size 340 trucks"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T09:15:00",
+   "last_seen": "2026-11-03T10:05:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Pricing model"
+   ]
+  },
+  "gsheet-competitors": {
+   "id": "gsheet-competitors",
+   "app": "Google Sheets",
+   "kind": "spreadsheet",
+   "title": "Freight SaaS competitor prices",
+   "doing": "Working on \"Freight SaaS competitor prices\"",
+   "state": {
+    "url": "https://docs.google.com/spreadsheets/d/1aBcCompetitorSheet"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "FleetPilot 39/truck",
+      "HaulWise 4,200/month",
+      "Northwind benchmark"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T09:50:00",
+   "last_seen": "2026-11-03T10:10:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Pricing model"
+   ]
+  },
+  "slack-pricing": {
+   "id": "slack-pricing",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "#northwind-pricing",
+   "doing": "Working on \"#northwind-pricing\"",
+   "state": {
+    "chat": "#northwind-pricing",
+    "workspace": "180 Degrees Consulting"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Pushed v3 of the proposal, Growth tier now 4,800"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Arjun Mehta: can we sanity check against FleetPilot?"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T09:30:00",
+   "last_seen": "2026-11-03T10:20:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Pricing model"
+   ]
+  },
+  "gdoc-notes": {
+   "id": "gdoc-notes",
+   "app": "Google Docs",
+   "kind": "document",
+   "title": "Untitled document",
+   "doing": "Working on \"Untitled document\"",
+   "state": {
+    "url": "https://docs.google.com/document/d/1xYzUntitled"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "growth tier objections",
+      "check fleet size"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "first_seen": "2026-11-03T10:12:00",
+   "last_seen": "2026-11-03T10:14:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Pricing model"
+   ],
+   "label_note": "almost no text: hard case, only time and 'fleet size'/'growth tier' tie it"
+  },
+  "gmail-northwind": {
+   "id": "gmail-northwind",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Re: Northwind pricing workshop",
+   "doing": "Working on \"Re: Northwind pricing workshop\"",
+   "state": {
+    "subject": "Re: Northwind pricing workshop",
+    "to": [
+     "Priya Raman <priya@northwindlogistics.com>"
+    ],
+    "thread": "18c2f0northwind"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Hi Priya, attaching the pricing proposal v3 ahead of Thursday's workshop"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Priya Raman: Could we move the workshop to Thursday 3pm?"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T11:00:00",
+   "last_seen": "2026-11-03T11:20:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Client meetings"
+   ]
+  },
+  "mail-northwind-invite": {
+   "id": "mail-northwind-invite",
+   "app": "Mail",
+   "kind": "email",
+   "title": "Northwind pricing workshop - Thursday 3pm",
+   "doing": "Working on \"Northwind pricing workshop - Thursday 3pm\"",
+   "state": {
+    "subject": "Northwind pricing workshop - Thursday 3pm",
+    "from": "Priya Raman <priya@northwindlogistics.com>"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Invitation: Northwind pricing workshop",
+      "Attendees: Arjun Mehta, Priya Raman, Aditya Khuntia"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T11:25:00",
+   "last_seen": "2026-11-03T11:27:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Client meetings"
+   ]
+  },
+  "teams-northwind": {
+   "id": "teams-northwind",
+   "app": "Microsoft Teams",
+   "kind": "chat",
+   "title": "Priya Raman",
+   "doing": "Working on \"Priya Raman\"",
+   "state": {
+    "chat": "Priya Raman"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Yes Thursday 3pm works, I'll walk through the three tiers"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Priya Raman: great, our CFO Daniel Okafor will join"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T11:30:00",
+   "last_seen": "2026-11-03T11:45:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Client meetings"
+   ]
+  },
+  "word-agenda": {
+   "id": "word-agenda",
+   "app": "Microsoft Word",
+   "kind": "document",
+   "title": "Workshop agenda.docx",
+   "doing": "Working on \"Workshop agenda.docx\"",
+   "state": {
+    "file": "~/Clients/180DC/Northwind/Workshop agenda.docx"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Agenda: 1. Recap of fleet economics 2. Tier walkthrough 3. Q&A with Daniel Okafor"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "first_seen": "2026-11-03T11:50:00",
+   "last_seen": "2026-11-03T12:05:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Client meetings"
+   ]
+  },
+  "vscode-resume": {
+   "id": "vscode-resume",
+   "app": "Visual Studio Code",
+   "kind": "code_file",
+   "title": "resume.py",
+   "doing": "Working on \"resume.py\"",
+   "state": {
+    "file": "resume.py",
+    "project": "LMemM"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "def build_resume_packet(project_id):"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "semantic_memory/resume.py"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T13:00:00",
+   "last_seen": "2026-11-03T14:10:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM/Resume"
+   ]
+  },
+  "github-pr26": {
+   "id": "github-pr26",
+   "app": "Safari",
+   "kind": "page",
+   "title": "feat: exact-source Resume by adityakhuntia · Pull Request #26",
+   "doing": "Working on \"feat: exact-source Resume by adityakhuntia · Pull Request #26\"",
+   "state": {
+    "url": "https://github.com/adityakhuntia/LMemM/pull/26"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "exact-source Resume",
+      "conflicts in window.py, window_model.py"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T13:20:00",
+   "last_seen": "2026-11-03T13:35:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM/Resume"
+   ]
+  },
+  "claude-resume": {
+   "id": "claude-resume",
+   "app": "Claude",
+   "kind": "ai_conversation",
+   "title": "Resume packet design",
+   "doing": "Working on \"Resume packet design\"",
+   "state": {
+    "conversation": "Resume packet design"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "how should build_resume_packet order decisions and tasks?"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "first_seen": "2026-11-03T13:40:00",
+   "last_seen": "2026-11-03T13:55:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM/Resume"
+   ]
+  },
+  "figma-pill": {
+   "id": "figma-pill",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Pill redesign – Figma",
+   "doing": "Working on \"Pill redesign – Figma\"",
+   "state": {
+    "url": "https://www.figma.com/file/PillRedesign"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Pill states: idle, listening, saved",
+      "one blue accent"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T14:20:00",
+   "last_seen": "2026-11-03T14:50:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM/Pill UI"
+   ]
+  },
+  "slack-design": {
+   "id": "slack-design",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "#lmemm-design",
+   "doing": "Working on \"#lmemm-design\"",
+   "state": {
+    "chat": "#lmemm-design",
+    "workspace": "LMemM"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "pill resize animation should be 150ms"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Emil: try a spring for the listening state"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T14:30:00",
+   "last_seen": "2026-11-03T14:55:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM/Pill UI"
+   ]
+  },
+  "gdoc-investor": {
+   "id": "gdoc-investor",
+   "app": "Google Docs",
+   "kind": "document",
+   "title": "LMemM investor update - November",
+   "doing": "Working on \"LMemM investor update - November\"",
+   "state": {
+    "url": "https://docs.google.com/document/d/1InvestorUpdateNov"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "This month: Resume shipped in beta, pill redesign in progress"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "first_seen": "2026-11-03T15:00:00",
+   "last_seen": "2026-11-03T15:30:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM"
+   ]
+  },
+  "gmail-investor": {
+   "id": "gmail-investor",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "LMemM November update",
+   "doing": "Working on \"LMemM November update\"",
+   "state": {
+    "subject": "LMemM November update",
+    "to": [
+     "angels@lmemm-investors.example"
+    ]
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Sharing our November update, doc linked below"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "docs.google.com/document/d/1InvestorUpdateNov"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T15:35:00",
+   "last_seen": "2026-11-03T15:40:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "LMemM"
+   ]
+  },
+  "gmail-flights": {
+   "id": "gmail-flights",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Your IndiGo booking 6E-2231 BOM-GOI",
+   "doing": "Working on \"Your IndiGo booking 6E-2231 BOM-GOI\"",
+   "state": {
+    "subject": "Your IndiGo booking 6E-2231 BOM-GOI"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Mumbai to Goa, 21 Nov",
+      "PNR K7QW2Z"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T16:00:00",
+   "last_seen": "2026-11-03T16:05:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "Goa trip"
+   ]
+  },
+  "gsheet-trip": {
+   "id": "gsheet-trip",
+   "app": "Google Sheets",
+   "kind": "spreadsheet",
+   "title": "Goa budget",
+   "doing": "Working on \"Goa budget\"",
+   "state": {
+    "url": "https://docs.google.com/spreadsheets/d/1GoaBudget"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Flights 6E-2231 9,400",
+      "Villa Anjuna 3 nights"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "first_seen": "2026-11-03T16:10:00",
+   "last_seen": "2026-11-03T16:25:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "Goa trip"
+   ]
+  },
+  "safari-villa": {
+   "id": "safari-villa",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Villa Anjuna – Airbnb",
+   "doing": "Working on \"Villa Anjuna – Airbnb\"",
+   "state": {
+    "url": "https://www.airbnb.com/rooms/villa-anjuna"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Anjuna, Goa",
+      "21-24 Nov"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T16:20:00",
+   "last_seen": "2026-11-03T16:30:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "Goa trip"
+   ]
+  },
+  "gmail-inbox": {
+   "id": "gmail-inbox",
+   "app": "Gmail",
+   "kind": "mailbox",
+   "title": "Inbox (214)",
+   "doing": "Working on \"Inbox (214)\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Re: Northwind pricing workshop",
+      "LMemM November update",
+      "Your IndiGo booking"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T08:55:00",
+   "last_seen": "2026-11-03T16:40:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [],
+   "label_note": "hub: mentions every project, must not merge them"
+  },
+  "slack-general": {
+   "id": "slack-general",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "#general",
+   "doing": "Working on \"#general\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Happy Monday everyone"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T09:00:00",
+   "last_seen": "2026-11-03T09:05:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": []
+  },
+  "gdoc-pricing-playbook": {
+   "id": "gdoc-pricing-playbook",
+   "app": "Google Docs",
+   "kind": "document",
+   "title": "Pricing playbook (shared)",
+   "doing": "Working on \"Pricing playbook (shared)\"",
+   "state": {
+    "url": "https://docs.google.com/document/d/1PricingPlaybook"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Value-based tiers",
+      "used for Northwind and for LMemM's $29/seat pilot"
+     ]
+    }
+   },
+   "first_seen": "2026-11-03T10:30:00",
+   "last_seen": "2026-11-03T10:45:00",
+   "seconds": 120,
+   "visits": 2,
+   "label": [
+    "180DC Northwind pricing/Pricing model",
+    "LMemM"
+   ],
+   "label_note": "belongs to two projects"
+  }
+ }
+}

@@ -343,6 +343,11 @@ docs/           architecture, specs, plans, history
 ./scripts/test.sh      # includes native OCR and semantic-memory tests
 ```
 
+To score how well things are grouped into projects (step 0 of automatic projects), run
+`python3 scripts/eval_project_grouping.py`. It compares groupings against a labelled day
+(an invented one by default, `tests/fixtures/project_grouping/sample_day.json`) by pairwise
+precision and recall. Pass `--day` for a day you labelled yourself; keep real days out of the repo.
+
 [docs/architecture.md](docs/architecture.md) covers how the modules fit and where to extend it.
 [docs/](docs/) has specs, plans and the development history.
 

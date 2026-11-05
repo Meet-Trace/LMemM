@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import project_grouping_eval as pge  # noqa: E402
 import project_reasoner as reasoner  # noqa: E402
+import project_reasoner_assign as assign  # noqa: E402
 import project_reasoner_graph as graph  # noqa: E402
 import project_reasoner_steps as steps  # noqa: E402
 import project_reasoner_tiny as tiny  # noqa: E402
@@ -30,12 +31,13 @@ def main(argv=None, model=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--day", type=Path, default=DEFAULT_DAY)
     p.add_argument("--model", default="qwen2.5:7b",
-                   help="an Ollama model name; graph mode also takes none (code only) and caps (capitalised-word rule)")
+                   help="an Ollama model name; graph and assign modes also take none (code only) and caps (capitalised-word rule)")
     p.add_argument("--url", default="http://127.0.0.1:11434", help="Ollama on this Mac")
-    p.add_argument("--mode", choices=("steps", "one-shot", "tiny", "graph"), default="steps",
+    p.add_argument("--mode", choices=("steps", "one-shot", "tiny", "graph", "assign"), default="steps",
                    help="steps: many small questions (default); one-shot: one big question per sitting; "
                         "tiny: fill-in-the-blank and multiple choice, for models under 1B; "
-                        "graph: the model only copies names, code builds the groups")
+                        "graph: the model only copies names, code builds the groups; "
+                        "assign: the same names, then each task is assigned to a lasting project or left unfiled")
     p.add_argument("--votes", type=int, default=1, help="tiny mode: ask each question this many times, keep the majority")
     p.add_argument("--check", action="store_true", help="graph mode: turn the 4-option pick check back on (off by default)")
     p.add_argument("--temperature", type=float, default=0.0, help="Ollama temperature; above 0 makes repeats differ")
@@ -48,9 +50,10 @@ def main(argv=None, model=None):
         timeline = json.loads(args.day.read_text()).get("timeline")
         if not timeline:
             raise ValueError("This day has no \"timeline\", so there are no sittings to reason over.")
-        if model is None and args.mode == "graph" and args.model == "caps":
+        code_only = args.mode in ("graph", "assign")
+        if model is None and code_only and args.model == "caps":
             model = graph.CapitalisedNames()
-        elif model is None and not (args.mode == "graph" and args.model == "none"):
+        elif model is None and not (code_only and args.model == "none"):
             model = reasoner.OllamaModel(args.model, args.url, temperature=args.temperature)
     except (OSError, ValueError) as error:
         sys.exit(str(error))
@@ -59,6 +62,8 @@ def main(argv=None, model=None):
         started = time.monotonic()
         if args.mode == "graph":
             assigned, projects, log = graph.run(items, timeline, model, check_pairs=args.check)
+        elif args.mode == "assign":
+            assigned, projects, log = assign.run(items, timeline, model)
         elif args.mode == "tiny":
             assigned, projects, log = tiny.run(items, timeline, model, votes=args.votes)
         else:
@@ -72,6 +77,13 @@ def main(argv=None, model=None):
             first = (assigned, projects, log, took)
     assigned, projects, log, took = first
     for entry in log:
+        if args.mode == "assign":
+            if "skipped" in entry:
+                print(f"SKIPPED {entry.get('step')}: {entry['skipped']}")
+            elif entry.get("step") in ("assign", "hub entities", "calls"):
+                print(f"{entry['step']:8} {', '.join(entry.get('task') or entry.get('entities') or [])} "
+                      f"{entry.get('decision') or ''}")
+            continue
         if args.mode == "graph":
             if "skipped" in entry:
                 print(f"SKIPPED {entry.get('step')}: {entry['skipped']}")

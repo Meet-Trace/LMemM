@@ -352,7 +352,12 @@ day sitting by sitting (`src/project_reasoner.py`) and scores it the same way. P
 never touches your memory or projects. `--mode graph --model gemma3:1b` is the version built for
 tiny models (`src/project_reasoner_graph.py`): the model only copies names and picks one of four
 options, and code builds the groups; `--model none` runs it with code alone. A second, held-out
-day is `tests/fixtures/project_grouping/held_out_day.json`.
+day is `tests/fixtures/project_grouping/held_out_day.json`. `--mode assign`
+(`src/project_reasoner_assign.py`) keeps projects as lasting things: each task is assigned to the
+project it clearly fits, starts a new one, or stays unfiled, and nothing is joined transitively.
+`python3 scripts/stress_projects.py --projects 1000 --seed 101` measures it on a generated stream
+(`src/synthetic_days.py`) with shared playbooks, shared colleagues, same-client projects, one Slack
+workspace and renames built in; tune on seeds 1-99 and report on 100 and up.
 To score on your own days: `python3 scripts/export_real_days.py --list`, then
 `--from YYYY-MM-DD --to YYYY-MM-DD` writes day files under `data/labelled-days/` (git-ignored; they hold
 your screen text). `python3 scripts/label_days.py` opens a labelling page on 127.0.0.1, and

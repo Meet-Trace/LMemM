@@ -219,10 +219,13 @@ def editor(res, meta, app):
     parts = [p.strip() for p in re.split(r"\s+[—–-]\s+", t) if p.strip()]
     f = parts[0] if parts else None
     project = parts[1] if len(parts) > 1 else None
+    hexname = re.fullmatch(r"(.+?)\s+[0-9a-f]{16,}", f or "")
+    if hexname and not project:          # "LMemM f2f9…": an editor panel named by an id, not a file
+        f, project = None, hexname.group(1)
     terminal_open = any(o["text"] and "TERMINAL" in o["text"] for o in res["objects"])
     doing = (f"Editing {f}" if f else f"Coding in {app}") + (f" in {project}" if project else "") \
         + (" (unsaved changes)" if unsaved else "")
-    return state(app, "editing_code", doing, target=f"{project}/{f}" if project else f,
+    return state(app, "editing_code", doing, target=f"{project}/{f}" if project and f else (f or project),
                  details={"file": f, "project": project, "unsaved": unsaved or None,
                           "terminal_panel": terminal_open or None},
                  evidence=["file and project from window title"] if f else [])
@@ -282,20 +285,48 @@ def describe(res, meta):
     if EDITORS.search(bundle) or EDITORS.search(app):
         return editor(res, meta, "VS Code" if "vscode" in bundle.lower() else app)
     if TERMINALS.search(app):
-        t = meta.get("window")
+        t = terminal_folder(meta.get("window"))
         return state(app, "using_terminal", "In the terminal" + (f": {short(t, 60)}" if t else ""),
-                     target=t, evidence=["terminal app"])
+                     target=t, details={"folder": t}, evidence=["terminal app"])
     if app == "Finder":
         t = meta.get("window")
         return state("Finder", "browsing_files", f"Browsing files in {t}" if t else "Browsing files",
-                     target=t, evidence=["Finder window title"])
+                     target=t, details={"folder": t}, evidence=["Finder window title"])
     # unknown app: the window title is the stable "where"; the main heading
     # only flavours the sentence, so moving between screens of one app is one event
     t = meta.get("window")
     head = biggest([o for o in lines(res) if o["kind"] == "heading"])
     shown = t if t and t != app else (head["text"] if head else None)
     return state(app, "using_app", f"Using {app}" + (f": {short(shown, 70)}" if shown else ""),
-                 target=t, evidence=["no specific rule for this app"])
+                 target=t, details={"document": t if t and t != app else None},
+                 evidence=["no specific rule for this app"])
+
+
+def place_name(item):
+    """A name for a remembered thing whose title is empty: what its window was called (kept in its
+    ref as "app|kind|target"), cleaned the same way capture now cleans it. None when the window had
+    no name of its own (only the app's name, an id, or nothing)."""
+    if item.get("title"):
+        return item["title"]
+    parts = str(item.get("ref") or "").split("|", 2)
+    target = parts[2].strip() if len(parts) == 3 else ""
+    if item.get("kind") == "terminal":
+        target = terminal_folder(target) or ""
+    if item.get("kind") == "code_file":
+        target = re.sub(r"/?(?:[^/\s]+\s+)?[0-9a-f]{16,}$|/None$", "", target).strip("/")
+    if not target or target.casefold() == str(item.get("app") or "").casefold() or re.fullmatch(r"[\w-]{20,}", target):
+        return None
+    return target
+
+
+def terminal_folder(title):
+    """"LMemM — -zsh — 202×60" -> "LMemM": the folder, without the shell and the window size, so
+    resizing the window or running a command does not make it a different thing."""
+    if not title:
+        return None
+    parts = [p.strip() for p in re.split(r"\s+[—–-]\s+", title) if p.strip()]
+    keep = [p for p in parts if not re.fullmatch(r"-?\w*sh|\d+\s*[×x]\s*\d+", p)]
+    return keep[0] if keep else title
 
 
 def ref(s):

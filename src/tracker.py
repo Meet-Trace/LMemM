@@ -157,7 +157,7 @@ class Tracker:
         self.suggestion = None               # a group offered as one project: {name, ids, reason}
         self.suggest_answers = self.load_answers()
         self.sug = self.load_sug()           # proposals waiting for an answer (suggestions.py): the pill and the window share them
-        self.last_shadow, self.shadow_busy = 0.0, False   # project_shadow.py: last look for projects, and one running now
+        self.last_finder, self.finder_busy = 0.0, False   # project_finder.py: last look for projects, and one running now
         self.last_widget_refresh = 0.0
         self.control_file = Path(p.control_file)
         self.status_file = Path(p.status_file)
@@ -238,9 +238,9 @@ class Tracker:
         elif doc.get("action") == "suggest":
             self.offer_project(doc.get("name"), doc.get("ids") or [], doc.get("reason", ""))
         elif doc.get("action") == "look_for_projects":
-            if not self.shadow_busy:
-                self.last_shadow, self.shadow_busy = time.time(), True
-                threading.Thread(target=self.shadow_pass, daemon=True).start()
+            if not self.finder_busy:
+                self.last_finder, self.finder_busy = time.time(), True
+                threading.Thread(target=self.finder_pass, daemon=True).start()
         elif doc.get("action") == "suggest_for":
             self.offer_items(doc.get("project", ""), doc.get("ids") or [], doc.get("reason", ""))
 
@@ -514,10 +514,10 @@ class Tracker:
             with self.lock:
                 self.save(force=True)
         self.sample_resources(now)
-        if (config.SHADOW_PROJECTS and self.paused == "idle" and not self.shadow_busy
-                and now - self.last_shadow >= config.SHADOW_EVERY):
-            self.last_shadow, self.shadow_busy = now, True
-            threading.Thread(target=self.shadow_pass, daemon=True).start()
+        if (config.FIND_PROJECTS and self.paused == "idle" and not self.finder_busy
+                and now - self.last_finder >= config.FIND_EVERY):
+            self.last_finder, self.finder_busy = now, True
+            threading.Thread(target=self.finder_pass, daemon=True).start()
         if now - self.last_retention_sweep >= config.RETENTION_SWEEP:
             self.last_retention_sweep = now
             with self.lock:
@@ -676,8 +676,8 @@ class Tracker:
                 args = {**args, "sug": self.sug}
             result = project_actions.do(reg, self.items, action, **args)
             if action in suggestions.ACTIONS:
-                import project_shadow
-                project_shadow.record("answer", action=action, sid=args.get("sid"), ids=list(args.get("ids") or []),
+                import project_finder
+                project_finder.record("answer", action=action, sid=args.get("sid"), ids=list(args.get("ids") or []),
                                       name=args.get("name"), via="window")
             projects.save(reg)
             self.save(force=True)
@@ -1172,26 +1172,26 @@ class Tracker:
             self.sync_pill()
         return view
 
-    def shadow_pass(self):
-        """Look for projects in what you did lately and offer them (project_shadow.py). Runs on its own
+    def finder_pass(self):
+        """Look for projects in what you did lately and offer them (project_finder.py). Runs on its own
         thread while you are idle: the method works on a copy, the lock is held only to copy and to offer."""
         import copy
-        import project_shadow
+        import project_finder
         import projects
         import real_days
         try:
             reg = projects.load()
             with self.lock:
-                if project_shadow.shelve(self.sug, datetime.now()):    # unanswered for days: make room
+                if project_finder.shelve(self.sug, datetime.now()):    # unanswered for days: make room
                     self.save_sug()
                     self.sync_pill()
-                if len(self.sug["projects"]) + len(self.sug["items"]) >= project_shadow.MAX_WAITING:
+                if len(self.sug["projects"]) + len(self.sug["items"]) >= project_finder.MAX_WAITING:
                     return
                 items = copy.deepcopy(self.items)
             visits = real_days.read_visits(config.paths().memory_dir)
-            planned = project_shadow.find(reg, items, visits)
+            planned = project_finder.find(reg, items, visits)
             with self.lock:
-                added = project_shadow.offer(self.sug, reg, self.items, planned)
+                added = project_finder.offer(self.sug, reg, self.items, planned)
                 if added:
                     self.save_sug()
                     self.sync_pill()
@@ -1201,7 +1201,7 @@ class Tracker:
         except Exception as error:             # a look that fails must never stop capture
             line(now_hms(), "", f"project look skipped: {error}")
         finally:
-            self.shadow_busy = False
+            self.finder_busy = False
 
     def offer_project(self, name, ids, reason=""):
         """Offer a group of things as one project. The model will call this; until it
@@ -1264,8 +1264,8 @@ class Tracker:
                 self.save(force=True)
             if self.suggestion and set(self.suggestion["ids"]) & set(found):
                 self.count_answer()
-                import project_shadow
-                project_shadow.record("answer", action="accept_project", ids=list(found), name=name, via="pill")
+                import project_finder
+                project_finder.record("answer", action="accept_project", ids=list(found), name=name, via="pill")
             suggestions.drop_ids(self.sug, found)
             self.save_sug()
             self.sync_pill()
@@ -1274,8 +1274,8 @@ class Tracker:
     def widget_decline(self, forever=True):
         with self.lock:
             if self.suggestion and forever:
-                import project_shadow
-                project_shadow.record("answer", action="dismiss_project", ids=list(self.suggestion["ids"]),
+                import project_finder
+                project_finder.record("answer", action="dismiss_project", ids=list(self.suggestion["ids"]),
                                       name=self.suggestion["name"], via="pill")
                 notes.decline_project(self.items, self.suggestion["ids"], self.suggestion["name"])
                 self.in_tree(lambda reg: thing_actions.decline_by_name(reg, self.items, self.suggestion["ids"], self.suggestion["name"]))

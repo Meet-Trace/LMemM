@@ -1,4 +1,4 @@
-"""LMemM - shadow mode: notice projects in what you already did, and only ever suggest them.
+"""LMemM - project finder: notice projects in what you already did, and only ever suggest them.
 
 The tracker calls `propose` now and then while you are idle. It runs the assign method
 (project_reasoner_assign.py) over the things you used recently and turns what it finds into the

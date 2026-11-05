@@ -5,6 +5,8 @@ import re
 
 MAX_TEXT = 3000
 MAX_EXCERPTS = 12
+STRIP_MAX_HEIGHT = 200          # points: a window this short and this wide is a toolbar strip, not a document
+STRIP_RATIO = 4
 CONTENT_KINDS = {"heading", "paragraph", "text", "link"}
 DECISION = re.compile(
     r"^(?:decision\s*:|(?:we|i)\s+(?:have\s+)?(?:decided|chose|agreed|selected)\b)", re.I)
@@ -22,6 +24,21 @@ def visible_window_region(window, display):
         return None
     return [(x - display["X"]) / display["Width"], (y - display["Y"]) / display["Height"],
             (right - x) / display["Width"], (bottom - y) / display["Height"]]
+
+
+def pick_window(windows):
+    """The app's real window from its on-screen windows, front to back (CG window-info dicts).
+
+    A browser also has short, wide helper windows (its ~150 pt toolbar and tab strip) that sit in
+    front of the page. Reading those as "the window" makes the saved screen text the browser's own tabs.
+    Skip them; among the rest prefer one that has a title, since helpers have none."""
+    def bounds(w):
+        return w.get("kCGWindowBounds") or {}
+    usable = [w for w in windows if bounds(w).get("Height", 0) >= 80 and bounds(w).get("Width", 0) >= 80]
+    real = [w for w in usable
+            if not (bounds(w)["Height"] <= STRIP_MAX_HEIGHT and bounds(w)["Width"] >= STRIP_RATIO * bounds(w)["Height"])]
+    pool = real or usable
+    return next((w for w in pool if w.get("kCGWindowName")), pool[0] if pool else None)
 
 
 def extract_content(res, meta):

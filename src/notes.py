@@ -12,6 +12,8 @@ to the thing it's on, and `lmemm.py notes` shows all open ones by project.
 import hashlib
 from datetime import datetime
 
+import favicons
+
 
 def record(items, frame_item, session_notes, target, text, at):
     """Store a note. `target` is ("frame", capture ts) or ("item", item id).
@@ -359,7 +361,7 @@ def suggestion_view(suggestion, items, answered=0, first_times=3):
     if not suggestion:
         return None
     things = [{"id": i, "title": items[i].get("title") or items[i]["doing"], "app": items[i]["app"],
-               "kind": items[i].get("kind", "")}
+               "kind": items[i].get("kind", ""), "url": favicons.page_url(items[i])}
               for i in suggestion["ids"] if i in items]
     if len(things) < 2:
         return None

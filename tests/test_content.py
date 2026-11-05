@@ -1,6 +1,6 @@
 import unittest
 
-from memory_content import extract_content, remember_content, visible_window_region
+from memory_content import extract_content, pick_window, remember_content, visible_window_region
 
 
 def observation(text="We chose SQLite because the data stays local.", **changes):
@@ -70,6 +70,26 @@ class ContentTests(unittest.TestCase):
             {"X": 900, "Y": 0, "Width": 500, "Height": 800},
             {"X": 1000, "Y": 0, "Width": 1000, "Height": 800}), [0, 0, 0.4, 1])
         self.assertIsNone(visible_window_region(None, {}))
+
+    def test_toolbar_strip_in_front_of_the_page_is_not_the_window(self):
+        # Brave: a 151 pt toolbar/tab-strip helper (no title) sits in front of the real window.
+        strip = {"kCGWindowName": "", "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 1440, "Height": 151}}
+        page = {"kCGWindowName": "Trace - Brave", "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 1440, "Height": 900}}
+        self.assertIs(pick_window([strip, page]), page)
+        self.assertEqual(visible_window_region(page["kCGWindowBounds"], {"X": 0, "Y": 0, "Width": 1440, "Height": 900}),
+                         [0, 0, 1, 1])
+
+    def test_pick_window_keeps_front_window_and_handles_odd_lists(self):
+        front = {"kCGWindowName": "A", "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 600, "Height": 400}}
+        back = {"kCGWindowName": "B", "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 900, "Height": 700}}
+        self.assertIs(pick_window([front, back]), front)
+        tiny = {"kCGWindowName": "t", "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 50, "Height": 50}}
+        self.assertIsNone(pick_window([tiny]))
+        self.assertIsNone(pick_window([]))
+        only_strip = {"kCGWindowName": "bar", "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 1440, "Height": 151}}
+        self.assertIs(pick_window([only_strip]), only_strip)       # nothing better: same as before
+        untitled = {"kCGWindowBounds": {"X": 0, "Y": 0, "Width": 800, "Height": 600}}
+        self.assertIs(pick_window([untitled]), untitled)
 
 
 if __name__ == "__main__":

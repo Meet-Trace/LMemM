@@ -12,6 +12,9 @@ LMemM - the one command.
     lmemm.py suggest [NAME] [ID…]     offer things as one project (stands in for the model)
     lmemm.py suggest-for PROJECT [ID…]
                                       offer things for an existing project (the three latest not in it, or the ids)
+    lmemm.py look-for-projects [--dry-run [--days N]]
+                                      look for projects in the last two weeks now and suggest them
+                                      (--dry-run: only print what would be suggested; changes nothing)
     lmemm.py projects [--all] | projects new|rename|move|archive|restore|merge|delete …
                                       look at and shape the project tree (any depth)
     lmemm.py context [SESSION] [--days N]
@@ -242,6 +245,33 @@ def cmd_suggest_for(args):
     if not tracker.send_control("suggest_for", project=args[0], ids=args[1:], reason="Looks like it belongs here"):
         sys.exit("LMemM isn't running.")
     print(f"offered things for '{projects.get(projects.load(), pid)['name']}'. Open LMemM and look on that project's page.")
+
+
+def cmd_look_for_projects(args):
+    """Shadow mode now (project_shadow.py): what you did lately, offered as projects. Never files anything."""
+    if "--dry-run" in args:
+        import project_shadow
+        import projects
+        import real_days
+        memory_dir = config.paths().memory_dir
+        try:
+            items = real_days.read_items(memory_dir)
+            days = int(args[args.index("--days") + 1]) if "--days" in args else project_shadow.LOOKBACK_DAYS
+            planned = project_shadow.find(projects.load(), items, real_days.read_visits(memory_dir), days=days)
+        except (OSError, ValueError, IndexError) as error:
+            sys.exit(f"Could not look: {error}")
+        print(f"Looked at the last {days} days in {memory_dir}")
+        if not planned:
+            print("Nothing to suggest yet: no group of things came up together in two separate sittings.")
+        for _, kind, (target, ids, why) in planned:
+            what = f"new project “{target}”" if kind == "project" else f"add to “{projects.get(projects.load(), target)['name']}”"
+            print(f"{what}: {why}")
+            for i in ids:
+                print(f"    {items[i].get('app') or '?'} · {items[i].get('title') or i}")
+        return
+    if not tracker.send_control("look_for_projects"):
+        sys.exit("LMemM isn't running. `lmemm.py look-for-projects --dry-run` works without it.")
+    print("Looking now. Suggestions appear on the pill and at the top of the window.")
 
 
 def cmd_notes(args):
@@ -476,6 +506,8 @@ def main():
         cmd_suggest(rest)
     elif cmd == "suggest-for":
         cmd_suggest_for(rest)
+    elif cmd == "look-for-projects":
+        cmd_look_for_projects(rest)
     elif cmd == "projects":
         cmd_projects(rest)
     elif cmd in {"status", "pause", "resume", "open"}:

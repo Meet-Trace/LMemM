@@ -1,0 +1,987 @@
+{
+ "version": 1,
+ "about": "Second invented day, held out: written before the graph method was tuned. Not real data. Same shape as sample_day.json.",
+ "items": {
+  "outlook-inbox": {
+   "id": "outlook-inbox",
+   "app": "Microsoft Outlook",
+   "kind": "mailbox",
+   "title": "Inbox - Outlook",
+   "doing": "Working on \"Inbox - Outlook\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Meera Shah: interview slots for Thursday",
+      "Stripe: your payout is on the way"
+     ],
+     "count": 2
+    }
+   },
+   "label": [],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Meera Shah - interview slots",
+      "source": {
+       "app": "Microsoft Outlook"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Spice Route Catering - quote",
+      "source": {
+       "app": "Microsoft Outlook"
+      }
+     },
+     {
+      "id": "x2",
+      "text": "Stripe payout",
+      "source": {
+       "app": "Microsoft Outlook"
+      }
+     }
+    ]
+   },
+   "label_note": "hub"
+  },
+  "excel-tam": {
+   "id": "excel-tam",
+   "app": "Microsoft Excel",
+   "kind": "spreadsheet",
+   "title": "Kestrel_TAM_v2.xlsx",
+   "doing": "Working on \"Kestrel_TAM_v2.xlsx\"",
+   "state": {
+    "file": "~/Clients/180DC/Kestrel/Kestrel_TAM_v2.xlsx",
+    "sheet": "Bottom-up"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "38,000 clinics x 22% adoption",
+      "SAM = 8,360 clinics"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Tier-2 cities",
+      "Clinics with >2 doctors"
+     ]
+    }
+   },
+   "label": [
+    "180DC Kestrel Health/Market sizing"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Bottom-up sizing",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Diabetes clinics India 38,000",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     },
+     {
+      "id": "x2",
+      "text": "Adoption 22%",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     },
+     {
+      "id": "x3",
+      "text": "SAM 8,360",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     }
+    ]
+   }
+  },
+  "pdf-icmr": {
+   "id": "pdf-icmr",
+   "app": "Preview",
+   "kind": "document",
+   "title": "ICMR_diabetes_care_2025.pdf",
+   "doing": "Working on \"ICMR_diabetes_care_2025.pdf\"",
+   "state": {
+    "file": "~/Downloads/ICMR_diabetes_care_2025.pdf"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "An estimated 38,000 clinics offer diabetes care in India",
+      "Tier-2 cities account for 41%"
+     ]
+    }
+   },
+   "label": [
+    "180DC Kestrel Health/Market sizing"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Diabetes care infrastructure in India, 2025",
+      "source": {
+       "app": "Preview"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "38,000 clinics",
+      "source": {
+       "app": "Preview"
+      }
+     },
+     {
+      "id": "x2",
+      "text": "Tier-2 cities 41%",
+      "source": {
+       "app": "Preview"
+      }
+     }
+    ]
+   },
+   "label_note": "reference read for the TAM sheet; never says Kestrel"
+  },
+  "slack-kestrel": {
+   "id": "slack-kestrel",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "#kestrel-sizing",
+   "doing": "Working on \"#kestrel-sizing\"",
+   "state": {
+    "chat": "#kestrel-sizing",
+    "workspace": "180 Degrees Consulting"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "bottom-up gives SAM of 8,360 clinics, sharing the sheet now"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Arjun Mehta: are we using the ICMR clinic count?"
+     ],
+     "count": 1
+    }
+   },
+   "label": [
+    "180DC Kestrel Health/Market sizing"
+   ]
+  },
+  "whatsapp-riya": {
+   "id": "whatsapp-riya",
+   "app": "WhatsApp",
+   "kind": "chat",
+   "title": "Riya",
+   "doing": "Working on \"Riya\"",
+   "state": {
+    "chat": "Riya"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "I'll call Spice Route about the quote today",
+      "send me the guest list sheet"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Riya: caterer wants the final headcount by Friday",
+      "Riya: Mehendi is on the 12th"
+     ],
+     "count": 2
+    }
+   },
+   "label": [
+    "Riya's wedding"
+   ],
+   "label_note": "interleaved into the Kestrel sitting but its own task"
+  },
+  "gsheet-scratch": {
+   "id": "gsheet-scratch",
+   "app": "Google Sheets",
+   "kind": "spreadsheet",
+   "title": "Untitled spreadsheet",
+   "doing": "Working on \"Untitled spreadsheet\"",
+   "state": {
+    "url": "https://docs.google.com/spreadsheets/d/1ScratchCalc"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "38000*0.22",
+      "8360"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [
+    "180DC Kestrel Health/Market sizing"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "38000*0.22",
+      "source": {
+       "app": "Google Sheets"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "8360",
+      "source": {
+       "app": "Google Sheets"
+      }
+     }
+    ]
+   },
+   "label_note": "scratch calc; only the numbers echo the TAM sheet"
+  },
+  "news-sensex": {
+   "id": "news-sensex",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Sensex today: markets close higher",
+   "doing": "Working on \"Sensex today: markets close higher\"",
+   "state": {
+    "url": "https://www.livemint.com/market/sensex-today"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Sensex rose 312 points",
+      "Healthcare stocks gained"
+     ]
+    }
+   },
+   "label": [],
+   "label_note": "interruption"
+  },
+  "zoom-call": {
+   "id": "zoom-call",
+   "app": "zoom.us",
+   "kind": "meeting",
+   "title": "Zoom Meeting",
+   "doing": "Working on \"Zoom Meeting\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Meera Shah",
+      "Arjun Mehta",
+      "Recording"
+     ]
+    }
+   },
+   "label": [
+    "180DC Kestrel Health/Client call"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Meera Shah",
+      "source": {
+       "app": "zoom.us"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Arjun Mehta",
+      "source": {
+       "app": "zoom.us"
+      }
+     },
+     {
+      "id": "x2",
+      "text": "Aditya Khuntia",
+      "source": {
+       "app": "zoom.us"
+      }
+     }
+    ]
+   },
+   "label_note": "generic title; only the attendees say what it is"
+  },
+  "word-interview": {
+   "id": "word-interview",
+   "app": "Microsoft Word",
+   "kind": "document",
+   "title": "Interview notes - Dr Meera Shah.docx",
+   "doing": "Working on \"Interview notes - Dr Meera Shah.docx\"",
+   "state": {
+    "file": "~/Clients/180DC/Kestrel/Interview notes - Dr Meera Shah.docx"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Clinics want WhatsApp reminders for HbA1c tests",
+      "Willing to pay 1,500/month per clinic"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [
+    "180DC Kestrel Health/Client call"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Interview notes - Dr Meera Shah, Kestrel Health",
+      "source": {
+       "app": "Microsoft Word"
+      }
+     }
+    ]
+   }
+  },
+  "outlook-meera": {
+   "id": "outlook-meera",
+   "app": "Microsoft Outlook",
+   "kind": "email",
+   "title": "Thank you - Kestrel interview",
+   "doing": "Working on \"Thank you - Kestrel interview\"",
+   "state": {
+    "subject": "Thank you - Kestrel interview",
+    "to": [
+     "Meera Shah <meera@kestrelhealth.in>"
+    ]
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Thanks Dr Shah, notes attached, we will share the sizing next week"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [
+    "180DC Kestrel Health/Client call"
+   ]
+  },
+  "vscode-onboarding": {
+   "id": "vscode-onboarding",
+   "app": "Visual Studio Code",
+   "kind": "code_file",
+   "title": "onboarding.py",
+   "doing": "Working on \"onboarding.py\"",
+   "state": {
+    "file": "onboarding.py",
+    "project": "LMemM"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "def request_accessibility():",
+      "show_permission_sheet(step=2)"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "app/onboarding.py"
+     ]
+    }
+   },
+   "label": [
+    "LMemM/Onboarding"
+   ]
+  },
+  "claude-firstrun": {
+   "id": "claude-firstrun",
+   "app": "Claude",
+   "kind": "ai_conversation",
+   "title": "First-run permissions flow",
+   "doing": "Working on \"First-run permissions flow\"",
+   "state": {
+    "conversation": "First-run permissions flow"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "how do I explain the Accessibility permission before macOS asks for it?"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [
+    "LMemM/Onboarding"
+   ],
+   "label_note": "never says LMemM"
+  },
+  "github-issue41": {
+   "id": "github-issue41",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Accessibility prompt is confusing · Issue #41",
+   "doing": "Working on \"Accessibility prompt is confusing · Issue #41\"",
+   "state": {
+    "url": "https://github.com/adityakhuntia/LMemM/issues/41"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Users click Deny on the Accessibility prompt",
+      "show_permission_sheet appears too late"
+     ]
+    }
+   },
+   "label": [
+    "LMemM/Onboarding"
+   ]
+  },
+  "notes-copy": {
+   "id": "notes-copy",
+   "app": "Notes",
+   "kind": "document",
+   "title": "Onboarding copy",
+   "doing": "Working on \"Onboarding copy\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Step 2: LMemM needs Accessibility to see which window you are in"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [
+    "LMemM/Onboarding"
+   ]
+  },
+  "safari-pricing": {
+   "id": "safari-pricing",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Pricing – lmemm.app",
+   "doing": "Working on \"Pricing – lmemm.app\"",
+   "state": {
+    "url": "https://lmemm.app/pricing"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Pro $29/seat",
+      "Team $79"
+     ]
+    }
+   },
+   "label": [
+    "LMemM/Pricing page"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Pricing",
+      "source": {
+       "app": "Safari"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Pro $29 per seat per month",
+      "source": {
+       "app": "Safari"
+      }
+     },
+     {
+      "id": "x2",
+      "text": "Team $79",
+      "source": {
+       "app": "Safari"
+      }
+     }
+    ]
+   }
+  },
+  "stripe-products": {
+   "id": "stripe-products",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Products – Stripe",
+   "doing": "Working on \"Products – Stripe\"",
+   "state": {
+    "url": "https://dashboard.stripe.com/products"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "LMemM Pro",
+      "29.00 USD monthly"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [
+    "LMemM/Pricing page"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "LMemM Pro",
+      "source": {
+       "app": "Safari"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "29.00 USD / month",
+      "source": {
+       "app": "Safari"
+      }
+     }
+    ]
+   }
+  },
+  "figma-pricing": {
+   "id": "figma-pricing",
+   "app": "Figma",
+   "kind": "page",
+   "title": "Pricing page v2",
+   "doing": "Working on \"Pricing page v2\"",
+   "state": {
+    "url": "https://www.figma.com/file/PricingPageV2"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Pro $29",
+      "Most popular"
+     ]
+    }
+   },
+   "label": [
+    "LMemM/Pricing page"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Pro $29",
+      "source": {
+       "app": "Figma"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Team $79",
+      "source": {
+       "app": "Figma"
+      }
+     },
+     {
+      "id": "x2",
+      "text": "Most popular",
+      "source": {
+       "app": "Figma"
+      }
+     }
+    ]
+   }
+  },
+  "youtube-lofi": {
+   "id": "youtube-lofi",
+   "app": "Safari",
+   "kind": "page",
+   "title": "lofi hip hop radio – YouTube",
+   "doing": "Working on \"lofi hip hop radio – YouTube\"",
+   "state": {
+    "url": "https://www.youtube.com/watch?v=jfKfPfyJRdk"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [],
+   "label_note": "background music"
+  },
+  "gsheet-guests": {
+   "id": "gsheet-guests",
+   "app": "Google Sheets",
+   "kind": "spreadsheet",
+   "title": "Guest list",
+   "doing": "Working on \"Guest list\"",
+   "state": {
+    "url": "https://docs.google.com/spreadsheets/d/1GuestList"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Headcount: 186"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    }
+   },
+   "label": [
+    "Riya's wedding"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Guest list",
+      "source": {
+       "app": "Google Sheets"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Bride side 97",
+      "source": {
+       "app": "Google Sheets"
+      }
+     },
+     {
+      "id": "x2",
+      "text": "Groom side 89",
+      "source": {
+       "app": "Google Sheets"
+      }
+     },
+     {
+      "id": "x3",
+      "text": "Total 186",
+      "source": {
+       "app": "Google Sheets"
+      }
+     }
+    ]
+   }
+  },
+  "gmail-caterer": {
+   "id": "gmail-caterer",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Spice Route Catering - quote for 12 Dec",
+   "doing": "Working on \"Spice Route Catering - quote for 12 Dec\"",
+   "state": {
+    "subject": "Spice Route Catering - quote for 12 Dec",
+    "from": "Spice Route <orders@spiceroute.in>"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Final headcount is 186"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Spice Route: 1,250 per plate, final count by Friday"
+     ],
+     "count": 1
+    }
+   },
+   "label": [
+    "Riya's wedding"
+   ]
+  },
+  "safari-venues": {
+   "id": "safari-venues",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Mehendi venues in Udaipur",
+   "doing": "Working on \"Mehendi venues in Udaipur\"",
+   "state": {
+    "url": "https://www.weddingwire.in/udaipur/mehendi-venues"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 0,
+     "text": []
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Lakeside lawns, 200 guests",
+      "12 Dec available"
+     ]
+    }
+   },
+   "label": [
+    "Riya's wedding"
+   ]
+  }
+ },
+ "timeline": [
+  {
+   "item": "outlook-inbox",
+   "from": "2026-11-04T08:50:00",
+   "to": "2026-11-04T08:55:00"
+  },
+  {
+   "item": "excel-tam",
+   "from": "2026-11-04T08:55:00",
+   "to": "2026-11-04T09:10:00"
+  },
+  {
+   "item": "pdf-icmr",
+   "from": "2026-11-04T09:10:00",
+   "to": "2026-11-04T09:20:00"
+  },
+  {
+   "item": "excel-tam",
+   "from": "2026-11-04T09:20:00",
+   "to": "2026-11-04T09:30:00"
+  },
+  {
+   "item": "whatsapp-riya",
+   "from": "2026-11-04T09:30:00",
+   "to": "2026-11-04T09:34:00"
+  },
+  {
+   "item": "excel-tam",
+   "from": "2026-11-04T09:34:00",
+   "to": "2026-11-04T09:40:00"
+  },
+  {
+   "item": "gsheet-scratch",
+   "from": "2026-11-04T09:40:00",
+   "to": "2026-11-04T09:43:00"
+  },
+  {
+   "item": "excel-tam",
+   "from": "2026-11-04T09:43:00",
+   "to": "2026-11-04T09:50:00"
+  },
+  {
+   "item": "news-sensex",
+   "from": "2026-11-04T09:50:00",
+   "to": "2026-11-04T09:52:00"
+  },
+  {
+   "item": "slack-kestrel",
+   "from": "2026-11-04T09:52:00",
+   "to": "2026-11-04T09:58:00"
+  },
+  {
+   "item": "whatsapp-riya",
+   "from": "2026-11-04T09:58:00",
+   "to": "2026-11-04T10:03:00"
+  },
+  {
+   "item": "pdf-icmr",
+   "from": "2026-11-04T10:03:00",
+   "to": "2026-11-04T10:08:00"
+  },
+  {
+   "item": "slack-kestrel",
+   "from": "2026-11-04T10:08:00",
+   "to": "2026-11-04T10:12:00"
+  },
+  {
+   "item": "zoom-call",
+   "from": "2026-11-04T11:00:00",
+   "to": "2026-11-04T11:40:00"
+  },
+  {
+   "item": "word-interview",
+   "from": "2026-11-04T11:05:00",
+   "to": "2026-11-04T11:40:00"
+  },
+  {
+   "item": "outlook-meera",
+   "from": "2026-11-04T11:42:00",
+   "to": "2026-11-04T11:50:00"
+  },
+  {
+   "item": "youtube-lofi",
+   "from": "2026-11-04T12:30:00",
+   "to": "2026-11-04T12:31:00"
+  },
+  {
+   "item": "vscode-onboarding",
+   "from": "2026-11-04T12:31:00",
+   "to": "2026-11-04T12:55:00"
+  },
+  {
+   "item": "github-issue41",
+   "from": "2026-11-04T12:55:00",
+   "to": "2026-11-04T13:05:00"
+  },
+  {
+   "item": "claude-firstrun",
+   "from": "2026-11-04T13:05:00",
+   "to": "2026-11-04T13:15:00"
+  },
+  {
+   "item": "vscode-onboarding",
+   "from": "2026-11-04T13:15:00",
+   "to": "2026-11-04T13:40:00"
+  },
+  {
+   "item": "notes-copy",
+   "from": "2026-11-04T13:40:00",
+   "to": "2026-11-04T13:50:00"
+  },
+  {
+   "item": "figma-pricing",
+   "from": "2026-11-04T14:30:00",
+   "to": "2026-11-04T14:50:00"
+  },
+  {
+   "item": "safari-pricing",
+   "from": "2026-11-04T14:50:00",
+   "to": "2026-11-04T14:55:00"
+  },
+  {
+   "item": "stripe-products",
+   "from": "2026-11-04T14:55:00",
+   "to": "2026-11-04T15:10:00"
+  },
+  {
+   "item": "outlook-inbox",
+   "from": "2026-11-04T15:10:00",
+   "to": "2026-11-04T15:12:00"
+  },
+  {
+   "item": "figma-pricing",
+   "from": "2026-11-04T15:12:00",
+   "to": "2026-11-04T15:20:00"
+  },
+  {
+   "item": "gsheet-guests",
+   "from": "2026-11-04T18:00:00",
+   "to": "2026-11-04T18:15:00"
+  },
+  {
+   "item": "whatsapp-riya",
+   "from": "2026-11-04T18:15:00",
+   "to": "2026-11-04T18:20:00"
+  },
+  {
+   "item": "gmail-caterer",
+   "from": "2026-11-04T18:20:00",
+   "to": "2026-11-04T18:30:00"
+  },
+  {
+   "item": "safari-venues",
+   "from": "2026-11-04T18:30:00",
+   "to": "2026-11-04T18:45:00"
+  },
+  {
+   "item": "whatsapp-riya",
+   "from": "2026-11-04T18:45:00",
+   "to": "2026-11-04T18:48:00"
+  }
+ ]
+}

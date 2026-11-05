@@ -343,6 +343,32 @@ docs/           architecture, specs, plans, history
 ./scripts/test.sh      # includes native OCR and semantic-memory tests
 ```
 
+To score how well things are grouped into projects (step 0 of automatic projects), run
+`python3 scripts/eval_project_grouping.py`. It compares groupings against a labelled day
+(an invented one by default, `tests/fixtures/project_grouping/sample_day.json`) by pairwise
+precision and recall. Pass `--day` for a day you labelled yourself; keep real days out of the repo.
+`python3 scripts/reason_projects.py --model qwen2.5:7b` lets a local Ollama model group the same
+day sitting by sitting (`src/project_reasoner.py`) and scores it the same way. Prototype only: it
+never touches your memory or projects. `--mode graph --model gemma3:1b` is the version built for
+tiny models (`src/project_reasoner_graph.py`): the model only copies names and picks one of four
+options, and code builds the groups; `--model none` runs it with code alone. A second, held-out
+day is `tests/fixtures/project_grouping/held_out_day.json`. `--mode assign`
+(`src/project_reasoner_assign.py`) keeps projects as lasting things: each task is assigned to the
+project it clearly fits, starts a new one, or stays unfiled, and nothing is joined transitively.
+`python3 scripts/stress_projects.py --projects 1000 --seed 101` measures it on a generated stream
+(`src/synthetic_days.py`) with shared playbooks, shared colleagues, same-client projects, one Slack
+workspace and renames built in; tune on seeds 1-99 and report on 100 and up.
+Shadow mode (`src/project_shadow.py`) runs that method inside the app: while you are idle, at most every
+30 minutes, it looks at the last two weeks and offers what it finds as the usual suggestions (Create /
+Dismiss, Add / Not here). It never files anything, offers a new project only once it has come up in two
+separate sittings, keeps at most three suggestions waiting, and writes every offer and answer to
+`grouping_log.jsonl` beside memory.json so your answers become labels. `python3 lmemm.py look-for-projects`
+looks now; `--dry-run` only prints what it would suggest. Turn it off with `SHADOW_PROJECTS` in `src/config.py`.
+To score on your own days: `python3 scripts/export_real_days.py --list`, then
+`--from YYYY-MM-DD --to YYYY-MM-DD` writes day files under `data/labelled-days/` (git-ignored; they hold
+your screen text). `python3 scripts/label_days.py` opens a labelling page on 127.0.0.1, and
+`reason_projects.py --mode graph --day data/labelled-days/<day>.json --model caps|none|gemma3:1b` scores it.
+
 [docs/architecture.md](docs/architecture.md) covers how the modules fit and where to extend it.
 [docs/](docs/) has specs, plans and the development history.
 

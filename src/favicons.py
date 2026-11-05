@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 SUPPORT = "~/Library/Application Support"
 STORES = ("Google/Chrome", "BraveSoftware/Brave-Browser", "Microsoft Edge", "Chromium", "Arc/User Data")
-WANT_PX = 32                       # the icon is drawn at most ~40 pt; take the smallest bitmap that covers 32
+WANT_PX = 64                       # drawn ~20-26 pt on a 2x screen: take the smallest bitmap that covers 64, else the largest there is
 PNG = b"\x89PNG"
 
 

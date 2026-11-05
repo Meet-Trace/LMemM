@@ -35,6 +35,7 @@ from widget import _Fields, _Flipped, _Ring, _Tap
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
 SIDE_W = 250
+FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
 MIN_MAIN, MAX_MAIN = 560, 980                          # the page's reading column: it grows with the window, up to this
 TOP = 32                                               # below the title bar
@@ -895,11 +896,23 @@ class MainWindow:
         browser (`url`, `kind`), else a dimmed LMemM mark as a placeholder."""
         url = favicons.address(app, kind, url)
         image = self._app_image(app)                      # an installed app (WhatsApp.app) has its own icon
-        if image is None and url:
-            image = self._favicon(url)                    # else the tab's icon from the browser
+        if image is not None:
+            self._icon_view(parent, image, x, y, size)
+            return
+        image = self._favicon(url) if url else None       # else the tab's icon from the browser
         if image is None:
             self._placeholder(parent, x, y, size)         # nothing to be had: LMemM's own mark, dimmed
             return
+        # A favicon is a small bitmap that fills its whole square, unlike an app icon, which has its
+        # margin built in. Sit it in a soft rounded tile at the same visual size, so every row matches.
+        tile = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x, y, size, size), None)
+        tile.fill = kit.faint(0.10)
+        tile.radius = size * 0.28
+        parent.addSubview_(tile)
+        inset = size * FAVICON_INSET
+        self._icon_view(parent, image, x + inset, y + inset, size - 2 * inset)
+
+    def _icon_view(self, parent, image, x, y, size):
         holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
         holder.setImage_(image)
         holder.setImageScaling_(3)

@@ -107,11 +107,11 @@ def plan(reg, items, groups, keys_of=None):
     return sorted(out, key=lambda x: -x[0])
 
 
-def find(reg, items, visits, now=None, model=None):
+def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS):
     """Run the method over the last LOOKBACK_DAYS days and plan what to offer (see `plan`). Reads only;
     the tracker calls it outside its lock, on a copy of its items."""
     now = now or datetime.now()
-    things, timeline = recent(items, visits, now)
+    things, timeline = recent(items, visits, now, days)
     if len(things) < NEW_MIN_THINGS:
         return []
     _, _, log = assign.run(things, timeline, model if model is not None else graph.CapitalisedNames())

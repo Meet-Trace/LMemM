@@ -12,7 +12,7 @@ LMemM - the one command.
     lmemm.py suggest [NAME] [ID…]     offer things as one project (stands in for the model)
     lmemm.py suggest-for PROJECT [ID…]
                                       offer things for an existing project (the three latest not in it, or the ids)
-    lmemm.py look-for-projects [--dry-run]
+    lmemm.py look-for-projects [--dry-run [--days N]]
                                       look for projects in the last two weeks now and suggest them
                                       (--dry-run: only print what would be suggested; changes nothing)
     lmemm.py projects [--all] | projects new|rename|move|archive|restore|merge|delete …
@@ -256,9 +256,11 @@ def cmd_look_for_projects(args):
         memory_dir = config.paths().memory_dir
         try:
             items = real_days.read_items(memory_dir)
-            planned = project_shadow.find(projects.load(), items, real_days.read_visits(memory_dir))
-        except (OSError, ValueError) as error:
+            days = int(args[args.index("--days") + 1]) if "--days" in args else project_shadow.LOOKBACK_DAYS
+            planned = project_shadow.find(projects.load(), items, real_days.read_visits(memory_dir), days=days)
+        except (OSError, ValueError, IndexError) as error:
             sys.exit(f"Could not look: {error}")
+        print(f"Looked at the last {days} days in {memory_dir}")
         if not planned:
             print("Nothing to suggest yet: no group of things came up together in two separate sittings.")
         for _, kind, (target, ids, why) in planned:

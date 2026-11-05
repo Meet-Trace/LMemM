@@ -20,6 +20,7 @@ Nothing here touches the app's memory or project tree: it reads a labelled day a
 """
 
 import json
+import urllib.error
 import urllib.request
 from datetime import datetime
 
@@ -196,10 +197,19 @@ class OllamaModel:
             raise ValueError("The reasoning model must run on this Mac (a 127.0.0.1 or localhost URL).")
         self.model, self.url, self.timeout = model, url.rstrip("/"), timeout
 
-    def __call__(self, system, user, schema=SCHEMA):
+    def __call__(self, system, user, schema=SCHEMA, temperature=0):
         body = {"model": self.model, "stream": False, "format": schema, "think": False,
-                "options": {"temperature": 0, "num_ctx": 8192},
+                "options": {"temperature": temperature, "num_ctx": 8192},
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+        try:
+            return self._post(body)
+        except urllib.error.HTTPError as error:
+            if error.code != 400:
+                raise
+            body.pop("think")                  # models without a thinking switch refuse the flag
+            return self._post(body)
+
+    def _post(self, body):
         req = urllib.request.Request(self.url + "/api/chat", data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:

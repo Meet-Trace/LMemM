@@ -312,7 +312,7 @@ def run(items, timeline, model=None, vectors=None, embed=None):
         def total(c):
             s_, why = reg.score(te, c)
             return (s_ + meaning.get(c, 0.0), why + ([f"meaning {meaning[c]:.2f}"] if c in meaning else []))
-        scored = sorted(((total(c), c) for c in cands), key=lambda x: -x[0][0])
+        scored = sorted(((total(c), c) for c in sorted(cands)), key=lambda x: (-x[0][0], x[1]))  # same answer every run
         best = scored[0] if scored else ((0.0, []), None)
         second = scored[1][0][0] if len(scored) > 1 else 0.0
         (s, why), proj = best
@@ -351,7 +351,7 @@ def run(items, timeline, model=None, vectors=None, embed=None):
     # names and paths
     def label(proj):
         c = reg.names.get(proj) or Counter()
-        top = [k for k, _ in c.most_common(3)]
+        top = [k for k, _ in sorted(c.items(), key=lambda x: (-x[1], x[0]))[:3]]
         return (top[0] if top else proj).title()
     labels = {p: label(p) for p in set(task_project.values())}
     assigned, projects = defaultdict(set), {}

@@ -354,13 +354,28 @@ def picker_view(items, item_id, query="", now_iso=None):
             "also": open_now(items, item_id, now_iso or datetime.now().isoformat(timespec="seconds"))}
 
 
+def thing_label(item):
+    """What to call a thing on a card: its own title, else what you were doing minus the app prefix
+    ("Using Safari: Pricing sheet" -> "Pricing sheet"), else the app's name."""
+    title = (item.get("title") or "").strip()
+    if title:
+        return title
+    doing = (item.get("doing") or "").strip()
+    app = item.get("app") or ""
+    for prefix in (f"Using {app}: ", f"Using {app}"):
+        if app and doing.startswith(prefix):
+            doing = doing[len(prefix):].strip()
+            break
+    return doing or app or "Untitled"
+
+
 def suggestion_view(suggestion, items, answered=0, first_times=3):
     """What the suggestion card draws. `suggestion` is {"name", "ids", "reason"}.
     Until you have answered `first_times` suggestions the pill says "Group these?" in words and
     the card adds a line on what a project is; after that the pill is just the mark."""
     if not suggestion:
         return None
-    things = [{"id": i, "title": items[i].get("title") or items[i]["doing"], "app": items[i]["app"],
+    things = [{"id": i, "title": thing_label(items[i]), "app": items[i]["app"],
                "kind": items[i].get("kind", ""), "url": favicons.page_url(items[i])}
               for i in suggestion["ids"] if i in items]
     if len(things) < 2:

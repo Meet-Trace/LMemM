@@ -94,9 +94,10 @@ def note_text(item, n):
     return ". ".join(p for p in parts if p)
 
 
-def card_text(item):
-    """The plain card as one string, for comparing without any note."""
-    c = card(item)
+def card_text(item, screen=True):
+    """The plain card as one string, for comparing without any note. screen=False leaves out the screen
+    text, which also holds whatever other windows were showing."""
+    c = card(item if screen else {**item, "content": {}})
     return " ".join([str(c.get("title") or ""), json.dumps(c.get("details") or {}, ensure_ascii=False)]
                     + list(c.get("text") or []))[:2000]
 

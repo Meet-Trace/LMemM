@@ -51,6 +51,7 @@ from AppKit import (NSApplication, NSBackingStoreBuffered, NSBezierPath, NSColor
                     NSPanel, NSScreen, NSScrollView, NSStrikethroughStyleAttributeName, NSTextField,
                     NSTrackingArea, NSView, NSVisualEffectView, NSAttributedString)
 
+import icon_images
 import motion
 import notes
 import palette
@@ -77,6 +78,7 @@ ICONS = {"code_file": ("chevron.left.forwardslash.chevron.right", (0.48, 0.35, 0
          "email_draft": ("envelope", (0.84, 0.34, 0.24)), "email": ("envelope", (0.84, 0.34, 0.24)),
          "mailbox": ("envelope", (0.84, 0.34, 0.24))}
 DEFAULT_ICON = ("square.on.square", (0.45, 0.45, 0.5))
+SUGGEST_ROWS = 4                    # things the suggestion lists before its Show-more row
 DONE_SECONDS = 1.5                  # "Pricing created." stays this long, then the card closes
 PEEK_MAX = 340                      # the widest the peeking pill gets, whatever the language
 LISTEN_W = 240                      # the pill while it shows the words as you say them
@@ -666,6 +668,7 @@ class Widget:
         self.on_unfile = on_unfile or (lambda item: None)
         self.search = self.name = None      # the card's text fields while they exist
         self.sug = None                     # the suggestion in hand (None when there is none)
+        self.sug_all, self.kept_name = False, None   # every thing listed; the name typed before the list grew
         self.query, self.also, self.done_text, self.close_at = "", True, "", 0.0
         self.fields = _Fields.alloc().initWithChange_submit_cancel_(self._typed, self._submitted, self._cancelled)
         self.hotkey = hotkey
@@ -842,6 +845,8 @@ class Widget:
         sug = self.suggestion()
         status = self.status_fn()
         if (count, first, sug, status) != (self.count, self.first, self.sug, self.status):
+            if sug != self.sug:
+                self.sug_all = False
             self.count, self.first, self.sug, self.status = count, first, sug, status
             self.layout()
         if self.mode == "done" and self.card_open and time.time() >= self.close_at:
@@ -1360,23 +1365,21 @@ class Widget:
         body.addSubview_(_label("Looks like one project", 12, color=NSColor.secondaryLabelColor(),
                                 frame=(PAD, y, CARD_W - 2 * PAD, 16))[0])
         y += 19
-        self.name = _field(sug["name"], "Project name", 16, True, (PAD - 2, y, CARD_W - 2 * PAD + 4, 22), self.fields)
+        self.name = _field(self.kept_name or sug["name"], "Project name", 16, True, (PAD - 2, y, CARD_W - 2 * PAD + 4, 22), self.fields)
         body.addSubview_(self.name)
         y += 30
-        shown = sug["things"][:4]
-        for i, thing in enumerate(shown):
-            x = PAD + i * 63
-            tile = _Tile.alloc().initWithKind_size_(thing["kind"], 34)
-            tile.setFrame_(NSMakeRect(x + 11, y, 34, 34))
-            body.addSubview_(tile)
-            name = _label(thing["title"], 11, color=NSColor.secondaryLabelColor(), frame=(x, y + 38, 56, 14))[0]
-            name.setAlignment_(1)
-            body.addSubview_(name)
-        y += 58
-        if len(sug["things"]) > len(shown):
-            body.addSubview_(_label(f"and {len(sug['things']) - len(shown)} more", 11, color=NSColor.secondaryLabelColor(),
-                                    frame=(PAD, y - 4, CARD_W - 2 * PAD, 14))[0])
-            y += 14
+        things = sug["things"]
+        shown = things if self.sug_all else things[:SUGGEST_ROWS]
+        for thing in shown:
+            self._thing_row(body, y, thing)
+            y += 38
+        if len(things) > len(shown):
+            more = _Tap.alloc().initWithFrame_callback_(NSMakeRect(PAD - 4, y, CARD_W - 2 * PAD + 8, 22), self._expand_things)
+            more.addSubview_(_label(f"Show {len(things) - len(shown)} more", 12, color=NSColor.secondaryLabelColor(),
+                                    frame=(4, 3, CARD_W - 2 * PAD, 16))[0])
+            body.addSubview_(more)
+            y += 26
+        y += 4
         if sug["reason"]:
             body.addSubview_(_label(sug["reason"], 12, color=NSColor.secondaryLabelColor(),
                                     frame=(PAD, y, CARD_W - 2 * PAD, 16))[0])
@@ -1389,6 +1392,32 @@ class Widget:
         self._button(body, (8, y, 150, 33), "Create project", self._accept, primary=True)
         self._button(body, (164, y, CARD_W - 164 - 8, 33), "Not these", self._refuse)
         return y + 41
+
+    def _thing_row(self, body, y, thing):
+        """One thing in the suggestion: its real icon, its name, and the app it lives in; hover for all of it."""
+        row = _Flipped.alloc().initWithFrame_(NSMakeRect(PAD - 4, y, CARD_W - 2 * PAD + 8, 34))
+        row.setToolTip_(thing["title"] + "\n" + thing["app"])
+        image, web = icon_images.best(thing["app"], thing["kind"], thing.get("url"))
+        if image is None:
+            tile = _Tile.alloc().initWithKind_size_(thing["kind"], 30)
+            tile.setFrame_(NSMakeRect(4, 2, 30, 30))
+            row.addSubview_(tile)
+        else:
+            inset = 5 if web else 0             # a favicon fills its square; an app icon has its margin built in
+            holder = NSImageView.alloc().initWithFrame_(NSMakeRect(4 + inset, 2 + inset, 30 - 2 * inset, 30 - 2 * inset))
+            holder.setImage_(image)
+            holder.setImageScaling_(3)
+            row.addSubview_(holder)
+        width = CARD_W - 2 * PAD - 42
+        row.addSubview_(_label(thing["title"], 13, frame=(42, 2, width, 17))[0])
+        row.addSubview_(_label(thing["app"], 11, color=NSColor.secondaryLabelColor(), frame=(42, 19, width, 14))[0])
+        body.addSubview_(row)
+
+    def _expand_things(self):
+        self.sug_all = True
+        self.kept_name = self.name.stringValue() if self.name is not None else None
+        self.render()
+        self.kept_name = None
 
     def _first_project(self, body, y, view):
         """The picker before you have any project: what one is, and a name to give it."""

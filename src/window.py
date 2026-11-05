@@ -18,6 +18,7 @@ from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, 
 
 import apps
 import favicons
+import icon_images
 import menu_model
 import motion
 import notes
@@ -933,36 +934,10 @@ class MainWindow:
         parent.addSubview_(holder)
 
     def _favicon(self, url):
-        """The page's icon from the browser's own store, found once per site."""
-        host = favicons.host_of(url)
-        if host is None:
-            return None
-        key = "web:" + host
-        if key not in self.app_icons:
-            image = None
-            try:
-                data = favicons.icon_bytes(url)
-                if data:
-                    image = NSImage.alloc().initWithData_(NSData.dataWithBytes_length_(data, len(data)))
-            except Exception:
-                image = None
-            self.app_icons[key] = image
-        return self.app_icons[key]
+        return icon_images.favicon(url)
 
     def _app_image(self, app):
-        if app not in self.app_icons:
-            image = None
-            try:
-                path = NSWorkspace.sharedWorkspace().fullPathForApplication_(app)
-                if not path:
-                    if self.app_paths is None:
-                        self.app_paths = {a["name"]: a["path"] for a in apps.installed()}
-                    path = self.app_paths.get(app)
-                image = NSWorkspace.sharedWorkspace().iconForFile_(path) if path else None
-            except Exception:
-                image = None
-            self.app_icons[app] = image
-        return self.app_icons[app]
+        return icon_images.app_image(app)
 
     # ------------------------------------------------------------ small pieces
 

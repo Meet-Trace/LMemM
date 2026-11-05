@@ -76,6 +76,13 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual((first["first_time"], first["peek"]), (True, "Pricing · 3 things"))
         self.assertFalse(notes.suggestion_view(sug, self.items, answered=3)["first_time"])
 
+    def test_thing_label_drops_the_app_prefix_and_never_blank(self):
+        for doing, want in (("Using Safari: Pricing sheet", "Pricing sheet"), ("Using Safari", "Safari"),
+                            ("Editing budget.xlsx", "Editing budget.xlsx")):
+            self.assertEqual(notes.thing_label({"doing": doing, "app": "Safari"}), want)
+        self.assertEqual(notes.thing_label({"title": "Q3 plan", "doing": "x", "app": "Docs"}), "Q3 plan")
+        self.assertEqual(notes.thing_label({"doing": "", "app": ""}), "Untitled")
+
     def test_suggestion_needs_two_things_that_still_exist(self):
         self.assertIsNone(notes.suggestion_view(None, self.items))
         self.assertIsNone(notes.suggestion_view({"name": "X", "ids": ["a", "gone"]}, self.items))

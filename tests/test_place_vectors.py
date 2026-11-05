@@ -85,5 +85,28 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("0.25,4,1", out.getvalue())
 
 
+class RealCompareTest(unittest.TestCase):
+    def test_prints_titles_and_counts_only(self):
+        import synthetic_days as sd
+        path = os.path.join(os.path.dirname(__file__), "..", "scripts", "compare_real_grouping.py")
+        spec = importlib.util.spec_from_file_location("compare_real_grouping", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        doc = sd.generate(6, seed=4)
+        lines = []
+        with tempfile.TemporaryDirectory() as d:
+            mod.real_days.read_items = lambda m: doc["items"]
+            mod.real_days.read_visits = lambda m: doc["timeline"]
+            mod.finder.recent = lambda items, visits, now, days: (items, visits)
+            mod.main(["--memory", d, "--cache", os.path.join(d, "v.json")], out=lines.append,
+                     embed=pv.WordHashEmbedder())
+        text = "\n".join(lines)
+        self.assertIn("off (no vectors)", text)
+        self.assertIn("things changed project", text)
+        for item in doc["items"].values():
+            for line in (item.get("activity") or {}).get("typing", {}).get("text", []):
+                self.assertNotIn(line, text)
+
+
 if __name__ == "__main__":
     unittest.main()

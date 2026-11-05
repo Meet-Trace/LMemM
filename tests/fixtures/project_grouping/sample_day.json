@@ -32,7 +32,75 @@
    "visits": 2,
    "label": [
     "180DC Northwind pricing/Pricing model"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Northwind Logistics - Pricing Proposal v3",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T09:02:00",
+      "last_seen": "2026-11-03T09:40:00"
+     },
+     {
+      "id": "x1",
+      "text": "Prepared by 180 Degrees Consulting",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T09:02:00",
+      "last_seen": "2026-11-03T09:40:00"
+     },
+     {
+      "id": "x2",
+      "text": "Tier | Trucks | Price/month",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T09:02:00",
+      "last_seen": "2026-11-03T09:40:00"
+     },
+     {
+      "id": "x3",
+      "text": "Starter | up to 50 | 1,900",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T09:02:00",
+      "last_seen": "2026-11-03T09:40:00"
+     },
+     {
+      "id": "x4",
+      "text": "Growth | 51-400 | 4,800",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T09:02:00",
+      "last_seen": "2026-11-03T09:40:00"
+     },
+     {
+      "id": "x5",
+      "text": "Enterprise | 400+ | custom",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T09:02:00",
+      "last_seen": "2026-11-03T09:40:00"
+     },
+     {
+      "id": "x6",
+      "text": "Unit economics: see Northwind_Price_Model.xlsx",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T09:02:00",
+      "last_seen": "2026-11-03T09:40:00"
+     }
+    ]
+   }
   },
   "excel-model": {
    "id": "excel-model",
@@ -66,6 +134,71 @@
    "visits": 2,
    "label": [
     "180DC Northwind pricing/Pricing model"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Unit economics",
+      "source": {
+       "app": "Microsoft Excel"
+      },
+      "first_seen": "2026-11-03T09:15:00",
+      "last_seen": "2026-11-03T10:05:00"
+     },
+     {
+      "id": "x1",
+      "text": "Fleet size 340",
+      "source": {
+       "app": "Microsoft Excel"
+      },
+      "first_seen": "2026-11-03T09:15:00",
+      "last_seen": "2026-11-03T10:05:00"
+     },
+     {
+      "id": "x2",
+      "text": "CAC 1,150",
+      "source": {
+       "app": "Microsoft Excel"
+      },
+      "first_seen": "2026-11-03T09:15:00",
+      "last_seen": "2026-11-03T10:05:00"
+     },
+     {
+      "id": "x3",
+      "text": "Gross margin 62%",
+      "source": {
+       "app": "Microsoft Excel"
+      },
+      "first_seen": "2026-11-03T09:15:00",
+      "last_seen": "2026-11-03T10:05:00"
+     },
+     {
+      "id": "x4",
+      "text": "Growth tier 4,800/month",
+      "source": {
+       "app": "Microsoft Excel"
+      },
+      "first_seen": "2026-11-03T09:15:00",
+      "last_seen": "2026-11-03T10:05:00"
+     },
+     {
+      "id": "x5",
+      "text": "Payback 4.1 months",
+      "source": {
+       "app": "Microsoft Excel"
+      },
+      "first_seen": "2026-11-03T09:15:00",
+      "last_seen": "2026-11-03T10:05:00"
+     }
+    ]
+   },
+   "notes": [
+    {
+     "at": "2026-11-03T10:05:00",
+     "text": "add FleetPilot per-truck price as a comparison row"
+    }
    ]
   },
   "gsheet-competitors": {
@@ -97,7 +230,48 @@
    "visits": 2,
    "label": [
     "180DC Northwind pricing/Pricing model"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Freight SaaS competitor prices",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T09:50:00",
+      "last_seen": "2026-11-03T10:10:00"
+     },
+     {
+      "id": "x1",
+      "text": "FleetPilot | 39 per truck",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T09:50:00",
+      "last_seen": "2026-11-03T10:10:00"
+     },
+     {
+      "id": "x2",
+      "text": "HaulWise | 4,200 per month",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T09:50:00",
+      "last_seen": "2026-11-03T10:10:00"
+     },
+     {
+      "id": "x3",
+      "text": "Northwind benchmark (340 trucks)",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T09:50:00",
+      "last_seen": "2026-11-03T10:10:00"
+     }
+    ]
+   }
   },
   "slack-pricing": {
    "id": "slack-pricing",
@@ -118,9 +292,14 @@
     },
     "reading": {
      "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
      "text": [
       "Arjun Mehta: can we sanity check against FleetPilot?"
-     ]
+     ],
+     "count": 1
     }
    },
    "first_seen": "2026-11-03T09:30:00",
@@ -160,7 +339,30 @@
    "label": [
     "180DC Northwind pricing/Pricing model"
    ],
-   "label_note": "almost no text: hard case, only time and 'fleet size'/'growth tier' tie it"
+   "label_note": "almost no text: hard case, only time and 'fleet size'/'growth tier' tie it",
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "growth tier objections",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T10:12:00",
+      "last_seen": "2026-11-03T10:14:00"
+     },
+     {
+      "id": "x1",
+      "text": "check fleet size",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T10:12:00",
+      "last_seen": "2026-11-03T10:14:00"
+     }
+    ]
+   }
   },
   "gmail-northwind": {
    "id": "gmail-northwind",
@@ -184,9 +386,14 @@
     },
     "reading": {
      "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
      "text": [
       "Priya Raman: Could we move the workshop to Thursday 3pm?"
-     ]
+     ],
+     "count": 1
     }
    },
    "first_seen": "2026-11-03T11:00:00",
@@ -214,10 +421,15 @@
     },
     "reading": {
      "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
      "text": [
       "Invitation: Northwind pricing workshop",
       "Attendees: Arjun Mehta, Priya Raman, Aditya Khuntia"
-     ]
+     ],
+     "count": 2
     }
    },
    "first_seen": "2026-11-03T11:25:00",
@@ -246,9 +458,14 @@
     },
     "reading": {
      "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
      "text": [
       "Priya Raman: great, our CFO Daniel Okafor will join"
-     ]
+     ],
+     "count": 1
     }
    },
    "first_seen": "2026-11-03T11:30:00",
@@ -286,7 +503,48 @@
    "visits": 2,
    "label": [
     "180DC Northwind pricing/Client meetings"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Northwind pricing workshop - Thursday 3pm",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T11:50:00",
+      "last_seen": "2026-11-03T12:05:00"
+     },
+     {
+      "id": "x1",
+      "text": "1. Recap of fleet economics",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T11:50:00",
+      "last_seen": "2026-11-03T12:05:00"
+     },
+     {
+      "id": "x2",
+      "text": "2. Tier walkthrough",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T11:50:00",
+      "last_seen": "2026-11-03T12:05:00"
+     },
+     {
+      "id": "x3",
+      "text": "3. Q&A with Daniel Okafor (CFO)",
+      "source": {
+       "app": "Microsoft Word"
+      },
+      "first_seen": "2026-11-03T11:50:00",
+      "last_seen": "2026-11-03T12:05:00"
+     }
+    ]
+   }
   },
   "slack-rohan": {
    "id": "slack-rohan",
@@ -305,9 +563,14 @@
     },
     "reading": {
      "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
      "text": [
       "Rohan Iyer: build_resume_packet still includes archived projects, can you make it skip them before the demo?"
-     ]
+     ],
+     "count": 1
     }
    },
    "first_seen": "2026-11-03T12:55:00",
@@ -350,6 +613,12 @@
    "visits": 2,
    "label": [
     "LMemM/Resume"
+   ],
+   "notes": [
+    {
+     "at": "2026-11-03T14:10:00",
+     "text": "TODO: tell Rohan when archived projects are skipped"
+    }
    ]
   },
   "github-pr26": {
@@ -380,7 +649,39 @@
    "visits": 2,
    "label": [
     "LMemM/Resume"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "feat: exact-source Resume #26",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T13:20:00",
+      "last_seen": "2026-11-03T13:35:00"
+     },
+     {
+      "id": "x1",
+      "text": "adityakhuntia wants to merge 3 commits into main",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T13:20:00",
+      "last_seen": "2026-11-03T13:35:00"
+     },
+     {
+      "id": "x2",
+      "text": "This branch has conflicts that must be resolved: window.py, window_model.py, widget.py",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T13:20:00",
+      "last_seen": "2026-11-03T13:35:00"
+     }
+    ]
+   }
   },
   "claude-resume": {
    "id": "claude-resume",
@@ -439,7 +740,48 @@
    "visits": 2,
    "label": [
     "LMemM/Pill UI"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Pill redesign",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T14:20:00",
+      "last_seen": "2026-11-03T14:50:00"
+     },
+     {
+      "id": "x1",
+      "text": "States: idle / listening / saved",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T14:20:00",
+      "last_seen": "2026-11-03T14:50:00"
+     },
+     {
+      "id": "x2",
+      "text": "Accent: one blue",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T14:20:00",
+      "last_seen": "2026-11-03T14:50:00"
+     },
+     {
+      "id": "x3",
+      "text": "Resize: 150ms",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T14:20:00",
+      "last_seen": "2026-11-03T14:50:00"
+     }
+    ]
+   }
   },
   "slack-design": {
    "id": "slack-design",
@@ -460,9 +802,14 @@
     },
     "reading": {
      "seconds": 60,
+     "text": []
+    },
+    "receiving": {
+     "seconds": 0,
      "text": [
       "Emil: try a spring for the listening state"
-     ]
+     ],
+     "count": 1
     }
    },
    "first_seen": "2026-11-03T14:30:00",
@@ -500,7 +847,48 @@
    "visits": 2,
    "label": [
     "LMemM"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "LMemM - November investor update",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T15:00:00",
+      "last_seen": "2026-11-03T15:30:00"
+     },
+     {
+      "id": "x1",
+      "text": "Shipped: Resume (beta)",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T15:00:00",
+      "last_seen": "2026-11-03T15:30:00"
+     },
+     {
+      "id": "x2",
+      "text": "In progress: pill redesign",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T15:00:00",
+      "last_seen": "2026-11-03T15:30:00"
+     },
+     {
+      "id": "x3",
+      "text": "Ask: intros to Mac-first agencies",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T15:00:00",
+      "last_seen": "2026-11-03T15:30:00"
+     }
+    ]
+   }
   },
   "gmail-investor": {
    "id": "gmail-investor",
@@ -594,7 +982,48 @@
    "visits": 2,
    "label": [
     "Goa trip"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Goa budget",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T16:10:00",
+      "last_seen": "2026-11-03T16:25:00"
+     },
+     {
+      "id": "x1",
+      "text": "Flights 6E-2231 | 9,400",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T16:10:00",
+      "last_seen": "2026-11-03T16:25:00"
+     },
+     {
+      "id": "x2",
+      "text": "Villa Anjuna 3 nights | 21,000",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T16:10:00",
+      "last_seen": "2026-11-03T16:25:00"
+     },
+     {
+      "id": "x3",
+      "text": "Scooter | 1,500",
+      "source": {
+       "app": "Google Sheets"
+      },
+      "first_seen": "2026-11-03T16:10:00",
+      "last_seen": "2026-11-03T16:25:00"
+     }
+    ]
+   }
   },
   "safari-villa": {
    "id": "safari-villa",
@@ -624,7 +1053,48 @@
    "visits": 2,
    "label": [
     "Goa trip"
-   ]
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Villa Anjuna",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T16:20:00",
+      "last_seen": "2026-11-03T16:30:00"
+     },
+     {
+      "id": "x1",
+      "text": "Entire villa in Anjuna, Goa",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T16:20:00",
+      "last_seen": "2026-11-03T16:30:00"
+     },
+     {
+      "id": "x2",
+      "text": "21-24 Nov",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T16:20:00",
+      "last_seen": "2026-11-03T16:30:00"
+     },
+     {
+      "id": "x3",
+      "text": "3 nights",
+      "source": {
+       "app": "Safari"
+      },
+      "first_seen": "2026-11-03T16:20:00",
+      "last_seen": "2026-11-03T16:30:00"
+     }
+    ]
+   }
   },
   "gmail-inbox": {
    "id": "gmail-inbox",
@@ -641,10 +1111,16 @@
     "reading": {
      "seconds": 60,
      "text": [
-      "Re: Northwind pricing workshop",
       "LMemM November update",
       "Your IndiGo booking"
      ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Re: Northwind pricing workshop"
+     ],
+     "count": 1
     }
    },
    "first_seen": "2026-11-03T08:55:00",
@@ -652,7 +1128,39 @@
    "seconds": 120,
    "visits": 2,
    "label": [],
-   "label_note": "hub: mentions every project, must not merge them"
+   "label_note": "hub: mentions every project, must not merge them",
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Re: Northwind pricing workshop",
+      "source": {
+       "app": "Gmail"
+      },
+      "first_seen": "2026-11-03T08:55:00",
+      "last_seen": "2026-11-03T16:40:00"
+     },
+     {
+      "id": "x1",
+      "text": "LMemM November update",
+      "source": {
+       "app": "Gmail"
+      },
+      "first_seen": "2026-11-03T08:55:00",
+      "last_seen": "2026-11-03T16:40:00"
+     },
+     {
+      "id": "x2",
+      "text": "Your IndiGo booking 6E-2231",
+      "source": {
+       "app": "Gmail"
+      },
+      "first_seen": "2026-11-03T08:55:00",
+      "last_seen": "2026-11-03T16:40:00"
+     }
+    ]
+   }
   },
   "slack-general": {
    "id": "slack-general",
@@ -709,7 +1217,39 @@
     "180DC Northwind pricing/Pricing model",
     "LMemM"
    ],
-   "label_note": "belongs to two projects"
+   "label_note": "belongs to two projects",
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Pricing playbook",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T10:30:00",
+      "last_seen": "2026-11-03T10:45:00"
+     },
+     {
+      "id": "x1",
+      "text": "Value-based tiers",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T10:30:00",
+      "last_seen": "2026-11-03T10:45:00"
+     },
+     {
+      "id": "x2",
+      "text": "Examples: Northwind (180DC), LMemM $29/seat pilot",
+      "source": {
+       "app": "Google Docs"
+      },
+      "first_seen": "2026-11-03T10:30:00",
+      "last_seen": "2026-11-03T10:45:00"
+     }
+    ]
+   }
   }
  },
  "timeline": [

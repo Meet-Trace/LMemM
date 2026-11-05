@@ -19,7 +19,7 @@ Every answer is untrusted: unknown ids, wrong types and failed calls file nothin
 
 import json
 
-from project_reasoner import digest, sittings
+from project_reasoner import FOCUS_CHARS, digest, sittings
 
 MAX_TASKS = 3
 MATCH_CONFIDENCE = 0.6
@@ -88,7 +88,8 @@ def tasks_in(places, model, log):
         for other in remaining:
             if other == main:
                 continue
-            b = _ask(model, BELONGS, {"work": doing, "main_place": digest(by_id[main]), "other_place": digest(by_id[other])},
+            b = _ask(model, BELONGS, {"work": doing, "main_place": digest(by_id[main], FOCUS_CHARS),
+                                          "other_place": digest(by_id[other], FOCUS_CHARS)},
                      BELONGS_SCHEMA, log, "belongs")
             if b is not None and b["answer"] == "yes":
                 members.append(other)

@@ -36,15 +36,33 @@ class SittingsTest(unittest.TestCase):
 
 
 class DigestTest(unittest.TestCase):
-    def test_digest_keeps_meaning_and_drops_bookkeeping(self):
-        item = {"id": "x", "app": "Slack", "kind": "chat", "title": "#a", "screenshot": "s.jpg", "content_hash": "h",
-                "state": {"chat": "#a", "draft_area": "secret box id"},
-                "activity": {"reading": {"text": [f"line {n}" for n in range(10)]}, "typing": {"text": ["x" * 999]}}}
-        d = r.digest(item)
+    item = {"id": "x", "app": "Slack", "kind": "chat", "title": "#a", "screenshot": "s.jpg", "content_hash": "h",
+            "state": {"chat": "#a", "draft_area": "secret box id"},
+            "activity": {"reading": {"text": [f"read {n}" for n in range(15)]}, "typing": {"text": ["x" * 999]},
+                         "receiving": {"text": ["Rohan: please skip archived projects"]}},
+            "notes": [{"at": "t", "text": "TODO: tell Rohan"}],
+            "content": {"version": 1, "excerpts": [{"text": "visible heading"}, {"text": "read 14"}]}}
+
+    def test_digest_keeps_everything_memory_stores(self):
+        d = r.digest(self.item)
         self.assertNotIn("screenshot", d)
         self.assertEqual(d["details"], {"chat": "#a"})
-        self.assertEqual(d["read"], ["line 6", "line 7", "line 8", "line 9"])
+        self.assertEqual(d["received"], ["Rohan: please skip archived projects"])
+        self.assertEqual(d["notes"], ["TODO: tell Rohan"])
+        self.assertEqual(d["read"], [f"read {n}" for n in range(15)])
+        self.assertEqual(d["screen"], ["visible heading"])         # "read 14" is shown once only
         self.assertEqual(len(d["typed"][0]), r.LINE_CHARS)
+
+    def test_a_small_budget_keeps_the_most_telling_text(self):
+        d = r.digest(self.item, budget=r.LINE_CHARS + len("Rohan: please skip archived projects"))
+        self.assertEqual(list(k for k in d if k in r.FIELDS), ["typed", "received"])
+
+    def test_budget_takes_newest_lines_first(self):
+        d = r.digest({"id": "y", "activity": {"reading": {"text": ["old line", "new line"]}}}, budget=9)
+        self.assertEqual(d["read"], ["new line"])
+
+    def test_an_empty_place_is_just_its_details(self):
+        self.assertEqual(set(r.digest({"id": "z"})), {"id", "app", "kind", "title", "details"})
 
 
 class ApplyTest(unittest.TestCase):

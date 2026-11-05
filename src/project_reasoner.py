@@ -26,8 +26,12 @@ from datetime import datetime
 GAP_SECONDS = 300          # this long with nothing on screen ends a sitting
 MAX_SITTING_PLACES = 12    # bounds the prompt
 NEW_PROJECT_CONFIDENCE = 0.6
-DIGEST_LINES = 4
-LINE_CHARS = 200
+LINE_CHARS = 300           # one line of text, cut
+PLACE_CHARS = 1500         # all text of one place when a whole sitting is shown
+FOCUS_CHARS = 4000         # all text of one place when only two places are shown
+# Everything memory.json keeps about a place, most telling first: what you wrote, what was sent to
+# you, your own notes, what you read, then the visible screen text (memory_content excerpts).
+FIELDS = ("typed", "received", "notes", "read", "screen")
 
 SYSTEM = """You help a person keep track of their work. You are shown the places (documents, sheets,
 chats, emails, web pages, code files) they had on screen during one sitting at their computer, and a
@@ -89,17 +93,40 @@ def sittings(timeline, gap=GAP_SECONDS):
     return out
 
 
-def _lines(item, category):
-    text = ((item.get("activity") or {}).get(category) or {}).get("text") or []
-    return [str(t)[:LINE_CHARS] for t in text[-DIGEST_LINES:]]
+def _texts(item):
+    """Every stored text of a place by field, newest last, each line cut to LINE_CHARS."""
+    act = item.get("activity") or {}
+
+    def lines(values):
+        return [" ".join(str(t).split())[:LINE_CHARS] for t in values or [] if str(t).strip()]
+    return {"typed": lines((act.get("typing") or {}).get("text")),
+            "received": lines((act.get("receiving") or {}).get("text")),
+            "notes": lines(n.get("text") for n in item.get("notes") or [] if isinstance(n, dict)),
+            "read": lines((act.get("reading") or {}).get("text")),
+            "screen": lines(e.get("text") for e in ((item.get("content") or {}).get("excerpts") or [])
+                            if isinstance(e, dict))}
 
 
-def digest(item):
-    """What the model sees of one place: no screenshots, no bookkeeping, bounded text."""
+def digest(item, budget=PLACE_CHARS):
+    """What the model sees of one place: details plus as much stored text as fits in `budget`
+    characters, taken field by field in FIELDS order and newest line first within a field. Duplicate
+    lines are shown once. No screenshots and no bookkeeping."""
     state = {k: v for k, v in (item.get("state") or {}).items()
              if k in {"file", "project", "subject", "to", "from", "chat", "workspace", "url", "sheet", "conversation"}}
-    return {"id": item["id"], "app": item.get("app"), "kind": item.get("kind"), "title": item.get("title"),
-            "details": state, "read": _lines(item, "reading"), "typed": _lines(item, "typing")}
+    out = {"id": item["id"], "app": item.get("app"), "kind": item.get("kind"), "title": item.get("title"),
+           "details": state}
+    seen, left, texts = set(), budget, _texts(item)
+    for field in FIELDS:
+        kept = []
+        for line in reversed(texts[field]):
+            if line in seen or len(line) > left:
+                continue
+            seen.add(line)
+            kept.append(line)
+            left -= len(line)
+        if kept:
+            out[field] = list(reversed(kept))
+    return out
 
 
 def prompt(places, projects):

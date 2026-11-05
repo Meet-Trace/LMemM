@@ -111,7 +111,20 @@ def plan(reg, items, groups, keys_of=None):
             name = name or g["label"]
             why = f"Used together in {g['tasks']} separate sittings"
             out.append((g["tasks"] * 2 + len(ids), "project", (name, ids, why)))
-    return sorted(out, key=lambda x: -x[0])
+    # two groups the method kept apart but that carry the same name are offered as one project: you can
+    # still split it, and two cards called "LMemM" would only confuse
+    merged, at = [], {}
+    for strength, kind, (target, ids, why) in sorted(out, key=lambda x: -x[0]):
+        key = (kind, projects.key(target) if kind == "project" else target)
+        if key in at:
+            s0, k0, (t0, ids0, why0) = merged[at[key]]
+            tasks = int(why0.split()[3]) + int(why.split()[3]) if kind == "project" else None
+            merged[at[key]] = (s0 + strength, k0, (t0, list(dict.fromkeys(ids0 + ids)),
+                                                   f"Used together in {tasks} separate sittings" if tasks else why0))
+        else:
+            at[key] = len(merged)
+            merged.append((strength, kind, (target, ids, why)))
+    return sorted(merged, key=lambda x: -x[0])
 
 
 def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS):

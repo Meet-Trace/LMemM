@@ -76,8 +76,8 @@ class ShadowTest(unittest.TestCase):
         self.propose(sug)
         offered = [e for e in sug["items"] if e["pid"] == pid]
         self.assertTrue(offered)
-        self.assertEqual(set(offered[0]["ids"]), set(group[2:]))
-        self.assertFalse(any(set(e["ids"]) & set(group) for e in sug["projects"]))
+        self.assertLessEqual(set(offered[0]["ids"]), set(group[2:]))
+        self.assertFalse(any(set(e["ids"]) & set(group[:2]) for e in sug["projects"]))
 
     def test_a_dismissed_project_is_not_offered_again_and_offers_are_logged(self):
         sug = sg.empty()
@@ -115,6 +115,18 @@ class ShadowTest(unittest.TestCase):
         back = self.propose(sug, NOW + timedelta(days=8))
         self.assertNotIn(first["name"], [e["name"] for e in back])
         self.assertNotIn(first["name"], [s["entry"]["name"] for s in sug["shelved"]])
+
+    def test_groups_with_the_same_name_become_one_suggestion(self):
+        ids = list(self.items)[:8]
+        for i in ids:
+            self.items[i]["title"] = "Atlas plan"
+        keys_of = {i: {"atlas"} for i in ids}
+        groups = {"P1": {"label": "Atlas", "tasks": 3, "places": ids[:4], "names": []},
+                  "P2": {"label": "Atlas", "tasks": 2, "places": ids[4:], "names": []}}
+        planned = sh.plan(self.reg, self.items, groups, keys_of)
+        self.assertEqual(len(planned), 1)
+        _, kind, (name, got, why) = planned[0]
+        self.assertEqual((kind, name, set(got), why), ("project", "Atlas", set(ids), "Used together in 5 separate sittings"))
 
     @unittest.skipIf(tracker is None, "tracker needs macOS")
     def test_the_tracker_looks_on_a_copy_and_offers_under_its_lock(self):

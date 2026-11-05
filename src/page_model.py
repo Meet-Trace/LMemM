@@ -35,6 +35,7 @@ import functools
 import unicodedata
 from datetime import datetime
 
+import favicons
 import notes
 import projects
 import settings_model
@@ -206,7 +207,8 @@ def _thing(reg, item, now, here=None, with_notes=False):
         bits.append("also in " + ", ".join(others))
     open_notes = notes.open_notes(item)
     row = {"id": item["id"], "pid": main if main and _live(reg, main) else None, "title": title_of(item), "sub": " · ".join(b for b in bits if b),
-           "ago": ago(item.get("last_seen"), now), "open": len(open_notes), "app": item.get("app", "")}
+           "ago": ago(item.get("last_seen"), now), "open": len(open_notes), "app": item.get("app", ""),
+           "kind": item.get("kind", ""), "url": favicons.page_url(item)}
     if with_notes:
         row["notes"] = [n["text"] for n in open_notes[:NOTES_SHOWN]]
         row["more_notes"] = max(0, len(open_notes) - NOTES_SHOWN)
@@ -458,6 +460,7 @@ def thing_page(reg, item, now, expanded=(), fading=()):
     stats = [("Last seen", ago(item.get("last_seen"), now)), ("First seen", ago(item.get("first_seen"), now)),
              ("Time spent", store.duration(item.get("seconds"))), ("Visits", f"{int(item.get('visits') or 0):,}")]
     return {"kind": "thing", "title": title_of(item), "app": item.get("app", ""), "back": True,
+            "thing_kind": item.get("kind", ""), "url": favicons.page_url(item),
             "meta": " · ".join(b for b in (item.get("app", ""), "last seen " + ago(item.get("last_seen"), now).lower()) if b),
             "places": places,
             "item": item["id"],
@@ -489,7 +492,8 @@ def search(reg, items, q, now):
             "meta": f"{plural(len(found_projects), 'project')} · {plural(len(things), 'thing')} · {plural(len(hits), 'note')}",
             "projects": [{"id": p, "name": reg["projects"][p]["name"], "hue": hue(p), "path": " › ".join(projects.path_names(reg, p))}
                          for p in found_projects[:lim["projects"]]],
-            "notes": [{"text": n["text"], "thing": title_of(i), "id": i["id"]} for i, n in hits[:lim["notes"]]],
+            "notes": [{"text": n["text"], "thing": title_of(i), "id": i["id"], "app": i.get("app", ""),
+                       "kind": i.get("kind", ""), "url": favicons.page_url(i)} for i, n in hits[:lim["notes"]]],
             "things": [_thing(reg, i, now) for i in things[:lim["things"]]],
             "things_more": max(0, len(things) - lim["things"]),
             "none": not (found_projects or things or hits)}

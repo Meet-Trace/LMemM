@@ -19,6 +19,7 @@ except ImportError:
     sys.exit("Missing dependency. Run:  python3 -m pip install -r requirements.txt")
 
 import config
+from memory_content import pick_window
 
 _CG = {}
 
@@ -75,15 +76,9 @@ def front():
     if app is None:
         return None
     pid = app.processIdentifier()
-    win = None
-    for w in cg()["CGWindowListCopyWindowInfo"](1 | 16, 0) or []:   # on-screen, front to back
-        if w.get("kCGWindowOwnerPID") != pid or w.get("kCGWindowLayer") != 0:
-            continue
-        b = w.get("kCGWindowBounds") or {}
-        if b.get("Height", 0) < 80 or b.get("Width", 0) < 80:
-            continue
-        win = w
-        break
+    mine = [w for w in cg()["CGWindowListCopyWindowInfo"](1 | 16, 0) or []     # on-screen, front to back
+            if w.get("kCGWindowOwnerPID") == pid and w.get("kCGWindowLayer") == 0]
+    win = pick_window(mine)
     return {
         "app": app.localizedName(),
         "bundle_id": app.bundleIdentifier(),

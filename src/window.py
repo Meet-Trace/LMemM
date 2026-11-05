@@ -12,11 +12,12 @@ import time
 import traceback
 
 import objc
-from Foundation import NSObject
-from AppKit import (NSApplication, NSBezierPath, NSColor, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView,
+from Foundation import NSData, NSObject
+from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView,
                     NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
 import apps
+import favicons
 import menu_model
 import motion
 import notes
@@ -34,6 +35,7 @@ from widget import _Fields, _Flipped, _Ring, _Tap
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
 SIDE_W = 250
+FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
 MIN_MAIN, MAX_MAIN = 560, 980                          # the page's reading column: it grows with the window, up to this
 TOP = 32                                               # below the title bar
@@ -889,16 +891,63 @@ class MainWindow:
     def _project_icon(self, parent, hue, x, y, size=26):
         kit.tile(parent, "folder.fill", hue_color(hue), x, y, size)
 
-    def _app_icon(self, parent, app, x, y, size=30):
-        """The app's own icon; a plain square when this Mac cannot find it."""
-        image = self._app_image(app)
-        if image is None:
-            kit.tile(parent, ("doc.fill", "app.fill"), kit.mute(), x, y, size)
+    def _app_icon(self, parent, app, x, y, size=30, kind="", url=None):
+        """The best real icon there is: the installed app's, else the web page's favicon from the
+        browser (`url`, `kind`), else a dimmed LMemM mark as a placeholder."""
+        url = favicons.address(app, kind, url)
+        image = self._app_image(app)                      # an installed app (WhatsApp.app) has its own icon
+        if image is not None:
+            self._icon_view(parent, image, x, y, size)
             return
+        image = self._favicon(url) if url else None       # else the tab's icon from the browser
+        if image is None:
+            self._placeholder(parent, x, y, size)         # nothing to be had: LMemM's own mark, dimmed
+            return
+        # A favicon is a small bitmap that fills its whole square, unlike an app icon, which has its
+        # margin built in. Sit it in a soft rounded tile at the same visual size, so every row matches.
+        tile = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x, y, size, size), None)
+        tile.fill = kit.faint(0.10)
+        tile.radius = size * 0.28
+        parent.addSubview_(tile)
+        inset = size * FAVICON_INSET
+        self._icon_view(parent, image, x + inset, y + inset, size - 2 * inset)
+
+    def _icon_view(self, parent, image, x, y, size):
         holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
         holder.setImage_(image)
         holder.setImageScaling_(3)
+        holder.setAccessibilityElement_(False)
         parent.addSubview_(holder)
+
+    def _placeholder(self, parent, x, y, size):
+        """For a thing whose own icon we cannot find: the LMemM icon at half strength."""
+        mark = NSApplication.sharedApplication().applicationIconImage()
+        if mark is None:
+            kit.tile(parent, ("circle.dashed", "app.fill"), kit.mute(), x, y, size)
+            return
+        holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
+        holder.setImage_(mark)
+        holder.setImageScaling_(3)
+        holder.setAlphaValue_(0.5)
+        holder.setAccessibilityElement_(False)
+        parent.addSubview_(holder)
+
+    def _favicon(self, url):
+        """The page's icon from the browser's own store, found once per site."""
+        host = favicons.host_of(url)
+        if host is None:
+            return None
+        key = "web:" + host
+        if key not in self.app_icons:
+            image = None
+            try:
+                data = favicons.icon_bytes(url)
+                if data:
+                    image = NSImage.alloc().initWithData_(NSData.dataWithBytes_length_(data, len(data)))
+            except Exception:
+                image = None
+            self.app_icons[key] = image
+        return self.app_icons[key]
 
     def _app_image(self, app):
         if app not in self.app_icons:
@@ -958,7 +1007,7 @@ class MainWindow:
             call = lambda r=row: self.press("thing", r["id"])
             tap = self._tap(doc, 8, y, SIDE_W - 16, 34, call)
             tap.fill = self._krow("side", "n" + row["id"], call, tap)
-            self._app_icon(tap, row["app"], 8, 5, 24)
+            self._app_icon(tap, row["app"], 8, 5, 24, row.get("kind", ""), row.get("url"))
             kit.put_text(tap, row["title"], 40, 0, SIDE_W - 16 - 40 - 40, 13, 500, wrap=False, height=34, middle=True)
             kit.put_text(tap, str(row["open"]), SIDE_W - 16 - 34, 0, 26, 12, 500, kit.mute(), align=RIGHT, wrap=False, height=34, middle=True)
             y += 34
@@ -1120,7 +1169,7 @@ class MainWindow:
             self._project_icon(doc, page["hue"], x, y - 2, 40)
             tx = x + 54
         elif kind == "thing":
-            self._app_icon(doc, page["app"], x, y - 2, 40)
+            self._app_icon(doc, page["app"], x, y - 2, 40, page.get("thing_kind", ""), page.get("url"))
             tx = x + 54
         elif kind in ("home", "needs", "archived", "settings"):
             kit.tile(doc, {"home": ("square.stack.3d.up.fill", "folder.fill"), "needs": ("bell.badge.fill", "bell.fill"),
@@ -1177,7 +1226,7 @@ class MainWindow:
             kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if on else ("circle", "circle"),
                      kit.ink() if on else kit.mute(), 0, 12, 22)
             lead = 32
-        self._app_icon(box, t["app"], lead, 8, 34)
+        self._app_icon(box, t["app"], lead, 8, 34, t.get("kind", ""), t.get("url"))
         tx = 46 + lead
         kit.put_text(box, t["title"], tx, 6, w - tx - 130, 14, 600, wrap=False, height=20)
         if t["ago"]:
@@ -1285,7 +1334,7 @@ class MainWindow:
             top = 12
             for t in e["things"][:5]:
                 call = (lambda i=t["id"]: self.press("thing", i))
-                self._app_icon(box, t["app"], 14, top + 6, 30)
+                self._app_icon(box, t["app"], 14, top + 6, 30, t.get("kind", ""), t.get("url"))
                 open_it = self._tap(box, 54, top, inner + 28 - 54 - 190, 44, call)
                 kit.put_text(open_it, t["title"], 0, 3, inner + 28 - 54 - 190, 14, 600, wrap=False, height=20)
                 kit.put_text(open_it, t["sub"], 0, 23, inner + 28 - 54 - 190, 12, 400, kit.mute(), wrap=False, height=16)
@@ -1553,7 +1602,7 @@ class MainWindow:
     def _mini_card(self, parent, t, x, y, w, h):
         """A small Pick up card: the app, the thing, and its first open notes. Opens the thing."""
         tap = self._tap(parent, x, y, w, h, (lambda i=t["id"]: self.press("thing", i)), fill=True)
-        self._app_icon(tap, t["app"], 12, 11, 24)
+        self._app_icon(tap, t["app"], 12, 11, 24, t.get("kind", ""), t.get("url"))
         kit.put_text(tap, t["title"], 44, 11, w - 56, 13, 600, wrap=False, height=24, middle=True)
         shown = t.get("notes", [])[:2]
         more = t["open"] - len(shown)
@@ -1728,7 +1777,7 @@ class MainWindow:
             y = self._section(doc, "Notes", x, y + 8, w)
             for n in page["notes"]:
                 row = self._tap(doc, x, y, w, 42, (lambda i=n["id"]: self.press("thing", i)))
-                kit.tile(row, ("note.text", "doc.text.fill"), kit.mute(), 0, 6, 30)
+                self._app_icon(row, n.get("app", ""), 0, 6, 30, n.get("kind", ""), n.get("url"))
                 kit.put_text(row, n["text"], 42, 4, w - 42, 14, 500, wrap=False, height=20)
                 kit.put_text(row, n["thing"], 42, 22, w - 42, 12, 400, kit.mute(), wrap=False, height=16)
                 y += 46

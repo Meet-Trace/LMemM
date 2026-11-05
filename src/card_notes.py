@@ -104,7 +104,7 @@ def card_text(item):
 class OllamaEmbedder:
     """all-minilm (or any embedding model) on a local Ollama. Returns one unit vector per text."""
 
-    def __init__(self, model="all-minilm", url="http://127.0.0.1:11455", timeout=60):
+    def __init__(self, model="all-minilm:22m", url="http://127.0.0.1:11455", timeout=60):
         if not url.startswith(("http://127.0.0.1", "http://localhost")):
             raise ValueError("The embedding model must run on this Mac (a 127.0.0.1 or localhost URL).")
         self.model, self.url, self.timeout = model, url.rstrip("/"), timeout

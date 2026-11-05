@@ -84,7 +84,7 @@ def main(argv=None, model=None, embed=None):
     p.add_argument("--day", type=Path, default=judge_pairs.DEFAULT_DAY)
     p.add_argument("--model", default="gemma3:1b")
     p.add_argument("--url", default="http://127.0.0.1:11434", help="Ollama with the small model")
-    p.add_argument("--embed-model", default="all-minilm")
+    p.add_argument("--embed-model", default="all-minilm:22m")
     p.add_argument("--embed-url", default="http://127.0.0.1:11455", help="Ollama with the embedding model")
     p.add_argument("--max-pairs", type=int, default=60)
     p.add_argument("--picks", type=int, default=30)

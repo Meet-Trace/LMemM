@@ -99,10 +99,11 @@ class RealCompareTest(unittest.TestCase):
             mod.real_days.read_visits = lambda m: doc["timeline"]
             mod.finder.recent = lambda items, visits, now, days: (items, visits)
             mod.main(["--memory", d, "--cache", os.path.join(d, "v.json")], out=lines.append,
-                     embed=pv.WordHashEmbedder())
+                     embed=pv.WordHashEmbedder(), name_model=lambda s, u, schema: {"name": "unsure"})
         text = "\n".join(lines)
         self.assertIn("off (no vectors)", text)
         self.assertIn("things changed project", text)
+        self.assertIn("== names for the", text)
         for item in doc["items"].values():
             for line in (item.get("activity") or {}).get("typing", {}).get("text", []):
                 self.assertNotIn(line, text)

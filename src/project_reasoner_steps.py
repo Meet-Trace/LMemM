@@ -30,6 +30,8 @@ MAX_TASKS = 3
 MATCH_CONFIDENCE = 0.6
 NEW_PROJECT_MIN = 2
 RECENT_WORK = 3
+PARENT_PLACES = 6          # places shown per project in the parent question
+PARENT_PLACE_CHARS = 400   # text per place there
 PARENT_CONFIDENCE = 0.7
 # Places that are lists of other places (an inbox, a chat list, search results). They mention every
 # project at once, so they are never a task's place; the place they lead to is.
@@ -66,8 +68,11 @@ NAME = ("Name the ongoing project this task belongs to, as a person would label 
 NAME_SCHEMA = {"type": "object", "properties": {"name": {"type": "string"}, "summary": {"type": "string"}},
                "required": ["name", "summary"]}
 
-PARENT = ("You see two projects a person has, each with a summary and recent work. Are they two strands of ONE bigger "
-          "ongoing piece of work: the same client engagement, the same product, the same trip? Merely similar kinds "
+PARENT = ("You see two projects a person has, each with a summary, recent work and the places in it (documents, "
+          "chats, code, emails, with what was written and received there). Are they two strands of ONE bigger "
+          "ongoing piece of work: the same client engagement, the same product, the same trip? Judge by what the "
+          "places are about (repository, file names, client, people, product names), not by the project names, "
+          "which were guessed and may be misleading. Merely similar kinds "
           "of work (both pricing, both design) is not enough. If yes, give the bigger work a 2 to 5 word folder name "
           "naming the client, product or goal. When unsure, answer false. "
           + _RULES + ' Shape: {"same_bigger_work": true | false, "confidence": 0..1, "parent_name": "...", "why": "..."}')
@@ -150,6 +155,7 @@ def project_for(task, titles, projects, model, log):
         projects.setdefault(best, {"summary": str(n["summary"])[:300], "recent": []})
         decision = "created project"
     projects[best]["recent"].append(task["doing"])
+    projects[best].setdefault("places", []).extend(p for p in task["places"] if p not in projects[best]["places"])
     log.append({"step": "decide", "doing": task["doing"], "places": task["places"], "project": best,
                 "confidence": best_conf if decision != "created project" else None, "decision": decision})
     return best
@@ -162,11 +168,19 @@ def _conf(answer, key):
         return 0.0
 
 
-def nest(projects, model, log):
+def _evidence(name, info, items):
+    """What the parent question sees of one project: name, summary, recent work and its places' cards."""
+    places = [digest(items[i], PARENT_PLACE_CHARS) for i in info.get("places", [])[-PARENT_PLACES:] if i in items]
+    return {"name": name, "summary": info["summary"], "recent_work": info["recent"][-RECENT_WORK:], "places": places}
+
+
+def nest(projects, model, log, items=None):
     """Step 5, once the day is done: ask about every pair of projects whether they are strands of one
-    bigger piece of work. Pairs said yes at PARENT_CONFIDENCE or more are joined (transitively) under
-    the parent name from the most confident yes. Returns {old name: new path}, e.g.
-    {"Rohan Iyer Resume": "LMemM/Rohan Iyer Resume"}; a project left alone maps to itself."""
+    bigger piece of work, showing what is in each (its places), since the names were guessed. Pairs
+    said yes at PARENT_CONFIDENCE or more are joined (transitively) under the parent name from the most
+    confident yes. Returns {old name: new path}, e.g. {"Resume Update": "LMemM/Resume Update"}; a project
+    left alone maps to itself."""
+    items = items or {}
     names = list(projects)
     group = {n: n for n in names}
 
@@ -177,10 +191,8 @@ def nest(projects, model, log):
     best = {}                                            # root -> (confidence, parent name)
     for i, a in enumerate(names):
         for b in names[i + 1:]:
-            ans = _ask(model, PARENT, {"project_a": {"name": a, "summary": projects[a]["summary"],
-                                                     "recent_work": projects[a]["recent"][-RECENT_WORK:]},
-                                       "project_b": {"name": b, "summary": projects[b]["summary"],
-                                                     "recent_work": projects[b]["recent"][-RECENT_WORK:]}},
+            ans = _ask(model, PARENT, {"project_a": _evidence(a, projects[a], items),
+                                       "project_b": _evidence(b, projects[b], items)},
                        PARENT_SCHEMA, log, "parent")
             conf, parent = _conf(ans, "same_bigger_work"), _clean(ans["parent_name"]) if ans else ""
             entry = {"step": "parent", "places": [], "doing": f"{a} + {b}", "project": parent or None,
@@ -219,6 +231,6 @@ def run(items, timeline, model, nest_projects=True):
             if name:
                 for i in task["places"]:
                     assigned.setdefault(i, set()).add(name)
-    renamed = nest(projects, model, log) if nest_projects and len(projects) > 1 else {n: n for n in projects}
+    renamed = nest(projects, model, log, items) if nest_projects and len(projects) > 1 else {n: n for n in projects}
     return ({i: sorted({renamed[n] for n in names}) for i, names in assigned.items()},
             {renamed[n]: p["summary"] for n, p in projects.items()}, log)

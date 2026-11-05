@@ -92,6 +92,24 @@ class StepsTest(unittest.TestCase):
         yes = lambda *a: {"same_bigger_work": True, "confidence": 0.9, "parent_name": "lmemm", "why": "w"}  # noqa: E731
         self.assertEqual(rs.nest(projects, yes, []), {"LMemM": "LMemM", "Pill": "LMemM/Pill"})
 
+    def test_parent_question_shows_what_is_in_each_project(self):
+        asked = []
+        oracle = SubOracle(self.items)
+
+        def spy(system, user, schema):
+            if system == rs.PARENT:
+                asked.append(json.loads(user))
+            return oracle(system, user, schema)
+        rs.run(self.items, self.timeline, spy)
+        self.assertTrue(asked)
+        for q in asked:
+            for side in ("project_a", "project_b"):
+                places = q[side]["places"]
+                self.assertTrue(1 <= len(places) <= rs.PARENT_PLACES)
+                self.assertTrue(all({"id", "title"} <= set(p) for p in places))
+        resume = [q[s] for q in asked for s in ("project_a", "project_b") if "Resume" in q[s]["name"]]
+        self.assertTrue(any("slack-rohan" in [p["id"] for p in r["places"]] for r in resume))
+
     def test_inboxes_are_never_filed_or_shown_as_a_place(self):
         seen = []
         oracle = Oracle(self.items)

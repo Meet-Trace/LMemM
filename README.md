@@ -69,6 +69,15 @@ Builds a menu-bar app (no Dock icon) with py2app in alias mode: it runs this rep
 `data/` here, so `git pull` updates it. Grant Screen Recording and the other permissions to **LMemM**
 itself. `./build_app.sh --standalone` bundles the code (data then lives inside the bundle; not for daily use yet).
 
+`./update_app.sh [branch]` switches this repo to a branch (default `main`), quits the running app, rebuilds only
+if packaging changed, and reopens it. Use it to test a PR or to pick up a merge.
+
+**Keeping permissions between builds.** macOS ties Screen Recording, Accessibility and the other permissions to
+the app's signature, and the default ad hoc signature changes on every build. Make a self-signed code-signing
+certificate once (Keychain Access, Certificate Assistant, Create a Certificate, type Code Signing, name
+`LMemM Local`), then `export LMEMM_SIGN_IDENTITY="LMemM Local"` in `~/.zshrc`. Grant permissions once; later
+builds signed with it keep them.
+
 ## Use
 
 ```bash

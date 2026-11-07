@@ -14,6 +14,10 @@ and its label; the model reads it once and only its answer at the last position 
 the logits of "no" and "yes". That is exactly the number the pipeline reads (log P(yes) - log P(no)), so
 nothing else about the model is trained. Validation reports AUC (same scale as the bench) and accuracy at
 0, per kind of lesson; the adapter with the best validation AUC is kept.
+
+The step size warms up over --warmup steps and then decays (cosine) to a tenth, and each step's gradient is
+clipped to --clip: the untrained judge is confidently wrong on many lessons (first losses near 3), and a
+larger adapter (16 layers, rank 16) at a full step from the start collapsed to one answer for every lesson.
 """
 import argparse
 import json
@@ -104,7 +108,17 @@ def save(mx, model, out, args):
     (out / "adapter_config.json").write_text(json.dumps({
         "fine_tune_type": "lora", "num_layers": args.layers,
         "lora_parameters": {"rank": args.rank, "scale": args.scale, "dropout": 0.0},
-        "trained_on": str(args.lessons), "iters": args.iters, "base_model": args.model}, indent=1))
+        "trained_on": str(args.lessons), "iters": args.iters, "lr": args.lr, "warmup": getattr(args, "warmup", 0),
+        "clip": getattr(args, "clip", 0.0), "base_model": args.model}, indent=1))
+
+
+def schedule(optim, args):
+    """Linear warm-up to --lr, then cosine decay to a tenth of it by the last step."""
+    warmup = min(max(0, getattr(args, "warmup", 0)), max(0, args.iters - 1))
+    decay = optim.cosine_decay(args.lr, max(1, args.iters - warmup), args.lr / 10)
+    if not warmup:
+        return decay
+    return optim.join_schedules([optim.linear_schedule(args.lr / 100, args.lr, warmup), decay], [warmup])
 
 
 def train(model, tokenizer, train_rows, valid_rows, args, log=print):
@@ -139,7 +153,8 @@ def train(model, tokenizer, train_rows, valid_rows, args, log=print):
         _mlx(mx, "set_memory_limit")(args.memory_mb * 1024 * 1024)
     peak = (lambda: _mlx(mx, "get_peak_memory")() / 2**30) if _mlx(mx, "get_peak_memory") else (lambda: float("nan"))
     log("measuring the judge before training")
-    opt = optim.Adam(learning_rate=args.lr)
+    opt = optim.Adam(learning_rate=schedule(optim, args))
+    clip = getattr(args, "clip", 0.0)
     rnd = random.Random(args.seed)
     before = evaluate(mx, model, valid_ex, yes, no, pad)
     log(f"before: {json.dumps(before)}")
@@ -153,14 +168,20 @@ def train(model, tokenizer, train_rows, valid_rows, args, log=print):
             total = grads if total is None else tree_map(lambda a, b: a + b, total, grads)
             mx.eval(total, loss)
             step_loss += loss.item() / args.accumulate
-        opt.update(model, tree_map(lambda g: g / args.accumulate, total))
+        grads = tree_map(lambda g: g / args.accumulate, total)
+        norm = None
+        if clip:
+            grads, norm = optim.clip_grad_norm(grads, clip)
+        opt.update(model, grads)
         mx.eval(model.parameters(), opt.state)
+        norm = float(norm.item()) if norm is not None else float("nan")
         del total, grads, loss
         if _mlx(mx, "clear_cache"):
             _mlx(mx, "clear_cache")()
         running.append(step_loss)
         if it <= 3 or it % 10 == 0:
-            log(f"iter {it}: loss {step_loss:.3f}, {time.monotonic() - t0:.0f} s, peak memory {peak():.2f} GB")
+            log(f"iter {it}: loss {step_loss:.3f}, gradient norm {norm:.2f}, step size {float(opt.learning_rate.item()):.2e}, "
+                f"{time.monotonic() - t0:.0f} s, peak memory {peak():.2f} GB")
         if args.probe and it >= args.probe:
             log(f"probe done: {it} steps, peak memory {peak():.2f} GB")
             return before, history, best
@@ -190,7 +211,9 @@ def main(argv=None):
     p.add_argument("--cache-mb", type=int, default=256, help="cap on MLX's buffer cache")
     p.add_argument("--memory-mb", type=int, default=3000, help="cap on MLX's total memory (0: none)")
     p.add_argument("--probe", type=int, default=0, help="stop after this many steps and report peak memory")
-    p.add_argument("--lr", type=float, default=1e-4)
+    p.add_argument("--lr", type=float, default=1e-4, help="peak step size")
+    p.add_argument("--warmup", type=int, default=50, help="steps of linear warm-up to --lr")
+    p.add_argument("--clip", type=float, default=1.0, help="clip each step's gradient norm to this (0: off)")
     p.add_argument("--rank", type=int, default=8)
     p.add_argument("--scale", type=float, default=20.0)
     p.add_argument("--layers", type=int, default=8, help="LoRA on this many last layers")

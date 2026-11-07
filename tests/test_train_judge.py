@@ -78,6 +78,16 @@ class TrainTest(unittest.TestCase):
                                            max_position_embeddings=2048, head_dim=16, tie_word_embeddings=True,
                                            rope_theta=10000.0))
 
+    def test_step_size_warms_up_then_decays_to_a_tenth(self):
+        import argparse
+        import mlx.optimizers as optim
+        import train_judge
+        step = train_judge.schedule(optim, argparse.Namespace(lr=1e-4, iters=100, warmup=10))
+        self.assertAlmostEqual(float(step(0)), 1e-6, places=8)
+        self.assertAlmostEqual(float(step(10)), 1e-4, places=8)
+        self.assertLess(float(step(55)), 1e-4)
+        self.assertAlmostEqual(float(step(100)), 1e-5, places=7)
+
     def test_trains_keeps_the_best_adapter_and_reloads_it(self):
         import argparse
         import mlx.core as mx
@@ -87,7 +97,7 @@ class TrainTest(unittest.TestCase):
                  "label": i % 2, "kind": "pair"} for i in range(64)]
         with tempfile.TemporaryDirectory() as out:
             args = argparse.Namespace(model="tiny", lessons=Path(out), out=Path(out) / "adapter", iters=60, batch=4,
-                                      accumulate=2, cache_mb=64, memory_mb=0, probe=0, lr=3e-3, rank=4, scale=10.0, layers=2,
+                                      accumulate=2, cache_mb=64, memory_mb=0, probe=0, lr=3e-3, warmup=5, clip=1.0, rank=4, scale=10.0, layers=2,
                                       max_tokens=200, eval_every=20, seed=1)
             model, tok = self.tiny(), FakeTokenizer()
             before, history, best = train_judge.train(model, tok, rows[:48], rows[48:], args, log=lambda *_: None)

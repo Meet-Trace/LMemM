@@ -137,11 +137,11 @@ class MlxRerankScorer(RerankScorer):
     """The same reranker run with mlx-lm on Apple silicon, for when Ollama cannot generate with the
     reranker's GGUF (some conversions keep only a 2-way head). Reads the yes/no logits directly."""
 
-    def __init__(self, repo):
+    def __init__(self, repo, adapter=None):
         import mlx.core as mx                          # only on the Mac, only when asked for
         from mlx_lm import load
         self.mx = mx
-        self.model, self.tokenizer = load(repo)
+        self.model, self.tokenizer = load(repo, adapter_path=adapter)   # adapter: a judge taught by train_judge.py
         self.yes = self.tokenizer.convert_tokens_to_ids("yes")
         self.no = self.tokenizer.convert_tokens_to_ids("no")
         self.calls = 0

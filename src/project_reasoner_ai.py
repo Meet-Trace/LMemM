@@ -77,12 +77,12 @@ class Judge:
     A reranker gets its own template; a chat model gets CHAT_JUDGE. Answers are cached by their text, so
     a question asked again (another rule, another variant) costs nothing; `seconds` counts only new calls."""
 
-    def __init__(self, scorer, cache=None):
-        self.scorer, self.cache = scorer, cache if cache is not None else {}
+    def __init__(self, scorer, cache=None, name=""):
+        self.scorer, self.cache, self.name = scorer, cache if cache is not None else {}, name
         self.calls, self.seconds = 0, 0.0
 
     def __call__(self, instruct, query, doc):
-        key = "\x1f".join(("judge", instruct, query, doc))
+        key = "\x1f".join(("judge" + (f":{self.name}" if self.name else ""), instruct, query, doc))
         if key not in self.cache:
             t0 = time.monotonic()
             if hasattr(self.scorer, "options_for"):

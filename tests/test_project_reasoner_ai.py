@@ -121,6 +121,9 @@ class RunTest(unittest.TestCase):
         self.assertGreater(j("i", "q", "d"), 0)
         j("i", "q", "d")
         self.assertEqual((len(calls), j.calls), (1, 1))
+        taught = ai.Judge(j.scorer, j.cache, name="adapter=x")              # a taught judge never reuses them
+        taught("i", "q", "d")
+        self.assertEqual(len(calls), 2)
 
 
 class FakeOllama(BaseHTTPRequestHandler):

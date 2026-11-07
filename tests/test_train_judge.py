@@ -13,7 +13,7 @@ sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 import make_judge_lessons as lessons  # noqa: E402
 import project_reasoner_ai as ai  # noqa: E402
 
-STORIES = ROOT / "research" / "judge_lessons" / "stories.json"
+STORIES = ROOT / "research" / "judge_lessons"
 FIXTURES = ROOT / "tests" / "fixtures" / "project_grouping"
 
 try:
@@ -36,9 +36,10 @@ class LessonsTest(unittest.TestCase):
         self.assertFalse({r["story"] for r in rows["train"]} & {r["story"] for r in rows["valid"]})
 
     def test_no_story_touches_a_test_day(self):
-        stories = json.loads(STORIES.read_text())
+        stories = [s for f in sorted(STORIES.glob("*.json")) for s in json.loads(f.read_text())]
         lessons.check(stories)
         titles = {w["title"] for s in stories for w in s["windows"] + s.get("general", [])}
+        titles |= {g["title"] for f in sorted((STORIES / "places").glob("*.json")) for g in json.loads(f.read_text())}
         for day in FIXTURES.glob("*.json"):
             fixture = {it["title"] for it in json.loads(day.read_text())["items"].values()}
             self.assertFalse(titles & fixture, day.name)
@@ -48,7 +49,7 @@ class LessonsTest(unittest.TestCase):
             lessons.check([{"id": "x", "theme": "planning a wedding", "windows": [{}, {}, {}]}])
 
     def test_the_seed_stories_give_hundreds_of_lessons(self):
-        stories = json.loads(STORIES.read_text())
+        stories = [s for f in sorted(STORIES.glob("*.json")) for s in json.loads(f.read_text())]
         import random
         rows = lessons.lessons(stories, random.Random(1))
         self.assertGreater(len(rows), 500)
@@ -85,8 +86,9 @@ class TrainTest(unittest.TestCase):
         rows = [{"instruct": "Same?", "query": f"window {i}", "doc": ("alpha " if i % 2 else "beta ") + f"note {i}",
                  "label": i % 2, "kind": "pair"} for i in range(64)]
         with tempfile.TemporaryDirectory() as out:
-            args = argparse.Namespace(model="tiny", lessons=Path(out), out=Path(out) / "adapter", iters=60, batch=8,
-                                      lr=3e-3, rank=4, scale=10.0, layers=2, max_tokens=200, eval_every=20, seed=1)
+            args = argparse.Namespace(model="tiny", lessons=Path(out), out=Path(out) / "adapter", iters=60, batch=4,
+                                      accumulate=2, cache_mb=64, memory_mb=0, probe=0, lr=3e-3, rank=4, scale=10.0, layers=2,
+                                      max_tokens=200, eval_every=20, seed=1)
             model, tok = self.tiny(), FakeTokenizer()
             before, history, best = train_judge.train(model, tok, rows[:48], rows[48:], args, log=lambda *_: None)
             self.assertLess(history[-1]["train_loss"], 0.69)                     # learnt something

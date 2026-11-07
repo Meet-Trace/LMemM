@@ -1,0 +1,100 @@
+[
+ {"id": "cafe-expansion-model", "theme": "a financial model for a cafe chain opening new outlets",
+  "windows": [
+   {"app": "Microsoft Excel", "title": "Outlet_model_v6.xlsx", "details": {"file": "~/Clients/BeanThere/Outlet_model_v6.xlsx", "sheet": "Payback"}, "lines": ["Capex per outlet 38 L", "Payback 26 months"], "did": "Working out how long a new outlet takes to pay back."},
+   {"app": "Google Maps", "title": "Koramangala 5th Block", "details": {"url": "https://maps.google.example/@12.93,77.62"}, "lines": ["Footfall: busy 6-9 pm"], "did": "Checking evening footfall around a possible location."},
+   {"app": "Microsoft Teams", "title": "BeanThere - founders", "details": {"chat": "BeanThere - founders"}, "lines": ["can we model a kiosk format too?"], "did": "Being asked to add a smaller kiosk format to the numbers."},
+   {"app": "Safari", "title": "Commercial rents Bengaluru H2 2026 | JLL", "details": {"url": "https://www.jll.example/research/blr-retail-rents"}, "lines": ["High street: ₹180-260 / sq ft / month"], "did": "Looking up shop rents for the city."},
+   {"app": "Microsoft PowerPoint", "title": "Expansion options.pptx", "details": {"file": "~/Clients/BeanThere/Expansion options.pptx"}, "lines": ["Option B: 4 kiosks before 1 flagship"], "did": "Presenting expansion options to a client."}]},
+ {"id": "press-release", "theme": "a press release announcing a new hospital wing",
+  "windows": [
+   {"app": "Google Docs", "title": "PR - cardiac wing opening (embargoed)", "details": {"url": "https://docs.google.com/document/d/1Pr"}, "lines": ["EMBARGOED UNTIL 9 AM, 20 NOV", "40 beds, 2 cath labs"], "did": "Drafting an embargoed announcement of a new hospital wing."},
+   {"app": "Gmail", "title": "Quote approval - Dr Fernandes", "details": {"subject": "Quote approval - Dr Fernandes", "from": "cmo-office@stmarys.example"}, "lines": ["Approved with one change: 'patients first'"], "did": "Getting a doctor's quote approved."},
+   {"app": "Google Sheets", "title": "Media list - health desks", "details": {"url": "https://docs.google.com/spreadsheets/d/1Ml"}, "lines": ["The Hindu - health reporter", "Times of India - city desk"], "did": "Listing journalists to send an announcement to."},
+   {"app": "Photos", "title": "wing_exterior_dusk.jpg", "details": {}, "lines": ["4032 x 3024"], "did": "Picking a photo of a new building to go with an announcement."}]},
+ {"id": "move-to-swift-ui", "theme": "porting a settings screen of a Mac app to SwiftUI",
+  "windows": [
+   {"app": "Xcode", "title": "SettingsView.swift - Clipper", "details": {"file": "~/dev/Clipper/Clipper/SettingsView.swift", "project": "Clipper"}, "lines": ["Toggle(\"Launch at login\", isOn: $launchAtLogin)", "Form { Section(\"General\") { ... } }"], "did": "Rebuilding a settings window with toggles in SwiftUI."},
+   {"app": "Safari", "title": "SMAppService | Apple Developer Documentation", "details": {"url": "https://developer.apple.example/documentation/servicemanagement/smappservice"}, "lines": ["register() throws", "Status: requiresApproval"], "did": "Reading how a Mac app registers to open at login."},
+   {"app": "Xcode", "title": "Preview: SettingsView", "details": {}, "lines": ["Preview crashed: missing environment object"], "did": "Fixing a crashing preview of the settings screen."},
+   {"app": "Claude", "title": "Settings scene vs NSWindow", "details": {"conversation": "Settings scene vs NSWindow"}, "lines": ["Use the Settings scene; open it with openSettings()"], "did": "Asking how to open the settings window the modern way."}]},
+ {"id": "health-checkup", "theme": "a parent's annual health checkup and follow-up",
+  "windows": [
+   {"app": "Practo", "title": "Book: Full body checkup - Apollo", "details": {"url": "https://www.practo.example/checkup/apollo"}, "lines": ["Fasting 10-12 hours", "Sat 7:30 am"], "did": "Booking a fasting health checkup for early Saturday."},
+   {"app": "Preview", "title": "Report_Lab_2211.pdf", "details": {"file": "~/Downloads/Report_Lab_2211.pdf"}, "lines": ["Vitamin D 14 ng/mL (low)", "TSH 6.1 (high)"], "did": "Reading lab results showing low vitamin D and high TSH."},
+   {"app": "WhatsApp", "title": "Amma", "details": {"chat": "Amma"}, "lines": ["what did the doctor say about the thyroid?"], "did": "Being asked by mum about the thyroid result."},
+   {"app": "Calendar", "title": "Endocrinologist - Dr Rao", "details": {}, "lines": ["Tue 5:15 pm, carry old reports"], "did": "Scheduling a specialist visit and noting to bring old reports."}]},
+ {"id": "novel-draft", "theme": "writing the second draft of a novel",
+  "windows": [
+   {"app": "Scrivener", "title": "The Salt Road - Chapter 9", "details": {"file": "~/Writing/The Salt Road.scriv"}, "lines": ["Nadia hides the ledger under the floorboards", "Word count 2,940"], "did": "Rewriting a chapter where a character hides a ledger."},
+   {"app": "Safari", "title": "Salt trade routes of Kutch, 1890s", "details": {"url": "https://en.wikipedia.example/wiki/Salt_trade_Kutch"}, "lines": ["Camel caravans to Bhuj"], "did": "Researching the historical setting."},
+   {"app": "Notes", "title": "Character arcs", "details": {}, "lines": ["Imran: loyalty -> betrayal in ch 12", "Nadia needs a win before the midpoint"], "did": "Planning how characters change across chapters."},
+   {"app": "Gmail", "title": "Re: chapters 1-5 notes", "details": {"subject": "Re: chapters 1-5 notes", "from": "editor.priya@inkwell.example"}, "lines": ["The pacing drags in chapter 3"], "did": "Reading an editor's notes on pacing."}]},
+ {"id": "sales-pipeline", "theme": "building a sales pipeline for a B2B software startup",
+  "windows": [
+   {"app": "HubSpot", "title": "Deals - Q4 pipeline", "details": {"url": "https://app.hubspot.example/deals/board"}, "lines": ["Demo scheduled: 9", "Proposal sent: 4"], "did": "Reviewing prospective customers at each sales stage."},
+   {"app": "LinkedIn", "title": "Sales Navigator - Heads of Ops, logistics, 200-1000", "details": {"url": "https://www.linkedin.example/sales/search"}, "lines": ["412 results"], "did": "Searching for operations heads at mid-size companies to contact."},
+   {"app": "Gmail", "title": "Quick question about your dispatch process", "details": {"subject": "Quick question about your dispatch process", "to": "ops.head@swiftcargo.example"}, "lines": ["Would a 15-minute call next week work?"], "did": "Writing a cold email asking for a short call."},
+   {"app": "Gong", "title": "Call: demo with FreightPro", "details": {"url": "https://app.gong.example/call/88"}, "lines": ["Talk ratio 68%", "Next step: security review"], "did": "Reviewing a recorded product demo with a prospect."}]},
+ {"id": "data-pipeline-bug", "theme": "debugging duplicate rows in a data pipeline",
+  "windows": [
+   {"app": "DataGrip", "title": "orders_fact - console", "details": {"file": "~/warehouse/queries/dupes.sql"}, "lines": ["SELECT order_id, count(*) ... HAVING count(*) > 1", "1,912 rows"], "did": "Finding orders that appear more than once in a warehouse table."},
+   {"app": "Visual Studio Code", "title": "merge_orders.sql - dbt", "details": {"file": "~/warehouse/models/merge_orders.sql", "project": "warehouse"}, "lines": ["unique_key='order_id'", "incremental_strategy='append'"], "did": "Spotting that an incremental model appends instead of merging."},
+   {"app": "Slack", "title": "#data-alerts", "details": {"chat": "#data-alerts", "workspace": "ShopKart"}, "lines": ["finance says revenue is 3% high since Tuesday"], "did": "Hearing that revenue figures are slightly too high."},
+   {"app": "Terminal", "title": "dbt run --select merge_orders --full-refresh", "details": {}, "lines": ["OK created incremental model", "Completed successfully"], "did": "Rebuilding a table from scratch after a fix."}]},
+ {"id": "language-exchange-trip", "theme": "planning a study exchange semester in Germany",
+  "windows": [
+   {"app": "Safari", "title": "Learning Agreement - TU Munich", "details": {"url": "https://www.tum.example/exchange/learning-agreement"}, "lines": ["30 ECTS per semester"], "did": "Choosing courses for an exchange semester."},
+   {"app": "Safari", "title": "Blocked account | Expatrio", "details": {"url": "https://www.expatrio.example/blocked-account"}, "lines": ["€11,904 per year"], "did": "Opening a blocked bank account needed for a student visa."},
+   {"app": "WG-Gesucht", "title": "Zimmer in 3er WG, Schwabing", "details": {"url": "https://www.wg-gesucht.example/room/112"}, "lines": ["€690 warm", "ab 1. April"], "did": "Looking at a room in a shared flat."},
+   {"app": "Duolingo", "title": "German - Unit 14", "details": {}, "lines": ["Streak 88 days"], "did": "Practising German."},
+   {"app": "Gmail", "title": "Nomination confirmed", "details": {"subject": "Nomination confirmed", "from": "international@college.example"}, "lines": ["Your host university will contact you"], "did": "Learning the home college has put them forward."}]},
+ {"id": "podcast-unrelated-music", "theme": "producing an EP of electronic music",
+  "windows": [
+   {"app": "Logic Pro", "title": "Track 3 - Monsoon Lines.logicx", "details": {"file": "~/Music/EP/Track 3 - Monsoon Lines.logicx"}, "lines": ["122 BPM", "Sidechain on pad"], "did": "Mixing a track with a ducking pad."},
+   {"app": "Splice", "title": "Sounds - tabla one-shots", "details": {"url": "https://splice.example/sounds/tabla"}, "lines": ["Downloaded 14"], "did": "Downloading percussion samples."},
+   {"app": "DistroKid", "title": "Upload album", "details": {"url": "https://distrokid.example/new"}, "lines": ["Release date: 12 Dec", "4 tracks"], "did": "Scheduling distribution of four tracks to streaming services."},
+   {"app": "Instagram", "title": "@studio.kabir", "details": {}, "lines": ["snippet of track 3 dropping friday"], "did": "Teasing a snippet of a new song."}]},
+ {"id": "rental-dispute", "theme": "getting a security deposit back from a former landlord",
+  "windows": [
+   {"app": "Gmail", "title": "Re: deposit refund", "details": {"subject": "Re: deposit refund", "from": "k.mehra64@gmail.example"}, "lines": ["Deducting 25,000 for repainting"], "did": "Reading a landlord's reason for withholding money."},
+   {"app": "Photos", "title": "Move-out walls", "details": {}, "lines": ["12 photos, 30 Sep"], "did": "Looking at photos of the walls taken on the day of leaving."},
+   {"app": "Preview", "title": "Rental_Agreement_2024.pdf", "details": {"file": "~/Documents/Home/Rental_Agreement_2024.pdf"}, "lines": ["Clause 9: normal wear and tear excluded"], "did": "Checking the agreement's wear and tear clause."},
+   {"app": "Safari", "title": "Consumer court e-filing (e-Daakhil)", "details": {"url": "https://edaakhil.example/"}, "lines": ["Claims up to 50 L: district commission"], "did": "Looking at how to file a consumer complaint."}]},
+ {"id": "team-offsite", "theme": "organising a two-day team offsite",
+  "windows": [
+   {"app": "Airbnb", "title": "Farmstay near Coorg, 10 guests", "details": {"url": "https://www.airbnb.example/rooms/77"}, "lines": ["5 bedrooms, meeting room", "₹48,000/night"], "did": "Looking at a farmstay big enough for ten people."},
+   {"app": "Google Forms", "title": "Offsite dietary + travel", "details": {"url": "https://docs.google.com/forms/d/1Of"}, "lines": ["Vegan: 2", "Needs pickup from airport: 4"], "did": "Collecting dietary needs and travel plans."},
+   {"app": "Notion", "title": "Offsite agenda", "details": {"url": "https://www.notion.so/offsite-agenda"}, "lines": ["Day 1 pm: 2027 roadmap bets", "Day 2: retro + hike"], "did": "Planning sessions for two days away with the team."},
+   {"app": "Expensify", "title": "Advance request", "details": {"url": "https://www.expensify.example/request"}, "lines": ["Amount ₹2,10,000"], "did": "Requesting money in advance for accommodation."}]},
+ {"id": "cat-vet", "theme": "a sick cat's vet visits",
+  "windows": [
+   {"app": "WhatsApp", "title": "Paws & Claws Clinic", "details": {"chat": "Paws & Claws Clinic"}, "lines": ["bring a urine sample if you can", "slot at 6:30"], "did": "Booking a clinic slot and being asked for a sample."},
+   {"app": "Safari", "title": "Cat not eating for 2 days: when to worry", "details": {"url": "https://www.catcare.example/not-eating"}, "lines": ["Fatty liver risk after 48 hours"], "did": "Reading about risks when a pet stops eating."},
+   {"app": "Preview", "title": "Bloodwork_Miso.pdf", "details": {"file": "~/Downloads/Bloodwork_Miso.pdf"}, "lines": ["Creatinine 2.4 (high)"], "did": "Reading blood test results showing a high kidney marker."},
+   {"app": "Amazon", "title": "Renal diet wet food - Cart", "details": {"url": "https://www.amazon.in/cart"}, "lines": ["Royal Canin Renal, 12 pouches"], "did": "Buying special food for kidney problems."}]},
+ {"id": "course-teaching", "theme": "teaching an evening course on statistics",
+  "windows": [
+   {"app": "Google Slides", "title": "Week 6 - hypothesis tests", "details": {"url": "https://docs.google.com/presentation/d/1Wk6"}, "lines": ["p < 0.05 is not 'proof'"], "did": "Preparing a lecture on hypothesis tests."},
+   {"app": "Moodle", "title": "Assignment 3 - submissions (27/31)", "details": {"url": "https://lms.college.example/mod/assign/3"}, "lines": ["Late: 2"], "did": "Checking how many students handed in an assignment."},
+   {"app": "RStudio", "title": "grading_helper.R", "details": {"file": "~/Teaching/grading_helper.R"}, "lines": ["t.test(scores ~ section)"], "did": "Writing a script to help grade answers."},
+   {"app": "Gmail", "title": "Extension request - assignment 3", "details": {"subject": "Extension request - assignment 3", "from": "student.r.patel@college.example"}, "lines": ["I was unwell on Monday"], "did": "Reading a student's request for more time."}]},
+ {"id": "dotfiles", "theme": "setting up a new laptop's developer environment",
+  "windows": [
+   {"app": "Terminal", "title": "brew bundle", "details": {}, "lines": ["Installing neovim", "Installing pyenv"], "did": "Installing developer tools from a list."},
+   {"app": "GitHub", "title": "sana/dotfiles", "details": {"url": "https://github.com/sana/dotfiles"}, "lines": [".zshrc", "Brewfile"], "did": "Pulling personal shell configuration from a repository."},
+   {"app": "System Settings", "title": "Keyboard - Key repeat", "details": {}, "lines": ["Key repeat: fast", "Delay until repeat: short"], "did": "Tuning keyboard repeat speed."},
+   {"app": "1Password", "title": "SSH keys", "details": {}, "lines": ["Use the SSH agent"], "did": "Turning on the password manager's SSH agent."}]},
+ {"id": "insurance-renewal", "theme": "choosing a family health insurance renewal",
+  "windows": [
+   {"app": "Safari", "title": "Compare family floater plans | Policybazaar", "details": {"url": "https://www.policybazaar.example/health/compare"}, "lines": ["Cover 10 L, room rent no cap", "Premium 24,600/yr"], "did": "Comparing family health cover plans."},
+   {"app": "Gmail", "title": "Your policy renews on 2 Dec", "details": {"subject": "Your policy renews on 2 Dec", "from": "renewals@starhealth.example"}, "lines": ["No-claim bonus 50%"], "did": "Reading a renewal notice mentioning a bonus."},
+   {"app": "Notes", "title": "Questions for agent", "details": {}, "lines": ["Waiting period for Papa's diabetes?", "Cashless at Manipal?"], "did": "Listing questions about waiting periods and hospitals."},
+   {"app": "Phone", "title": "Call: Sunil (agent)", "details": {}, "lines": ["18 min"], "did": "Talking to an agent about the policy."}]},
+ {"id": "photography-exhibit", "theme": "putting together a small photography exhibition",
+  "windows": [
+   {"app": "Lightroom", "title": "Collection: Old Delhi doors", "details": {}, "lines": ["Picks: 24", "Export 40x60 cm, 300 dpi"], "did": "Choosing and exporting photos for large prints."},
+   {"app": "Gmail", "title": "Wall space - first week of Jan", "details": {"subject": "Wall space - first week of Jan", "from": "curator@artspace.example"}, "lines": ["We can give you the east wall"], "did": "Hearing from a gallery about available wall space."},
+   {"app": "Safari", "title": "Archival pigment prints - price list", "details": {"url": "https://www.printlab.example/prices"}, "lines": ["40x60: ₹2,800 each"], "did": "Checking print prices."},
+   {"app": "Canva", "title": "Invite - Thresholds", "details": {"url": "https://www.canva.com/design/DAH-invite"}, "lines": ["Opening 5 Jan, 6 pm"], "did": "Designing an invitation for an opening night."}]}
+]

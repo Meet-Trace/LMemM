@@ -55,8 +55,14 @@ def last_answer(mx, model, ids, lengths):
     return model.model.embed_tokens.as_linear(h)
 
 
-def batch(mx, examples, pad):
-    longest = max(len(ids) for ids, _, _ in examples)
+def _mlx(mx, name):
+    """An MLX memory function by its current or older (mx.metal) name, or None."""
+    return getattr(mx, name, None) or getattr(getattr(mx, "metal", None), name, None)
+
+
+def batch(mx, examples, pad, multiple=64):
+    """Right-padded to a multiple of `multiple` tokens, so the allocator sees a few sizes it can reuse."""
+    longest = -(-max(len(ids) for ids, _, _ in examples) // multiple) * multiple
     ids = mx.array([ids + [pad] * (longest - len(ids)) for ids, _, _ in examples])
     lengths = mx.array([len(ids) for ids, _, _ in examples])
     labels = mx.array([label for _, label, _ in examples])
@@ -71,7 +77,7 @@ def auc(pairs):
     return sum(1.0 if p > q else 0.5 if p == q else 0.0 for p in pos for q in neg) / (len(pos) * len(neg))
 
 
-def evaluate(mx, model, examples, yes, no, pad, size=8):
+def evaluate(mx, model, examples, yes, no, pad, size=2):
     scored = []
     for k in range(0, len(examples), size):
         chunk = examples[k:k + size]
@@ -79,11 +85,15 @@ def evaluate(mx, model, examples, yes, no, pad, size=8):
         logits = last_answer(mx, model, ids, lengths)
         mx.eval(logits)
         diff = (logits[:, yes] - logits[:, no]).tolist()
+        del logits
+        if _mlx(mx, "clear_cache"):
+            _mlx(mx, "clear_cache")()
         scored += [(d, y, kind) for d, (_, y, kind) in zip(diff, chunk)]
     out = {}
     for kind in sorted({k for _, _, k in scored}) + ["all"]:
         rows = [(s, y) for s, y, k in scored if kind in ("all", k)]
-        out[kind] = {"auc": auc(rows), "acc@0": sum((s > 0) == (y == 1) for s, y in rows) / len(rows), "n": len(rows)}
+        out[kind] = {"auc": auc(rows), "acc@0": sum((s > 0) == (y == 1) for s, y in rows) / len(rows) if rows else None,
+                     "n": len(rows)}
     return out
 
 
@@ -102,7 +112,7 @@ def train(model, tokenizer, train_rows, valid_rows, args, log=print):
     import mlx.nn as nn
     import mlx.optimizers as optim
     from mlx_lm.tuner.utils import linear_to_lora_layers
-    from mlx.utils import tree_flatten
+    from mlx.utils import tree_flatten, tree_map
 
     yes, no = tokenizer.convert_tokens_to_ids("yes"), tokenizer.convert_tokens_to_ids("no")
     pad = getattr(tokenizer, "pad_token_id", None) or 0
@@ -121,6 +131,14 @@ def train(model, tokenizer, train_rows, valid_rows, args, log=print):
         return nn.losses.cross_entropy(two, labels).mean()
 
     loss_and_grad = nn.value_and_grad(model, loss_fn)
+    # On an 8 GB Mac MLX's buffer cache, which keeps freed buffers for reuse, is what grows into swap:
+    # cap it, cap total memory, and clear it after each step.
+    if _mlx(mx, "set_cache_limit"):
+        _mlx(mx, "set_cache_limit")(args.cache_mb * 1024 * 1024)
+    if _mlx(mx, "set_memory_limit") and args.memory_mb:
+        _mlx(mx, "set_memory_limit")(args.memory_mb * 1024 * 1024)
+    peak = (lambda: _mlx(mx, "get_peak_memory")() / 2**30) if _mlx(mx, "get_peak_memory") else (lambda: float("nan"))
+    log("measuring the judge before training")
     opt = optim.Adam(learning_rate=args.lr)
     rnd = random.Random(args.seed)
     before = evaluate(mx, model, valid_ex, yes, no, pad)
@@ -128,11 +146,24 @@ def train(model, tokenizer, train_rows, valid_rows, args, log=print):
     best, history, t0, running = (before["all"]["auc"] or 0.0), [], time.monotonic(), []
     save(mx, model, args.out, args)                      # an untrained adapter is the floor
     for it in range(1, args.iters + 1):
-        ids, lengths, labels = batch(mx, rnd.sample(train_ex, min(args.batch, len(train_ex))), pad)
-        loss, grads = loss_and_grad(model, ids, lengths, labels)
-        opt.update(model, grads)
-        mx.eval(model.parameters(), opt.state, loss)
-        running.append(loss.item())
+        total, step_loss = None, 0.0                       # --accumulate small batches: same lesson count
+        for _ in range(args.accumulate):                    # per step, a fraction of the memory
+            ids, lengths, labels = batch(mx, rnd.sample(train_ex, min(args.batch, len(train_ex))), pad)
+            loss, grads = loss_and_grad(model, ids, lengths, labels)
+            total = grads if total is None else tree_map(lambda a, b: a + b, total, grads)
+            mx.eval(total, loss)
+            step_loss += loss.item() / args.accumulate
+        opt.update(model, tree_map(lambda g: g / args.accumulate, total))
+        mx.eval(model.parameters(), opt.state)
+        del total, grads, loss
+        if _mlx(mx, "clear_cache"):
+            _mlx(mx, "clear_cache")()
+        running.append(step_loss)
+        if it <= 3 or it % 10 == 0:
+            log(f"iter {it}: loss {step_loss:.3f}, {time.monotonic() - t0:.0f} s, peak memory {peak():.2f} GB")
+        if args.probe and it >= args.probe:
+            log(f"probe done: {it} steps, peak memory {peak():.2f} GB")
+            return before, history, best
         if it % args.eval_every == 0 or it == args.iters:
             scores = evaluate(mx, model, valid_ex, yes, no, pad)
             mean = sum(running) / len(running)
@@ -142,8 +173,8 @@ def train(model, tokenizer, train_rows, valid_rows, args, log=print):
             if kept:
                 best = scores["all"]["auc"]
                 save(mx, model, args.out, args)
-            log(f"iter {it}: loss {mean:.3f}, valid {json.dumps(scores)}{' (kept)' if kept else ''}, "
-                f"{time.monotonic() - t0:.0f} s")
+            log(f"iter {it}: mean loss {mean:.3f}, valid {json.dumps(scores)}{' (kept)' if kept else ''}, "
+                f"{time.monotonic() - t0:.0f} s, peak memory {peak():.2f} GB")
     (args.out / "history.json").write_text(json.dumps({"before": before, "history": history}, indent=1))
     return before, history, best
 
@@ -154,19 +185,26 @@ def main(argv=None):
     p.add_argument("--lessons", type=Path, required=True, help="folder with train.jsonl and valid.jsonl")
     p.add_argument("--out", type=Path, required=True, help="adapter folder to write")
     p.add_argument("--iters", type=int, default=600)
-    p.add_argument("--batch", type=int, default=4)
+    p.add_argument("--batch", type=int, default=1, help="lessons per forward pass")
+    p.add_argument("--accumulate", type=int, default=4, help="forward passes per optimiser step")
+    p.add_argument("--cache-mb", type=int, default=256, help="cap on MLX's buffer cache")
+    p.add_argument("--memory-mb", type=int, default=3000, help="cap on MLX's total memory (0: none)")
+    p.add_argument("--probe", type=int, default=0, help="stop after this many steps and report peak memory")
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--rank", type=int, default=8)
     p.add_argument("--scale", type=float, default=20.0)
     p.add_argument("--layers", type=int, default=8, help="LoRA on this many last layers")
-    p.add_argument("--max-tokens", type=int, default=700)
+    p.add_argument("--max-tokens", type=int, default=512)
     p.add_argument("--eval-every", type=int, default=50)
     p.add_argument("--seed", type=int, default=7)
     args = p.parse_args(argv)
     from mlx_lm import load
     model, tokenizer = load(args.model)
     before, history, best = train(model, tokenizer, read_lessons(args.lessons / "train.jsonl"),
-                                  read_lessons(args.lessons / "valid.jsonl"), args)
+                                  read_lessons(args.lessons / "valid.jsonl"), args,
+                                  log=lambda line: print(line, flush=True))
+    if args.probe:
+        return True
     print(f"best valid AUC {best:.3f} (before {before['all']['auc']}); adapter in {args.out}")
     return math.isfinite(best)
 

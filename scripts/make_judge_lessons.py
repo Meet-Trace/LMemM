@@ -15,7 +15,8 @@ learns the exact questions it is asked:
     pair      two windows of one story -> yes; a window of another story -> no, half of them a story that
               shares a word with it (a pitch deck and a wooden deck), so shared words stop being the answer
     project   2 to 4 windows of a story as the project, one more window -> yes; another story's -> no
-    general   a general place -> yes; a story's window -> no
+    general   a general place -> yes; a story's window -> no. General places come from the stories and from a
+              shared pool (places/*.json, a list of windows), which is split into train and valid the same way
 
 The narrator's sentence is kept in half the lessons and dropped in the rest, so the judge reads windows
 well whether or not the sentence is good. Stories are split into train and valid, never one story in
@@ -34,7 +35,10 @@ import project_reasoner_ai as ai  # noqa: E402
 import project_reasoner_graph as graph  # noqa: E402
 
 TEST_THEMES = ("wedding", "fundrais", "investor", "marathon", "running", "pricing", "market sizing", "goa",
-               "lmemm", "northwind", "kestrel", "diabetes")
+               "lmemm", "northwind", "kestrel", "diabetes",
+               # near relatives of the no-shared-words day, so it tests reading, not recall of a lesson
+               "fitness", "gym", "cycling", "triathlon", "sangeet", "mehendi", "ceremony", "seed round", "angel",
+               "venture", "pitch deck")
 DOC_CHARS = 1400
 
 
@@ -75,7 +79,7 @@ def check(stories):
             raise ValueError(f"Story {s['id']} needs at least 3 windows.")
 
 
-def lessons(stories, rnd):
+def lessons(stories, rnd, places=()):
     out = []
     flat = [(s["id"], w) for s in stories for w in s["windows"]]
 
@@ -112,27 +116,41 @@ def lessons(stories, rnd):
             for w, label in ((g, 1), (rnd.choice(ws), 0)):
                 out.append({"kind": "general", "instruct": ai.INSTRUCT_GENERAL, "query": ai.QUERY_GENERAL,
                             "doc": activity(w, rnd.random() < 0.5), "label": label, "story": s["id"]})
+    for g in places:                       # each pool place with and without the sentence, against a story window
+        for said in (True, False):
+            for w, label in ((g, 1), (rnd.choice(flat)[1], 0)):
+                out.append({"kind": "general", "instruct": ai.INSTRUCT_GENERAL, "query": ai.QUERY_GENERAL,
+                            "doc": activity(w, said), "label": label, "story": f"place:{g['title']}"})
     return out
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--stories", type=Path, default=ROOT / "research" / "judge_lessons" / "stories.json")
+    p.add_argument("--stories", type=Path, default=ROOT / "research" / "judge_lessons",
+                   help="a stories file, or a folder whose *.json files are all read")
+    p.add_argument("--places", type=Path, default=ROOT / "research" / "judge_lessons" / "places",
+                   help="a folder of general places (*.json lists of windows), split like the stories")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--valid", type=float, default=0.15, help="share of stories kept for validation")
     p.add_argument("--seed", type=int, default=7)
     args = p.parse_args(argv)
-    stories = json.loads(args.stories.read_text())
+    files = sorted(args.stories.glob("*.json")) if args.stories.is_dir() else [args.stories]
+    stories = [s for f in files for s in json.loads(f.read_text())]
     check(stories)
     rnd = random.Random(args.seed)
     order = sorted(stories, key=lambda s: s["id"])
     rnd.shuffle(order)
     n_valid = max(1, round(len(order) * args.valid))
     split = {"valid": order[:n_valid], "train": order[n_valid:]}
+    pool = [g for f in (sorted(args.places.glob("*.json")) if args.places.is_dir() else [])
+            for g in json.loads(f.read_text())]
+    rnd.shuffle(pool)
+    n_pool = round(len(pool) * args.valid)
+    places = {"valid": pool[:n_pool], "train": pool[n_pool:]}
     args.out.mkdir(parents=True, exist_ok=True)
     counts = {}
     for name, group in split.items():
-        rows = lessons(group, rnd)
+        rows = lessons(group, rnd, places[name])
         rnd.shuffle(rows)
         with open(args.out / f"{name}.jsonl", "w") as fh:
             for r in rows:

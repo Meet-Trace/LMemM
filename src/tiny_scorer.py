@@ -84,10 +84,7 @@ class ChatScorer:
         self.calls = 0
         self._think = True
 
-    def options(self, user, system=GUARD):
-        body = {"model": self.model, "stream": False, "logprobs": True, "top_logprobs": TOP,
-                "options": {"temperature": 0, "num_predict": 1, "num_ctx": 4096},
-                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+    def _chat(self, body):
         if self._think:
             body["think"] = False
         try:
@@ -99,7 +96,20 @@ class ChatScorer:
             body.pop("think")
             response = _post(self.url, "/api/chat", body, self.timeout)
         self.calls += 1
-        return first_token_options(response)
+        return response
+
+    def options(self, user, system=GUARD):
+        body = {"model": self.model, "stream": False, "logprobs": True, "top_logprobs": TOP,
+                "options": {"temperature": 0, "num_predict": 1, "num_ctx": 4096},
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+        return first_token_options(self._chat(body))
+
+    def write(self, user, system, max_tokens=60):
+        """A short written answer (temperature 0), for text a person reads, never for a decision."""
+        body = {"model": self.model, "stream": False,
+                "options": {"temperature": 0, "num_predict": max_tokens, "num_ctx": 4096},
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+        return " ".join(((self._chat(body).get("message") or {}).get("content") or "").split())
 
 
 class RerankScorer:

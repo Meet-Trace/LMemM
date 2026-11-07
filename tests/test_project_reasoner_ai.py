@@ -109,6 +109,12 @@ class RunTest(unittest.TestCase):
         _, _, log = ai.run(items, timeline, judge, None, all_pairs=True)
         self.assertEqual(sum(1 for e in log if e["step"] == "relate"), 1)
 
+    def test_the_general_place_step_can_use_its_own_rule(self):
+        items, timeline = day()
+        always = lambda instruct, query, doc: 1.0                     # noqa: E731
+        self.assertEqual(ai.run(items, timeline, always, None, "calibrated", gate_rule="raw")[0], {})
+        self.assertNotEqual(ai.run(items, timeline, always, None, "calibrated")[0], {})
+
     def test_judge_and_narrator_cache_repeated_questions(self):
         calls = []
         j = ai.Judge(type("S", (), {"options_for": lambda self, i, q, d: calls.append(1) or {"yes": -0.2, "no": -2}})())
@@ -160,6 +166,9 @@ class BenchTest(unittest.TestCase):
         self.assertIn("code (assign method)", text)
         self.assertEqual(len(runs), 2 * 2 * 2)                     # (ai, ai-unread) x (raw, calibrated) x blind
         self.assertTrue(all(r["scores"]["f1"] is not None for r in runs if not r["blind"]))
+        ai_runs = [r for r in runs if r["variant"] == "ai" and not r["blind"]]
+        self.assertTrue(all(r["scores"]["pair_auc"] > 0.5 and r["scores"]["general_auc"] > 0.5 for r in ai_runs))
+        self.assertIn("pair AUC", text)
 
 
 class MeaningDayTest(unittest.TestCase):

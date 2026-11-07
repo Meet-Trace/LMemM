@@ -37,13 +37,27 @@ import tiny_scorer as ts  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "project_grouping"
 VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs": True},
-            "ai-nogeneral": {"specific": False}}
+            "ai-nogeneral": {"specific": False}, "ai-gate-raw": {"gate_rule": "raw"},
+            "ai-allpairs-nogeneral": {"all_pairs": True, "specific": False}}
 
 
-def scores(truth, assigned):
+def scores(truth, assigned, log=()):
+    """Grouping scores, plus how well the model's raw answers rank, whatever the threshold:
+    pair AUC    same-project pairs above different-project pairs, over the pairs the judge was asked
+    general AUC things that belong to no project above things that do, on the general-place answer"""
     s, b = pge.score(truth, assigned, "project"), pge.bcubed(truth, assigned, "project")
+    pairs, general = {}, []
+    for e in log:
+        if e["step"] == "relate":
+            for k, v in e["pairs"].items():
+                a, c = k.split(" + ")
+                pairs[k] = {"s": v, "y": int(bool(truth[a] & truth[c]))}
+        elif e["step"] == "general":
+            general.append({"s": e["score"], "y": int(not truth[e["id"]])})
     return {"precision": s["precision"], "recall": s["recall"], "f1": s["f1"], "b3": b["f1"],
-            "filed": b["filed"], "wrong_mix": b["wrong_mix"], "false_merges": s["false_merges"], "missed": s["missed"]}
+            "filed": b["filed"], "wrong_mix": b["wrong_mix"], "false_merges": s["false_merges"], "missed": s["missed"],
+            "pair_auc": bench.auc(list(pairs.values()), "s"), "pairs_asked": len(pairs),
+            "general_auc": bench.auc(general, "s")}
 
 
 def pct(x):
@@ -129,7 +143,7 @@ def main(argv=None):
                     assigned, summary, log = ai.run(items, timeline, judge, None if unread else narrator, rule, **opts)
                     calls = judge.calls - j0 + ((narrator.calls - n0) if narrator else 0)
                     secs = judge.seconds - js + ((narrator.seconds - ns) if narrator else 0.0)
-                    sc = scores(truth, assigned)
+                    sc = scores(truth, assigned, log)
                     table.append((scope, f"{v} {rule}", sc, calls, secs))
                     runs.append({"day": day.stem, "blind": blind, "variant": v, "rule": rule, "scores": sc,
                                  "assigned": assigned, "projects": summary, "log": log,
@@ -140,11 +154,13 @@ def main(argv=None):
                     if args.cache:
                         args.cache.write_text(json.dumps(cache))
             print(f"\n== {scope}\n{'method':28} {'pair P':>6} {'pair R':>6} {'pair F1':>7} {'B3 F1':>6} "
-                  f"{'filed':>6} {'mixed':>6} {'new calls':>9} {'secs':>6}")
+                  f"{'filed':>6} {'mixed':>6} {'pair AUC':>8} {'pairs':>5} {'gen AUC':>7} {'new calls':>9} {'secs':>6}")
             for sc_name, method, sc, calls, secs in table:
                 if sc_name == scope:
+                    auc = lambda x: "     -" if x is None else f"{x:6.2f}"  # noqa: E731
                     print(f"{method:28} {pct(sc['precision']):>6} {pct(sc['recall']):>6} {pct(sc['f1']):>7} "
-                          f"{pct(sc['b3']):>6} {pct(sc['filed']):>6} {pct(sc['wrong_mix']):>6} {calls:9d} {secs:6.0f}")
+                          f"{pct(sc['b3']):>6} {pct(sc['filed']):>6} {pct(sc['wrong_mix']):>6} {auc(sc.get('pair_auc')):>8} "
+                          f"{sc.get('pairs_asked', 0):5d} {auc(sc.get('general_auc')):>7} {calls:9d} {secs:6.0f}")
             sys.stdout.flush()
 
     print("\n== mean over days")

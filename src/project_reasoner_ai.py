@@ -195,11 +195,12 @@ def day_sittings(timeline, ids, all_pairs=False):
     return out
 
 
-def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False):
+def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False, gate_rule=None):
     """Group one day. `judge(instruct, query, doc)` returns log-odds yes vs no; `narrator(system, user,
     max_tokens)` writes a sentence, or None to let the judge read raw windows only.
+    `gate_rule` is the rule for the general-place step when it should differ from `rule`.
     Returns (assigned {id: [project]}, projects {project: summary}, log)."""
-    if rule not in RULES:
+    if rule not in RULES or (gate_rule or rule) not in RULES:
         raise ValueError(f"Rule must be one of {', '.join(RULES)}.")
     calibrated = rule == "calibrated"
     log, ids = [], list(items)
@@ -227,7 +228,7 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
 
     keep = ids                                                                    # A2
     if specific:
-        habit = judge(INSTRUCT_GENERAL, QUERY_GENERAL, ts.NULL_CARD) if calibrated else 0.0
+        habit = judge(INSTRUCT_GENERAL, QUERY_GENERAL, ts.NULL_CARD) if (gate_rule or rule) == "calibrated" else 0.0
         keep = []
         for i in ids:
             s = judge(INSTRUCT_GENERAL, QUERY_GENERAL, act[i]) - habit

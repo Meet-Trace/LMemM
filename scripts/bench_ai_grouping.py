@@ -35,6 +35,7 @@ import project_reasoner_assign as assign  # noqa: E402
 import project_reasoner_graph as graph  # noqa: E402
 import tiny_scorer as ts  # noqa: E402
 
+FIXTURES = ROOT / "tests" / "fixtures" / "project_grouping"
 VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs": True},
             "ai-nogeneral": {"specific": False}}
 
@@ -82,7 +83,8 @@ def main(argv=None):
     p.add_argument("--variants", default="ai,ai-unread")
     p.add_argument("--rules", default=",".join(ai.RULES))
     p.add_argument("--blind", action="store_true", help="also run on name-blind copies of each day")
-    p.add_argument("--days", default=None, help="comma-separated fixture stems (default: both labelled days)")
+    p.add_argument("--days", default=None, help="comma-separated fixture stems, such as meaning_day "
+                                                "(default: the two labelled days)")
     p.add_argument("--cache", type=Path, default=None)
     p.add_argument("--out", type=Path, default=None)
     args = p.parse_args(argv)
@@ -106,7 +108,7 @@ def main(argv=None):
     if narrator is None:
         variants = [v for v in variants if VARIANTS[v].get("unread")] or ["ai-unread"]
 
-    days = bench.DAYS if not args.days else [d for d in bench.DAYS if d.stem in args.days.split(",")]
+    days = bench.DAYS if not args.days else [FIXTURES / f"{stem}.json" for stem in args.days.split(",")]
     runs, table = [], []
     for day in days:
         for blind in ([False, True] if args.blind else [False]):

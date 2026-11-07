@@ -161,5 +161,25 @@ class BenchTest(unittest.TestCase):
         self.assertTrue(all(r["scores"]["f1"] is not None for r in runs if not r["blind"]))
 
 
+class MeaningDayTest(unittest.TestCase):
+    """The meaning day is built so that word matching cannot group it: only reading can."""
+
+    def test_no_name_or_number_repeats_inside_a_project_and_code_files_nothing(self):
+        import project_reasoner_assign as assign
+        import project_reasoner_graph as graph
+        path = DAY.with_name("meaning_day.json")
+        items, timeline = pge.load_day(path), json.loads(path.read_text())["timeline"]
+        gold = pge.gold(items, "project")
+        self.assertEqual(len({p for g in gold.values() for p in g}), 3)
+        names = {i: {w for w in re.findall(r"\b[A-Z][a-z]{3,}\b|\d{3,}", " ".join(graph._lines(it)))}
+                 for i, it in items.items()}
+        for a in items:
+            for b in items:
+                if a < b and gold[a] & gold[b]:
+                    self.assertLessEqual(names[a] & names[b], {"Kabir"}, (a, b))     # the one introducer
+        assigned, _, _ = assign.run(items, timeline, graph.CapitalisedNames())
+        self.assertEqual(assigned, {})
+
+
 if __name__ == "__main__":
     unittest.main()

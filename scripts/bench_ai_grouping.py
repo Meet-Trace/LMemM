@@ -54,7 +54,7 @@ def explain(items, summary, log, truth):
     """The model's own account of the day: each project, what it understood of each thing, and why."""
     out = []
     said = {e["id"]: e for e in log if e["step"] == "understand"}
-    general = {e["id"]: e for e in log if e["step"] == "specific"}
+    general = {e["id"]: e for e in log if e["step"] == "general"}
     for path, p in summary.items():
         out.append(f"  {path}: {p['description'] or ''}")
         for m in p["members"]:
@@ -64,7 +64,7 @@ def explain(items, summary, log, truth):
     left = [i for i in items if not any(i in p["members"] for p in summary.values())]
     for i in left:
         why = general.get(i)
-        reason = f"general place, P(specific) {ai.chance(why['score']):.2f}" if why and why["score"] <= 0 else "in no project"
+        reason = f"general place, P(general) {ai.chance(why['score']):.2f}" if why and why["score"] > 0 else "in no project"
         out.append(f"  not filed: {i} [{', '.join(sorted(truth[i])) or 'no project'}] ({reason})")
     cuts = [(e["id"], e["cut"]) for e in log if e["step"] == "understand" and e.get("cut")]
     if cuts:

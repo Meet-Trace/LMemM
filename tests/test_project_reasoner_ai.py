@@ -27,12 +27,12 @@ def topics(text):
 
 
 def judge(instruct, query, doc):
-    """A stand-in model: work is specific when it is about one topic; two pieces of work are the same
+    """A stand-in model: a window is a general place unless it is about one topic; two pieces of work are the same
     project when they share a topic. Shown N/A it leans slightly no."""
     if ts.NULL_CARD in (query, doc):
         return -0.5
-    if instruct == ai.INSTRUCT_SPECIFIC:
-        return 2.0 if len(topics(doc)) == 1 else -2.0
+    if instruct == ai.INSTRUCT_GENERAL:
+        return -2.0 if len(topics(doc)) == 1 else 2.0
     return 2.0 if topics(query) & topics(doc) else -2.0
 
 
@@ -98,10 +98,11 @@ class RunTest(unittest.TestCase):
     def test_calibration_removes_a_model_that_says_yes_to_everything(self):
         items, timeline = day()
         always = lambda instruct, query, doc: 1.0                     # noqa: E731  yes even to N/A
-        raw, _, _ = ai.run(items, timeline, always, None, "raw")
-        cal, _, _ = ai.run(items, timeline, always, None, "calibrated")
+        raw, _, _ = ai.run(items, timeline, always, None, "raw", specific=False)
+        cal, _, _ = ai.run(items, timeline, always, None, "calibrated", specific=False)
+        self.assertEqual(ai.run(items, timeline, always, None, "raw")[0], {})  # raw: every window "general"
         self.assertEqual(len({p for ps in raw.values() for p in ps}), 1)      # raw: one project of everything
-        self.assertEqual(cal, {})                                              # calibrated: nothing above habit
+        self.assertEqual(pge.pairs(cal), set())                                # calibrated: nothing above habit
 
     def test_all_pairs_relates_across_sittings_too(self):
         items, timeline = day()

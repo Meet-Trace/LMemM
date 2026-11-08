@@ -12,7 +12,7 @@ LMemM - the one command.
     lmemm.py suggest [NAME] [ID…]     offer things as one project (stands in for the model)
     lmemm.py suggest-for PROJECT [ID…]
                                       offer things for an existing project (the three latest not in it, or the ids)
-    lmemm.py look-for-projects [--dry-run [--days N] [--method ai|assign] [--calls N]]
+    lmemm.py look-for-projects [--dry-run [--days N] [--method ai|assign] [--calls N] [--explain]]
                                       look for projects in the last two weeks now and suggest them
                                       (--dry-run: only print what would be suggested; files and offers nothing.
                                       The ai method still caches the models' answers and logs the look)
@@ -283,6 +283,10 @@ def cmd_look_for_projects(args):
             print(f"{what}: {why}")
             for i in ids:
                 print(f"    {items[i].get('app') or '?'} · {items[i].get('title') or i}")
+        if "--explain" in args and method == "ai":
+            import project_finder_ai
+            print("\nWhy (what the narrator wrote about each thing, and how the judge scored the projects):")
+            print("\n".join(project_finder_ai.explain(items, planned)))
         return
     if not tracker.send_control("look_for_projects"):
         sys.exit("LMemM isn't running. `lmemm.py look-for-projects --dry-run` works without it.")

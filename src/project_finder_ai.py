@@ -51,6 +51,7 @@ URL = config.FINDER_URL
 
 _lock = threading.Lock()
 _retriever = None           # embedding vectors are kept in memory between looks
+_last_log = []              # the last look's steps, for explain() (lmemm.py look-for-projects --explain)
 
 
 def cache_path():
@@ -178,14 +179,35 @@ def find(reg, items, visits, now=None, days=finder.LOOKBACK_DAYS, url=URL):
             for m in (config.FINDER_JUDGE, config.FINDER_EMBED):
                 if m:
                     ts.unload(m, url)
+    _last_log[:] = log
     end = next(e for e in log if e["step"] == "projects")
     finder.record("look", method="ai", things=len(loose), calls=judge.calls + narrator.calls,
                   seconds=round((datetime.now() - t0).total_seconds()),
                   projects={k: v["members"] for k, v in summary.items()},
                   shared=end["shared"], not_filed=end["not_filed"],
-                  why=[{k: e[k] for k in ("task", "decision", "scores", "retrieved") if k in e}
+                  why=[{k: e[k] for k in ("task", "decision", "scores", "retrieved", "confirmed") if k in e}
                        for e in log if e["step"] == "assign"])
     return plan(reg, items, summary)
+
+
+def explain(items, planned, log=None):
+    """Lines saying why each offer was made, for lmemm.py look-for-projects --explain: for the tasks behind it,
+    what the narrator wrote about each thing, how the judge scored the projects it was asked about, and the
+    second opinion (without the narrator's sentences) on a join."""
+    log = _last_log if log is None else log
+    said = {e["id"]: e["said"] for e in log if e["step"] == "understand"}
+    lines = []
+    for _, kind, (target, ids, _) in planned:
+        lines.append(f"new project “{target}”" if kind == "project" else f"add to {target}")
+        for e in log:
+            if e["step"] != "assign" or not set(e["task"]) & set(ids):
+                continue
+            lines.append(f"  {e['decision']}; judge {e['scores']}"
+                         + (f"; second opinion {e['confirmed']}" if "confirmed" in e else ""))
+            for i in e["task"]:
+                it = items.get(i) or {}
+                lines.append(f"    {it.get('app') or '?'} · {it.get('title') or i}: {said.get(i, '(no sentence)')}")
+    return lines
 
 
 def counts(log):

@@ -153,6 +153,17 @@ class FinderAITest(unittest.TestCase):
         self.assertTrue(all(topics(json.dumps(self.items[i])) == {"goa"} for i in mine[0][1]))
         self.assertFalse(any("gsheet-trip" in ids for _, kind, (_, ids, _) in planned if kind == "project"))
 
+    def test_explain_says_what_was_read_and_how_the_judge_scored(self):
+        pid = projects.create(self.reg, "Holiday")
+        projects.move_to(self.reg, self.items, ["gsheet-trip"], pid)
+        planned = self.find()
+        text = "\n".join(fai.explain(self.items, planned))
+        self.assertIn(f"add to {pid}", text)
+        self.assertIn(f"joined {pid}", text)
+        self.assertIn("second opinion", text)                                      # the second opinion's score is shown
+        self.assertIn("Working on ", text)                                         # what the narrator wrote
+        self.assertIn("Villa Anjuna", text)
+
     def test_the_narrator_describes_projects_only_when_asked_to(self):
         def described():
             return [b for p, b in FakeOllama.seen if p == "/api/chat"

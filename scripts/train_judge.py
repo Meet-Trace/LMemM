@@ -54,14 +54,10 @@ def last_answer(mx, model, ids, lengths):
     """The model's logits at each lesson's last token, without the full vocabulary at every position."""
     h = model.model(ids)
     h = mx.take_along_axis(h, (lengths - 1).reshape(-1, 1, 1), axis=1).squeeze(1)
-    if getattr(model, "lm_head", None) is not None:
-        return model.lm_head(h)
-    return model.model.embed_tokens.as_linear(h)
+    return ts.mlx_head(model, h)
 
 
-def _mlx(mx, name):
-    """An MLX memory function by its current or older (mx.metal) name, or None."""
-    return getattr(mx, name, None) or getattr(getattr(mx, "metal", None), name, None)
+_mlx = ts.mlx_fn
 
 
 def batch(mx, examples, pad, multiple=64):

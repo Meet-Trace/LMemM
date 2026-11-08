@@ -78,6 +78,21 @@ class TrainTest(unittest.TestCase):
                                            max_position_embeddings=2048, head_dim=16, tie_word_embeddings=True,
                                            rope_theta=10000.0))
 
+    def test_the_judge_reads_only_the_last_position_and_gets_the_same_answer(self):
+        import mlx.core as mx
+        import tiny_scorer as ts
+        judge = ts.MlxRerankScorer.__new__(ts.MlxRerankScorer)
+        judge.mx, judge.model, judge.tokenizer, judge.calls = mx, self.tiny(), FakeTokenizer(), 0
+        judge.yes, judge.no = 1, 2
+        got = judge.options_for("Same project?", "a budget sheet", "a chat with the builder")
+        ids = FakeTokenizer().encode(ts.RerankScorer.TEMPLATE.format(
+            instruct="Same project?", query="a budget sheet", doc="a chat with the builder"))
+        full = judge.model(mx.array([ids]))[0, -1]
+        full = full - mx.logsumexp(full)
+        self.assertAlmostEqual(got["yes"], float(full[1]), places=4)
+        self.assertAlmostEqual(got["no"], float(full[2]), places=4)
+        self.assertEqual(judge.calls, 1)
+
     def test_step_size_warms_up_then_decays_to_a_tenth(self):
         import argparse
         import mlx.optimizers as optim

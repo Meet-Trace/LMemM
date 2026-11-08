@@ -1,4 +1,4 @@
-"""Put the taught judge into Ollama as `lmemm-judge`, so the app's project finder can use it on the CPU.
+"""Put the taught judge into Ollama as `lmemm-judge`, so the app's project finder can use it.
 
     python3 scripts/install_judge.py --adapter ~/LMemM-shadow-scratch/judge_v3
 
@@ -6,9 +6,17 @@ What it does (about a minute on an M2; it needs mlx-lm in this Python, and write
 Ollama's own model store):
     1. fuses the LoRA adapter from train_judge.py into Qwen3-Reranker-0.6B, unquantised (bf16);
     2. imports that into Ollama, quantised to 8 bits (Ollama 0.40 takes int8, not q8_0): about 790 MB;
-    3. asks the new model one question it should say yes to and one it should say no to, on the CPU.
+    3. asks the new model one question it should say yes to and one it should say no to (asked for the CPU;
+       Ollama's mlx runner uses the GPU anyway).
 
 It does nothing when the model is already there, unless --force. It never touches another model.
+
+The finder uses two of these: `lmemm-judge` (adapter judge_v3) does the grouping, and `lmemm-judge-v4`
+(adapter judge_v4, also taught "is this deliberate work, or idle looking around?") answers only that
+question (config.FINDER_WORK_JUDGE); without the second, looks are skipped until it is installed:
+
+    python3 scripts/install_judge.py --adapter ~/LMemM-shadow-scratch/judge_v4 --name lmemm-judge-v4 \\
+        --work ~/LMemM-shadow-scratch/judge_v4_fused
 """
 
 import argparse

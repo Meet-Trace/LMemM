@@ -80,11 +80,13 @@ class FinderAITest(unittest.TestCase):
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.items, self.visits = stream()
         self.reg = projects.empty()
-        self.calls = config.FINDER_CALLS
+        self.calls, self.work = config.FINDER_CALLS, (config.FINDER_WORTH, config.FINDER_WORK_JUDGE)
+        config.FINDER_WORTH, config.FINDER_WORK_JUDGE = False, ""                # off, unless a test turns it on
         fai._retriever = None
 
     def tearDown(self):
         config.FINDER_CALLS = self.calls
+        config.FINDER_WORTH, config.FINDER_WORK_JUDGE = self.work
         FakeOllama.models = ("qwen3.5:0.8b", "lmemm-judge:latest", "embeddinggemma:latest")
         self.server.shutdown()
         self.server.server_close()
@@ -242,6 +244,19 @@ class FinderAITest(unittest.TestCase):
             self.assertTrue(all(b["options"]["num_gpu"] == 0 for b in work))            # on the CPU like the rest
         finally:
             config.FINDER_WORK_JUDGE, config.FINDER_WORTH = "", False
+
+    def test_explain_lists_the_groups_dropped_as_idle_nearest_the_line_first(self):
+        ids = list(self.items)[:6]
+        titles = [self.items[i].get("title") or i for i in ids]
+        log = [{"step": "projects", "shared": [], "not_filed": [], "projects": {
+            "Logs [P1]": {"members": ids[:3], "tasks": 3, "idle": True, "work": -5.0},
+            "Prefs [P2]": {"members": ids[3:4], "tasks": 1, "idle": True, "work": -0.3},
+            "Plan [P3]": {"members": ids[4:], "tasks": 2, "work": 2.0}}}]
+        lines = fai.explain(self.items, [], log)
+        self.assertEqual(len(lines), 3)                                           # a header and the two idle groups
+        self.assertTrue(lines[1].startswith("  -0.3:") and titles[3] in lines[1])
+        self.assertTrue(lines[2].startswith("  -5.0:") and titles[0] in lines[2])
+        self.assertNotIn(titles[4], " ".join(lines))                              # the kept group is not listed
 
     def test_a_thing_in_two_groups_is_offered_in_neither(self):
         ids = list(self.items)[:8]

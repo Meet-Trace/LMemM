@@ -14,7 +14,9 @@ Who decides what
             embedding model (EmbeddingGemma) only narrows which projects the judge is asked about.
 
 How it stays light and careful on an 8 GB Mac
-    - Every model runs in Ollama on the CPU only (config.FINDER_THREADS threads), never the GPU.
+    - Every request asks Ollama for the CPU only (num_gpu 0, config.FINDER_THREADS threads). Measured 2026-11-08:
+      Ollama's "mlx" runner, which loads the judge and the narrator, ignores that and uses the GPU; only the
+      embedding model obeys it. So this is a request, not a guarantee, until the models are run another way.
     - Every answer is cached on disk by its question (finder_cache.json beside memory.json), so a thing is
       read once and a pair is judged once; a look makes at most config.FINDER_CALLS new calls and the next
       look carries on from the cache.
@@ -101,7 +103,7 @@ def work_model():
 
 
 def models(cache, budget, url=URL):
-    """(judge, narrator, retriever, work_judge or None), all on the CPU through Ollama."""
+    """(judge, narrator, retriever, work_judge or None), asked for the CPU through Ollama (see the module note: the mlx runner may use the GPU)."""
     global _retriever
     cpu = ts.cpu_only(config.FINDER_THREADS)
     judge = ai.Judge(ts.RerankScorer(config.FINDER_JUDGE, url, timeout=300, extra=cpu, keep_alive="2m"),
@@ -219,7 +221,7 @@ def find(reg, items, visits, now=None, days=finder.LOOKBACK_DAYS, url=URL):
 def explain(items, planned, log=None):
     """Lines saying why each offer was made, for lmemm.py look-for-projects --explain: for the tasks behind it,
     what the narrator wrote about each thing, how the judge scored the projects it was asked about, and the
-    second opinion (without the narrator's sentences) on a join."""
+    second opinion (without the narrator's sentences) on a join; then the groups dropped as idle looking around."""
     log = _last_log if log is None else log
     said = {e["id"]: e["said"] for e in log if e["step"] == "understand"}
     pairs = {}                                           # how strongly the judge said two windows are one piece of work
@@ -243,6 +245,13 @@ def explain(items, planned, log=None):
             for a, b, score in sorted(shown, key=lambda x: x[2])[:6]:                # the weakest links first
                 name = lambda i: (items.get(i) or {}).get("title") or i               # noqa: E731
                 lines.append(f"    joined with {score:+.1f}: {name(a)}  ~  {name(b)}")
+    end = next((e for e in log if e["step"] == "projects"), {"projects": {}})
+    idle = sorted(((p["work"], p["members"]) for p in end["projects"].values() if p.get("idle")), reverse=True)
+    if idle:                                          # the ones the work question dropped, nearest the line first
+        lines.append("left out as idle looking around, not work to keep track of (work score, the things):")
+        for work, members in idle:
+            titles = " · ".join(str((items.get(i) or {}).get("title") or i) for i in members[:4])
+            lines.append(f"  {work:+.1f}: {titles}" + (f" (+{len(members) - 4} more)" if len(members) > 4 else ""))
     return lines
 
 

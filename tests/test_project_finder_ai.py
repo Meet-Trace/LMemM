@@ -17,6 +17,7 @@ sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tests")]
 import config  # noqa: E402
 import project_finder as finder  # noqa: E402
 import project_finder_ai as fai  # noqa: E402
+import project_reasoner_ai as ai  # noqa: E402
 import projects  # noqa: E402
 from test_project_reasoner_ai import TOPICS, judge, topics  # noqa: E402
 
@@ -219,6 +220,28 @@ class FinderAITest(unittest.TestCase):
                    "Plan [P2]": {"members": ids[3:], "tasks": 3, "work": 2.0}}
         planned = fai.plan(self.reg, self.items, summary)
         self.assertEqual([name for _, _, (name, _, _) in planned], ["Plan"])
+
+    def test_another_model_can_answer_the_work_question_and_is_needed_only_then(self):
+        FakeOllama.models += ("lmemm-work:latest",)
+        try:
+            config.FINDER_WORK_JUDGE, config.FINDER_WORTH = "lmemm-work", False
+            self.assertIsNone(fai.unavailable(self.url))                               # off: nobody asks for it
+            FakeOllama.models = ("qwen3.5:0.8b", "lmemm-judge:latest", "embeddinggemma:latest")
+            self.assertIsNone(fai.unavailable(self.url))
+            config.FINDER_WORTH = True
+            self.assertEqual(self.find(), [])
+            self.assertIn("lmemm-work", finder.read_log()[-1]["skipped"])               # on: it must be there
+            FakeOllama.models += ("lmemm-work:latest",)
+            FakeOllama.seen = []
+            self.assertTrue(self.find())
+            work = [b for p, b in FakeOllama.seen if "prompt" in b and ai.INSTRUCT_WORK in b["prompt"]]
+            self.assertTrue(work)
+            self.assertEqual({b["model"] for b in work}, {"lmemm-work"})                # only it hears that question
+            others = [b for p, b in FakeOllama.seen if "prompt" in b and ai.INSTRUCT_WORK not in b["prompt"]]
+            self.assertEqual({b["model"] for b in others}, {"lmemm-judge"})
+            self.assertTrue(all(b["options"]["num_gpu"] == 0 for b in work))            # on the CPU like the rest
+        finally:
+            config.FINDER_WORK_JUDGE, config.FINDER_WORTH = "", False
 
     def test_a_thing_in_two_groups_is_offered_in_neither(self):
         ids = list(self.items)[:8]

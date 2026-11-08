@@ -32,6 +32,7 @@ FINDER_DESCRIBE = True                 # the narrator describes each project for
                                        # which on the test days cost precision (79-88% on two of three days)
 FINDER_WORTH = False                   # a new group must also pass "is this deliberate work you would track as a
                                        # project, or idle looking around?" (needs the judge taught on that question)
+FINDER_WORK_JUDGE = ""                 # the Ollama model that answers only that question; "" = FINDER_JUDGE itself
 FINDER_CANDIDATES = 5                  # projects a task is judged against, out of all of them
 IDLE = 60               # no input for this long -> pause
 MAX_QUEUE = 8           # resolver backlog above which timer captures are skipped

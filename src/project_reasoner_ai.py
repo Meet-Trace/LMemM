@@ -269,7 +269,7 @@ def day_sittings(timeline, ids, all_pairs=False):
 
 def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False, gate_rule=None,
         seeds=(), library=None, retrieve=None, margin=0.0, abstain_shared=False, confirm=None,
-        use_description=True, worth=False):
+        use_description=True, worth=False, work_judge=None):
     """Group the things in `items`. `judge(instruct, query, doc)` returns log-odds yes vs no; `narrator(system,
     user, max_tokens)` writes a sentence, or None to let the judge read raw windows only.
     `gate_rule` is the rule for the general-place step when it should differ from `rule`.
@@ -283,7 +283,8 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
     `use_description` False the narrator never writes a project's description, so nothing it generated about a
     project can pull another task in (the descriptions are only for show). With `worth`, a new group is also put
     to the judge as a whole ("is this deliberate work you would track as a project, or idle looking around?");
-    one it says no to is not filed and its summary says so ("work": the score, "idle": True).
+    one it says no to is not filed and its summary says so ("work": the score, "idle": True). `work_judge`
+    (same call shape) answers only that question when it should be another model than the one grouping.
     Returns (assigned {id: [project]}, projects {project: summary}, log)."""
     if rule not in RULES or (gate_rule or rule) not in RULES:
         raise ValueError(f"Rule must be one of {', '.join(RULES)}.")
@@ -450,9 +451,10 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
         work = None
         if worth:
             doc = group_doc(p["members"])
-            work = judge(INSTRUCT_WORK, QUERY_WORK, doc)
+            ask = work_judge or judge
+            work = ask(INSTRUCT_WORK, QUERY_WORK, doc)
             if calibrated:
-                work -= judge(INSTRUCT_WORK, QUERY_WORK, ts.NULL_CARD)
+                work -= ask(INSTRUCT_WORK, QUERY_WORK, ts.NULL_CARD)
             if work <= margin:                                                    # idle looking around: not filed
                 title = str(lookup[p["members"][0]].get("title") or p["id"])
                 summary[f"{title} [{p['id']}]"] = {"description": p.get("description"), "members": p["members"],

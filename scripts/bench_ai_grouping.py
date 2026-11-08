@@ -108,6 +108,9 @@ def main(argv=None):
     p.add_argument("--judge-adapter", default=None, help="LoRA adapter folder from train_judge.py for --judge-mlx")
     p.add_argument("--judge", default=None, help="Ollama reranker tag")
     p.add_argument("--judge-chat", default=None, help="Ollama chat model used as the judge instead")
+    p.add_argument("--work-judge", default=None, help="Ollama reranker tag that answers only the 'is this "
+                                                       "deliberate work?' question (finder-work), another model "
+                                                       "than the one grouping")
     p.add_argument("--url", default="http://127.0.0.1:11434")
     p.add_argument("--cpu", type=int, default=0, help="Ollama models on the CPU only, with this many threads")
     p.add_argument("--narrator-cold", action="store_true", help="unload the Ollama narrator after each sentence "
@@ -141,6 +144,8 @@ def main(argv=None):
     cache = json.loads(args.cache.read_text()) if args.cache and args.cache.exists() else {}
     judge = ai.Judge(scorer, cache, name=(f"adapter={args.judge_adapter}" if args.judge_adapter
                                           else f"ollama={args.judge}" if args.judge and args.cpu else ""))
+    work_judge = (ai.Judge(ts.RerankScorer(args.work_judge, args.url, timeout=300, extra=cpu), cache,
+                           name=f"ollama={args.work_judge}" if args.cpu else "") if args.work_judge else None)
     if args.narrator_mlx:
         narrator = ai.Narrator(ts.MlxChatScorer(args.narrator_mlx), cache, name=f"mlx={args.narrator_mlx}")
     elif args.narrator:
@@ -169,14 +174,19 @@ def main(argv=None):
             for v in variants:
                 opts = dict(VARIANTS[v])
                 unread = opts.pop("unread", False)
+                if work_judge is not None and opts.get("worth"):
+                    opts["work_judge"] = work_judge
                 if opts.pop("retrieve", False):
                     opts.update(retrieve=retriever, margin=args.margin)
                 for rule in rules:
+                    w0, ws = (work_judge.calls, work_judge.seconds) if work_judge else (0, 0.0)
                     j0, js, n0, ns, t0 = judge.calls, judge.seconds, (narrator.calls if narrator else 0), \
                         (narrator.seconds if narrator else 0.0), time.monotonic()
                     assigned, summary, log = ai.run(items, timeline, judge, None if unread else narrator, rule, **opts)
-                    calls = judge.calls - j0 + ((narrator.calls - n0) if narrator else 0)
-                    secs = judge.seconds - js + ((narrator.seconds - ns) if narrator else 0.0)
+                    calls = judge.calls - j0 + ((narrator.calls - n0) if narrator else 0) \
+                        + ((work_judge.calls - w0) if work_judge else 0)
+                    secs = judge.seconds - js + ((narrator.seconds - ns) if narrator else 0.0) \
+                        + ((work_judge.seconds - ws) if work_judge else 0.0)
                     sc = scores(truth, assigned, log)
                     table.append((scope, f"{v} {rule}", sc, calls, secs))
                     runs.append({"day": day.stem, "blind": blind, "variant": v, "rule": rule, "scores": sc,

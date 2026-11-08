@@ -88,12 +88,20 @@ def unavailable(url=URL):
         have = ts.installed(url)
     except OSError:
         return f"Ollama is not running at {url}"
-    missing = [m for m in (config.FINDER_NARRATOR, config.FINDER_JUDGE) if m not in have]
+    needed = [config.FINDER_NARRATOR, config.FINDER_JUDGE] + ([config.FINDER_WORK_JUDGE] if work_model() else [])
+    missing = [m for m in dict.fromkeys(needed) if m not in have]
     return f"Ollama lacks {', '.join(missing)}" if missing else None
 
 
+def work_model():
+    """The model that answers only "is this deliberate work?", when that is a model of its own (and the
+    question is on); otherwise the judge answers it too."""
+    other = config.FINDER_WORTH and config.FINDER_WORK_JUDGE and config.FINDER_WORK_JUDGE != config.FINDER_JUDGE
+    return config.FINDER_WORK_JUDGE if other else None
+
+
 def models(cache, budget, url=URL):
-    """(judge, narrator, retriever), all on the CPU through Ollama."""
+    """(judge, narrator, retriever, work_judge or None), all on the CPU through Ollama."""
     global _retriever
     cpu = ts.cpu_only(config.FINDER_THREADS)
     judge = ai.Judge(ts.RerankScorer(config.FINDER_JUDGE, url, timeout=300, extra=cpu, keep_alive="2m"),
@@ -105,7 +113,10 @@ def models(cache, budget, url=URL):
         if config.FINDER_EMBED and config.FINDER_EMBED in ts.installed(url):
             embed = ts.Embedder(config.FINDER_EMBED, url, timeout=300, extra=cpu, keep_alive="2m")
         _retriever = ai.Retriever(embed, k=config.FINDER_CANDIDATES)
-    return judge, narrator, _retriever
+    work = work_model()
+    work_judge = ai.Judge(ts.RerankScorer(work, url, timeout=300, extra=cpu, keep_alive=0),
+                          cache, name=work, budget=budget) if work else None      # one question a group: not kept loaded
+    return judge, narrator, _retriever, work_judge
 
 
 def seeds(reg, items, exclude, active=None):
@@ -173,25 +184,30 @@ def find(reg, items, visits, now=None, days=finder.LOOKBACK_DAYS, url=URL):
     library = {i: {k: v for k, v in it.items() if k not in finder.SKIP_FIELDS} for i, it in items.items()}
     with _lock:                                   # one look at a time, so two never fight over the cache
         cache, budget = load_cache(), ai.Budget(config.FINDER_CALLS)
-        judge, narrator, retriever = models(cache, budget, url)
+        judge, narrator, retriever, work_judge = models(cache, budget, url)
+
+        def calls():
+            return judge.calls + narrator.calls + (work_judge.calls if work_judge else 0)
+
         t0 = datetime.now()
         try:
             _, summary, log = ai.run(loose, timeline, judge, narrator, rule="raw", seeds=seeds(reg, items, set(loose), set(things)),
                                      library=library, retrieve=retriever, margin=config.FINDER_MARGIN,
                                      abstain_shared=True, confirm=config.FINDER_CONFIRM or None,
-                                     use_description=config.FINDER_DESCRIBE, worth=config.FINDER_WORTH)
+                                     use_description=config.FINDER_DESCRIBE, worth=config.FINDER_WORTH,
+                                     work_judge=work_judge)
         except ai.OutOfBudget:
-            finder.record("look", method="ai", things=len(loose), paused=True, calls=judge.calls + narrator.calls,
+            finder.record("look", method="ai", things=len(loose), paused=True, calls=calls(),
                           seconds=round((datetime.now() - t0).total_seconds()))
             return []
         finally:
             save_cache(cache)
-            for m in (config.FINDER_JUDGE, config.FINDER_EMBED):
+            for m in (config.FINDER_JUDGE, work_model(), config.FINDER_EMBED):
                 if m:
                     ts.unload(m, url)
     _last_log[:] = log
     end = next(e for e in log if e["step"] == "projects")
-    finder.record("look", method="ai", things=len(loose), calls=judge.calls + narrator.calls,
+    finder.record("look", method="ai", things=len(loose), calls=calls(),
                   seconds=round((datetime.now() - t0).total_seconds()),
                   projects={k: v["members"] for k, v in summary.items()},
                   shared=end["shared"], not_filed=end["not_filed"],

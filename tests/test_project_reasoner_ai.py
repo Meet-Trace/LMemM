@@ -238,6 +238,23 @@ class FinderOptionsTest(unittest.TestCase):
         self.assertIn("gsheet-trip", filed)
         self.assertEqual(len(summary), len(summary2))
 
+    def test_another_model_can_answer_the_work_question_alone(self):
+        asked = {"judge": [], "work": []}
+
+        def grouping(instruct, query, doc):
+            asked["judge"].append(instruct)
+            return judge(instruct, query, doc)
+
+        def work(instruct, query, doc):
+            asked["work"].append(instruct)
+            return -3.0 if "goa" in topics(doc) else 3.0
+
+        assigned, summary, _ = ai.run(self.items, self.timeline, grouping, narrator, worth=True, work_judge=work)
+        self.assertEqual(set(asked["work"]), {ai.INSTRUCT_WORK})                     # it is asked only that
+        self.assertNotIn(ai.INSTRUCT_WORK, asked["judge"])                            # and the grouping judge never is
+        self.assertEqual(len([p for p in summary.values() if p.get("idle")]), 1)
+        self.assertEqual(len(asked["work"]), len(summary))                            # one question a group
+
     def test_a_small_budget_stops_the_run_and_the_cache_carries_it_on(self):
         cache, answers = {}, []
         scorer = type("S", (), {"options_for": lambda self, i, q, d: answers.append(1) or (

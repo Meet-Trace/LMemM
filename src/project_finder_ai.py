@@ -24,7 +24,11 @@ How it stays light and careful on an 8 GB Mac
       config.FINDER_CANDIDATES of them, so hundreds of projects cost the same as five.
     - A task the judge says yes to for two projects is filed in neither (a shared resource), and the
       rules for offering a new project still hold: it must recur in separate sittings.
-    - Project names are written after grouping, only to show you; a name never joins two groups.
+    - A join needs a second opinion: the judge reads the task's windows and the project's latest ones as they
+      are, without the narrator's sentences, and that mean answer must also be yes (config.FINDER_CONFIRM).
+      Two views that depend on different text must agree before anything joins a project.
+    - Nothing the narrator writes about a project (its description) is shown to the judge, and project names
+      are written after grouping, only to show you: generated text never joins or splits groups.
 """
 
 import json
@@ -162,7 +166,8 @@ def find(reg, items, visits, now=None, days=finder.LOOKBACK_DAYS, url=URL):
         try:
             _, summary, log = ai.run(loose, timeline, judge, narrator, rule="raw", seeds=seeds(reg, items, set(loose)),
                                      library=library, retrieve=retriever, margin=config.FINDER_MARGIN,
-                                     abstain_shared=True)
+                                     abstain_shared=True, confirm=config.FINDER_CONFIRM or None,
+                                     use_description=config.FINDER_DESCRIBE)
         except ai.OutOfBudget:
             finder.record("look", method="ai", things=len(loose), paused=True, calls=judge.calls + narrator.calls,
                           seconds=round((datetime.now() - t0).total_seconds()))

@@ -179,6 +179,46 @@ class FinderOptionsTest(unittest.TestCase):
         self.assertFalse(any(p.get("seed") for p in summary.values()))
         self.assertFalse([p for ps in apart.values() for p in ps if p.startswith("trip")])
 
+    def test_a_second_opinion_without_the_narrator_can_veto_a_join(self):
+        yes_to_projects = lambda instruct, query, doc: (2.0 if instruct == ai.INSTRUCT_PROJECT       # noqa: E731
+                                                        else judge(instruct, query, doc))
+        seeds = [{"id": "client", "members": ["gmail-northwind", "word-agenda"]}]
+        loose = {"vscode-resume": self.items["vscode-resume"], "claude-resume": self.items["claude-resume"]}
+        kw = dict(seeds=seeds, library=self.items, specific=False)
+        trusting, _, _ = ai.run(loose, self.timeline, yes_to_projects, **kw)
+        self.assertEqual(set(trusting), set(loose))                                  # joined: the model said yes
+        self.assertTrue(all(v == ["client [client]"] for v in trusting.values()))
+        for how in ("mean", "best"):
+            vetoed, summary, log = ai.run(loose, self.timeline, yes_to_projects, **kw, confirm=how)
+            self.assertFalse(any(p.get("seed") for p in summary.values()), how)
+            entry = next(e for e in log if e["step"] == "assign")
+            self.assertLess(entry["confirmed"]["client"], 0)
+            self.assertIn("second opinion", entry["decision"])
+        close = {"gmail-flights": self.items["gmail-flights"]}                    # a join the second opinion agrees with
+        holiday = [{"id": "trip", "members": ["gsheet-trip", "safari-villa"]}]
+        joined, _, log = ai.run(close, self.timeline, judge, seeds=holiday, library=self.items, confirm="mean")
+        self.assertEqual(joined, {"gmail-flights": ["trip [trip]"]})
+        self.assertGreater(next(e for e in log if e["step"] == "assign")["confirmed"]["trip"], 0)
+
+    def test_without_descriptions_the_narrator_never_writes_one(self):
+        described = []
+
+        def narrate(system, user, max_tokens):
+            if user.startswith(ai.DESCRIBE.split("{")[0]):
+                described.append(user)
+            return narrator(system, user, max_tokens)
+        seeds = [{"id": "trip", "members": ["gsheet-trip"]}]
+        loose = {i: self.items[i] for i in ("safari-villa", "gmail-flights")}
+        kw = dict(seeds=seeds, library=self.items)
+        _, summary, log = ai.run(loose, self.timeline, judge, narrate, **kw)
+        self.assertTrue(described)                                                  # by default it does
+        self.assertTrue(all(p["description"] for p in summary.values()))
+        described.clear()
+        assigned, summary, log = ai.run(loose, self.timeline, judge, narrate, **kw, use_description=False)
+        self.assertEqual(described, [])
+        self.assertTrue(all(not p["description"] for p in summary.values()))
+        self.assertEqual(assigned, {i: ["trip [trip]"] for i in loose})              # the join does not need them
+
     def test_a_small_budget_stops_the_run_and_the_cache_carries_it_on(self):
         cache, answers = {}, []
         scorer = type("S", (), {"options_for": lambda self, i, q, d: answers.append(1) or (

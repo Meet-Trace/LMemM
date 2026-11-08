@@ -43,7 +43,13 @@ VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs"
             "ai-nogeneral": {"specific": False}, "ai-gate-raw": {"gate_rule": "raw"},
             "ai-allpairs-nogeneral": {"all_pairs": True, "specific": False},
             "ai-allpairs-unread": {"all_pairs": True, "unread": True},
-            "finder": {"retrieve": True, "abstain_shared": True}}
+            "finder": {"retrieve": True, "abstain_shared": True},
+            "finder-nodesc": {"retrieve": True, "abstain_shared": True, "use_description": False},
+            "finder-mean": {"retrieve": True, "abstain_shared": True, "confirm": "mean"},
+            "finder-nodesc-mean": {"retrieve": True, "abstain_shared": True, "use_description": False,
+                                   "confirm": "mean"},
+            "finder-nodesc-best": {"retrieve": True, "abstain_shared": True, "use_description": False,
+                                   "confirm": "best"}}
 
 
 def scores(truth, assigned, log=()):

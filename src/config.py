@@ -26,6 +26,10 @@ FINDER_EMBED = "embeddinggemma"        # finds the few projects worth asking abo
 FINDER_THREADS = 2                     # CPU threads the models may use: CPU only, slow and quiet
 FINDER_CALLS = 300                     # new model calls per look at most; the next look carries on
 FINDER_MARGIN = 0.0                    # log-odds a join or merge must clear (0 = the model's own yes)
+FINDER_CONFIRM = "mean"                # a join also needs a second opinion on the windows read as they are
+                                       # (the narrator's sentences left out): "mean", "best" or "" for none
+FINDER_DESCRIBE = False                # False: the narrator never describes a project to the judge, so what it
+                                       # wrote about one project cannot pull another task in
 FINDER_CANDIDATES = 5                  # projects a task is judged against, out of all of them
 IDLE = 60               # no input for this long -> pause
 MAX_QUEUE = 8           # resolver backlog above which timer captures are skipped

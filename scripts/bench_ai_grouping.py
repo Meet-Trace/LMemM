@@ -13,6 +13,8 @@ Research only: reads the two labelled days in tests/fixtures/project_grouping, w
     ai-unread     the same without the narrator: the judge reads the raw windows only
     ai-allpairs   relate every pair of the day, not only pairs within a sitting
     ai-allpairs-unread  every pair of the day, without the narrator
+    finder        what the app runs (project_finder_ai.py): candidates retrieved per task (--embed,
+                  --candidates), a task two projects both claim is filed in neither, joins above --margin
     ai-nogeneral  skip the specific-or-general step, so inboxes go in and the pair judge must keep them out
 
 Each variant runs with both decision rules (raw, calibrated). --blind adds runs on a copy of each day
@@ -40,7 +42,8 @@ FIXTURES = ROOT / "tests" / "fixtures" / "project_grouping"
 VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs": True},
             "ai-nogeneral": {"specific": False}, "ai-gate-raw": {"gate_rule": "raw"},
             "ai-allpairs-nogeneral": {"all_pairs": True, "specific": False},
-            "ai-allpairs-unread": {"all_pairs": True, "unread": True}}
+            "ai-allpairs-unread": {"all_pairs": True, "unread": True},
+            "finder": {"retrieve": True, "abstain_shared": True}}
 
 
 def scores(truth, assigned, log=()):
@@ -98,6 +101,12 @@ def main(argv=None):
     p.add_argument("--judge", default=None, help="Ollama reranker tag")
     p.add_argument("--judge-chat", default=None, help="Ollama chat model used as the judge instead")
     p.add_argument("--url", default="http://127.0.0.1:11434")
+    p.add_argument("--cpu", type=int, default=0, help="Ollama models on the CPU only, with this many threads")
+    p.add_argument("--narrator-cold", action="store_true", help="unload the Ollama narrator after each sentence "
+                                                                 "(a warm prompt cache changed its sentences)")
+    p.add_argument("--embed", default=None, help="Ollama embedding model for the finder variant's retrieval")
+    p.add_argument("--candidates", type=int, default=5, help="projects a task is judged against (finder)")
+    p.add_argument("--margin", type=float, default=0.0, help="log-odds a join must clear (finder)")
     p.add_argument("--variants", default="ai,ai-unread")
     p.add_argument("--rules", default=",".join(ai.RULES))
     p.add_argument("--blind", action="store_true", help="also run on name-blind copies of each day")
@@ -112,20 +121,28 @@ def main(argv=None):
     for v in variants:
         if v not in VARIANTS:
             p.error(f"unknown variant {v}; choose from {', '.join(VARIANTS)}")
+    cpu = ts.cpu_only(args.cpu) if args.cpu else None
     if args.judge_mlx:
         scorer = ts.MlxRerankScorer(args.judge_mlx, args.judge_adapter)
     elif args.judge:
-        scorer = ts.RerankScorer(args.judge, args.url)
+        scorer = ts.RerankScorer(args.judge, args.url, timeout=300, extra=cpu)
     elif args.judge_chat:
-        scorer = ts.ChatScorer(args.judge_chat, args.url)
+        scorer = ts.ChatScorer(args.judge_chat, args.url, extra=cpu)
     else:
         p.error("name a judge: --judge-mlx, --judge or --judge-chat")
     cache = json.loads(args.cache.read_text()) if args.cache and args.cache.exists() else {}
-    judge = ai.Judge(scorer, cache, name=f"adapter={args.judge_adapter}" if args.judge_adapter else "")
+    judge = ai.Judge(scorer, cache, name=(f"adapter={args.judge_adapter}" if args.judge_adapter
+                                          else f"ollama={args.judge}" if args.judge and args.cpu else ""))
     if args.narrator_mlx:
         narrator = ai.Narrator(ts.MlxChatScorer(args.narrator_mlx), cache, name=f"mlx={args.narrator_mlx}")
+    elif args.narrator:
+        narrator = ai.Narrator(ts.ChatScorer(args.narrator, args.url, timeout=300, extra=cpu,
+                                             keep_alive=0 if args.narrator_cold else None),
+                               cache, name=f"cold={args.narrator}" if args.narrator_cold else "")
     else:
-        narrator = ai.Narrator(ts.ChatScorer(args.narrator, args.url), cache) if args.narrator else None
+        narrator = None
+    retriever = ai.Retriever(ts.Embedder(args.embed, args.url, timeout=300, extra=cpu) if args.embed else None,
+                             k=args.candidates)
     if narrator is None:
         variants = [v for v in variants if VARIANTS[v].get("unread")] or ["ai-unread"]
 
@@ -144,6 +161,8 @@ def main(argv=None):
             for v in variants:
                 opts = dict(VARIANTS[v])
                 unread = opts.pop("unread", False)
+                if opts.pop("retrieve", False):
+                    opts.update(retrieve=retriever, margin=args.margin)
                 for rule in rules:
                     j0, js, n0, ns, t0 = judge.calls, judge.seconds, (narrator.calls if narrator else 0), \
                         (narrator.seconds if narrator else 0.0), time.monotonic()

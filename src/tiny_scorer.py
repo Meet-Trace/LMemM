@@ -42,6 +42,36 @@ def _post(url, path, body, timeout):
         return json.loads(resp.read())
 
 
+def cpu_only(threads=2):
+    """Ollama options that keep a model off the GPU and on `threads` CPU threads: slower, but quiet and
+    predictable on a laptop."""
+    return {"num_gpu": 0, "num_thread": int(threads)}
+
+
+def installed(url="http://127.0.0.1:11434", timeout=10):
+    """The model tags this Ollama has, with and without ":latest"."""
+    with urllib.request.urlopen(_local(url) + "/api/tags", timeout=timeout) as resp:
+        names = [m.get("name", "") for m in json.loads(resp.read()).get("models") or []]
+    return set(names) | {n[:-len(":latest")] for n in names if n.endswith(":latest")}
+
+
+def unload(model, url="http://127.0.0.1:11434", timeout=30):
+    """Ask Ollama to free a model's memory now rather than minutes later. Never raises."""
+    try:
+        _post(_local(url), "/api/generate", {"model": model, "keep_alive": 0}, timeout)
+    except Exception:  # noqa: BLE001 - freeing memory early is a courtesy, not a requirement
+        pass
+
+
+def _with(body, extra, keep_alive):
+    """A request body with extra Ollama options (cpu_only) and a keep-alive, when given."""
+    if extra:
+        body.setdefault("options", {}).update(extra)
+    if keep_alive is not None:
+        body["keep_alive"] = keep_alive
+    return body
+
+
 def logsumexp(values):
     values = list(values)
     if not values:
@@ -80,12 +110,14 @@ def yes_no(options):
 class ChatScorer:
     """A general chat model on Ollama (gemma3:1b, qwen3.5:0.8b). One generated token, read as options."""
 
-    def __init__(self, model, url="http://127.0.0.1:11434", timeout=120):
+    def __init__(self, model, url="http://127.0.0.1:11434", timeout=120, extra=None, keep_alive=None):
         self.model, self.url, self.timeout = model, _local(url), timeout
+        self.extra, self.keep_alive = extra, keep_alive
         self.calls = 0
         self._think = True
 
     def _chat(self, body):
+        _with(body, self.extra, self.keep_alive)
         if self._think:
             body["think"] = False
         try:
@@ -182,16 +214,18 @@ class RerankScorer:
                 "<|im_start|>user\n<Instruct>: {instruct}\n<Query>: {query}\n<Document>: {doc}<|im_end|>\n"
                 "<|im_start|>assistant\n<think>\n\n</think>\n\n")
 
-    def __init__(self, model, url="http://127.0.0.1:11434", timeout=120):
+    def __init__(self, model, url="http://127.0.0.1:11434", timeout=120, extra=None, keep_alive=None):
         self.model, self.url, self.timeout = model, _local(url), timeout
+        self.extra, self.keep_alive = extra, keep_alive
         self.calls = 0
 
     def options_for(self, instruct, query, doc):
         body = {"model": self.model, "stream": False, "raw": True, "logprobs": True, "top_logprobs": TOP,
                 "prompt": self.TEMPLATE.format(instruct=instruct, query=query, doc=doc),
-                "options": {"temperature": 0, "num_predict": 1, "num_ctx": 4096}}
+                "options": {"temperature": 0, "num_predict": 1, "num_ctx": CHAT_CTX}}
         self.calls += 1
-        return first_token_options(_post(self.url, "/api/generate", body, self.timeout))
+        return first_token_options(_post(self.url, "/api/generate", _with(body, self.extra, self.keep_alive),
+                                         self.timeout))
 
 
 def mlx_fn(mx, name):
@@ -242,13 +276,14 @@ class MlxRerankScorer(RerankScorer):
 class Embedder:
     """An Ollama embedding model. `prefix` is the model's task prompt (EmbeddingGemma wants one)."""
 
-    def __init__(self, model, url="http://127.0.0.1:11434", prefix="", timeout=120):
+    def __init__(self, model, url="http://127.0.0.1:11434", prefix="", timeout=120, extra=None, keep_alive=None):
         self.model, self.url, self.prefix, self.timeout = model, _local(url), prefix, timeout
+        self.extra, self.keep_alive = extra, keep_alive
         self.calls = 0
 
     def __call__(self, texts):
-        out = _post(self.url, "/api/embed", {"model": self.model, "input": [self.prefix + t for t in texts]},
-                    self.timeout)
+        body = {"model": self.model, "input": [self.prefix + t for t in texts], "truncate": True}
+        out = _post(self.url, "/api/embed", _with(body, self.extra, self.keep_alive), self.timeout)
         self.calls += 1
         return out["embeddings"]
 

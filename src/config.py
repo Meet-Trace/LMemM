@@ -18,6 +18,15 @@ MIN_GAP = 2.0           # never two captures closer than this (pinned excepted)
 POLL = 0.5              # seconds between window/tab title checks
 FIND_PROJECTS = True    # notice projects in what you did and suggest them (project_finder.py); never files anything
 FIND_EVERY = 30 * 60    # seconds between looks, taken only while you are idle
+FINDER_METHOD = "ai"    # "ai": local models read and decide (project_finder_ai.py); "assign": the rules-only method
+FINDER_URL = "http://127.0.0.1:11434"   # your own Ollama (not the app's private one on 11455)
+FINDER_NARRATOR = "qwen3.5:0.8b"       # says what you were doing in each window (Ollama)
+FINDER_JUDGE = "lmemm-judge"           # Qwen3-Reranker-0.6B taught for grouping (scripts/install_judge.py)
+FINDER_EMBED = "embeddinggemma"        # finds the few projects worth asking about; "" = shared words instead
+FINDER_THREADS = 2                     # CPU threads the models may use: CPU only, slow and quiet
+FINDER_CALLS = 300                     # new model calls per look at most; the next look carries on
+FINDER_MARGIN = 0.0                    # log-odds a join or merge must clear (0 = the model's own yes)
+FINDER_CANDIDATES = 5                  # projects a task is judged against, out of all of them
 IDLE = 60               # no input for this long -> pause
 MAX_QUEUE = 8           # resolver backlog above which timer captures are skipped
 MAX_PX = 1600           # a captured screen wider than this is scaled down to it

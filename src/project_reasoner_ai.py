@@ -26,6 +26,15 @@ part of the same piece of work as that? Two local sub-1B models answer it, and c
     A6  Check. A capitalised name the narrator wrote that is not in the windows it read is cut and
         logged, so an invented client cannot pull two things together.
 
+In the app (project_finder.py) three more things hold, so it scales to hundreds of projects and stays careful:
+    seeds       your own projects take part as projects to join, each shown by its latest things; they are
+                never grouped or renamed, and only the things the model adds to one are offered
+    retrieve    candidate retrieval is separate from verification: a task is judged only against the few
+                projects whose text is nearest it (Retriever, an embedding model), never against all
+    abstain     a task the judge says yes to for two projects is a shared resource: it is logged as linked
+                to both and filed in neither, and joins need the answer to clear `margin`
+A Budget caps new model calls per look; everything answered is cached, so the next look carries on.
+
 Decisions read the judge's probabilities (tiny_scorer), never its written words. Two rules:
     raw         yes when P(yes) > P(no)
     calibrated  yes when the answer is above the model's habit for each side shown alone (lift > 0)
@@ -72,18 +81,38 @@ CHAT_JUDGE = "{instruct}\n\nQuery:\n{query}\n\nDocument:\n{doc}\n\nAnswer yes or
 
 # ---------------------------------------------------------------- models
 
+class OutOfBudget(Exception):
+    """A look used all the new model calls it may make. What was answered is cached, so the next look
+    starts where this one stopped."""
+
+
+class Budget:
+    """At most `calls` new model calls (None: no cap), shared by the judge and the narrator."""
+
+    def __init__(self, calls=None):
+        self.left = calls
+
+    def spend(self):
+        if self.left is not None:
+            if self.left <= 0:
+                raise OutOfBudget("this look used its model calls")
+            self.left -= 1
+
+
 class Judge:
     """(instruct, query, doc) -> log P(yes) - log P(no), read from a tiny_scorer scorer's first token.
     A reranker gets its own template; a chat model gets CHAT_JUDGE. Answers are cached by their text, so
     a question asked again (another rule, another variant) costs nothing; `seconds` counts only new calls."""
 
-    def __init__(self, scorer, cache=None, name=""):
-        self.scorer, self.cache, self.name = scorer, cache if cache is not None else {}, name
+    def __init__(self, scorer, cache=None, name="", budget=None):
+        self.scorer, self.cache, self.name, self.budget = scorer, cache if cache is not None else {}, name, budget
         self.calls, self.seconds = 0, 0.0
 
     def __call__(self, instruct, query, doc):
         key = "\x1f".join(("judge" + (f":{self.name}" if self.name else ""), instruct, query, doc))
         if key not in self.cache:
+            if self.budget is not None:
+                self.budget.spend()
             t0 = time.monotonic()
             if hasattr(self.scorer, "options_for"):
                 opts = self.scorer.options_for(instruct, query, doc)
@@ -98,19 +127,56 @@ class Judge:
 class Narrator:
     """(system, user, max_tokens) -> one short written answer from a tiny_scorer.ChatScorer, cached."""
 
-    def __init__(self, scorer, cache=None, name=""):
-        self.scorer, self.cache = scorer, cache if cache is not None else {}
+    def __init__(self, scorer, cache=None, name="", budget=None):
+        self.scorer, self.cache, self.budget = scorer, cache if cache is not None else {}, budget
         self.kind = "say" + (f":{name}" if name else "")   # another narrator model never reads these answers
         self.calls, self.seconds = 0, 0.0
 
     def __call__(self, system, user, max_tokens):
         key = "\x1f".join((self.kind, system, user, str(max_tokens)))
         if key not in self.cache:
+            if self.budget is not None:
+                self.budget.spend()
             t0 = time.monotonic()
             self.cache[key] = self.scorer.write(user, system, max_tokens)
             self.calls += 1
             self.seconds += time.monotonic() - t0
         return self.cache[key]
+
+
+class Retriever:
+    """Candidate retrieval, kept apart from verification: the `k` projects whose text is nearest a task.
+    With an embedding model (`embed(texts) -> vectors`, tiny_scorer.Embedder) nearness is the cosine of
+    their meanings; without one it is the share of words they have in common. It only narrows what the
+    judge is asked; the judge alone decides membership. Vectors are kept in memory by text."""
+
+    def __init__(self, embed=None, k=5, keep=4000):
+        self.embed, self.k, self.keep, self.vectors = embed, k, keep, {}
+        self.calls = 0
+
+    def _vectors(self, texts):
+        new = [t for t in dict.fromkeys(texts) if t not in self.vectors]
+        if new:
+            for t, v in zip(new, self.embed(new)):
+                self.vectors[t] = v
+            self.calls += 1
+            while len(self.vectors) > self.keep:                       # oldest first
+                self.vectors.pop(next(iter(self.vectors)))
+        return [self.vectors[t] for t in texts]
+
+    def __call__(self, query, candidates):
+        """`candidates`: [(project, text)] -> the nearest `k` projects, nearest first."""
+        if len(candidates) <= self.k:
+            return [p for p, _ in candidates]
+        texts = [t for _, t in candidates]
+        if self.embed is not None:
+            q, *vs = self._vectors([query] + texts)
+            near = [ts.cosine(q, v) for v in vs]
+        else:
+            q = graph.tokens(query)
+            near = [len(q & w) / math.sqrt(len(q) * len(w)) if q and w else 0.0 for w in map(graph.tokens, texts)]
+        order = sorted(range(len(candidates)), key=lambda n: (-near[n], n))[:self.k]
+        return [candidates[n][0] for n in order]
 
 
 def chance(score):
@@ -161,9 +227,9 @@ def ground(text, source):
 
 # ---------------------------------------------------------------- steps
 
-def average_link(members, score):
+def average_link(members, score, margin=0.0):
     """A3: start with each activity alone; merge the two groups whose mean answer is the most yes, while
-    that mean is above 0. `score(a, b)` is the model's answer for a pair. Returns (groups, merges)."""
+    that mean is above `margin`. `score(a, b)` is the model's answer for a pair. Returns (groups, merges)."""
     pair = {frozenset(p): score(*p) for p in itertools.combinations(members, 2)}
     groups, merges = [[m] for m in members], []
     while len(groups) > 1:
@@ -172,7 +238,7 @@ def average_link(members, score):
             mean = sum(pair[frozenset((a, b))] for a in groups[i] for b in groups[j]) / (len(groups[i]) * len(groups[j]))
             if best is None or mean > best[0]:
                 best = (mean, i, j)
-        if best[0] <= 0:
+        if best[0] <= margin:
             break
         mean, i, j = best
         merges.append({"joined": [list(groups[i]), list(groups[j])], "mean": mean})
@@ -196,32 +262,48 @@ def day_sittings(timeline, ids, all_pairs=False):
     return out
 
 
-def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False, gate_rule=None):
-    """Group one day. `judge(instruct, query, doc)` returns log-odds yes vs no; `narrator(system, user,
-    max_tokens)` writes a sentence, or None to let the judge read raw windows only.
+def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False, gate_rule=None,
+        seeds=(), library=None, retrieve=None, margin=0.0, abstain_shared=False):
+    """Group the things in `items`. `judge(instruct, query, doc)` returns log-odds yes vs no; `narrator(system,
+    user, max_tokens)` writes a sentence, or None to let the judge read raw windows only.
     `gate_rule` is the rule for the general-place step when it should differ from `rule`.
+    `seeds` are existing projects ({"id", "members"}) that tasks may join; their things are looked up in
+    `library` and are never grouped themselves. `retrieve(query, [(project, text)])` picks the projects a
+    task is judged against (all of them when None). A merge or join needs the answer above `margin`; with
+    `abstain_shared`, a task two projects both say yes to is filed in neither (a shared resource).
     Returns (assigned {id: [project]}, projects {project: summary}, log)."""
     if rule not in RULES or (gate_rule or rule) not in RULES:
         raise ValueError(f"Rule must be one of {', '.join(RULES)}.")
     calibrated = rule == "calibrated"
     log, ids = [], list(items)
+    lookup = {**(library or {}), **items}
 
     said = {}                                                                     # A1 + A6
-    if narrator is not None:
-        for i in ids:
-            text, cut = ground(narrator(SAY_SYSTEM, SAY.format(window=window_text(items[i], WINDOW_CHARS)), SAY_TOKENS),
-                               source_text(items[i]))
+
+    def say(i):
+        """The narrator's sentence for a thing, asked once and only when needed (a seed's things lazily)."""
+        if narrator is None:
+            return None
+        if i not in said:
+            text, cut = ground(narrator(SAY_SYSTEM, SAY.format(window=window_text(lookup[i], WINDOW_CHARS)), SAY_TOKENS),
+                               source_text(lookup[i]))
             said[i] = text
             log.append({"step": "understand", "id": i, "said": text, **({"cut": cut} if cut else {})})
+        return said[i]
+
+    for i in ids:
+        say(i)
 
     def activity(i, budget=ACTIVITY_CHARS):
-        head = f"What the person was doing: {said[i]}\n" if said.get(i) else ""
-        return head + window_text(items[i], budget)
+        head = f"What the person was doing: {say(i)}\n" if say(i) else ""
+        return head + window_text(lookup[i], budget)
 
-    def brief(i):
-        it = items[i]
-        if said.get(i):
-            return f"{said[i]} ({it.get('title')}, {it.get('app')})"
+    def brief(i, read=True):
+        """One line per thing. With read=False only a sentence already written is used (for retrieval,
+        which must not cost a model call)."""
+        it, sentence = lookup[i], (say(i) if read else said.get(i))
+        if sentence:
+            return f"{sentence} ({it.get('title')}, {it.get('app')})"
         lines = (graph.card(it, 120).get("text") or [])[:1]
         return f"{it.get('title')} ({it.get('app')})" + (f": {lines[0]}" if lines else "")
 
@@ -247,7 +329,7 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
 
     tasks = []
     for sitting in day_sittings(timeline, keep, all_pairs):
-        groups, merges, pair = average_link(sitting, pair_score)
+        groups, merges, pair = average_link(sitting, pair_score, margin)
         tasks += groups
         log.append({"step": "relate", "sitting": sitting, "tasks": groups, "merges": merges,
                     "pairs": {" + ".join(sorted(k)): round(v, 3) for k, v in pair.items()}})
@@ -258,6 +340,11 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
         lines += [f"- {brief(m)}" for m in p["members"][-PROJECT_LATEST:]]
         return "\n".join(lines)
 
+    def project_text(p):
+        """What retrieval compares a task with: no model call."""
+        return "\n".join(([p["description"]] if p.get("description") else [])
+                         + [brief(m, read=False) for m in p["members"][-PROJECT_LATEST:]])
+
     def task_doc(task):
         budget = max(120, ACTIVITY_CHARS // len(task) * 2)
         return "\n\n".join(activity(m, budget) for m in task)[:TASK_CHARS]
@@ -265,31 +352,44 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
     def describe(p):
         lines = "\n".join(f"- {brief(m)}" for m in p["members"][-DESCRIBE_LATEST:])
         text, cut = ground(narrator(DESCRIBE_SYSTEM, DESCRIBE.format(activities=lines), SAY_TOKENS),
-                           " ".join(source_text(items[m]) for m in p["members"]))
+                           " ".join(source_text(lookup[m]) for m in p["members"]))
         return text, cut
 
-    projects = []                                                                 # A4 + A5
+    projects = [{"id": sd["id"], "members": [m for m in sd["members"] if m in lookup], "tasks": 0,  # A4 + A5
+                 "description": sd.get("description"), "seed": True, "before": set(sd["members"])}
+                for sd in seeds]
+    projects = [p for p in projects if p["members"]]
+    shared = []
     for task in tasks:
         doc, scored = task_doc(task), []
-        for p in projects:
+        candidates = projects if retrieve is None else retrieve(doc, [(p, project_text(p)) for p in projects])
+        for p in candidates:
+            if p.get("seed") and narrator is not None and not p.get("description"):
+                p["description"], _ = describe(p)
             q = project_query(p)
             s = judge(INSTRUCT_PROJECT, q, doc)
             if calibrated:
                 s -= (judge(INSTRUCT_PROJECT, q, ts.NULL_CARD) + judge(INSTRUCT_PROJECT, ts.NULL_CARD, doc)) / 2
             scored.append((s, p["id"], p))
-        best = max(scored, key=lambda x: x[0], default=None)
-        if best is not None and best[0] > 0:
-            target = best[2]
+        yes = sorted((x for x in scored if x[0] > margin), key=lambda x: -x[0])
+        entry = {"step": "assign", "task": task, "scores": {pid: round(s, 3) for s, pid, _ in scored},
+                 **({"retrieved": [p["id"] for p in candidates], "of": len(projects)} if retrieve else {})}
+        if abstain_shared and len(yes) >= 2:
+            shared.append({"task": task, "projects": [pid for _, pid, _ in yes]})
+            entry["decision"] = "shared with " + ", ".join(pid for _, pid, _ in yes) + ": filed in neither"
+            log.append(entry)
+            continue
+        if yes:
+            target = yes[0][2]
             target["members"] += [m for m in task if m not in target["members"]]   # a thing seen in two sittings
             target["tasks"] += 1
             decision = f"joined {target['id']}"
         else:
-            target = {"id": f"P{len(projects) + 1}", "members": list(dict.fromkeys(task)), "tasks": 1,
-                      "description": None}
+            target = {"id": f"P{sum(1 for p in projects if not p.get('seed')) + 1}",
+                      "members": list(dict.fromkeys(task)), "tasks": 1, "description": None}
             projects.append(target)
             decision = f"new project {target['id']}" + (" (the model said no to every project)" if scored else "")
-        entry = {"step": "assign", "task": task, "decision": decision,
-                 "scores": {pid: round(s, 3) for s, pid, _ in scored}}
+        entry["decision"] = decision
         if narrator is not None:
             target["description"], cut = describe(target)
             entry["description"] = target["description"]
@@ -299,16 +399,24 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
 
     assigned, summary = {}, {}
     for p in projects:
+        if p.get("seed"):                                                         # yours: only what was added
+            added = [m for m in p["members"] if m not in p["before"]]
+            if added:
+                summary[f"{p['id']} [{p['id']}]"] = {"seed": p["id"], "description": p.get("description"),
+                                                     "members": p["members"], "added": added, "tasks": p["tasks"]}
+                for m in added:
+                    assigned.setdefault(m, []).append(f"{p['id']} [{p['id']}]")
+            continue
         lines = "\n".join(f"- {brief(m)}" for m in p["members"][-DESCRIBE_LATEST:])
         name, cut = (ground(narrator(DESCRIBE_SYSTEM, NAME.format(activities=lines), NAME_TOKENS).strip(" .\"'"),
-                            " ".join(source_text(items[m]) for m in p["members"]))
+                            " ".join(source_text(lookup[m]) for m in p["members"]))
                      if narrator is not None else ("", []))
-        name = name or str(items[p["members"][0]].get("title") or p["id"])
+        name = name or str(lookup[p["members"][0]].get("title") or p["id"])
         path = f"{name} [{p['id']}]"
         summary[path] = {"description": p.get("description"), "members": p["members"], "tasks": p["tasks"],
                          **({"name_cut": cut} if cut else {})}
         for m in p["members"]:
             assigned.setdefault(m, []).append(path)
-    log.append({"step": "projects", "projects": summary,
+    log.append({"step": "projects", "projects": summary, "shared": shared,
                 "not_filed": [i for i in ids if i not in assigned]})
     return assigned, summary, log

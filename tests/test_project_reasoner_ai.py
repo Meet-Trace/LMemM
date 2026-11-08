@@ -132,6 +132,68 @@ class RunTest(unittest.TestCase):
         self.assertEqual(len(wrote), 2)
 
 
+class FinderOptionsTest(unittest.TestCase):
+    """What the app's project finder adds: your projects as seeds, retrieval, margins, shared resources."""
+
+    def setUp(self):
+        self.items, self.timeline = day()
+
+    def test_a_task_two_projects_say_yes_to_is_filed_in_neither(self):
+        both = dict(self.items["safari-villa"], title="Goa villa for the Northwind workshop offsite")
+        seeds = [{"id": "trip", "members": ["gsheet-trip"]}, {"id": "client", "members": ["gmail-northwind"]}]
+        loose = {"safari-villa": both}
+        kw = dict(seeds=seeds, library=self.items, specific=False)
+        assigned, summary, log = ai.run(loose, self.timeline, judge, **kw, abstain_shared=True)
+        self.assertEqual((assigned, summary), ({}, {}))
+        shared = log[-1]["shared"]
+        self.assertEqual([s["task"] for s in shared], [["safari-villa"]])
+        self.assertCountEqual(shared[0]["projects"], ["trip", "client"])
+        filed, _, _ = ai.run(loose, self.timeline, judge, **kw)                   # without it: one of the two
+        self.assertEqual(len(filed["safari-villa"]), 1)
+
+    def test_retrieval_limits_which_projects_the_judge_is_asked_about(self):
+        seeds = [{"id": i, "members": [i]} for i in self.items
+                 if i not in ("safari-villa", "gmail-inbox", "slack-general")]
+        asked = []
+
+        def counting(instruct, query, doc):
+            if instruct == ai.INSTRUCT_PROJECT:
+                asked.append(query)
+            return judge(instruct, query, doc)
+        assigned, _, log = ai.run({"safari-villa": self.items["safari-villa"]}, self.timeline, counting,
+                                  seeds=seeds, library=self.items, retrieve=ai.Retriever(None, k=3))
+        entry = next(e for e in log if e["step"] == "assign")
+        self.assertEqual((len(entry["retrieved"]), entry["of"], len(asked)), (3, len(seeds), 3))
+        self.assertTrue(set(entry["retrieved"]) & {"gsheet-trip", "gmail-flights"}, entry["retrieved"])
+        self.assertIn(assigned["safari-villa"][0].split(" [")[0], {"gsheet-trip", "gmail-flights"})
+
+    def test_a_merge_or_a_join_must_clear_the_margin(self):
+        s = {frozenset("ab"): 2.0, frozenset("bc"): 1.0, frozenset("ac"): -3.0}
+        groups, _, _ = ai.average_link(list("abc"), lambda x, y: s[frozenset((x, y))], margin=2.5)
+        self.assertEqual(len(groups), 3)
+        seeds = [{"id": "trip", "members": ["gsheet-trip"]}]
+        loose = {i: self.items[i] for i in ("safari-villa", "gmail-flights")}
+        joined, _, _ = ai.run(loose, self.timeline, judge, seeds=seeds, library=self.items)
+        self.assertEqual(joined, {i: ["trip [trip]"] for i in loose})
+        apart, summary, _ = ai.run(loose, self.timeline, judge, seeds=seeds, library=self.items, margin=3.0)
+        self.assertFalse(any(p.get("seed") for p in summary.values()))
+        self.assertFalse([p for ps in apart.values() for p in ps if p.startswith("trip")])
+
+    def test_a_small_budget_stops_the_run_and_the_cache_carries_it_on(self):
+        cache, answers = {}, []
+        scorer = type("S", (), {"options_for": lambda self, i, q, d: answers.append(1) or (
+            {"yes": -0.1, "no": -3.0} if judge(i, q, d) > 0 else {"yes": -3.0, "no": -0.1})})()
+        whole = ai.run(self.items, self.timeline, ai.Judge(scorer, {}))[0]
+        for _ in range(200):
+            j = ai.Judge(scorer, cache, budget=ai.Budget(10))
+            try:
+                got = ai.run(self.items, self.timeline, j)[0]
+                break
+            except ai.OutOfBudget:
+                self.assertLessEqual(j.calls, 10)
+        self.assertEqual(got, whole)
+
+
 class FakeOllama(BaseHTTPRequestHandler):
     """Writes "Working on <title>." and answers yes when the two sides share a topic."""
 

@@ -138,7 +138,7 @@ class FinderTest(unittest.TestCase):
         t.save_sug = lambda: setattr(t, "saved", t.saved + 1)
         t.sync_pill = lambda: None
         sh_find = sh.find
-        sh.find = lambda reg, items, visits: sh_find(reg, items, self.visits, now=NOW, days=DAYS)
+        sh.find = lambda reg, items, visits, **kw: sh_find(reg, items, self.visits, now=NOW, days=DAYS)
         try:
             tracker.Tracker.finder_pass(t)
         finally:

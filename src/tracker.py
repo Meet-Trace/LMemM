@@ -1189,7 +1189,7 @@ class Tracker:
                     return
                 items = copy.deepcopy(self.items)
             visits = real_days.read_visits(config.paths().memory_dir)
-            planned = project_finder.find(reg, items, visits)
+            planned = project_finder.find(reg, items, visits, method=config.FINDER_METHOD)
             with self.lock:
                 added = project_finder.offer(self.sug, reg, self.items, planned)
                 if added:

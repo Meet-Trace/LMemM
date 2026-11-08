@@ -28,8 +28,8 @@ FINDER_CALLS = 300                     # new model calls per look at most; the n
 FINDER_MARGIN = 0.0                    # log-odds a join or merge must clear (0 = the model's own yes)
 FINDER_CONFIRM = "mean"                # a join also needs a second opinion on the windows read as they are
                                        # (the narrator's sentences left out): "mean", "best" or "" for none
-FINDER_DESCRIBE = False                # False: the narrator never describes a project to the judge, so what it
-                                       # wrote about one project cannot pull another task in
+FINDER_DESCRIBE = True                 # the narrator describes each project for the judge. False leaves that out,
+                                       # which on the test days cost precision (79-88% on two of three days)
 FINDER_CANDIDATES = 5                  # projects a task is judged against, out of all of them
 IDLE = 60               # no input for this long -> pause
 MAX_QUEUE = 8           # resolver backlog above which timer captures are skipped

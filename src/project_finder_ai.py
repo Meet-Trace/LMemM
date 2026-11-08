@@ -26,9 +26,10 @@ How it stays light and careful on an 8 GB Mac
       rules for offering a new project still hold: it must recur in separate sittings.
     - A join needs a second opinion: the judge reads the task's windows and the project's latest ones as they
       are, without the narrator's sentences, and that mean answer must also be yes (config.FINDER_CONFIRM).
-      Two views that depend on different text must agree before anything joins a project.
-    - Nothing the narrator writes about a project (its description) is shown to the judge, and project names
-      are written after grouping, only to show you: generated text never joins or splits groups.
+      Two views that depend on different text must agree before anything joins a project. This is what stops a
+      project description that went wrong from pulling in another project's task: on the Mac a second run
+      wrote "Northwind and LMemM" into the Northwind description and merged four LMemM windows into it.
+    - Project names are written after grouping, only to show you; a name never joins or splits groups.
 """
 
 import json

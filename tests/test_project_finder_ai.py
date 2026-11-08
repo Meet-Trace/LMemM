@@ -120,9 +120,6 @@ class FinderAITest(unittest.TestCase):
         self.assertTrue(all(b["options"]["num_gpu"] == 0 and b["options"]["num_thread"] == config.FINDER_THREADS
                             for b in asked))
         self.assertTrue(all(b["keep_alive"] == 0 for p, b in FakeOllama.seen if p == "/api/chat"))   # cold narrator
-        chats = [b["messages"][-1]["content"] for p, b in FakeOllama.seen if p == "/api/chat"]
-        self.assertTrue(chats)
-        self.assertFalse([c for c in chats if "what work it involves" in c])        # no project description is written
         look = finder.read_log()[-1]
         self.assertGreater(look["calls"], 0)
         self.assertTrue(Path(fai.cache_path()).exists())
@@ -155,6 +152,30 @@ class FinderAITest(unittest.TestCase):
         self.assertIn("safari-villa", mine[0][1])
         self.assertTrue(all(topics(json.dumps(self.items[i])) == {"goa"} for i in mine[0][1]))
         self.assertFalse(any("gsheet-trip" in ids for _, kind, (_, ids, _) in planned if kind == "project"))
+
+    def test_the_narrator_describes_projects_only_when_asked_to(self):
+        def described():
+            return [b for p, b in FakeOllama.seen if p == "/api/chat"
+                    and "what work it involves" in b["messages"][-1]["content"]]
+        self.find()
+        self.assertTrue(described())
+        FakeOllama.seen = []
+        Path(fai.cache_path()).unlink()
+        config.FINDER_DESCRIBE = False
+        try:
+            self.find()
+        finally:
+            config.FINDER_DESCRIBE = True
+        self.assertFalse(described())
+
+    def test_a_join_asks_the_judge_a_second_time_without_the_narrators_sentences(self):
+        pid = projects.create(self.reg, "Holiday")
+        projects.move_to(self.reg, self.items, ["gsheet-trip"], pid)
+        self.find()
+        asked = [b["prompt"] for p, b in FakeOllama.seen if "prompt" in b]
+        pairs = [a for a in asked if "<Query>: App:" in a]                           # raw windows, no sentence
+        self.assertTrue(pairs)
+        self.assertFalse([a for a in pairs if "What the person was doing" in a])
 
     def test_a_thing_in_two_groups_is_offered_in_neither(self):
         ids = list(self.items)[:8]

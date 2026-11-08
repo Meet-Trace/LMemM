@@ -92,6 +92,7 @@ def explain(items, summary, log, truth):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--narrator", default=None, help="Ollama chat model that writes (qwen3.5:0.8b)")
+    p.add_argument("--narrator-mlx", default=None, help="the narrator's MLX build, run with mlx-lm instead of Ollama")
     p.add_argument("--judge-mlx", default=None, help="Qwen3-Reranker repo for mlx-lm")
     p.add_argument("--judge-adapter", default=None, help="LoRA adapter folder from train_judge.py for --judge-mlx")
     p.add_argument("--judge", default=None, help="Ollama reranker tag")
@@ -121,7 +122,10 @@ def main(argv=None):
         p.error("name a judge: --judge-mlx, --judge or --judge-chat")
     cache = json.loads(args.cache.read_text()) if args.cache and args.cache.exists() else {}
     judge = ai.Judge(scorer, cache, name=f"adapter={args.judge_adapter}" if args.judge_adapter else "")
-    narrator = ai.Narrator(ts.ChatScorer(args.narrator, args.url), cache) if args.narrator else None
+    if args.narrator_mlx:
+        narrator = ai.Narrator(ts.MlxChatScorer(args.narrator_mlx), cache, name=f"mlx={args.narrator_mlx}")
+    else:
+        narrator = ai.Narrator(ts.ChatScorer(args.narrator, args.url), cache) if args.narrator else None
     if narrator is None:
         variants = [v for v in variants if VARIANTS[v].get("unread")] or ["ai-unread"]
 

@@ -124,6 +124,12 @@ class RunTest(unittest.TestCase):
         taught = ai.Judge(j.scorer, j.cache, name="adapter=x")              # a taught judge never reuses them
         taught("i", "q", "d")
         self.assertEqual(len(calls), 2)
+        wrote = []
+        writer = type("W", (), {"write": lambda self, u, s, n: wrote.append(1) or "Editing a sheet."})()
+        ollama = ai.Narrator(writer, j.cache)
+        self.assertEqual((ollama("s", "u", 40), ollama("s", "u", 40)), ("Editing a sheet.", "Editing a sheet."))
+        ai.Narrator(writer, j.cache, name="mlx=repo")("s", "u", 40)          # nor does another narrator model
+        self.assertEqual(len(wrote), 2)
 
 
 class FakeOllama(BaseHTTPRequestHandler):

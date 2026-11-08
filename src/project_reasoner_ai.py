@@ -98,12 +98,13 @@ class Judge:
 class Narrator:
     """(system, user, max_tokens) -> one short written answer from a tiny_scorer.ChatScorer, cached."""
 
-    def __init__(self, scorer, cache=None):
+    def __init__(self, scorer, cache=None, name=""):
         self.scorer, self.cache = scorer, cache if cache is not None else {}
+        self.kind = "say" + (f":{name}" if name else "")   # another narrator model never reads these answers
         self.calls, self.seconds = 0, 0.0
 
     def __call__(self, system, user, max_tokens):
-        key = "\x1f".join(("say", system, user, str(max_tokens)))
+        key = "\x1f".join((self.kind, system, user, str(max_tokens)))
         if key not in self.cache:
             t0 = time.monotonic()
             self.cache[key] = self.scorer.write(user, system, max_tokens)

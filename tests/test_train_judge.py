@@ -65,6 +65,14 @@ class FakeTokenizer:
     def encode(self, text):
         return [3 + zlib.crc32(w.encode()) % (self.vocab - 3) for w in text.split()]
 
+    eos_token_id = 0
+
+    def apply_chat_template(self, messages, add_generation_prompt=True, tokenize=False, enable_thinking=None):
+        return " ".join(m["content"] for m in messages) + " assistant:"
+
+    def decode(self, ids, skip_special_tokens=False):
+        return " ".join(f"w{i}" for i in ids)
+
 
 @unittest.skipUnless(HAVE_MLX, "mlx and mlx-lm are only installed on the Mac (or a scratch venv)")
 class TrainTest(unittest.TestCase):
@@ -92,6 +100,20 @@ class TrainTest(unittest.TestCase):
         self.assertAlmostEqual(got["yes"], float(full[1]), places=4)
         self.assertAlmostEqual(got["no"], float(full[2]), places=4)
         self.assertEqual(judge.calls, 1)
+
+    def test_the_mlx_narrator_writes_the_same_words_every_time(self):
+        import mlx.core as mx
+        import tiny_scorer as ts
+        narrator = ts.MlxChatScorer.__new__(ts.MlxChatScorer)
+        narrator.mx, narrator.model, narrator.tokenizer, narrator.calls = mx, self.tiny(), FakeTokenizer(), 0
+        first = narrator.write("What was the person doing?", "Say it in one sentence.", max_tokens=6)
+        again = narrator.write("What was the person doing?", "Say it in one sentence.", max_tokens=6)
+        self.assertEqual(first, again)
+        self.assertEqual(len(first.split()), 6)
+        options = narrator.options("Same project? Answer yes or no.")
+        self.assertEqual(len(options), ts.TOP)
+        self.assertTrue(all(lp <= 0 for lp in options.values()))
+        self.assertEqual(narrator.calls, 3)
 
     def test_step_size_warms_up_then_decays_to_a_tenth(self):
         import argparse

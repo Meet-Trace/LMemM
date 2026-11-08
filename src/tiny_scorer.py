@@ -113,6 +113,66 @@ class ChatScorer:
         return " ".join(((self._chat(body).get("message") or {}).get("content") or "").split())
 
 
+class MlxChatScorer:
+    """A chat model (qwen3.5:0.8b's MLX build) run with mlx-lm in this process. Decoding is greedy and MLX
+    computes the same way every time, so the same prompt always gives the same words: the narrator on
+    Ollama gave different sentences for 7 of 23 windows between two runs. No Ollama runner either, whose
+    2.4-3.8 GB was most of the memory grouping used."""
+
+    def __init__(self, repo, cache_mb=128):
+        import mlx.core as mx                          # only on the Mac, only when asked for
+        from mlx_lm import load
+        self.mx = mx
+        self.model, self.tokenizer = load(repo)
+        self.calls = 0
+        if mlx_fn(mx, "set_cache_limit"):
+            mlx_fn(mx, "set_cache_limit")(cache_mb * 1024 * 1024)
+
+    def prompt(self, user, system):
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        try:                                           # Qwen3 templates take a thinking switch; others don't
+            return self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False,
+                                                      enable_thinking=False)
+        except TypeError:
+            return self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+
+    def _done(self):
+        if mlx_fn(self.mx, "clear_cache"):
+            mlx_fn(self.mx, "clear_cache")()
+        self.calls += 1
+
+    def options(self, user, system=GUARD):
+        mx = self.mx
+        ids = self.tokenizer.encode(self.prompt(user, system))
+        logits = self.model(mx.array([ids]))[0, -1]
+        logp = (logits - mx.logsumexp(logits)).tolist()
+        best = sorted(range(len(logp)), key=lambda i: -logp[i])[:TOP]
+        out = {}
+        for i in best:
+            out.setdefault(self.tokenizer.decode([i]), logp[i])
+        self._done()
+        return out
+
+    def write(self, user, system, max_tokens=60):
+        """A short written answer, greedy (the likeliest token each step), for text a person reads, never
+        for a decision. Decoded here rather than by mlx_lm.generate, so nothing samples."""
+        from mlx_lm.models.cache import make_prompt_cache
+        mx = self.mx
+        stop = set(getattr(self.tokenizer, "eos_token_ids", None) or [self.tokenizer.eos_token_id])
+        cache = make_prompt_cache(self.model)
+        logits = self.model(mx.array([self.tokenizer.encode(self.prompt(user, system))]), cache=cache)[0, -1]
+        words = []
+        for _ in range(max_tokens):
+            token = int(mx.argmax(logits).item())
+            if token in stop:
+                break
+            words.append(token)
+            logits = self.model(mx.array([[token]]), cache=cache)[0, -1]
+        del cache, logits
+        self._done()
+        return " ".join(self.tokenizer.decode(words, skip_special_tokens=True).split())
+
+
 class RerankScorer:
     """Qwen3-Reranker-0.6B: a 0.6B model trained to answer exactly one question, does this document
     meet this instruction for this query, with "yes" or "no". The prompt is the model card's own."""

@@ -21,7 +21,8 @@ How it stays light and careful on an 8 GB Mac
     - The narrator is unloaded after each sentence (keep_alive 0). Ollama gave a different sentence for the
       same window when its prompt cache was warm; a cold start gives the same one every time.
     - Your projects take part as seeds, each shown by its latest things; a task is judged against only
-      config.FINDER_CANDIDATES of them, so hundreds of projects cost the same as five.
+      config.FINDER_CANDIDATES of them, so hundreds of projects cost the same as five. A project none of
+      whose things was used in the look-back days (14) is not a seed: things are not added to old projects.
     - A task the judge says yes to for two projects is filed in neither (a shared resource), and the
       rules for offering a new project still hold: it must recur in separate sittings.
     - A join needs a second opinion: the judge reads the task's windows and the project's latest ones as they
@@ -107,15 +108,19 @@ def models(cache, budget, url=URL):
     return judge, narrator, _retriever
 
 
-def seeds(reg, items, exclude):
-    """Your projects as the pipeline sees them: each one's latest things (none of `exclude`)."""
+def seeds(reg, items, exclude, active=None):
+    """Your projects as the pipeline sees them: each one's latest things (none of `exclude`). With `active`
+    (the things used in the look-back days) a project takes part only if one of its things is among them: a
+    project you stopped working on is not a place new things are added to (archive it to be sure)."""
     out = []
     with projects.indexed(reg, items):
         for pid in reg["projects"]:
             if projects.hidden(reg, pid):
                 continue
-            mine = [i["id"] for i in projects.members(reg, items, pid, deep=False)
-                    if i.get("id") in items and i["id"] not in exclude][:SEED_LATEST]
+            every = [i["id"] for i in projects.members(reg, items, pid, deep=False) if i.get("id") in items]
+            if active is not None and not any(i in active for i in every):
+                continue
+            mine = [i for i in every if i not in exclude][:SEED_LATEST]
             if mine:
                 out.append({"id": pid, "members": list(reversed(mine))})       # oldest first, like a project
     return out
@@ -166,7 +171,7 @@ def find(reg, items, visits, now=None, days=finder.LOOKBACK_DAYS, url=URL):
         judge, narrator, retriever = models(cache, budget, url)
         t0 = datetime.now()
         try:
-            _, summary, log = ai.run(loose, timeline, judge, narrator, rule="raw", seeds=seeds(reg, items, set(loose)),
+            _, summary, log = ai.run(loose, timeline, judge, narrator, rule="raw", seeds=seeds(reg, items, set(loose), set(things)),
                                      library=library, retrieve=retriever, margin=config.FINDER_MARGIN,
                                      abstain_shared=True, confirm=config.FINDER_CONFIRM or None,
                                      use_description=config.FINDER_DESCRIBE)

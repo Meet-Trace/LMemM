@@ -153,6 +153,15 @@ class FinderAITest(unittest.TestCase):
         self.assertTrue(all(topics(json.dumps(self.items[i])) == {"goa"} for i in mine[0][1]))
         self.assertFalse(any("gsheet-trip" in ids for _, kind, (_, ids, _) in planned if kind == "project"))
 
+    def test_a_project_you_stopped_working_on_is_not_a_place_to_add_things(self):
+        pid = projects.create(self.reg, "Holiday")
+        projects.move_to(self.reg, self.items, ["gsheet-trip"], pid)
+        self.visits = [v for v in self.visits if v["item"] != "gsheet-trip"]       # nothing used in it lately
+        self.assertFalse([p for _, kind, p in self.find() if kind == "items"])
+        self.assertEqual(fai.seeds(self.reg, self.items, set(), {"gmail-flights"}), [])
+        self.assertTrue(fai.seeds(self.reg, self.items, set(), {"gsheet-trip"}))
+        self.assertTrue(fai.seeds(self.reg, self.items, set()))                    # without the filter, it takes part
+
     def test_explain_says_what_was_read_and_how_the_judge_scored(self):
         pid = projects.create(self.reg, "Holiday")
         projects.move_to(self.reg, self.items, ["gsheet-trip"], pid)

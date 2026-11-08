@@ -12,6 +12,7 @@ Research only: reads the two labelled days in tests/fixtures/project_grouping, w
                   to every project
     ai-unread     the same without the narrator: the judge reads the raw windows only
     ai-allpairs   relate every pair of the day, not only pairs within a sitting
+    ai-allpairs-unread  every pair of the day, without the narrator
     ai-nogeneral  skip the specific-or-general step, so inboxes go in and the pair judge must keep them out
 
 Each variant runs with both decision rules (raw, calibrated). --blind adds runs on a copy of each day
@@ -38,7 +39,8 @@ import tiny_scorer as ts  # noqa: E402
 FIXTURES = ROOT / "tests" / "fixtures" / "project_grouping"
 VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs": True},
             "ai-nogeneral": {"specific": False}, "ai-gate-raw": {"gate_rule": "raw"},
-            "ai-allpairs-nogeneral": {"all_pairs": True, "specific": False}}
+            "ai-allpairs-nogeneral": {"all_pairs": True, "specific": False},
+            "ai-allpairs-unread": {"all_pairs": True, "unread": True}}
 
 
 def scores(truth, assigned, log=()):

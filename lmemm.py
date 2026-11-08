@@ -14,7 +14,8 @@ LMemM - the one command.
                                       offer things for an existing project (the three latest not in it, or the ids)
     lmemm.py look-for-projects [--dry-run [--days N] [--method ai|assign] [--calls N]]
                                       look for projects in the last two weeks now and suggest them
-                                      (--dry-run: only print what would be suggested; changes nothing)
+                                      (--dry-run: only print what would be suggested; files and offers nothing.
+                                      The ai method still caches the models' answers and logs the look)
     lmemm.py projects [--all] | projects new|rename|move|archive|restore|merge|delete …
                                       look at and shape the project tree (any depth)
     lmemm.py context [SESSION] [--days N]

@@ -130,7 +130,8 @@ def plan(reg, items, summary):
     """The offers for what the models found, strongest first, in project_finder.plan's shape:
     [(strength, "items", (pid, ids, reason))] for your projects, [(strength, "project", (name, ids, reason))]
     for new ones. Groups are never joined by name, and a thing the models put in two groups is offered in
-    neither, like a shared resource."""
+    neither, like a shared resource. The narrator names a group afresh each look, so a group most of whose
+    things you already dismissed is not offered again under a new name."""
     out, names = [], Counter()
     groups = Counter(i for p in summary.values() for i in set(p["added"] if p.get("seed") else p["members"]))
     twice = {i for i, n in groups.items() if n > 1}     # put in two groups (seen in two sittings): offered in neither
@@ -142,6 +143,8 @@ def plan(reg, items, summary):
                 out.append((1000 + len(loose), "items", (pid, loose, "The model judged them part of this project")))
             continue
         ids = [i for i in p["members"] if i in items and i not in twice]
+        if sum(1 for i in ids if items[i].get("declined_projects")) * 2 >= len(ids):
+            continue                      # you dismissed most of these together already, whatever name it was given now
         if p["tasks"] >= finder.NEW_MIN_TASKS and len(ids) >= finder.NEW_MIN_THINGS:
             name = path.rsplit(" [", 1)[0]
             names[projects.key(name)] += 1
@@ -201,6 +204,11 @@ def explain(items, planned, log=None):
     second opinion (without the narrator's sentences) on a join."""
     log = _last_log if log is None else log
     said = {e["id"]: e["said"] for e in log if e["step"] == "understand"}
+    pairs = {}                                           # how strongly the judge said two windows are one piece of work
+    for e in log:
+        if e["step"] == "relate":
+            for key, score in e["pairs"].items():
+                pairs[frozenset(key.split(" + "))] = score
     lines = []
     for _, kind, (target, ids, _) in planned:
         lines.append(f"new project “{target}”" if kind == "project" else f"add to {target}")
@@ -212,6 +220,11 @@ def explain(items, planned, log=None):
             for i in e["task"]:
                 it = items.get(i) or {}
                 lines.append(f"    {it.get('app') or '?'} · {it.get('title') or i}: {said.get(i, '(no sentence)')}")
+            shown = [(a, b, pairs[frozenset((a, b))]) for n, a in enumerate(e["task"]) for b in e["task"][n + 1:]
+                     if frozenset((a, b)) in pairs]
+            for a, b, score in sorted(shown, key=lambda x: x[2])[:6]:                # the weakest links first
+                name = lambda i: (items.get(i) or {}).get("title") or i               # noqa: E731
+                lines.append(f"    joined with {score:+.1f}: {name(a)}  ~  {name(b)}")
     return lines
 
 

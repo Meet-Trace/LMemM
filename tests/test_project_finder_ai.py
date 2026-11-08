@@ -172,6 +172,12 @@ class FinderAITest(unittest.TestCase):
         self.assertIn("second opinion", text)                                      # the second opinion's score is shown
         self.assertIn("Working on ", text)                                         # what the narrator wrote
         self.assertIn("Villa Anjuna", text)
+        log = [{"step": "relate", "pairs": {"a + b": 0.5, "b + c": 4.0, "a + c": -1.0}},
+               {"step": "assign", "task": ["a", "b", "c"], "decision": "new project P1", "scores": {}}]
+        things = {i: {"title": i.upper(), "app": "App"} for i in "abc"}
+        lines = fai.explain(things, [(1, "project", ("X", ["a", "b", "c"], ""))], log)
+        links = [ln.strip() for ln in lines if "joined with " in ln]
+        self.assertEqual(links, ["joined with -1.0: A  ~  C", "joined with +0.5: A  ~  B", "joined with +4.0: B  ~  C"])
 
     def test_the_narrator_describes_projects_only_when_asked_to(self):
         def described():
@@ -196,6 +202,16 @@ class FinderAITest(unittest.TestCase):
         pairs = [a for a in asked if "<Query>: App:" in a]                           # raw windows, no sentence
         self.assertTrue(pairs)
         self.assertFalse([a for a in pairs if "What the person was doing" in a])
+
+    def test_a_group_you_dismissed_is_not_offered_again_under_a_new_name(self):
+        first = self.find()
+        group = next(ids for _, kind, (_, ids, _) in first if kind == "project")
+        for i in group:
+            self.items[i]["declined_projects"] = ["Some other name the narrator gave it last time"]
+        again = self.find()
+        self.assertTrue(first)
+        self.assertFalse([1 for _, kind, (_, ids, _) in again if kind == "project" and set(ids) & set(group)])
+        self.assertTrue([1 for _, kind, _ in again if kind == "project"])            # the other groups are still offered
 
     def test_a_thing_in_two_groups_is_offered_in_neither(self):
         ids = list(self.items)[:8]

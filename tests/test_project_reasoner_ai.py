@@ -33,6 +33,8 @@ def judge(instruct, query, doc):
         return -0.5
     if instruct == ai.INSTRUCT_GENERAL:
         return -2.0 if len(topics(doc)) == 1 else 2.0
+    if instruct == ai.INSTRUCT_WORK:
+        return 2.0 if len(topics(doc)) == 1 else -2.0
     return 2.0 if topics(query) & topics(doc) else -2.0
 
 
@@ -218,6 +220,23 @@ class FinderOptionsTest(unittest.TestCase):
         self.assertEqual(described, [])
         self.assertTrue(all(not p["description"] for p in summary.values()))
         self.assertEqual(assigned, {i: ["trip [trip]"] for i in loose})              # the join does not need them
+
+    def test_a_group_the_judge_calls_idle_looking_around_is_not_filed(self):
+        def judge_idle_goa(instruct, query, doc):
+            if instruct == ai.INSTRUCT_WORK:
+                return -3.0 if "goa" in topics(doc) else 3.0
+            return judge(instruct, query, doc)
+        assigned, summary, log = ai.run(self.items, self.timeline, judge_idle_goa, narrator, worth=True)
+        idle = [p for p in summary.values() if p.get("idle")]
+        self.assertEqual(len(idle), 1)
+        self.assertLess(idle[0]["work"], 0)
+        self.assertEqual(set(idle[0]["members"]) & set(assigned), set())                # none of its things is filed
+        self.assertTrue(set(idle[0]["members"]) & {"gsheet-trip", "safari-villa", "gmail-flights"})
+        self.assertTrue(all(p["work"] > 0 for p in summary.values() if not p.get("idle")))
+        filed, summary2, _ = ai.run(self.items, self.timeline, judge_idle_goa, narrator)      # the question is off by default
+        self.assertFalse([p for p in summary2.values() if p.get("idle") or "work" in p])
+        self.assertIn("gsheet-trip", filed)
+        self.assertEqual(len(summary), len(summary2))
 
     def test_a_small_budget_stops_the_run_and_the_cache_carries_it_on(self):
         cache, answers = {}, []

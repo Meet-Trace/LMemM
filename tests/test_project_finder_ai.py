@@ -213,6 +213,13 @@ class FinderAITest(unittest.TestCase):
         self.assertFalse([1 for _, kind, (_, ids, _) in again if kind == "project" and set(ids) & set(group)])
         self.assertTrue([1 for _, kind, _ in again if kind == "project"])            # the other groups are still offered
 
+    def test_a_group_the_judge_calls_idle_is_not_offered(self):
+        ids = list(self.items)[:6]
+        summary = {"Logs [P1]": {"members": ids[:3], "tasks": 3, "idle": True, "work": -2.0},
+                   "Plan [P2]": {"members": ids[3:], "tasks": 3, "work": 2.0}}
+        planned = fai.plan(self.reg, self.items, summary)
+        self.assertEqual([name for _, _, (name, _, _) in planned], ["Plan"])
+
     def test_a_thing_in_two_groups_is_offered_in_neither(self):
         ids = list(self.items)[:8]
         summary = {"A [P1]": {"members": ids[:3] + [ids[7]], "tasks": 2},

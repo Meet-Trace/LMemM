@@ -142,6 +142,8 @@ def plan(reg, items, summary):
             if loose and projects.exists(reg, pid):
                 out.append((1000 + len(loose), "items", (pid, loose, "The model judged them part of this project")))
             continue
+        if p.get("idle"):
+            continue                      # the judge said this is idle looking around, not work to keep track of
         ids = [i for i in p["members"] if i in items and i not in twice]
         if sum(1 for i in ids if items[i].get("declined_projects")) * 2 >= len(ids):
             continue                      # you dismissed most of these together already, whatever name it was given now
@@ -177,7 +179,7 @@ def find(reg, items, visits, now=None, days=finder.LOOKBACK_DAYS, url=URL):
             _, summary, log = ai.run(loose, timeline, judge, narrator, rule="raw", seeds=seeds(reg, items, set(loose), set(things)),
                                      library=library, retrieve=retriever, margin=config.FINDER_MARGIN,
                                      abstain_shared=True, confirm=config.FINDER_CONFIRM or None,
-                                     use_description=config.FINDER_DESCRIBE)
+                                     use_description=config.FINDER_DESCRIBE, worth=config.FINDER_WORTH)
         except ai.OutOfBudget:
             finder.record("look", method="ai", things=len(loose), paused=True, calls=judge.calls + narrator.calls,
                           seconds=round((datetime.now() - t0).total_seconds()))

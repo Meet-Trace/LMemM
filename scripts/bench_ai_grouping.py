@@ -46,6 +46,7 @@ VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs"
             "finder": {"retrieve": True, "abstain_shared": True},
             "finder-nodesc": {"retrieve": True, "abstain_shared": True, "use_description": False},
             "finder-mean": {"retrieve": True, "abstain_shared": True, "confirm": "mean"},
+            "finder-work": {"retrieve": True, "abstain_shared": True, "confirm": "mean", "worth": True},
             "finder-nodesc-mean": {"retrieve": True, "abstain_shared": True, "use_description": False,
                                    "confirm": "mean"},
             "finder-nodesc-best": {"retrieve": True, "abstain_shared": True, "use_description": False,
@@ -81,7 +82,8 @@ def explain(items, summary, log, truth):
     said = {e["id"]: e for e in log if e["step"] == "understand"}
     general = {e["id"]: e for e in log if e["step"] == "general"}
     for path, p in summary.items():
-        out.append(f"  {path}: {p['description'] or ''}")
+        out.append(f"  {path}: {p['description'] or ''}"
+                   + (f"  [IDLE looking around, not filed: work score {p['work']:+.1f}]" if p.get("idle") else ""))
         for m in p["members"]:
             true = ", ".join(sorted(truth[m])) or "no project"
             line = said.get(m, {}).get("said") or items[m].get("title")

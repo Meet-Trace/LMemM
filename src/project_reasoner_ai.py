@@ -77,6 +77,10 @@ INSTRUCT_PAIR = ("Given one activity a person did on their computer, judge wheth
                  "the same piece of work: the same client, product, deliverable, trip or event.")
 INSTRUCT_PROJECT = ("Given a project described by what a person already did for it, judge whether this new work was "
                     "done for the same project: the same client, product, deliverable, trip or event.")
+INSTRUCT_WORK = "Given a description of a kind of work, judge whether the Document is that kind of work."
+QUERY_WORK = ("Deliberate work toward an outcome that a person would keep track of as a project: making, writing, "
+              "building, planning, buying, researching or organising something. It is not idle looking around, "
+              "checking or scrolling for its own sake.")
 CHAT_JUDGE = "{instruct}\n\nQuery:\n{query}\n\nDocument:\n{doc}\n\nAnswer yes or no."
 
 
@@ -265,7 +269,7 @@ def day_sittings(timeline, ids, all_pairs=False):
 
 def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False, gate_rule=None,
         seeds=(), library=None, retrieve=None, margin=0.0, abstain_shared=False, confirm=None,
-        use_description=True):
+        use_description=True, worth=False):
     """Group the things in `items`. `judge(instruct, query, doc)` returns log-odds yes vs no; `narrator(system,
     user, max_tokens)` writes a sentence, or None to let the judge read raw windows only.
     `gate_rule` is the rule for the general-place step when it should differ from `rule`.
@@ -277,7 +281,9 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
     windows and the project's latest windows as they are, without the narrator's sentences, in pairs, and the
     mean (or best) answer must also be yes, or the task is not joined to that project. With
     `use_description` False the narrator never writes a project's description, so nothing it generated about a
-    project can pull another task in (the descriptions are only for show).
+    project can pull another task in (the descriptions are only for show). With `worth`, a new group is also put
+    to the judge as a whole ("is this deliberate work you would track as a project, or idle looking around?");
+    one it says no to is not filed and its summary says so ("work": the score, "idle": True).
     Returns (assigned {id: [project]}, projects {project: summary}, log)."""
     if rule not in RULES or (gate_rule or rule) not in RULES:
         raise ValueError(f"Rule must be one of {', '.join(RULES)}.")
@@ -426,6 +432,11 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
                 entry["cut"] = cut
         log.append(entry)
 
+    def group_doc(members):
+        use = members[-DESCRIBE_LATEST:]
+        budget = max(120, ACTIVITY_CHARS // len(use) * 2)
+        return "\n\n".join(activity(m, budget) for m in use)[:TASK_CHARS]
+
     assigned, summary = {}, {}
     for p in projects:
         if p.get("seed"):                                                         # yours: only what was added
@@ -436,6 +447,17 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
                 for m in added:
                     assigned.setdefault(m, []).append(f"{p['id']} [{p['id']}]")
             continue
+        work = None
+        if worth:
+            doc = group_doc(p["members"])
+            work = judge(INSTRUCT_WORK, QUERY_WORK, doc)
+            if calibrated:
+                work -= judge(INSTRUCT_WORK, QUERY_WORK, ts.NULL_CARD)
+            if work <= margin:                                                    # idle looking around: not filed
+                title = str(lookup[p["members"][0]].get("title") or p["id"])
+                summary[f"{title} [{p['id']}]"] = {"description": p.get("description"), "members": p["members"],
+                                                   "tasks": p["tasks"], "work": round(work, 3), "idle": True}
+                continue
         lines = "\n".join(f"- {brief(m)}" for m in p["members"][-DESCRIBE_LATEST:])
         name, cut = (ground(narrator(DESCRIBE_SYSTEM, NAME.format(activities=lines), NAME_TOKENS).strip(" .\"'"),
                             " ".join(source_text(lookup[m]) for m in p["members"]))
@@ -443,7 +465,7 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
         name = name or str(lookup[p["members"][0]].get("title") or p["id"])
         path = f"{name} [{p['id']}]"
         summary[path] = {"description": p.get("description"), "members": p["members"], "tasks": p["tasks"],
-                         **({"name_cut": cut} if cut else {})}
+                         **({"name_cut": cut} if cut else {}), **({"work": round(work, 3)} if work is not None else {})}
         for m in p["members"]:
             assigned.setdefault(m, []).append(path)
     log.append({"step": "projects", "projects": summary, "shared": shared,

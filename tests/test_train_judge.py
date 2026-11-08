@@ -32,7 +32,12 @@ class LessonsTest(unittest.TestCase):
                     for n in ("train", "valid")}
         for name, rs in rows.items():
             self.assertAlmostEqual(sum(r["label"] for r in rs) / len(rs), 0.5, delta=0.05, msg=name)
-            self.assertTrue({r["instruct"] for r in rs} <= {ai.INSTRUCT_PAIR, ai.INSTRUCT_PROJECT, ai.INSTRUCT_GENERAL})
+            self.assertTrue({r["instruct"] for r in rs} <= {ai.INSTRUCT_PAIR, ai.INSTRUCT_PROJECT, ai.INSTRUCT_GENERAL,
+                                                            ai.INSTRUCT_WORK})
+            work = [r for r in rs if r["kind"] == "work"]
+            self.assertTrue(work, name)
+            self.assertTrue({r["label"] for r in work} == {0, 1}, name)
+            self.assertTrue(all(r["query"] == ai.QUERY_WORK for r in work), name)
         self.assertFalse({r["story"] for r in rows["train"]} & {r["story"] for r in rows["valid"]})
 
     def test_no_story_touches_a_test_day(self):
@@ -43,6 +48,17 @@ class LessonsTest(unittest.TestCase):
         for day in FIXTURES.glob("*.json"):
             fixture = {it["title"] for it in json.loads(day.read_text())["items"].values()}
             self.assertFalse(titles & fixture, day.name)
+
+    def test_idle_stories_only_teach_the_work_question(self):
+        import random
+        stories = [s for f in sorted(STORIES.glob("*.json")) for s in json.loads(f.read_text())]
+        idle = [s for s in stories if s.get("aimless")]
+        self.assertGreaterEqual(len(idle), 10)
+        rows = lessons.lessons(idle + [s for s in stories if not s.get("aimless")][:3], random.Random(2))
+        for s in idle:
+            kinds = {r["kind"] for r in rows if r["story"] == s["id"]}
+            self.assertEqual(kinds, {"work"}, s["id"])
+            self.assertEqual({r["label"] for r in rows if r["story"] == s["id"]}, {0})
 
     def test_a_test_day_theme_is_refused(self):
         with self.assertRaises(ValueError):

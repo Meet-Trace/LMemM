@@ -17,6 +17,9 @@ learns the exact questions it is asked:
     project   2 to 4 windows of a story as the project, one more window -> yes; another story's -> no
     general   a general place -> yes; a story's window -> no. General places come from the stories and from a
               shared pool (places/*.json, a list of windows), which is split into train and valid the same way
+    work      3 to 5 windows of a story -> yes (deliberate work to keep track of); 3 to 4 windows of an
+              "aimless" story ({"aimless": true}: reading logs, scrolling feeds, poking in folders) or of
+              general places -> no. Aimless stories are used for this question only.
 
 The narrator's sentence is kept in half the lessons and dropped in the rest, so the judge reads windows
 well whether or not the sentence is good. Stories are split into train and valid, never one story in
@@ -48,9 +51,15 @@ def item(window):
             "activity": {"reading": {"text": list(window.get("lines") or [])}}}
 
 
-def activity(window, said):
+def activity(window, said, budget=None):
     head = f"What the person was doing: {window['did']}\n" if said and window.get("did") else ""
-    return head + ai.window_text(item(window), ai.ACTIVITY_CHARS)
+    return head + ai.window_text(item(window), budget or ai.ACTIVITY_CHARS)
+
+
+def group_doc(windows, said):
+    """A group of windows as the pipeline shows it to the judge (project_reasoner_ai's group_doc)."""
+    budget = max(120, ai.ACTIVITY_CHARS // len(windows) * 2)
+    return "\n\n".join(activity(w, said, budget) for w in windows)[:ai.TASK_CHARS]
 
 
 def brief(window, said):
@@ -79,9 +88,16 @@ def check(stories):
             raise ValueError(f"Story {s['id']} needs at least 3 windows.")
 
 
-def lessons(stories, rnd, places=()):
+def lessons(stories, rnd, places=(), split="train"):
     out = []
+    aimless = [s for s in stories if s.get("aimless")]
+    stories = [s for s in stories if not s.get("aimless")]
     flat = [(s["id"], w) for s in stories for w in s["windows"]]
+
+    def work(windows, label, story):
+        said = rnd.random() < 0.5
+        out.append({"kind": "work", "instruct": ai.INSTRUCT_WORK, "query": ai.QUERY_WORK,
+                    "doc": group_doc(windows, said), "label": label, "story": story})
 
     def other(sid, near):
         """A window of another story; with `near`, one sharing a word with `near` when there is one."""
@@ -112,10 +128,17 @@ def lessons(stories, rnd, places=()):
             for doc, label in ((held, 1), (other(s["id"], held if rnd.random() < 0.5 else None), 0)):
                 out.append({"kind": "project", "instruct": ai.INSTRUCT_PROJECT, "query": query,
                             "doc": activity(doc, said)[:DOC_CHARS], "label": label, "story": s["id"]})
+        for _ in range(2):
+            work(rnd.sample(ws, min(len(ws), rnd.randint(3, 5))), 1, s["id"])
         for g in s.get("general") or []:
             for w, label in ((g, 1), (rnd.choice(ws), 0)):
                 out.append({"kind": "general", "instruct": ai.INSTRUCT_GENERAL, "query": ai.QUERY_GENERAL,
                             "doc": activity(w, rnd.random() < 0.5), "label": label, "story": s["id"]})
+    for s in aimless:
+        for _ in range(5):
+            work(rnd.sample(s["windows"], min(len(s["windows"]), rnd.randint(3, 4))), 0, s["id"])
+    for _ in range(len(places) // 2 + (3 if places else 0)):                   # a few general places together
+        work(rnd.sample(list(places), min(len(places), rnd.randint(3, 4))), 0, f"places:{split}")
     for g in places:                       # each pool place with and without the sentence, against a story window
         for said in (True, False):
             for w, label in ((g, 1), (rnd.choice(flat)[1], 0)):
@@ -150,12 +173,12 @@ def main(argv=None):
     args.out.mkdir(parents=True, exist_ok=True)
     counts = {}
     for name, group in split.items():
-        rows = lessons(group, rnd, places[name])
+        rows = lessons(group, rnd, places[name], name)
         rnd.shuffle(rows)
         with open(args.out / f"{name}.jsonl", "w") as fh:
             for r in rows:
                 fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-        counts[name] = {k: sum(1 for r in rows if r["kind"] == k) for k in ("pair", "project", "general")}
+        counts[name] = {k: sum(1 for r in rows if r["kind"] == k) for k in ("pair", "project", "general", "work")}
         counts[name]["yes share"] = round(sum(r["label"] for r in rows) / max(1, len(rows)), 2)
     print(json.dumps({"stories": {k: len(v) for k, v in split.items()}, "lessons": counts}, indent=1))
     return counts

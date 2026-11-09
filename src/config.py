@@ -21,9 +21,10 @@ FIND_EVERY = 30 * 60    # seconds between looks, taken only while you are idle
 FINDER_METHOD = "ai"    # "ai": local models read and decide (project_finder_ai.py); "assign": the rules-only method
 FINDER_URL = "http://127.0.0.1:11434"   # your own Ollama (not the app's private one on 11455)
 FINDER_NARRATOR = "qwen3.5:0.8b"       # says what you were doing in each window (Ollama)
-FINDER_JUDGE = "lmemm-judge"           # Qwen3-Reranker-0.6B taught for grouping (scripts/install_judge.py)
+FINDER_JUDGE = "lmemm-judge-cpu"       # Qwen3-Reranker-0.6B taught for grouping, as a Q8_0 GGUF so Ollama runs it on the
+                                       # CPU (scripts/install_judge.py --convert-script; "lmemm-judge" is the same on the GPU)
 FINDER_EMBED = "embeddinggemma"        # finds the few projects worth asking about; "" = shared words instead
-FINDER_THREADS = 2                     # CPU threads asked of Ollama (its mlx runner ignores this: GPU)
+FINDER_THREADS = 2                     # CPU threads asked of Ollama (the judges and the embedder obey; the narrator's engine does not)
 FINDER_CALLS = 300                     # new model calls per look at most; the next look carries on
 FINDER_MARGIN = 0.0                    # log-odds a join or merge must clear (0 = the model's own yes)
 FINDER_CONFIRM = "mean"                # a join also needs a second opinion on the windows read as they are
@@ -32,8 +33,8 @@ FINDER_DESCRIBE = True                 # the narrator describes each project for
                                        # which on the test days cost precision (79-88% on two of three days)
 FINDER_WORTH = True                    # a new group must also pass "is this deliberate work you would track as a
                                        # project, or idle looking around?" (the judge must be taught that question)
-FINDER_WORK_JUDGE = "lmemm-judge-v4"   # the Ollama model that answers only that question ("" = FINDER_JUDGE itself):
-                                       # it spots idle looking around but groups worse than lmemm-judge
+FINDER_WORK_JUDGE = "lmemm-judge-v4-cpu"   # the Ollama model that answers only that question ("" = FINDER_JUDGE
+                                       # itself); it spots idle looking around but groups worse than the judge
 FINDER_CANDIDATES = 5                  # projects a task is judged against, out of all of them
 IDLE = 60               # no input for this long -> pause
 MAX_QUEUE = 8           # resolver backlog above which timer captures are skipped

@@ -28,7 +28,7 @@ NOW = datetime.fromisoformat(max(v["to"] for v in DAY["timeline"])) + timedelta(
 class FakeOllama(BaseHTTPRequestHandler):
     """Narrates "Working on <title>.", judges yes when both sides share a topic, embeds by topic, and
     keeps every request so a test can check how the models were asked."""
-    models = ("qwen3.5:0.8b", "lmemm-judge:latest", "embeddinggemma:latest")
+    models = ("qwen3.5:0.8b", f"{config.FINDER_JUDGE}:latest", "embeddinggemma:latest")
     seen = []
 
     def log_message(self, *args):
@@ -87,7 +87,7 @@ class FinderAITest(unittest.TestCase):
     def tearDown(self):
         config.FINDER_CALLS = self.calls
         config.FINDER_WORTH, config.FINDER_WORK_JUDGE = self.work
-        FakeOllama.models = ("qwen3.5:0.8b", "lmemm-judge:latest", "embeddinggemma:latest")
+        FakeOllama.models = ("qwen3.5:0.8b", f"{config.FINDER_JUDGE}:latest", "embeddinggemma:latest")
         self.server.shutdown()
         self.server.server_close()
         self.paths.__exit__(None, None, None)
@@ -99,7 +99,7 @@ class FinderAITest(unittest.TestCase):
     def test_missing_models_skip_the_look_and_say_which(self):
         FakeOllama.models = ("qwen3.5:0.8b",)
         self.assertEqual(self.find(), [])
-        self.assertIn("lmemm-judge", finder.read_log()[-1]["skipped"])
+        self.assertIn(config.FINDER_JUDGE, finder.read_log()[-1]["skipped"])
 
     def test_no_ollama_skips_the_look_and_says_so(self):
         with socket.socket() as free:
@@ -228,7 +228,7 @@ class FinderAITest(unittest.TestCase):
         try:
             config.FINDER_WORK_JUDGE, config.FINDER_WORTH = "lmemm-work", False
             self.assertIsNone(fai.unavailable(self.url))                               # off: nobody asks for it
-            FakeOllama.models = ("qwen3.5:0.8b", "lmemm-judge:latest", "embeddinggemma:latest")
+            FakeOllama.models = ("qwen3.5:0.8b", f"{config.FINDER_JUDGE}:latest", "embeddinggemma:latest")
             self.assertIsNone(fai.unavailable(self.url))
             config.FINDER_WORTH = True
             self.assertEqual(self.find(), [])
@@ -240,7 +240,7 @@ class FinderAITest(unittest.TestCase):
             self.assertTrue(work)
             self.assertEqual({b["model"] for b in work}, {"lmemm-work"})                # only it hears that question
             others = [b for p, b in FakeOllama.seen if "prompt" in b and ai.INSTRUCT_WORK not in b["prompt"]]
-            self.assertEqual({b["model"] for b in others}, {"lmemm-judge"})
+            self.assertEqual({b["model"] for b in others}, {config.FINDER_JUDGE})
             self.assertTrue(all(b["options"]["num_gpu"] == 0 for b in work))            # on the CPU like the rest
         finally:
             config.FINDER_WORK_JUDGE, config.FINDER_WORTH = "", False

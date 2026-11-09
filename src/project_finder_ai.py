@@ -8,15 +8,16 @@ Who decides what
     code    picks the recent unfiled things, splits the day into sittings, retrieves the few projects a
             task is worth asking about, caches every answer, keeps to the call budget, and turns the result
             into offers. It never decides that two things belong together.
-    models  the narrator (qwen3.5:0.8b) says what you were doing in each window; the judge (lmemm-judge,
+    models  the narrator (qwen3.5:0.8b) says what you were doing in each window; the judge (lmemm-judge-cpu,
             Qwen3-Reranker-0.6B taught on written examples) says whether a window is a general place,
             whether two windows are the same piece of work, and whether a task belongs to a project; the
             embedding model (EmbeddingGemma) only narrows which projects the judge is asked about.
 
 How it stays light and careful on an 8 GB Mac
-    - Every request asks Ollama for the CPU only (num_gpu 0, config.FINDER_THREADS threads). Measured 2026-11-08:
-      Ollama's "mlx" runner, which loads the judge and the narrator, ignores that and uses the GPU; only the
-      embedding model obeys it. So this is a request, not a guarantee, until the models are run another way.
+    - Every request asks Ollama for the CPU only (num_gpu 0, config.FINDER_THREADS threads). Measured 2026-11-09:
+      the judges (GGUF builds, llama.cpp) and the embedding model obey and run 100% on the CPU. The narrator,
+      qwen3.5:0.8b, does not: Ollama's "mlx" engine runs it on the GPU whatever is asked (gemma3:1b would run on
+      the CPU but narrates worse). Models imported from safetensors (the plain `lmemm-judge`) use that engine too.
     - Every answer is cached on disk by its question (finder_cache.json beside memory.json), so a thing is
       read once and a pair is judged once; a look makes at most config.FINDER_CALLS new calls and the next
       look carries on from the cache.

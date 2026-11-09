@@ -1700,10 +1700,9 @@ class MainWindow:
                     top += max(kit.put_text(box, v, 14 + 140, 12 + top, inner - 140, 13, 500), 18) + 8
                 return top - 8
             y = self._card_box(doc, x, y, w, facts)
-        if page["excerpts"]:
+        if page["screen"]:
             y = self._section(doc, "What was on screen", x, y + 14, w)
-            for e in page["excerpts"]:
-                y = self._excerpt(doc, e, x, y, w) + 12
+            y = self._screen(doc, page["screen"], x, y, w) + 12
         return y
 
     def _note_body(self, box, inner, n):
@@ -1733,32 +1732,35 @@ class MainWindow:
         parent.addSubview_(view)
         return height
 
-    def _excerpt(self, doc, e, x, y, w):
-        """One passage LMemM read: where it was and when, a plain summary, any decision found, and the raw
-        screen text only behind "Show raw details"."""
+    def _screen(self, doc, e, x, y, w):
+        """One card: where it was (once) with a quiet Open, a one-line summary, any decision found, and a
+        History link that lists the raw text as dated versions."""
         def body(box, inner):
-            kit.put_text(box, e["place"], 14, 12, inner - 100, 13, 600, wrap=False, height=20)
-            kit.put_text(box, e["when"], 14 + inner - 96, 12, 96, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=20)
-            top = 30
+            reach = inner - 70 if e["url"] else inner
+            top = kit.put_text(box, e["place"], 14, 12, reach, 14, 600, wrap=False, height=20)
+            if e["url"]:
+                self._link(box, "Open", 14 + inner - 52, 8, (lambda u=e["url"]: self.open_url(u)), size=13, color=kit.accent_text())
+            top = 24
             if e["summary"]:
-                top += kit.put_text(box, e["summary"], 14, 12 + top, inner, 13, 400) + 8
-            elif e["newest"]:
-                top += kit.put_text(box, "No summary yet.", 14, 12 + top, inner, 13, 400, kit.mute()) + 8
+                top += kit.put_text(box, e["summary"], 14, 12 + top, inner, 13, 400, kit.mute()) + 8
             for quote in e["decisions"]:
                 h = kit.put_text(box, "“" + quote + "”", 28, 12 + top, inner - 14, 13, 600, kit.accent_text())
-                bar = _Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14)))
-                box.addSubview_(bar)
+                box.addSubview_(_Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14))))
                 top += h + 10
-            for line in e["lines"]:
-                top += kit.put_text(box, line, 14, 12 + top, inner, 12, 400, kit.mute()) + 7
-            left = 8
-            if e["url"]:
-                left += self._link(box, "Open", left, 12 + top - 2, (lambda u=e["url"]: self.open_url(u)), size=12, color=kit.accent_text())
-                left += self._link(box, "Copy link", left, 12 + top - 2, (lambda u=e["url"]: self.copy_text(u, "Copied the link.")), size=12)
-            label = "Hide raw details" if e["open"] else "Show raw details"
-            left += self._link(box, label, left, 12 + top - 2, (lambda i=e["id"]: self.press("expand", i)), size=12)
-            if e["open"]:
-                self._link(box, "Copy text", left, 12 + top - 2, (lambda t="\n".join(e["lines"]): self.copy_text(t, "Copied the text.")), size=12)
+            for i, v in enumerate(e["versions"]):
+                head = v["when"] + (" · " + v["place"] if v["place"] else "")
+                kit.put_text(box, head.upper(), 14, 12 + top + 6, inner - 90, 11, 600, kit.mute(), wrap=False, height=14)
+                if i == 0:
+                    self._link(box, "Copy text", 14 + inner - 80, 12 + top, (lambda t="\n".join(v["lines"]): self.copy_text(t, "Copied the text.")), size=12)
+                top += 28
+                for line in v["lines"]:
+                    top += kit.put_text(box, line, 14, 12 + top, inner, 12, 400, kit.mute()) + 5
+                top += 10
+            label = "Hide history" if e["open"] else "History" + (f" · {e['count']} versions" if e["count"] > 1 else "")
+            self._link(box, label, 8, 12 + top - 2, (lambda: self.press("expand", "screen")), size=12)
+            if e["url"] and e["open"]:
+                self._link(box, "Copy link", 8 + kit.text_width(label, 12, 500) + 24, 12 + top - 2,
+                           (lambda u=e["url"]: self.copy_text(u, "Copied the link.")), size=12)
             return top + 18
         return self._card_box(doc, x, y, w, body)
 

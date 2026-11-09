@@ -404,7 +404,7 @@ def project_page(reg, items, state, counts, now, sugg=None):
 LATEST_SHOWN = 6
 
 
-EXCERPTS_SHOWN = 3
+VERSIONS_SHOWN = 4
 DECISIONS_SHOWN = 3
 
 
@@ -417,10 +417,11 @@ def place_of(source):
     return " · ".join(dict.fromkeys(" ".join(p.split()) for p in parts)) or "Screen"
 
 
-def excerpts_of(content, now, expanded=(), summary=None):
-    """What LMemM read from a thing, newest first, as short readable passages (P9). Older memory
-    kept one plain string; now it is {"excerpts": [{"id", "text", "source", "last_seen",
-    "decision_quotes"}, ...]}, newest last (memory_content.py). Anything odd becomes no passage."""
+def screen_of(content, now, expanded=(), summary=None):
+    """"What was on screen" as ONE card: where it was (once), a plain summary, and, behind History, the
+    raw text as dated versions, newest first. Older memory kept one plain string; now it is
+    {"excerpts": [{"id", "text", "source", "last_seen", "decision_quotes"}, ...]}, newest last
+    (memory_content.py). Anything odd becomes no card."""
     if isinstance(content, str):
         raw = [{"id": "text", "text": content}]
     elif isinstance(content, dict):
@@ -429,7 +430,7 @@ def excerpts_of(content, now, expanded=(), summary=None):
             raw = [{"id": "text", "text": content["text"]}]
     else:
         raw = []
-    out = []
+    versions, quotes = [], []
     for e in reversed(raw):
         text = e.get("text")
         if not isinstance(text, str):
@@ -441,20 +442,20 @@ def excerpts_of(content, now, expanded=(), summary=None):
                 lines.append(line)
         if not lines:
             continue
-        eid = str(e.get("id") or len(out))
-        open_ = eid in expanded
         source = e.get("source") if isinstance(e.get("source"), dict) else {}
-        quotes = [q for q in e.get("decision_quotes") or [] if isinstance(q, str)][:DECISIONS_SHOWN]
-        out.append({"id": eid, "when": ago(e.get("last_seen") or e.get("observed_at"), now),
-                    "place": place_of(source),
-                    "url": source.get("url") if favicons.host_of(source.get("url")) else None,   # only a web address can be opened
-                    "summary": summary if not out else None,       # the sentence describes the thing's latest state: newest passage only
-                    "newest": not out, "raw_count": len(lines),
-                    "lines": lines if open_ else [], "open": open_,
-                    "decisions": quotes})
-        if len(out) == EXCERPTS_SHOWN:
+        versions.append({"when": ago(e.get("last_seen") or e.get("observed_at"), now), "place": place_of(source),
+                         "url": source.get("url") if favicons.host_of(source.get("url")) else None, "lines": lines})
+        quotes += [q for q in e.get("decision_quotes") or [] if isinstance(q, str) and q not in quotes]
+        if len(versions) == VERSIONS_SHOWN:
             break
-    return out
+    if not versions:
+        return None
+    top = dict(versions[0])
+    for v in versions:                                   # the link is shown once; a version only names its place if it differs
+        v["place"] = v["place"] if v["place"] != top["place"] else None
+    return {"place": top["place"], "url": top["url"], "when": top["when"], "summary": summary,
+            "decisions": quotes[:DECISIONS_SHOWN], "open": "screen" in expanded,
+            "versions": versions if "screen" in expanded else [], "count": len(versions)}
 
 
 def thing_page(reg, item, now, expanded=(), fading=()):
@@ -481,7 +482,7 @@ def thing_page(reg, item, now, expanded=(), fading=()):
             "done": [{"id": notes.note_id(n), "text": n["text"], "when": ago(n.get("at"), now)} for n in done],
             "stats": [(k, v) for k, v in stats if v],
             "latest": [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]],
-            "excerpts": excerpts_of(item.get("content"), now, expanded, summary=item.get("doing") or None)}
+            "screen": screen_of(item.get("content"), now, expanded, summary=item.get("doing") or None)}
 
 
 # ---------------------------------------------------------------- search

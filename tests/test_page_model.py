@@ -282,15 +282,16 @@ class ThingPageTests(unittest.TestCase):
         state = pm.press(reg, pm.new_state(), "thing", "a", items)
         page = pm.view(reg, items, state, NOW)["main"]
         self.assertEqual(page["latest"], [("To", "Sam"), ("Subject", "Numbers")])
-        first, second = page["excerpts"]
-        self.assertEqual((first["id"], first["place"], first["when"]), ("new", "Q3 deck · Docs", "1 h ago"))   # newest first
-        self.assertEqual((first["lines"], first["raw_count"], first["open"]), ([], 10, False))             # raw text hidden; repeats dropped
-        self.assertEqual(first["decisions"], ["We agreed on the Q3 numbers."])
-        self.assertEqual((second["id"], second["place"], second["summary"], second["newest"]), ("old", "Docs", None, False))
-        state = pm.press(reg, state, "expand", "new")
-        again = pm.view(reg, items, state, NOW)["main"]["excerpts"][0]
-        self.assertEqual((len(again["lines"]), again["open"]), (10, True))
-        self.assertFalse(pm.press(reg, state, "expand", "new")["ex_open"])                                 # toggles back
+        card = page["screen"]
+        self.assertEqual((card["place"], card["when"], card["count"]), ("Q3 deck · Docs", "1 h ago", 2))   # newest on top, one card
+        self.assertEqual((card["versions"], card["open"]), ([], False))                                    # raw text hidden by default
+        self.assertEqual(card["decisions"], ["We agreed on the Q3 numbers."])
+        state = pm.press(reg, state, "expand", "screen")
+        card = pm.view(reg, items, state, NOW)["main"]["screen"]
+        new, old = card["versions"]
+        self.assertEqual((new["place"], len(new["lines"])), (None, 10))                                    # link shown once; repeats dropped
+        self.assertEqual((old["place"], old["when"], old["lines"]), ("Docs", "2 days ago", ["Older passage here"]))
+        self.assertFalse(pm.press(reg, state, "expand", "screen")["ex_open"])                              # toggles back
 
     def test_a_ticked_note_stays_crossed_out_until_its_hold_is_over(self):
         reg, items, ids = world()
@@ -312,19 +313,18 @@ class ThingPageTests(unittest.TestCase):
         self.assertEqual(pm.place_of({"app": "Notes", "window": "Notes"}), "Notes")
         self.assertEqual(pm.place_of({}), "Screen")
         content = {"excerpts": [{"id": "a", "text": "Istyronly with 3 yrtorm O", "source": src}, {"id": "b", "text": "older words"}]}
-        first, second = pm.excerpts_of(content, NOW, summary="Searching for a domain")
-        self.assertEqual((first["summary"], second["summary"]), ("Searching for a domain", None))        # newest only; nothing invented
-        self.assertEqual(pm.excerpts_of(content, NOW)[0]["summary"], None)                                  # no sentence yet
-        self.assertEqual(first["lines"], [])
-        self.assertEqual((first["url"], second["url"]), (None, src["url"]))                               # Open only for web addresses
-        self.assertIsNone(pm.excerpts_of({"excerpts": [{"id": "x", "text": "t", "source": {"url": "file:///etc/hosts"}}]}, NOW)[0]["url"])
+        card = pm.screen_of(content, NOW, summary="Searching for a domain")
+        self.assertEqual((card["place"], card["summary"], card["url"]), ("Screen", "Searching for a domain", None))   # newest has no url
+        self.assertEqual(pm.screen_of(content, NOW)["summary"], None)                                       # no sentence yet: nothing invented
+        self.assertEqual(pm.screen_of({"excerpts": [{"id": "x", "text": "t", "source": src}]}, NOW)["url"], src["url"])
+        self.assertIsNone(pm.screen_of({"excerpts": [{"id": "x", "text": "t", "source": {"url": "file:///etc/hosts"}}]}, NOW)["url"])
 
     def test_the_text_it_read_survives_every_shape_memory_has_had(self):
         now = NOW
-        self.assertEqual(pm.excerpts_of("plain words", now, expanded=("text",))[0]["lines"], ["plain words"])
+        self.assertEqual(pm.screen_of("plain words", now, expanded=("screen",))["versions"][0]["lines"], ["plain words"])
         for odd in (None, {}, {"excerpts": []}, {"excerpts": [None, {"text": 5}, {"text": "  "}]}, 5, []):
-            self.assertEqual(pm.excerpts_of(odd, now), [])
-        self.assertEqual(len(pm.excerpts_of({"excerpts": [{"id": str(n), "text": f"t{n}"} for n in range(9)]}, now)), pm.EXCERPTS_SHOWN)
+            self.assertIsNone(pm.screen_of(odd, now))
+        self.assertEqual(pm.screen_of({"excerpts": [{"id": str(n), "text": f"t{n}"} for n in range(9)]}, now)["count"], pm.VERSIONS_SHOWN)
 
     def test_odd_stored_values_never_break_a_page(self):
         reg, items, ids = world()

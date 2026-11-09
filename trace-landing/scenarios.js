@@ -5,9 +5,9 @@ window.TraceScenarios = {
   retained:'“Keep the free tier so people can try it. Explore usage-based pricing for team features. Next: validate the pricing proposal.”',
   task:'Validate the pricing proposal', shortNote:'“Keep the free tier…”', resume:'Free stays free.<br><em>Teams pay by usage.</em>',
   description:'A pricing launch. A decision worth keeping.', sourceDescription:'From the pricing notes you retained.',
-  decision:{label:'THE DECISION',answer:'Keep the free tier.<br><em>Usage-based pricing for teams.</em>',description:'The same decision from the note you followed through the page.'},
-  source:{label:'THE REASONING',answer:'“Give people room to try it.”<br><em>The thinking behind the choice.</em>',description:'Open Pricing notes to read the retained evidence.'},
-  next:{label:'THE NEXT STEP',answer:'Validate the pricing proposal.<br><em>Then pick up from there.</em>',description:'The next action recorded in the same project notes.'}
+  decision:{label:'THE DECISION',answer:'Keep the free tier.<br><em>Usage-based pricing for teams.</em>',description:'The decision you made, in your own words from the note.'},
+  source:{label:'THE REASONING',answer:'“Give people room to try it.”<br><em>The thinking behind the choice.</em>',description:'Open Pricing notes to read exactly what you wrote.'},
+  next:{label:'THE NEXT STEP',answer:'Validate the pricing proposal.<br><em>Then pick up from there.</em>',description:'The next step you wrote down in the same notes.'}
  },
  studying: {
   project:'Cities & green spaces',note:'Research notes',noteTitle:'Focus on access.<br>Compare two cities.',quote:'“Compare access to green space,<br>not just total park area.”',

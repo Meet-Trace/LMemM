@@ -35,7 +35,7 @@ function renderQuestion(){
  const w=worlds[currentWorld],item=w[currentQuestion];
  html('#demo-answer',item.answer);text('.demo-label',item.label);text('#demo-description',item.description);
  html('.demo-output-top',`<span class="status-dot"></span> ${w.project} <span class="micro">PROJECT MEMORY</span>`);
- html('#inspect-source',`<span class="file-icon lavender">N</span><span>${w.note}<small>Inspect the retained source</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8m-8 4h8m-8 4h5"/></svg>`);
+ html('#inspect-source',`<span class="file-icon lavender">N</span><span>${w.note}<small>See where it came from</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8m-8 4h8m-8 4h5"/></svg>`);
  text('#source-title',w.note);text('.source-quote',w.retained);
  for(const tab of document.querySelectorAll('[data-demo]')){const active=tab.dataset.demo===currentQuestion;tab.classList.toggle('active',active);tab.setAttribute('aria-pressed',String(active));}
 }
@@ -65,15 +65,15 @@ const motion=matchMedia('(prefers-reduced-motion: reduce)'),desktop=matchMedia('
 const stage=document.querySelector('.stage-shell'),chapters=[...document.querySelectorAll('.chapter')];
 let ticking=false,lastStage=-1;
 function updateScene(){
- ticking=false;if(!stage)return;
+ ticking=false;
  const closing=document.querySelector('.closing');
  const g=motion.matches?1:Math.min(1,Math.max(0,(innerHeight-closing.getBoundingClientRect().top)/(innerHeight*.65)));
  closing.style.setProperty('--gather',g.toFixed(4));
  if(motion.matches||!desktop.matches){document.documentElement.style.removeProperty('--hero-shift');return;}
- const target=innerHeight*.5;
+ if(stage){const target=innerHeight*.5;
  let selected=0,distance=Infinity;
  chapters.forEach((chapter,index)=>{const r=chapter.getBoundingClientRect(),d=Math.abs((r.top+r.bottom)/2-target);if(d<distance){selected=index;distance=d;}});
- if(selected!==lastStage){stage.dataset.stage=String(selected);stage.querySelector('.stage-counter').textContent=`0${selected+1} / 03`;stage.querySelector('.stage-status').textContent=['A DAY IN YOUR PROJECT','THE PIECES, CONNECTED','A CLEARER WAY BACK'][selected];stage.querySelectorAll('.chapter-dots i').forEach((dot,i)=>dot.classList.toggle('active',i===selected));lastStage=selected;}
+ if(selected!==lastStage){stage.dataset.stage=String(selected);stage.querySelector('.stage-counter').textContent=`0${selected+1} / 03`;stage.querySelector('.stage-status').textContent=['A DAY IN YOUR PROJECT','THE PIECES, CONNECTED','A CLEARER WAY BACK'][selected];stage.querySelectorAll('.chapter-dots i').forEach((dot,i)=>dot.classList.toggle('active',i===selected));lastStage=selected;}}
  const hero=document.querySelector('.hero');if(hero.getBoundingClientRect().bottom>0)root.style.setProperty('--hero-shift',`${Math.min(scrollY*.12,100)}px`);
 }
 function requestScene(){if(!ticking){ticking=true;requestAnimationFrame(updateScene);}}
@@ -86,7 +86,7 @@ function setProof(mode){
  img.src=proofImages[mode];img.alt=isSource?'Actual earlier app build showing the retained source text for a synthetic project decision':'Actual earlier app build showing the synthetic project decision and View retained source button';
  document.querySelector('.proof-device').dataset.proof=mode;
  text('#proof-count',isSource?'02 / 02':'01 / 02');
- text('#proof-description',isSource?'The exact retained text, shown in the app. This is the evidence behind the decision, not a generated explanation.':'The decision includes a way back to its retained source. Select the highlighted action in the app capture.');
+ text('#proof-description',isSource?'The exact text, as it appears in the app. These are the original words behind the decision, not a generated summary.':'Every decision links back to where it came from. Select the highlighted button in the screenshot.');
  document.querySelector('.proof-hotspot').hidden=isSource;document.querySelector('.proof-reset').hidden=!isSource;
  for(const button of document.querySelectorAll('[data-proof]')){const active=button.dataset.proof===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));}
 }
@@ -95,3 +95,47 @@ document.querySelector('.proof-hotspot')?.addEventListener('click',()=>setProof(
 document.querySelector('.proof-reset')?.addEventListener('click',()=>setProof('decision'));
 // Preload only the one next screenshot to keep the guided action immediate.
 if(document.querySelector('#proof-image')){const nextCapture=new Image();nextCapture.src=proofImages.source;}
+
+// Story: scroll position picks one of four steps (Activity, Context, Memory, Continuity).
+(function(){
+ const track=document.querySelector('.story-track'),stageEl=document.querySelector('.story-stage');
+ if(!track||!stageEl)return;
+ const steps=[...document.querySelectorAll('.story .step')],rail=[...document.querySelectorAll('.story-rail i')];
+ const staticMode=matchMedia('(max-width: 760px), (prefers-reduced-motion: reduce)');
+ let current=-1,queued=false;
+ function apply(){
+  queued=false;
+  if(staticMode.matches){stageEl.dataset.step='3';current=-1;return;}
+  const r=track.getBoundingClientRect(),span=r.height-innerHeight;
+  const p=span>0?Math.min(1,Math.max(0,-r.top/span)):0,i=Math.min(3,Math.floor(p*4));
+  if(i===current)return;current=i;stageEl.dataset.step=String(i);
+  steps.forEach((el,k)=>el.classList.toggle('active',k===i));rail.forEach((el,k)=>el.classList.toggle('on',k===i));
+ }
+ function request(){if(!queued){queued=true;requestAnimationFrame(apply);}}
+ addEventListener('scroll',request,{passive:true});addEventListener('resize',request);staticMode.addEventListener('change',request);request();
+})();
+
+// Story threads: solid curves drawn from each fragment's edge to the project, in real pixel coordinates.
+(function(){
+ const stageEl=document.querySelector('.story-stage'),svg=stageEl&&stageEl.querySelector('.threads');
+ if(!svg)return;
+ const grouped={f1:[24,24],f2:[76,22],f3:[16,52],f4:[84,56],f5:[28,80],f6:[74,82]};
+ const ns='http://www.w3.org/2000/svg';
+ function draw(){
+  const w=stageEl.clientWidth,h=stageEl.clientHeight;if(!w||!h)return;
+  svg.setAttribute('viewBox','0 0 '+w+' '+h);svg.replaceChildren();
+  const cx=w/2,cy=h/2;let n=0;
+  for(const [key,pos] of Object.entries(grouped)){
+   const el=stageEl.querySelector('.'+key);if(!el)continue;
+   const x=pos[0]/100*w,y=pos[1]/100*h,hw=el.offsetWidth/2+6,hh=el.offsetHeight/2+6,dx=cx-x,dy=cy-y;
+   const t=Math.min(hw/Math.abs(dx||1e-6),hh/Math.abs(dy||1e-6)),sx=x+dx*t,sy=y+dy*t;
+   const vx=cx-sx,vy=cy-sy,len=Math.hypot(vx,vy),nx=-vy/len,ny=vx/len,bend=(n%2?1:-1)*len*.12;n++;
+   const f=v=>v.toFixed(1);
+   const path=document.createElementNS(ns,'path');
+   path.setAttribute('d','M'+f(sx)+' '+f(sy)+'C'+f(sx+vx*.35+nx*bend)+' '+f(sy+vy*.35+ny*bend)+' '+f(sx+vx*.7+nx*bend)+' '+f(sy+vy*.7+ny*bend)+' '+f(cx)+' '+f(cy));
+   svg.append(path);path.style.setProperty('--len',Math.ceil(path.getTotalLength())+2);
+   const dot=document.createElementNS(ns,'circle');dot.setAttribute('cx',f(sx));dot.setAttribute('cy',f(sy));dot.setAttribute('r','3.5');svg.append(dot);
+  }
+ }
+ draw();addEventListener('resize',draw);if(document.fonts)document.fonts.ready.then(draw);
+})();

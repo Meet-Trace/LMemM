@@ -93,6 +93,22 @@ def ago(iso, now):
     return when.strftime("%b ") + str(when.day) + ("" if when.year == now.year else f", {when.year}")
 
 
+def stamp(iso, now):
+    """An exact moment for telling versions apart: "Today 14:02", "Yesterday 09:30", "Sat 14:02", "3 Nov 14:02"."""
+    when = parse(iso)
+    if not when:
+        return ""
+    clock = when.strftime("%H:%M")
+    days = (now.date() - when.date()).days
+    if days == 0:
+        return "Today " + clock
+    if days == 1:
+        return "Yesterday " + clock
+    if 0 < days < 7:
+        return when.strftime("%a ") + clock
+    return f"{when.day} {when.strftime('%b')} " + clock
+
+
 def group_of(iso, now):
     when = parse(iso)
     if not when:
@@ -438,7 +454,8 @@ def screen_of(content, now, summary=None):
         if not lines:
             continue
         source = e.get("source") if isinstance(e.get("source"), dict) else {}
-        versions.append({"when": ago(e.get("last_seen") or e.get("observed_at"), now), "place": place_of(source),
+        seen = e.get("last_seen") or e.get("observed_at")
+        versions.append({"when": ago(seen, now), "label": stamp(seen, now) or ago(seen, now), "place": place_of(source),
                          "url": source.get("url") if favicons.host_of(source.get("url")) else None, "lines": lines})
         quotes += [q for q in e.get("decision_quotes") or [] if isinstance(q, str) and q not in quotes]
         if len(versions) == VERSIONS_SHOWN:

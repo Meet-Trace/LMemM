@@ -315,6 +315,16 @@ class ThingPageTests(unittest.TestCase):
         self.assertEqual(pm.screen_of({"excerpts": [{"id": "x", "text": "t", "source": src}]}, NOW)["url"], src["url"])
         self.assertIsNone(pm.screen_of({"excerpts": [{"id": "x", "text": "t", "source": {"url": "file:///etc/hosts"}}]}, NOW)["url"])
 
+    def test_versions_with_the_same_age_still_have_different_tab_labels(self):
+        self.assertEqual(pm.stamp(when(minutes=47), NOW), "Today 14:13")
+        self.assertEqual(pm.stamp(when(days=1), NOW), "Yesterday 15:00")
+        self.assertEqual(pm.stamp(when(days=2, hours=1), NOW), "Wed 14:00")
+        self.assertEqual(pm.stamp(when(days=20), NOW), "19 Sep 15:00")
+        self.assertEqual(pm.stamp("not a time", NOW), "")
+        content = {"excerpts": [{"id": str(n), "text": f"t{n}", "last_seen": when(days=2, minutes=n * 7)} for n in range(3)]}
+        labels = [v["label"] for v in pm.screen_of(content, NOW)["versions"]]
+        self.assertEqual(len(set(labels)), 3, labels)                                                       # "2 days ago" x3 are now told apart
+
     def test_the_text_it_read_survives_every_shape_memory_has_had(self):
         now = NOW
         self.assertEqual(pm.screen_of("plain words", now)["versions"][0]["lines"], ["plain words"])

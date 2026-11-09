@@ -328,6 +328,12 @@ class MainWindow:
     def key(self, code):
         """An arrow or Return. True when it was used."""
         if self.dialog:
+            d = self.dialog
+            if d["kind"] == "viewer" and code in (keynav.LEFT, keynav.RIGHT):      # step through the dated versions
+                k = d["v"] + (1 if code == keynav.RIGHT else -1)
+                if 0 <= k < len(d["screen"]["versions"]):
+                    self._viewer_to(k)
+                return True
             return False
         rows = {z: [(i, cb) for i, cb, _v in r] for z, r in self.krows.items()}
         state, call = keynav.press(self.cur, rows, code)
@@ -399,8 +405,10 @@ class MainWindow:
     def open_url(self, url):
         """Open a remembered web address in the default browser (only http/https ever reaches here)."""
         from Foundation import NSURL
-        if favicons.host_of(url):
-            NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(url))
+        target = NSURL.URLWithString_(url) if favicons.host_of(url) else None
+        if not (target and NSWorkspace.sharedWorkspace().openURL_(target)):
+            self.done = {"message": "Couldn't open that.", "undo": None, "until": time.time() + 4}
+            self.render_now()
 
     def copy_text(self, text, message):
         from AppKit import NSPasteboard
@@ -1753,7 +1761,7 @@ class MainWindow:
                 self._link(box, "Open", 14 + inner - 52, 8, (lambda u=e["url"]: self.open_url(u)), size=13, color=kit.accent_text())
             top = 24
             if e["summary"]:
-                top += kit.put_text(box, e["summary"], 14, 12 + top, inner, 13, 400, kit.mute()) + 8
+                top += kit.put_text(box, e["summary"] + (f" · as of {e['when']}" if e["when"] else ""), 14, 12 + top, inner, 13, 400, kit.mute()) + 8
             for quote in e["decisions"]:
                 h = kit.put_text(box, "“" + quote + "”", 28, 12 + top, inner - 14, 13, 600, kit.accent_text())
                 box.addSubview_(_Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14))))
@@ -1776,8 +1784,8 @@ class MainWindow:
         kit.button(card, "Close", cw - 24 - 76, 16, 76, 32, self.close_dialog, kind="quiet", size=13, weight=600)
         x = 24
         for n, ver in enumerate(screen["versions"]):                # one tab per dated version, newest first
-            width = kit.text_width(ver["when"], 13, 600) + 28
-            kit.button(card, ver["when"], x, 60, width, 30, (lambda k=n: self._viewer_to(k)),
+            width = kit.text_width(ver["label"], 13, 600) + 28
+            kit.button(card, ver["label"], x, 60, width, 30, (lambda k=n: self._viewer_to(k)),
                        kind="primary" if n == i else "quiet", size=13, weight=600)
             x += width + 8
         top = 104

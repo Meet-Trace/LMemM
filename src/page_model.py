@@ -32,6 +32,7 @@ draws it and forwards presses to `press()`; it decides nothing.
 """
 
 import functools
+import re
 import unicodedata
 from datetime import datetime
 
@@ -403,12 +404,20 @@ def project_page(reg, items, state, counts, now, sugg=None):
 LATEST_SHOWN = 6
 
 
-VISIBLE_LINES = 6
 EXCERPTS_SHOWN = 3
 DECISIONS_SHOWN = 3
 
 
-def excerpts_of(content, now, expanded=()):
+def place_of(source):
+    """Where a passage was read, in plain words: the page address, else the window and app. Never OCR text."""
+    url = source.get("url")
+    if favicons.host_of(url):
+        return re.sub(r"^https?://(www\.)?", "", url).rstrip("/")
+    parts = [p for p in (source.get("window"), source.get("app")) if isinstance(p, str) and p.strip()]
+    return " · ".join(dict.fromkeys(" ".join(p.split()) for p in parts)) or "Screen"
+
+
+def excerpts_of(content, now, expanded=(), summary=None):
     """What LMemM read from a thing, newest first, as short readable passages (P9). Older memory
     kept one plain string; now it is {"excerpts": [{"id", "text", "source", "last_seen",
     "decision_quotes"}, ...]}, newest last (memory_content.py). Anything odd becomes no passage."""
@@ -437,9 +446,11 @@ def excerpts_of(content, now, expanded=()):
         source = e.get("source") if isinstance(e.get("source"), dict) else {}
         quotes = [q for q in e.get("decision_quotes") or [] if isinstance(q, str)][:DECISIONS_SHOWN]
         out.append({"id": eid, "when": ago(e.get("last_seen") or e.get("observed_at"), now),
-                    "source": source.get("window") or source.get("app") or "",
-                    "lines": lines if open_ else lines[:VISIBLE_LINES],
-                    "more": 0 if open_ else max(0, len(lines) - VISIBLE_LINES), "open": open_,
+                    "place": place_of(source),
+                    "url": source.get("url") if favicons.host_of(source.get("url")) else None,   # only a web address can be opened
+                    "summary": summary if not out else None,       # the sentence describes the thing's latest state: newest passage only
+                    "newest": not out, "raw_count": len(lines),
+                    "lines": lines if open_ else [], "open": open_,
                     "decisions": quotes})
         if len(out) == EXCERPTS_SHOWN:
             break
@@ -470,7 +481,7 @@ def thing_page(reg, item, now, expanded=(), fading=()):
             "done": [{"id": notes.note_id(n), "text": n["text"], "when": ago(n.get("at"), now)} for n in done],
             "stats": [(k, v) for k, v in stats if v],
             "latest": [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]],
-            "excerpts": excerpts_of(item.get("content"), now, expanded)}
+            "excerpts": excerpts_of(item.get("content"), now, expanded, summary=item.get("doing") or None)}
 
 
 # ---------------------------------------------------------------- search

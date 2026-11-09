@@ -283,13 +283,13 @@ class ThingPageTests(unittest.TestCase):
         page = pm.view(reg, items, state, NOW)["main"]
         self.assertEqual(page["latest"], [("To", "Sam"), ("Subject", "Numbers")])
         first, second = page["excerpts"]
-        self.assertEqual((first["id"], first["source"], first["when"]), ("new", "Q3 deck", "1 h ago"))     # newest first
-        self.assertEqual((len(first["lines"]), first["more"]), (pm.VISIBLE_LINES, 4))                      # repeats dropped
+        self.assertEqual((first["id"], first["place"], first["when"]), ("new", "Q3 deck · Docs", "1 h ago"))   # newest first
+        self.assertEqual((first["lines"], first["raw_count"], first["open"]), ([], 10, False))             # raw text hidden; repeats dropped
         self.assertEqual(first["decisions"], ["We agreed on the Q3 numbers."])
-        self.assertEqual((second["id"], second["source"], second["more"]), ("old", "Docs", 0))
+        self.assertEqual((second["id"], second["place"], second["summary"], second["newest"]), ("old", "Docs", None, False))
         state = pm.press(reg, state, "expand", "new")
         again = pm.view(reg, items, state, NOW)["main"]["excerpts"][0]
-        self.assertEqual((len(again["lines"]), again["more"], again["open"]), (10, 0, True))
+        self.assertEqual((len(again["lines"]), again["open"]), (10, True))
         self.assertFalse(pm.press(reg, state, "expand", "new")["ex_open"])                                 # toggles back
 
     def test_a_ticked_note_stays_crossed_out_until_its_hold_is_over(self):
@@ -305,9 +305,23 @@ class ThingPageTests(unittest.TestCase):
         self.assertEqual([n["text"] for n in folded["open"]], ["call Lee"])
         self.assertEqual([(n["id"], n["text"]) for n in folded["done"]], [(nid, "buy soil")])
 
+    def test_a_passage_says_where_it_was_and_what_it_was_without_the_raw_text(self):
+        src = {"url": "https://www.godaddy.com/domainsearch/find?q=trace", "app": "Chrome", "window": "Domain search"}
+        self.assertEqual(pm.place_of(src), "godaddy.com/domainsearch/find?q=trace")                        # the page address
+        self.assertEqual(pm.place_of({"app": "VS Code", "window": "lmemm.py — LMemM"}), "lmemm.py — LMemM · VS Code")
+        self.assertEqual(pm.place_of({"app": "Notes", "window": "Notes"}), "Notes")
+        self.assertEqual(pm.place_of({}), "Screen")
+        content = {"excerpts": [{"id": "a", "text": "Istyronly with 3 yrtorm O", "source": src}, {"id": "b", "text": "older words"}]}
+        first, second = pm.excerpts_of(content, NOW, summary="Searching for a domain")
+        self.assertEqual((first["summary"], second["summary"]), ("Searching for a domain", None))        # newest only; nothing invented
+        self.assertEqual(pm.excerpts_of(content, NOW)[0]["summary"], None)                                  # no sentence yet
+        self.assertEqual(first["lines"], [])
+        self.assertEqual((first["url"], second["url"]), (None, src["url"]))                               # Open only for web addresses
+        self.assertIsNone(pm.excerpts_of({"excerpts": [{"id": "x", "text": "t", "source": {"url": "file:///etc/hosts"}}]}, NOW)[0]["url"])
+
     def test_the_text_it_read_survives_every_shape_memory_has_had(self):
         now = NOW
-        self.assertEqual(pm.excerpts_of("plain words", now)[0]["lines"], ["plain words"])
+        self.assertEqual(pm.excerpts_of("plain words", now, expanded=("text",))[0]["lines"], ["plain words"])
         for odd in (None, {}, {"excerpts": []}, {"excerpts": [None, {"text": 5}, {"text": "  "}]}, 5, []):
             self.assertEqual(pm.excerpts_of(odd, now), [])
         self.assertEqual(len(pm.excerpts_of({"excerpts": [{"id": str(n), "text": f"t{n}"} for n in range(9)]}, now)), pm.EXCERPTS_SHOWN)

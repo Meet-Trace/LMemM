@@ -396,6 +396,20 @@ class MainWindow:
         self.nav = page_model.press(reg, self.nav, action, arg, items)
         self.render()
 
+    def open_url(self, url):
+        """Open a remembered web address in the default browser (only http/https ever reaches here)."""
+        from Foundation import NSURL
+        if favicons.host_of(url):
+            NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(url))
+
+    def copy_text(self, text, message):
+        from AppKit import NSPasteboard
+        paste = NSPasteboard.generalPasteboard()
+        paste.clearContents()
+        paste.setString_forType_(text, "public.utf8-plain-text")
+        self.done = {"message": message, "undo": None, "until": time.time() + 3}
+        self.render_now()
+
     def back(self, kind):
         if kind in ("thing", "settings"):
             self.press("back")
@@ -1720,25 +1734,32 @@ class MainWindow:
         return height
 
     def _excerpt(self, doc, e, x, y, w):
-        """One passage LMemM read: where and when, any decision it found, then its lines as short paragraphs."""
+        """One passage LMemM read: where it was and when, a plain summary, any decision found, and the raw
+        screen text only behind "Show raw details"."""
         def body(box, inner):
-            top = 0
-            head = e["source"] or "Screen"
-            kit.put_text(box, head, 14, 12, inner - 100, 13, 600, wrap=False, height=20)
+            kit.put_text(box, e["place"], 14, 12, inner - 100, 13, 600, wrap=False, height=20)
             kit.put_text(box, e["when"], 14 + inner - 96, 12, 96, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=20)
             top = 30
+            if e["summary"]:
+                top += kit.put_text(box, e["summary"], 14, 12 + top, inner, 13, 400) + 8
+            elif e["newest"]:
+                top += kit.put_text(box, "No summary yet.", 14, 12 + top, inner, 13, 400, kit.mute()) + 8
             for quote in e["decisions"]:
                 h = kit.put_text(box, "“" + quote + "”", 28, 12 + top, inner - 14, 13, 600, kit.accent_text())
                 bar = _Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14)))
                 box.addSubview_(bar)
                 top += h + 10
             for line in e["lines"]:
-                top += kit.put_text(box, line, 14, 12 + top, inner, 13, 400) + 7
-            if e["more"] or e["open"]:
-                label = f"Show {e['more']} more lines" if e["more"] else "Show less"
-                self._link(box, label, 8, 12 + top - 2, (lambda i=e["id"]: self.press("expand", i)), size=12, color=kit.accent_text())
-                top += 24
-            return top - 7
+                top += kit.put_text(box, line, 14, 12 + top, inner, 12, 400, kit.mute()) + 7
+            left = 8
+            if e["url"]:
+                left += self._link(box, "Open", left, 12 + top - 2, (lambda u=e["url"]: self.open_url(u)), size=12, color=kit.accent_text())
+                left += self._link(box, "Copy link", left, 12 + top - 2, (lambda u=e["url"]: self.copy_text(u, "Copied the link.")), size=12)
+            label = "Hide raw details" if e["open"] else "Show raw details"
+            left += self._link(box, label, left, 12 + top - 2, (lambda i=e["id"]: self.press("expand", i)), size=12)
+            if e["open"]:
+                self._link(box, "Copy text", left, 12 + top - 2, (lambda t="\n".join(e["lines"]): self.copy_text(t, "Copied the text.")), size=12)
+            return top + 18
         return self._card_box(doc, x, y, w, body)
 
     def _search(self, doc, page, x, y, w):

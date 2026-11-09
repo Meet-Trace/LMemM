@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><title>Trace</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100%;margin:0;padding:0;background-color:#121315;}body{overscroll-behavior-y:none;-webkit-font-smoothing:antialiased;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "error-container": "#93000a", "secondary-fixed-dim": "#b0c6ff", "surface-bright": "#38393b", "surface-container-high": "#292a2c", "on-primary-fixed-variant": "#003daa", "on-secondary-fixed": "#001946", "surface-container-low": "#1b1c1e", "border-muted": "#343842", "accent-focus": "#9BB7FF", "secondary-container": "#284787", "on-tertiary-fixed": "#00184a", "on-secondary-fixed-variant": "#264484", "surface-alt": "#151619", "outline": "#8d90a1", "on-error-container": "#ffdad6", "tertiary-container": "#628bfa", "on-secondary": "#052d6d", "on-secondary-container": "#9bb7ff", "surface-elevated": "#292C32", "surface-card": "#202226", "on-surface": "#e3e2e4", "surface-variant": "#343537", "on-tertiary-fixed-variant": "#003ea6", "surface-container-highest": "#343537", "source-coral": "#FF8A80", "primary-fixed-dim": "#b4c5ff", "text-primary": "#F5F6F8", "surface-tint": "#b4c5ff", "source-lavender": "#B8B5FF", "surface-base": "#101113", "tertiary": "#b3c5ff", "background": "#121315", "on-surface-variant": "#c3c6d7", "on-error": "#690005", "inverse-on-surface": "#303032", "surface-container": "#1f2022", "text-secondary": "#B0B5C0", "on-primary-fixed": "#00174c", "error": "#ffb4ab", "surface": "#121315", "on-primary-container": "#00236b", "on-background": "#e3e2e4", "inverse-surface": "#e3e2e4", "on-primary": "#002979", "on-tertiary-container": "#002468", "surface-dim": "#121315", "tertiary-fixed-dim": "#b3c5ff", "secondary-fixed": "#d9e2ff", "on-tertiary": "#002a76", "primary-fixed": "#dbe1ff", "outline-variant": "#434655", "inverse-primary": "#0052de", "primary": "#b4c5ff", "tertiary-fixed": "#dbe1ff", "source-teal": "#4DD0E1", "surface-container-lowest": "#0d0e10", "secondary": "#b0c6ff", "primary-container": "#628aff" }, borderRadius: { DEFAULT: "0.125rem", lg: "0.25rem", xl: "0.5rem", full: "0.75rem" }, spacing: { "space-xs": "0.25rem", "gutter-lg": "2rem", "margin-sm": "1.25rem", "space-md": "1rem", "space-sm": "0.5rem", "space-lg": "1.5rem", "margin-lg": "4rem", "margin": "2rem", "gutter-sm": "1rem", "gutter": "1.5rem", "space-xl": "2.5rem" }, fontFamily: { "headline-md": ["Geist"], "body-lg": ["JetBrains Mono"], "headline-lg": ["Geist"], "label-md": ["JetBrains Mono"], "headline-lg-mobile": ["Geist"], "display-hero-mobile": ["Geist"], "headline-sm": ["Geist"], "body-md": ["JetBrains Mono"], "label-sm": ["JetBrains Mono"], "display-hero": ["Geist"], "body-sm": ["JetBrains Mono"], "code-inline": ["JetBrains Mono"] }, fontSize: { "headline-md": ["1.75rem", { lineHeight: "1.3", letterSpacing: "-0.02em", fontWeight: "500" }], "body-lg": ["1.125rem", { lineHeight: "1.6", letterSpacing: "-0.01em", fontWeight: "400" }], "headline-lg": ["2.75rem", { lineHeight: "1.2", letterSpacing: "-0.03em", fontWeight: "500" }], "label-md": ["0.8125rem", { lineHeight: "1.2", letterSpacing: "0.02em", fontWeight: "500" }], "headline-lg-mobile": ["2rem", { lineHeight: "1.25", letterSpacing: "-0.02em", fontWeight: "500" }], "display-hero-mobile": ["2.5rem", { lineHeight: "1.15", letterSpacing: "-0.03em", fontWeight: "600" }], "headline-sm": ["1.25rem", { lineHeight: "1.4", letterSpacing: "-0.01em", fontWeight: "500" }], "body-md": ["0.9375rem", { lineHeight: "1.55", letterSpacing: "0em", fontWeight: "400" }], "label-sm": ["0.6875rem", { lineHeight: "1.2", letterSpacing: "0.04em", fontWeight: "500" }], "display-hero": ["4.5rem", { lineHeight: "1.08", letterSpacing: "-0.04em", fontWeight: "600" }], "body-sm": ["0.8125rem", { lineHeight: "1.5", letterSpacing: "0em", fontWeight: "400" }], "code-inline": ["0.8125rem", { lineHeight: "1.4", letterSpacing: "0em", fontWeight: "500" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface flex flex-col min-h-screen selection:bg-primary-container selection:text-text-primary"><header class="fixed top-0 inset-x-0 z-50 bg-surface-base/80 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.4)]"><div class="h-16 px-margin-sm flex items-center justify-between"><div class="flex items-center gap-space-sm"><div class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></div><a class="font-headline-sm text-headline-sm tracking-tighter text-text-primary flex items-center gap-1.5 focus:outline-none focus:text-primary" data-path="overview" href="#"><span class="lowercase">trace</span><span class="font-label-sm text-label-sm text-text-secondary px-1.5 py-0.5 rounded bg-surface-alt">v1.4</span></a></div><div class="flex items-center gap-space-sm"><a class="min-h-[44px] px-space-md py-space-xs rounded-full bg-primary-container text-on-primary-container hover:bg-tertiary-container active:bg-secondary-container transition-colors font-label-md text-label-md flex items-center justify-center gap-1.5 shadow-[0_2px_4px_rgba(0,0,0,0.4)]" data-path="early-access" href="#"><span>Get Access</span><span class="material-symbols-outlined text-[16px]">north_east</span></a></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-36 bg-surface px-margin-sm"><div class="flex flex-col w-full text-on-surface">
+<!-- 1. HERO SECTION -->
+<section class="flex flex-col pt-space-md pb-space-xl">
+<!-- Status Eyebrow -->
+<div class="inline-flex items-center gap-space-xs self-start px-space-sm py-1 rounded-full bg-surface-container-high shadow-sm mb-space-md">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-text-secondary">Your work, remembered. · macOS</span>
+</div>
+<!-- Main Mobile Display Hero -->
+<h1 class="font-display-hero-mobile text-display-hero-mobile tracking-tight text-text-primary mb-space-sm">
+      Keep doing your thing.<br/>
+<span class="text-primary">Trace remembers.</span>
+</h1>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed mb-space-lg">
+      Run Trace in the background while you work. Return to your projects with the decisions, sources, and next steps that matter.
+    </p>
+<!-- Stacked Waitlist Form -->
+<form class="flex flex-col gap-space-sm w-full mb-space-xs" id="hero-waitlist" onsubmit="event.preventDefault(); document.getElementById('waitlist-success').classList.remove('hidden');">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">mail</span>
+<input aria-label="Your email address" class="w-full min-h-[48px] pl-10 pr-space-md py-space-xs rounded-xl bg-surface-card text-on-surface placeholder:text-outline font-label-md text-label-md focus:bg-surface-elevated focus:outline-none shadow-sm transition-colors" placeholder="Your email address" required="" type="email"/>
+</div>
+<button class="min-h-[48px] w-full px-space-lg py-space-sm rounded-full bg-primary-container text-on-primary-container font-label-md text-label-md flex items-center justify-center gap-space-xs shadow-md active:bg-secondary-container transition-all" type="submit">
+<span>Get early access</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</form>
+<div class="hidden mb-space-xs px-space-md py-space-sm rounded-xl bg-surface-container-high text-primary font-label-sm text-label-sm flex items-center gap-space-xs" id="waitlist-success">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>You are on the list! Check your inbox shortly.</span>
+</div>
+<div class="flex items-center gap-space-xs text-text-secondary pt-1">
+<span class="material-symbols-outlined text-[14px] text-primary">verified_user</span>
+<span class="font-label-sm text-label-sm">Starting with macOS. Retained memory stays on your Mac.</span>
+</div>
+</section>
+<!-- 2. SIMPLIFIED PRODUCT MOMENT -->
+<section class="flex flex-col pb-space-xl">
+<div class="relative rounded-xl bg-surface-card p-space-md shadow-md overflow-hidden">
+<!-- Ambient Glow Behind Card -->
+<div class="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-primary-container/10 blur-2xl pointer-events-none"></div>
+<!-- Metadata Header -->
+<div class="flex items-center justify-between gap-space-xs mb-space-sm pb-space-xs">
+<div class="flex items-center gap-space-xs min-w-0">
+<span class="w-2 h-2 rounded-full bg-source-teal"></span>
+<span class="font-label-md text-label-md text-text-primary truncate font-medium">Pricing launch</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-text-secondary">active thread</span>
+</div>
+<span class="font-label-sm text-label-sm text-outline shrink-0">14m ago</span>
+</div>
+<!-- Query Pill -->
+<div class="p-space-sm rounded-lg bg-surface-container-low mb-space-sm">
+<div class="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">search</span>
+<span>Query context</span>
+</div>
+<p class="font-headline-sm text-headline-sm text-text-primary leading-snug">
+          “What did we decide about pricing?”
+        </p>
+</div>
+<!-- Synthesized Answer -->
+<div class="p-space-sm rounded-lg bg-surface-elevated mb-space-md">
+<div class="flex items-center gap-1.5 mb-1.5 text-primary">
+<span class="material-symbols-outlined text-[15px]">auto_awesome</span>
+<span class="font-label-sm text-label-sm font-medium">Synthesized Ground Truth</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+          We chose usage-based pricing. The free tier stays, and team features move to Pro.
+        </p>
+</div>
+<!-- Source Chips Footnote -->
+<div class="flex flex-wrap items-center gap-1.5 pt-space-xs">
+<span class="font-label-sm text-label-sm text-outline mr-1">Retrieved from:</span>
+<div class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-surface-container-high text-text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-source-lavender"></span>
+<span class="font-label-sm text-label-sm font-mono truncate max-w-[110px]">Pricing notes.md</span>
+</div>
+<div class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-surface-container-high text-text-secondary">
+<span class="w-1.5 h-1.5 rounded-full bg-source-teal"></span>
+<span class="font-label-sm text-label-sm font-mono truncate max-w-[110px]">Saved research</span>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. VIDEO CENTERPIECE: EXPANDING CINEMA -->
+<section class="flex flex-col pb-space-xl">
+<div class="flex items-center justify-between mb-space-sm">
+<span class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider">Cinematic Preview</span>
+<span class="font-label-sm text-label-sm text-primary flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[14px]">videocam</span>
+        0:30 Run
+      </span>
+</div>
+<!-- 16:9 Cinema Frame -->
+<div class="relative w-full aspect-video rounded-xl overflow-hidden bg-surface-container-lowest shadow-xl group">
+<!-- Poster Art -->
+<div class="w-full h-full bg-cover bg-center" data-alt="Cinematic macro view of a dark Apple Silicon workspace displaying Trace interface cards glowing softly in navy and cyan tones on a sleek obsidian screen, hyper-minimalist studio aesthetic, film grain, atmospheric rim light." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAxG7JQOxCCZ8lGKjvAPitxlmTcPXVyGnnH0lpw_QIJx7sD_JriXD8xnM-lB4081FYWaV8Xyz6jyTzedijhxOwhPvYMY_kX49DGgTl9IkIOm4TBy52va2i7IVeR2eIySJ2vZKxsKZ0IMPp7x7jf7GORrMvhZ2HDpAL_GT5HeP5nmu0rPLHaajfb5jVBFK2LIpJqQelh2bdGtZYhgVgd4SX2VdW8gt_ZvNO-4YXHFJM')"></div>
+<!-- Dark Vignette Scrim -->
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-surface-container-lowest/40 to-transparent"></div>
+<!-- Static HUD Overlay -->
+<div class="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-surface-base/80 backdrop-blur-md">
+<span class="w-1.5 h-1.5 rounded-full bg-source-coral animate-ping"></span>
+<span class="font-label-sm text-label-sm text-text-primary uppercase tracking-widest font-mono">Live Demo</span>
+</div>
+<!-- Play Trigger Button -->
+<button aria-label="Play video demonstration" class="absolute inset-0 m-auto w-14 h-14 rounded-full bg-primary-container/90 text-on-primary-container flex items-center justify-center shadow-lg active:scale-95 transition-transform" id="cinema-play-btn" onclick="const t = document.getElementById('cinema-status'); t.textContent = t.textContent === 'Stream paused' ? 'Playing Trace Overview...' : 'Stream paused';" type="button">
+<span class="material-symbols-outlined text-[28px] translate-x-0.5" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+<!-- Bottom Audio / Timestamp Track -->
+<div class="absolute bottom-3 inset-x-3 flex items-center justify-between text-text-secondary">
+<span class="font-label-sm text-label-sm bg-surface-base/80 backdrop-blur-md px-2 py-0.5 rounded text-text-primary font-mono" id="cinema-status">Watch Trace · 30s</span>
+<div class="flex items-center gap-2 bg-surface-base/80 backdrop-blur-md px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-[16px] text-primary">volume_up</span>
+<span class="font-label-sm text-label-sm font-mono">4K 60fps</span>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. EDITORIAL DIVIDER -->
+<section class="py-space-md mb-space-lg">
+<div class="rounded-xl bg-surface-container-low p-space-lg text-center flex flex-col items-center">
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-primary mb-2">Architectural Intent</span>
+<p class="font-headline-lg-mobile text-headline-lg-mobile text-text-primary tracking-tight font-medium">
+        “Your work, remembered.”
+      </p>
+<p class="font-body-sm text-body-sm text-text-secondary mt-2 max-w-xs">
+        Not an invasive agent making noisy guesses. A native substrate indexing your true workspace momentum.
+      </p>
+</div>
+</section>
+<!-- 5. STORY PROGRESSION (Single column stacked) -->
+<section class="flex flex-col gap-space-md pb-space-xl">
+<div class="flex items-center justify-between mb-space-xs">
+<h2 class="font-headline-sm text-headline-sm text-text-primary">How Trace Works</h2>
+<span class="font-label-sm text-label-sm text-text-secondary font-mono">01 → 03</span>
+</div>
+<!-- Step 01 -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-mono font-medium">01</span>
+<span class="material-symbols-outlined text-outline text-[18px]">laptop_mac</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary">Work as usual</h3>
+<p class="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+        Trace stays quietly in your macOS menu bar. Code, write, review pull requests, and chat in Slack without altering your muscle memory.
+      </p>
+<div class="mt-space-xs p-space-xs rounded bg-surface-container-low flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-label-sm text-label-sm text-text-secondary font-mono">Zero keyboard shortcut overhead</span>
+</div>
+</div>
+<!-- Step 02 -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-mono font-medium">02</span>
+<span class="material-symbols-outlined text-outline text-[18px]">filter_center_focus</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary">Keep the useful context</h3>
+<p class="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+        Local vector processing separates fleeting noise from foundational decisions, indexing ephemeral tabs into permanent knowledge handles.
+      </p>
+<div class="mt-space-xs p-space-xs rounded bg-surface-container-low flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-source-lavender"></span>
+<span class="font-label-sm text-label-sm text-text-secondary font-mono">On-device semantic compression</span>
+</div>
+</div>
+<!-- Step 03 -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-primary font-mono font-medium">03</span>
+<span class="material-symbols-outlined text-outline text-[18px]">replay</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary">Pick up where you left off</h3>
+<p class="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+        Wake your MacBook on Monday morning and instantly view precisely what you decided on Friday at 5:30 PM, complete with working files.
+      </p>
+<div class="mt-space-xs p-space-xs rounded bg-surface-container-low flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-source-teal"></span>
+<span class="font-label-sm text-label-sm text-text-secondary font-mono">Instant state reactivation</span>
+</div>
+</div>
+</section>
+<!-- 6. THREE EVERYDAY QUESTIONS -->
+<section class="flex flex-col gap-space-sm pb-space-xl">
+<div class="mb-space-xs">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">Natural Workflow</span>
+<h2 class="font-headline-sm text-headline-sm text-text-primary mt-1">Everyday Questions Trace Answers</h2>
+</div>
+<!-- Question Card 1 -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center gap-2 text-source-lavender">
+<span class="material-symbols-outlined text-[18px]">psychology</span>
+<span class="font-label-sm text-label-sm font-mono uppercase">Decision Trace</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary leading-snug">
+        “Why did we choose this?”
+      </h3>
+<p class="font-body-sm text-body-sm text-text-secondary">
+        Reconstructs the rationales hashed out across Discord threads, Figma comments, and Google Docs before the architecture review.
+      </p>
+<div class="inline-flex items-center gap-1.5 text-outline pt-1 font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">link</span>
+<span>Linked to PR #402 · Linear APP-91</span>
+</div>
+</div>
+<!-- Question Card 2 -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center gap-2 text-source-teal">
+<span class="material-symbols-outlined text-[18px]">find_in_page</span>
+<span class="font-label-sm text-label-sm font-mono uppercase">Resource Recovery</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary leading-snug">
+        “Where was that thing I found?”
+      </h3>
+<p class="font-body-sm text-body-sm text-text-secondary">
+        Surfaces that obscure GitHub benchmark or documentation paragraph you read in an incognito window three weeks ago.
+      </p>
+<div class="inline-flex items-center gap-1.5 text-outline pt-1 font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">history</span>
+<span>Found in Safari cache · Oct 12</span>
+</div>
+</div>
+<!-- Question Card 3 -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-sm flex flex-col gap-space-xs">
+<div class="flex items-center gap-2 text-source-coral">
+<span class="material-symbols-outlined text-[18px]">next_plan</span>
+<span class="font-label-sm text-label-sm font-mono uppercase">Execution Momentum</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary leading-snug">
+        “What was I going to do next?”
+      </h3>
+<p class="font-body-sm text-body-sm text-text-secondary">
+        Restores unfinished thoughts from the terminal buffer, staging branch notes, and pending drafts right as you sit back down.
+      </p>
+<div class="inline-flex items-center gap-1.5 text-outline pt-1 font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">terminal</span>
+<span>3 commands queued · iTerm2</span>
+</div>
+</div>
+</section>
+<!-- 7. AI CONTEXT HANDOFF -->
+<section class="flex flex-col pb-space-xl">
+<div class="rounded-xl bg-surface-card p-space-md shadow-md">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">swap_horiz</span>
+<h2 class="font-headline-sm text-headline-sm text-text-primary">Bring your AI up to speed</h2>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container font-mono">1-Click</span>
+</div>
+<p class="font-body-sm text-body-sm text-text-secondary mb-space-md">
+        Never manually write a 500-word prompt explaining your repo history again. Export exact semantic context payloads formatted for Claude, ChatGPT, or Cursor.
+      </p>
+<!-- Export Code Preview Terminal Box -->
+<div class="rounded-lg bg-surface-base p-space-sm font-mono mb-space-sm">
+<div class="flex items-center justify-between text-outline pb-2 mb-2">
+<span class="font-label-sm text-label-sm text-text-secondary">Payload Preview · context.trace</span>
+<span class="font-label-sm text-label-sm text-primary">COPY ⌘C</span>
+</div>
+<div class="font-code-inline text-code-inline text-on-surface-variant space-y-1 overflow-x-hidden">
+<p><span class="text-primary font-bold">--- TRACE CONTEXT EXPORT ---</span></p>
+<p><span class="text-source-lavender">project:</span> "billing-v2"</p>
+<p><span class="text-source-lavender">decision:</span> "Usage-based via Stripe webhooks"</p>
+<p><span class="text-source-lavender">constraints:</span> [preserve_free_tier, max_seats: 5]</p>
+<p><span class="text-source-lavender">sources_referenced:</span> 4 files · 2 conversations</p>
+</div>
+</div>
+<!-- Quick targets -->
+<div class="flex items-center justify-between pt-1">
+<span class="font-label-sm text-label-sm text-outline">Supported bridges:</span>
+<div class="flex items-center gap-2 text-text-secondary">
+<span class="font-label-sm text-label-sm font-mono px-2 py-0.5 rounded bg-surface-container-high">Claude</span>
+<span class="font-label-sm text-label-sm font-mono px-2 py-0.5 rounded bg-surface-container-high">Cursor</span>
+<span class="font-label-sm text-label-sm font-mono px-2 py-0.5 rounded bg-surface-container-high">OpenAI</span>
+</div>
+</div>
+</div>
+</section>
+<!-- 8. TRUST & CONTROL CARDS -->
+<section class="flex flex-col gap-space-sm pb-space-xl">
+<div class="mb-space-xs">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">Sovereign Privacy</span>
+<h2 class="font-headline-sm text-headline-sm text-text-primary mt-1">Complete User Sovereignty</h2>
+</div>
+<!-- Trust 1 -->
+<div class="p-space-md rounded-xl bg-surface-card flex items-start gap-space-sm">
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0 text-primary">
+<span class="material-symbols-outlined text-[20px]">checklist</span>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-text-primary mb-1">Choose sources</h3>
+<p class="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+          Granularly whitelist apps, workspaces, and folders. Blacklist password vaults and private messenger tabs permanently.
+        </p>
+</div>
+</div>
+<!-- Trust 2 -->
+<div class="p-space-md rounded-xl bg-surface-card flex items-start gap-space-sm">
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0 text-primary">
+<span class="material-symbols-outlined text-[20px]">pause_circle</span>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-text-primary mb-1">Pause collection</h3>
+<p class="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+          One tap from the status bar halts memory creation instantly. Set 15-minute snoozes or suspend during sensitive screen shares.
+        </p>
+</div>
+</div>
+<!-- Trust 3 -->
+<div class="p-space-md rounded-xl bg-surface-card flex items-start gap-space-sm">
+<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center shrink-0 text-primary">
+<span class="material-symbols-outlined text-[20px]">delete_sweep</span>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-text-primary mb-1">Inspect &amp; delete</h3>
+<p class="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+          Nothing is hidden in opaque clouds. Open the native inspector to view every indexed token, or wipe timeline days with a keystroke.
+        </p>
+</div>
+</div>
+</section>
+<!-- 9. FAQ ACCORDIONS (Touch-friendly collapsibles) -->
+<section class="flex flex-col pb-space-xl">
+<div class="mb-space-md">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">Clarity</span>
+<h2 class="font-headline-sm text-headline-sm text-text-primary mt-1">Frequently Asked Questions</h2>
+</div>
+<div class="flex flex-col gap-space-xs">
+<!-- FAQ Item 1 -->
+<details class="group rounded-xl bg-surface-card p-space-md shadow-sm transition-all">
+<summary class="flex items-center justify-between cursor-pointer list-none select-none min-h-[44px]">
+<span class="font-headline-sm text-headline-sm text-text-primary pr-2">Does my data ever leave my Mac?</span>
+<span class="material-symbols-outlined text-outline group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<p class="font-body-sm text-body-sm text-text-secondary pt-space-xs leading-relaxed">
+          No. All embedding generation, vector indexing, and memory summarization run strictly on Apple Silicon using local CoreML and Metal acceleration. No telemetry containing your files leaves your device.
+        </p>
+</details>
+<!-- FAQ Item 2 -->
+<details class="group rounded-xl bg-surface-card p-space-md shadow-sm transition-all">
+<summary class="flex items-center justify-between cursor-pointer list-none select-none min-h-[44px]">
+<span class="font-headline-sm text-headline-sm text-text-primary pr-2">What is the battery and CPU impact?</span>
+<span class="material-symbols-outlined text-outline group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<p class="font-body-sm text-body-sm text-text-secondary pt-space-xs leading-relaxed">
+          Trace utilizes the Apple Neural Engine (ANE) on low-priority QoS threads. Idle power usage is virtually imperceptible (&lt; 1% CPU), and indexing automatically pauses when your laptop is under 20% battery.
+        </p>
+</details>
+<!-- FAQ Item 3 -->
+<details class="group rounded-xl bg-surface-card p-space-md shadow-sm transition-all">
+<summary class="flex items-center justify-between cursor-pointer list-none select-none min-h-[44px]">
+<span class="font-headline-sm text-headline-sm text-text-primary pr-2">Which versions of macOS are supported?</span>
+<span class="material-symbols-outlined text-outline group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<p class="font-body-sm text-body-sm text-text-secondary pt-space-xs leading-relaxed">
+          Trace is engineered for macOS Sonoma (14.0+) and macOS Sequoia (15.0+), optimized for M1, M2, M3, and M4 Apple Silicon architectures.
+        </p>
+</details>
+<!-- FAQ Item 4 -->
+<details class="group rounded-xl bg-surface-card p-space-md shadow-sm transition-all">
+<summary class="flex items-center justify-between cursor-pointer list-none select-none min-h-[44px]">
+<span class="font-headline-sm text-headline-sm text-text-primary pr-2">Can I search private browsing sessions?</span>
+<span class="material-symbols-outlined text-outline group-open:rotate-180 transition-transform">expand_more</span>
+</summary>
+<p class="font-body-sm text-body-sm text-text-secondary pt-space-xs leading-relaxed">
+          No. Private windows in Safari, Chrome, and Arc are automatically ignored by default to preserve absolute operational safety.
+        </p>
+</details>
+</div>
+</section>
+<!-- 10. FINAL CALL TO ACTION & FOOTNOTE -->
+<section class="flex flex-col pb-space-lg">
+<div class="rounded-xl bg-surface-elevated p-space-lg shadow-xl text-center relative overflow-hidden flex flex-col items-center">
+<!-- Glow effect -->
+<div class="absolute -bottom-16 inset-x-0 h-32 bg-primary-container/20 blur-3xl pointer-events-none"></div>
+<div class="w-10 h-10 rounded-full bg-primary-container/20 text-primary flex items-center justify-center mb-space-sm">
+<span class="material-symbols-outlined text-[22px]">memory</span>
+</div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-text-primary tracking-tight font-medium mb-space-xs">
+        Come back with context.
+      </h2>
+<p class="font-body-sm text-body-sm text-text-secondary mb-space-md max-w-xs">
+        Reserve your spot for the macOS private developer preview. Early builds roll out weekly.
+      </p>
+<form class="flex flex-col gap-space-sm w-full max-w-sm" id="footer-waitlist" onsubmit="event.preventDefault(); document.getElementById('footer-success').classList.remove('hidden');">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[18px]">mail</span>
+<input aria-label="Your email address" class="w-full min-h-[48px] pl-10 pr-space-md py-space-xs rounded-xl bg-surface-card text-on-surface placeholder:text-outline font-label-md text-label-md focus:bg-surface-base focus:outline-none shadow-sm transition-colors" placeholder="Your email address" required="" type="email"/>
+</div>
+<button class="min-h-[48px] w-full px-space-lg py-space-sm rounded-full bg-primary-container text-on-primary-container font-label-md text-label-md flex items-center justify-center gap-space-xs shadow-md active:bg-secondary-container transition-all" type="submit">
+<span>Request invite</span>
+<span class="material-symbols-outlined text-[18px]">bolt</span>
+</button>
+</form>
+<div class="hidden mt-space-sm px-space-md py-space-sm rounded-xl bg-surface-card text-primary font-label-sm text-label-sm flex items-center gap-space-xs" id="footer-success">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>Invite queued! Watch for a verification email.</span>
+</div>
+<span class="font-label-sm text-label-sm text-outline mt-space-md">
+        Private Beta · No credit card · Zero telemetry
+      </span>
+</div>
+</section>
+</div></main><footer class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface-alt/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(0,0,0,0.6)]"><nav class="flex flex-col w-full px-margin-sm py-space-sm" data-active-classes="text-primary border-primary"><div class="flex items-center justify-between h-11"><a aria-current="page" class="min-h-[44px] min-w-[44px] flex items-center transition-colors font-label-sm gap-1 text-primary border-primary" data-path="overview" href="#"><span class="material-symbols-outlined text-[16px]">timeline</span><span>Context</span></a><a class="min-h-[44px] min-w-[44px] flex items-center text-text-secondary hover:text-text-primary transition-colors font-label-sm text-label-sm gap-1" data-path="memory-stream" href="#"><span class="material-symbols-outlined text-[16px]">memory</span><span>Stream</span></a><a class="min-h-[44px] min-w-[44px] flex items-center text-text-secondary hover:text-text-primary transition-colors font-label-sm text-label-sm gap-1" data-path="privacy" href="#"><span class="material-symbols-outlined text-[16px]">shield</span><span>Privacy</span></a><a class="min-h-[44px] min-w-[44px] flex items-center text-text-secondary hover:text-text-primary transition-colors font-label-sm text-label-sm gap-1" data-path="contact" href="#"><span class="material-symbols-outlined text-[16px]">alternate_email</span><span>Contact</span></a></div><div class="flex items-center justify-between pt-1 text-outline"><span class="font-label-sm text-label-sm">© 2025 TRACE MAC INC.</span><span class="font-label-sm text-label-sm text-text-secondary">LOCAL RUNTIME</span></div></nav></footer></body></html>

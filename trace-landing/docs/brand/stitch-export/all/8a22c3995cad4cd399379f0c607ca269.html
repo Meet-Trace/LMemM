@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={"darkMode":"class","theme":{"extend":{"colors":{"on-primary-fixed-variant":"#003daa","on-background":"#e3e2e4","on-tertiary-fixed":"#00184a","surface-container":"#1f2022","tertiary-fixed":"#dbe1ff","on-tertiary-container":"#002468","source-coral":"#FF8A80","surface-variant":"#343537","on-surface-variant":"#c3c6d7","surface-container-highest":"#343537","on-primary":"#002979","surface-bright":"#38393b","primary":"#b4c5ff","tertiary-fixed-dim":"#b3c5ff","background":"#121315","outline":"#8d90a1","inverse-primary":"#0052de","inverse-on-surface":"#303032","border-muted":"#343842","inverse-surface":"#e3e2e4","surface-dim":"#121315","on-primary-container":"#00236b","on-secondary-container":"#9bb7ff","surface-container-lowest":"#0d0e10","tertiary":"#b3c5ff","on-tertiary":"#002a76","on-secondary-fixed-variant":"#264484","on-tertiary-fixed-variant":"#003ea6","primary-fixed-dim":"#b4c5ff","surface-card":"#202226","secondary-fixed":"#d9e2ff","error-container":"#93000a","secondary-fixed-dim":"#b0c6ff","surface-container-low":"#1b1c1e","surface":"#121315","primary-container":"#628aff","secondary-container":"#284787","surface-tint":"#b4c5ff","error":"#ffb4ab","outline-variant":"#434655","on-primary-fixed":"#00174c","on-secondary":"#052d6d","on-error":"#690005","secondary":"#b0c6ff","on-secondary-fixed":"#001946","surface-base":"#101113","source-lavender":"#B8B5FF","surface-container-high":"#292a2c","primary-fixed":"#dbe1ff","source-teal":"#4DD0E1","text-primary":"#F5F6F8","surface-alt":"#151619","tertiary-container":"#628bfa","text-secondary":"#B0B5C0","surface-elevated":"#292C32","on-error-container":"#ffdad6","on-surface":"#e3e2e4","accent-focus":"#9BB7FF"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"gutter-lg":"2rem","space-lg":"1.5rem","margin-lg":"4rem","gutter":"1.5rem","margin-sm":"1.25rem","space-xs":"0.25rem","space-sm":"0.5rem","margin":"2rem","space-md":"1rem","space-xl":"2.5rem","gutter-sm":"1rem"},"fontFamily":{"display-hero":["Geist"],"headline-lg-mobile":["Geist"],"body-md":["JetBrains Mono"],"label-sm":["JetBrains Mono"],"headline-lg":["Geist"],"headline-md":["Geist"],"code-inline":["JetBrains Mono"],"body-lg":["JetBrains Mono"],"headline-sm":["Geist"],"label-md":["JetBrains Mono"],"body-sm":["JetBrains Mono"],"display-hero-mobile":["Geist"]},"fontSize":{"display-hero":["4.5rem",{"lineHeight":"1.08","letterSpacing":"-0.04em","fontWeight":"600"}],"headline-lg-mobile":["2rem",{"lineHeight":"1.25","letterSpacing":"-0.02em","fontWeight":"500"}],"body-md":["0.9375rem",{"lineHeight":"1.55","letterSpacing":"0em","fontWeight":"400"}],"label-sm":["0.6875rem",{"lineHeight":"1.2","letterSpacing":"0.04em","fontWeight":"500"}],"headline-lg":["2.75rem",{"lineHeight":"1.2","letterSpacing":"-0.03em","fontWeight":"500"}],"headline-md":["1.75rem",{"lineHeight":"1.3","letterSpacing":"-0.02em","fontWeight":"500"}],"code-inline":["0.8125rem",{"lineHeight":"1.4","letterSpacing":"0em","fontWeight":"500"}],"body-lg":["1.125rem",{"lineHeight":"1.6","letterSpacing":"-0.01em","fontWeight":"400"}],"headline-sm":["1.25rem",{"lineHeight":"1.4","letterSpacing":"-0.01em","fontWeight":"500"}],"label-md":["0.8125rem",{"lineHeight":"1.2","letterSpacing":"0.02em","fontWeight":"500"}],"body-sm":["0.8125rem",{"lineHeight":"1.5","letterSpacing":"0em","fontWeight":"400"}],"display-hero-mobile":["2.5rem",{"lineHeight":"1.15","letterSpacing":"-0.03em","fontWeight":"600"}]}}}};</script></head><body class="bg-surface-base text-on-surface antialiased selection:bg-primary selection:text-on-primary"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-base/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.4)]"><div class="max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg h-16 flex items-center justify-between"><div class="flex items-center gap-space-lg"><a class="flex items-center gap-space-sm group" data-path="overview" href="#"><span class="w-2 h-2 rounded-full bg-primary group-hover:bg-primary-container transition-colors"></span><span class="font-headline-sm text-headline-sm tracking-tight text-text-primary uppercase">Trace</span></a><nav class="hidden md:flex items-center gap-space-md" data-active-classes="text-text-primary font-bold"><a class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors py-space-xs px-space-sm" data-path="how-it-works" href="#">How it works</a><a class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors py-space-xs px-space-sm" data-path="your-control" href="#">Your control</a><a class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors py-space-xs px-space-sm" data-path="explore-options" href="#">Explore Options (A, B, C)</a></nav></div><div class="flex items-center gap-space-md"><a class="inline-flex items-center justify-center font-label-md text-label-md bg-primary-container hover:bg-tertiary-container text-on-primary-container px-space-md py-space-sm rounded-full transition-colors" data-path="early-access" href="#">Get early access</a><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="w-full pt-16 bg-surface-base min-h-screen"><div class="flex flex-col w-full relative selection:bg-primary selection:text-on-primary">
+<!-- LIVING THREAD SVG CANVAS BACKGROUND (Synchronized Scroll Track) -->
+<div class="absolute inset-0 pointer-events-none z-10 overflow-hidden flex justify-center">
+<div class="w-full max-w-[1180px] h-full relative">
+<!-- Glow Underlay -->
+<div class="absolute left-1/2 -translate-x-1/2 w-[3px] bg-primary/25 blur-[6px] transition-all duration-300 pointer-events-none" id="threadGlow" style="top: 240px; height: 0%;"></div>
+<!-- Razor Precise Structural Line -->
+<div class="absolute left-1/2 -translate-x-1/2 w-[1px] bg-surface-variant h-full" id="threadTrack"></div>
+<div class="absolute left-1/2 -translate-x-1/2 w-[1px] bg-primary transition-all duration-150 shadow-[0_0_12px_rgba(98,138,255,0.8)]" id="threadActive" style="top: 240px; height: 0%;"></div>
+</div>
+</div>
+<!-- SECTION 1: HERO & IMMEDIATE INTAKE -->
+<section class="relative w-full max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg pt-space-xl pb-32">
+<!-- Ambient substrate aura -->
+<div class="absolute top-12 left-1/4 w-96 h-96 rounded-full bg-primary/5 blur-[120px] pointer-events-none"></div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-end relative z-20">
+<div class="lg:col-span-8 flex flex-col">
+<div class="flex items-center gap-space-sm mb-space-md">
+<span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-surface-card text-on-surface-variant font-label-sm text-label-sm border-0 shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-primary mr-1.5 animate-pulse"></span>
+            TRACE ARCHITECTURE 0.9.4 — C
+          </span>
+<span class="font-label-sm text-label-sm text-text-secondary tracking-widest uppercase">Parallax Continuity</span>
+</div>
+<h1 class="font-display-hero text-display-hero text-text-primary tracking-tight max-w-[780px]">
+          Keep doing your thing. <br class="hidden sm:inline"/>
+<span class="text-primary font-display-hero">Trace remembers.</span>
+</h1>
+<p class="font-body-lg text-body-lg text-text-secondary mt-space-lg max-w-[620px] leading-relaxed">
+          The continuous operating substrate indexing your thoughts, tabs, notes, and local environments into an unbroken, locally verified graph.
+        </p>
+</div>
+<!-- Sleek Compact Signup Intake -->
+<div class="lg:col-span-4 flex flex-col justify-end mt-space-lg lg:mt-0">
+<div class="bg-surface-card p-space-lg rounded-xl shadow-xl backdrop-blur-md relative overflow-hidden group">
+<div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-80"></div>
+<div class="flex items-center justify-between mb-space-sm">
+<span class="font-label-sm text-label-sm text-text-secondary uppercase">Local Node Access</span>
+<span class="font-code-inline text-code-inline text-source-teal">macOS 14.2+</span>
+</div>
+<form class="flex flex-col gap-space-sm" id="inviteForm" onsubmit="event.preventDefault(); document.getElementById('signupAck').classList.remove('hidden');">
+<div class="relative">
+<input class="w-full bg-surface-alt font-label-md text-label-md text-text-primary placeholder:text-text-secondary/60 px-space-md py-3 rounded-lg focus:outline-none focus:bg-surface-elevated transition-colors shadow-inner" placeholder="eng-team@kernel.sh" required="" type="email"/>
+<span class="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary font-label-sm text-label-sm pointer-events-none">↵</span>
+</div>
+<button class="w-full bg-primary hover:bg-tertiary-fixed text-on-primary font-label-md text-label-md py-3 rounded-full transition-all duration-200 flex items-center justify-center gap-space-xs shadow-md hover:shadow-primary/20 cursor-pointer" type="submit">
+<span>Request Terminal Bundle</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</form>
+<div class="hidden mt-space-sm py-2 px-space-sm bg-surface-alt rounded font-label-sm text-label-sm text-primary flex items-center gap-2" id="signupAck">
+<span class="material-symbols-outlined text-source-teal text-[16px]">check_circle</span>
+<span>Position queued. Key generated in memory.</span>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-sm border-t-0 text-text-secondary/70 font-label-sm text-label-sm">
+<span>Zero cloud telemetry</span>
+<span>AES-256 GCM</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Scroll Origin Thread Marker -->
+<div class="w-full flex justify-center mt-24 relative z-20">
+<div class="flex flex-col items-center gap-2">
+<span class="font-label-sm text-label-sm text-text-secondary uppercase tracking-widest">Active Thread Anchor</span>
+<div class="w-3 h-3 rounded-full bg-surface-card flex items-center justify-center shadow-lg">
+<div class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 2: 30-SECOND CINEMATIC CONCEPT THEATER -->
+<section class="relative w-full max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg py-space-xl">
+<div class="relative bg-surface-card rounded-xl p- space-md lg:p-space-lg shadow-2xl overflow-hidden backdrop-blur-sm">
+<!-- Ambient cinematic back-glow -->
+<div class="absolute -top-32 -left-32 w-80 h-80 rounded-full bg-primary/10 blur-[90px] pointer-events-none"></div>
+<div class="absolute -bottom-32 -right-32 w-80 h-80 rounded-full bg-source-teal/10 blur-[90px] pointer-events-none"></div>
+<!-- Theater Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm mb-space-md pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-2.5 h-2.5 rounded-full bg-source-coral"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-source-lavender"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-source-teal"></div>
+<span class="font-label-md text-label-md text-text-primary ml-2">Trace Runtime Demonstration — v0.9 Continuous Stream</span>
+</div>
+<div class="flex items-center gap-space-md font-label-sm text-label-sm text-text-secondary">
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-source-teal animate-pulse"></span> 4K 60FPS SYNTH</span>
+<span>DURATION 00:30.00</span>
+</div>
+</div>
+<!-- Cinematic Viewport Canvas -->
+<div class="relative aspect-video w-full rounded-lg overflow-hidden bg-surface-lowest flex items-center justify-center group shadow-2xl">
+<img class="w-full h-full object-cover opacity-85 group-hover:scale-[1.01] transition-transform duration-700" data-alt="Dark high-contrast macOS interface displaying multi-window developer environment with glowing blue structural threads connecting code editors, markdown notes, and terminal windows in a dark ink-black room with soft anamorphic blue lens flare." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3Q-bZbt_KubDm05yFEA2Z7P6ndkvM--XJzseT1lizQPb4cKVlUmq_XJLPOG1X6Eedl-aHNW_2YiDcuuBRStCF2wznSSjgsHFVEY2XVjKdeVS_bLlXyiVBEYqfqeqmFoMzuIEN9k6ZUIkj-huI4jj8KT_pwdGvsTUYY62W8Obl9mJNsxfhPtCBEtBeO0ZwDmFC9WGl6dGC6FTelz2LYtAf3zoSGSijym7OMHEEOQY"/>
+<!-- Subtle Scanlines Overlay -->
+<div class="absolute inset-0 bg-gradient-to-t from-surface-lowest via-transparent to-transparent opacity-70 pointer-events-none"></div>
+<!-- Custom Center Floating Play Trigger -->
+<button class="absolute z-20 flex items-center gap-space-sm bg-surface-elevated/90 hover:bg-surface-elevated text-text-primary px-space-lg py-3 rounded-full shadow-2xl backdrop-blur-md transition-all hover:scale-105 cursor-pointer" id="videoPlayToggle">
+<span class="material-symbols-outlined text-primary text-[28px]" id="playIcon">play_arrow</span>
+<span class="font-label-md text-label-md tracking-wider uppercase font-semibold">Simulate 30s Thread</span>
+</button>
+<!-- Dynamic Context Overlay Badge inside video -->
+<div class="absolute top-6 left-6 z-20 bg-surface-alt/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-md flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-source-coral"></span>
+<span class="font-label-sm text-label-sm text-text-primary font-mono" id="activeMarkerLabel">0:00 — SCATTERED CONTEXT</span>
+</div>
+<!-- Scrubbing / Timestamp Timeline Bar -->
+<div class="absolute bottom-0 left-0 right-0 z-20 bg-surface-alt/95 backdrop-blur-lg px-space-md py-space-sm flex flex-col gap-2">
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden relative cursor-pointer" id="theaterProgressBar">
+<div class="bg-primary h-full rounded-full transition-all duration-300" id="videoProgressFill" style="width: 14%;"></div>
+</div>
+<div class="grid grid-cols-3 text-center pt-1">
+<button class="text-left font-label-sm text-label-sm text-text-primary hover:text-primary transition-colors flex items-center gap-1.5" onclick="jumpToTimeline(14, '0:00 Scattered context')">
+<span class="w-1.5 h-1.5 rounded-full bg-source-coral"></span>
+<span>0:00 Scattered context</span>
+</button>
+<button class="text-center font-label-sm text-label-sm text-text-secondary hover:text-primary transition-colors flex items-center justify-center gap-1.5" onclick="jumpToTimeline(50, '0:15 Trace synthesis')">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>0:15 Trace synthesis</span>
+</button>
+<button class="text-right font-label-sm text-label-sm text-text-secondary hover:text-primary transition-colors flex items-center justify-end gap-1.5" onclick="jumpToTimeline(100, '0:30 Grounded recall')">
+<span class="w-1.5 h-1.5 rounded-full bg-source-teal"></span>
+<span>0:30 Grounded recall</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Theater Underline Metric -->
+<div class="mt-space-md flex flex-wrap items-center justify-between gap-space-sm font-label-sm text-label-sm text-text-secondary">
+<div class="flex items-center gap-space-md">
+<span>Engine: CoreML Quantized (Metal API)</span>
+<span class="hidden sm:inline">•</span>
+<span class="hidden sm:inline">Active Index: 43,890 tokens</span>
+</div>
+<div class="text-primary flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">lock</span>
+<span>Zero cloud egress verified via Little Snitch</span>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 3: THE THREE NARRATIVE MOMENTS (PARALLAX + CONTINUITY THREAD) -->
+<div class="relative w-full max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg py-32 space-y-48">
+<!-- ==============================================
+         MOMENT 1: WORKING ON A PROJECT
+         ============================================== -->
+<div class="relative grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-center scroll-mt-24" id="moment1">
+<!-- Central Thread Intersection Node -->
+<div class="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex-col items-center">
+<div class="w-8 h-8 rounded-full bg-surface-elevated shadow-xl flex items-center justify-center transition-all duration-300 ring-2 ring-primary/40">
+<div class="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_#628aff]"></div>
+</div>
+<span class="mt-2 font-label-sm text-label-sm text-primary uppercase font-bold tracking-widest">MOMENT 01</span>
+</div>
+<!-- Left Column: Narrative Context -->
+<div class="lg:col-span-5 flex flex-col space-y-space-md z-20">
+<div class="inline-flex items-center gap-2 text-source-coral font-label-sm text-label-sm uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">folder_data</span>
+<span>10:24 AM — Active Deep Work</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-text-primary tracking-tight">
+          You move fast across 43 open tabs and 6 workspaces.
+        </h2>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed">
+          While you debug, research architecture, read Stripe documentation, and converse in Slack, Trace silently forms vector topologies in the background. No manual tagging or bookmarked clutter required.
+        </p>
+<div class="p-space-md rounded-lg bg-surface-card shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[20px]">hub</span>
+<div>
+<p class="font-label-md text-label-md text-text-primary">Live Context Capture</p>
+<p class="font-label-sm text-label-sm text-text-secondary">Chrome, Obsidian, iTerm2, Notion</p>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-alt text-source-teal font-code-inline text-code-inline">PASSIVE</span>
+</div>
+</div>
+<div class="lg:col-span-2 hidden lg:block"></div>
+<!-- Right Column: Staggered Floating Product Fragments (Parallax responsive) -->
+<div class="lg:col-span-5 relative space-y-4 z-20" id="scatteredContainer">
+<!-- Fragment A: Browser Documentation Card -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-xl transition-all duration-300 hover:-translate-y-1 transform lg:-rotate-1">
+<div class="flex items-center justify-between pb-2 mb-2 border-b-0 text-text-secondary font-label-sm text-label-sm">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-source-teal"></span>
+<span class="text-text-primary font-medium">stripe.com/docs/billing</span>
+</div>
+<span class="text-text-secondary/60">3 mins ago</span>
+</div>
+<p class="font-label-md text-label-md text-text-primary font-mono leading-normal">
+            “Usage-based billing meters allow daily idempotency keys per API caller customer_id...”
+          </p>
+<div class="mt-3 flex items-center gap-2">
+<span class="px-2 py-0.5 rounded bg-surface-alt text-text-secondary font-label-sm text-label-sm">#pricing-engine</span>
+<span class="px-2 py-0.5 rounded bg-surface-alt text-text-secondary font-label-sm text-label-sm">#stripe-v3</span>
+</div>
+</div>
+<!-- Fragment B: Terminal Session Trace (Overlapping) -->
+<div class="p-space-md rounded-xl bg-surface-elevated shadow-2xl transition-all duration-300 hover:-translate-y-1 transform lg:rotate-2 lg:-ml-6 relative z-10">
+<div class="flex items-center justify-between pb-2 mb-2 text-text-secondary font-label-sm text-label-sm">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-source-coral"></span>
+<span class="text-text-primary font-mono text-xs">zsh - ~/src/engine-core</span>
+</div>
+<span class="text-source-teal font-label-sm text-label-sm">PID 89412</span>
+</div>
+<pre class="font-code-inline text-code-inline text-text-secondary bg-surface-lowest p-2 rounded overflow-x-auto leading-relaxed">$ pnpm test:pricing-sim
+✓ usage_tiers.spec.ts (14 tests passed)
+✓ metering_latency.spec.ts (8 tests passed)
+Indexed 4.8MB context payload to local ledger.</pre>
+</div>
+<!-- Fragment C: Slack Thread Note Snippet -->
+<div class="p-space-md rounded-xl bg-surface-card shadow-lg transition-all duration-300 hover:-translate-y-1 transform lg:-rotate-2">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-2 h-2 rounded-full bg-source-lavender"></span>
+<span class="font-label-sm text-label-sm text-text-primary font-semibold">@alex (Product Lead) in #eng-sync</span>
+</div>
+<p class="font-label-md text-label-md text-text-secondary italic">
+            “Let's lock the tiered metered model at $0.004 per transaction with a $20 base threshold.”
+          </p>
+</div>
+</div>
+</div>
+<!-- ==============================================
+         MOMENT 2: STEPPING AWAY (THE GHOST STATE)
+         ============================================== -->
+<div class="relative grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-center scroll-mt-24" id="moment2">
+<!-- Central Thread Intersection Node -->
+<div class="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex-col items-center">
+<div class="w-8 h-8 rounded-full bg-surface-card shadow-xl flex items-center justify-center transition-all duration-300 ring-2 ring-surface-variant">
+<div class="w-2.5 h-2.5 rounded-full bg-text-secondary shadow-[0_0_8px_#c3c6d7]"></div>
+</div>
+<span class="mt-2 font-label-sm text-label-sm text-text-secondary uppercase font-bold tracking-widest">MOMENT 02</span>
+</div>
+<!-- Left Column: Dormant Visualization / Sleep State -->
+<div class="lg:col-span-5 order-2 lg:order-1 relative z-20">
+<div class="bg-surface-card p-space-lg rounded-xl shadow-xl space-y-space-md relative overflow-hidden backdrop-blur-sm">
+<div class="flex items-center justify-between pb-space-sm border-b-0">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-text-secondary text-[20px]">bedtime</span>
+<span class="font-label-md text-label-md text-text-primary">System Suspended State</span>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-surface-alt font-label-sm text-label-sm text-text-secondary">IDLE 0.0W</span>
+</div>
+<!-- Power & Privacy Gauges -->
+<div class="grid grid-cols-2 gap-space-sm">
+<div class="p-space-sm bg-surface-alt rounded-lg">
+<div class="font-label-sm text-label-sm text-text-secondary">CPU CONSUMPTION</div>
+<div class="font-headline-sm text-headline-sm text-text-primary mt-1 font-mono">0.02%</div>
+<div class="font-label-sm text-label-sm text-source-teal mt-1">Dormant thread sleep</div>
+</div>
+<div class="p-space-sm bg-surface-alt rounded-lg">
+<div class="font-label-sm text-label-sm text-text-secondary">NETWORK EGRESS</div>
+<div class="font-headline-sm text-headline-sm text-text-primary mt-1 font-mono">0.00 KB</div>
+<div class="font-label-sm text-label-sm text-primary mt-1">Local SSD enclave only</div>
+</div>
+</div>
+<!-- Vector Index Snapshot Ring (Inline lightweight SVG) -->
+<div class="p-space-md bg-surface-lowest rounded-lg flex items-center justify-between">
+<div class="space-y-1">
+<div class="font-label-md text-label-md text-text-primary">Continuity Anchor Ready</div>
+<div class="font-label-sm text-label-sm text-text-secondary">All embeddings frozen in RAM cache</div>
+</div>
+<svg class="w-12 h-12 text-primary" viewbox="0 0 36 36">
+<path class="text-surface-variant stroke-current" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="3"></path>
+<path class="stroke-current stroke-primary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831" fill="none" stroke-dasharray="100, 100" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+</div>
+</div>
+</div>
+<div class="lg:col-span-2 hidden lg:block"></div>
+<!-- Right Column: Narrative Context -->
+<div class="lg:col-span-5 order-1 lg:order-2 flex flex-col space-y-space-md z-20">
+<div class="inline-flex items-center gap-2 text-text-secondary font-label-sm text-label-sm uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">power_settings_new</span>
+<span>1:45 PM — Stepping Away</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-text-primary tracking-tight">
+          Lid closed. Meeting rooms. Lunch. Complete silence.
+        </h2>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed">
+          Trace does not run wasteful autonomous LLM agents while your back is turned. It consumes zero ambient battery, emits zero background network pings, and respects the inviolable boundary of your hardware.
+        </p>
+<div class="space-y-2">
+<div class="flex items-center gap-2 text-text-secondary font-label-md text-label-md">
+<span class="material-symbols-outlined text-primary text-[18px]">verified_user</span>
+<span>Keys remain solely inside Apple Secure Enclave</span>
+</div>
+<div class="flex items-center gap-2 text-text-secondary font-label-md text-label-md">
+<span class="material-symbols-outlined text-primary text-[18px]">battery_saver</span>
+<span>Sleep wakeups suppressed via macOS power assertion rules</span>
+</div>
+</div>
+</div>
+</div>
+<!-- ==============================================
+         MOMENT 3: RETURNING WITH CONTEXT (FOCAL ANSWER)
+         ============================================== -->
+<div class="relative grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-center scroll-mt-24" id="moment3">
+<!-- Central Thread Intersection Node -->
+<div class="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex-col items-center">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary shadow-2xl flex items-center justify-center transition-all duration-300 ring-4 ring-primary/30">
+<div class="w-3 h-3 rounded-full bg-white shadow-[0_0_12px_#ffffff]"></div>
+</div>
+<span class="mt-2 font-label-sm text-label-sm text-primary uppercase font-bold tracking-widest">MOMENT 03</span>
+</div>
+<!-- Left Column: Narrative Context -->
+<div class="lg:col-span-5 flex flex-col space-y-space-md z-20">
+<div class="inline-flex items-center gap-2 text-source-teal font-label-sm text-label-sm uppercase tracking-wider">
+<span class="material-symbols-outlined text-[16px]">reply_all</span>
+<span>4:15 PM — Instant Context Rehydration</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-text-primary tracking-tight">
+          You open your laptop. The thread immediately resumes.
+        </h2>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed">
+          No scrolling Slack histories or searching browser logs. Hit <span class="px-2 py-0.5 bg-surface-card rounded text-text-primary font-mono text-xs">⌘ Space</span>, formulate a question in human language, and receive instant grounded proof with source attributions.
+        </p>
+<div class="flex items-center gap-3 pt-2">
+<button class="bg-surface-elevated hover:bg-surface-variant text-text-primary font-label-md text-label-md px-space-md py-2.5 rounded-full flex items-center gap-2 transition-colors cursor-pointer shadow-md" onclick="navigator.clipboard.writeText('We chose usage-based pricing at $0.004 per transaction with a $20 base threshold via Stripe meters.'); alert('Trace context bundle copied to clipboard.');">
+<span class="material-symbols-outlined text-[18px]">content_copy</span>
+<span>Copy Full Trace Bundle</span>
+</button>
+</div>
+</div>
+<div class="lg:col-span-2 hidden lg:block"></div>
+<!-- Right Column: The Large Focal Answer Card -->
+<div class="lg:col-span-5 relative z-20">
+<div class="bg-surface-card p-space-lg rounded-xl shadow-2xl space-y-space-md ring-1 ring-primary/30 relative">
+<!-- Live Indicator Badge -->
+<div class="absolute -top-3 right-6 bg-primary text-on-primary font-label-sm text-label-sm px-3 py-0.5 rounded-full shadow-md flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+            SYNTHESIS RESOLVED (12ms)
+          </div>
+<!-- User's Returning Query -->
+<div class="flex items-start gap-3 bg-surface-alt p-space-md rounded-lg shadow-inner">
+<span class="material-symbols-outlined text-primary text-[20px] mt-0.5">search</span>
+<div>
+<p class="font-label-sm text-label-sm text-text-secondary uppercase">Human Query</p>
+<p class="font-headline-sm text-headline-sm text-text-primary font-medium mt-0.5">
+                “What did we decide about pricing?”
+              </p>
+</div>
+</div>
+<!-- Synthesized Answer -->
+<div class="space-y-space-sm pl-2">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-source-teal"></span>
+<span class="font-label-sm text-label-sm text-source-teal uppercase tracking-wider font-semibold">Grounded Resolution</span>
+</div>
+<p class="font-body-lg text-body-lg text-text-primary leading-relaxed">
+              We chose <strong class="text-primary font-semibold">usage-based pricing</strong> at <span class="bg-surface-alt px-1.5 py-0.5 rounded font-mono text-sm text-source-teal">$0.004 per transaction</span> with a <span class="bg-surface-alt px-1.5 py-0.5 rounded font-mono text-sm text-text-primary">$20 base monthly threshold</span>, synchronized via Stripe idempotency billing meters.
+            </p>
+</div>
+<!-- Direct Lineage / Attributions -->
+<div class="pt-space-sm border-t-0 space-y-2">
+<p class="font-label-sm text-label-sm text-text-secondary uppercase">Underlying Proof Footprint (3 Sources)</p>
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-xs p-1.5 rounded bg-surface-alt text-text-secondary font-mono">
+<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-source-lavender"></span>Slack #eng-sync (Alex, 10:48 AM)</span>
+<span class="text-primary hover:underline cursor-pointer">Jump to frame ↗</span>
+</div>
+<div class="flex items-center justify-between text-xs p-1.5 rounded bg-surface-alt text-text-secondary font-mono">
+<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-source-teal"></span>stripe.com/docs/billing (Tab #24)</span>
+<span class="text-primary hover:underline cursor-pointer">Open cache ↗</span>
+</div>
+<div class="flex items-center justify-between text-xs p-1.5 rounded bg-surface-alt text-text-secondary font-mono">
+<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-source-coral"></span>~/src/engine-core/usage_tiers.spec.ts</span>
+<span class="text-primary hover:underline cursor-pointer">Diff test ↗</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- SECTION 4: GROUNDED AI WORKFLOW & CONTEXT EXPORT -->
+<section class="relative w-full max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg py-24">
+<div class="bg-surface-card rounded-xl p-space-lg lg:p-space-xl shadow-2xl relative">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-center">
+<div class="lg:col-span-6 space-y-space-md">
+<div class="inline-flex items-center gap-2 text-primary font-label-sm text-label-sm uppercase tracking-widest">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+            EXPORTABLE CONTEXT RUNTIME
+          </div>
+<h2 class="font-headline-lg text-headline-lg text-text-primary">
+            Export flawless context packets to Claude, Cursor, or GPT-4.
+          </h2>
+<p class="font-body-md text-body-md text-text-secondary leading-relaxed">
+            Stop pasting fragmented code blocks and meeting summaries into prompts. Trace compiles your active project history into an exact markdown artifact tailored for LLM consumption.
+          </p>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="px-3 py-1 bg-surface-alt rounded-full font-label-sm text-label-sm text-text-secondary">Token optimized (1.8k ctx)</span>
+<span class="px-3 py-1 bg-surface-alt rounded-full font-label-sm text-label-sm text-text-secondary">Redacted secrets & tokens</span>
+<span class="px-3 py-1 bg-surface-alt rounded-full font-label-sm text-label-sm text-text-secondary">Deterministic DAG</span>
+</div>
+</div>
+<div class="lg:col-span-6">
+<div class="bg-surface-lowest rounded-lg p-space-md shadow-inner space-y-space-sm font-mono text-xs">
+<div class="flex items-center justify-between text-text-secondary pb-2 border-b-0 font-label-sm text-label-sm">
+<span>trace-bundle-pricing-engine.md</span>
+<button class="text-primary hover:text-tertiary transition-colors flex items-center gap-1 cursor-pointer" onclick="navigator.clipboard.writeText('# TRACE EXPORT: PRICING ENGINE\nDecisions: usage-based ($0.004/txn, $20 base threshold)\nSources: stripe docs, slack sync, terminal tests'); alert('Raw Markdown copied!');">
+<span class="material-symbols-outlined text-[14px]">copy_all</span>
+<span>Copy Raw</span>
+</button>
+</div>
+<div class="text-source-lavender"># TRACE CONTEXT EXPORT v0.9</div>
+<div class="text-text-secondary">## Active Topic: Engine Tiering & Billing Architecture</div>
+<div class="text-text-primary">
+<span class="text-primary">[DECISION]</span> Migrated away from flat seats to usage metering.<br/>
+<span class="text-primary">[METER_SPEC]</span> 1 unit = $0.004. Cold base fee = $20.00.<br/>
+<span class="text-primary">[EDGE_CASES]</span> Handled network drops with daily idempotency keys.
+            </div>
+<div class="text-source-teal/80 text-[11px] pt-2">
+              // Trace Hash: sha256:7f9024b8921dc80c<br/>
+              // Ready for insertion into Cursor system instructions.
+            </div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SECTION 5: GRANULAR CONTROLS & INTERACTIVE FAQ ACCORDION -->
+<section class="relative w-full max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg py-24">
+<div class="text-center max-w-[680px] mx-auto mb-16 space-y-space-sm">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-widest">TRANSPARENCY BY DEFAULT</span>
+<h2 class="font-headline-lg text-headline-lg text-text-primary">
+        Total sovereignty over what enters the thread.
+      </h2>
+<p class="font-body-md text-body-md text-text-secondary">
+        Inspect every parameter of your local graph. Nothing is recorded without explicit process-level granting.
+      </p>
+</div>
+<!-- Granular Controls Interactive Matrix -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-20">
+<div class="bg-surface-card p-space-md rounded-xl shadow-lg space-y-space-sm">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-source-teal text-[24px]">visibility_off</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-surface-alt peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary">Incognito Blacklists</h3>
+<p class="font-body-sm text-body-sm text-text-secondary">Automatically purges banking, passwords, 1Password, and incognito browser states immediately at frame ingestion.</p>
+</div>
+<div class="bg-surface-card p-space-md rounded-xl shadow-lg space-y-space-sm">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-source-coral text-[24px]">delete_sweep</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-surface-alt peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary">Instant Scrub (Panic Bar)</h3>
+<p class="font-body-sm text-body-sm text-text-secondary">Purge the last 15 minutes, 2 hours, or entire day with <span class="font-mono text-xs">⌥ ⇧ ⌫</span>. Wiped sectors zeroed permanently.</p>
+</div>
+<div class="bg-surface-card p-space-md rounded-xl shadow-lg space-y-space-sm">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-source-lavender text-[24px]">hard_drive</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-surface-alt peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-text-primary">Strict Offline Operation</h3>
+<p class="font-body-sm text-body-sm text-text-secondary">Block all outbound ports. Trace uses local ONNX and CoreML engines. The app never makes external network calls.</p>
+</div>
+</div>
+<!-- Accordion FAQ -->
+<div class="max-w-[800px] mx-auto space-y-space-sm">
+<div class="bg-surface-card rounded-xl overflow-hidden shadow-sm">
+<button class="w-full p-space-md text-left flex items-center justify-between text-text-primary font-headline-sm text-headline-sm hover:text-primary transition-colors cursor-pointer" onclick="toggleAccordion('faq1')">
+<span>How does Trace differ from continuous screen recorders?</span>
+<span class="material-symbols-outlined text-text-secondary transition-transform" id="faq1-icon">expand_more</span>
+</button>
+<div class="hidden px-space-md pb-space-md text-text-secondary font-body-md text-body-md leading-relaxed" id="faq1">
+          Screen recorders save millions of bulky bitmap video frames that consume hundreds of gigabytes and drain battery. Trace captures structural semantic diffs: text streams, AST symbols, API documentation tokens, and window metadata directly from macOS accessibility and IPC channels. The result is 100x lighter, search-instant, and completely private.
+        </div>
+</div>
+<div class="bg-surface-card rounded-xl overflow-hidden shadow-sm">
+<button class="w-full p-space-md text-left flex items-center justify-between text-text-primary font-headline-sm text-headline-sm hover:text-primary transition-colors cursor-pointer" onclick="toggleAccordion('faq2')">
+<span>What are the system resource footprints?</span>
+<span class="material-symbols-outlined text-text-secondary transition-transform" id="faq2-icon">expand_more</span>
+</button>
+<div class="hidden px-space-md pb-space-md text-text-secondary font-body-md text-body-md leading-relaxed" id="faq2">
+          Trace idles at less than 1% CPU utilization on Apple Silicon (M1/M2/M3/M4). Quantized embeddings run in hardware-accelerated batches when the machine is on AC power or during brief idle moments. RAM footprint defaults to an allocation cap of 450 MB.
+        </div>
+</div>
+<div class="bg-surface-card rounded-xl overflow-hidden shadow-sm">
+<button class="w-full p-space-md text-left flex items-center justify-between text-text-primary font-headline-sm text-headline-sm hover:text-primary transition-colors cursor-pointer" onclick="toggleAccordion('faq3')">
+<span>Can my employer or cloud provider access my index?</span>
+<span class="material-symbols-outlined text-text-secondary transition-transform" id="faq3-icon">expand_more</span>
+</button>
+<div class="hidden px-space-md pb-space-md text-text-secondary font-body-md text-body-md leading-relaxed" id="faq3">
+          No. There is no Trace cloud database, no account login requirement, and no analytics collection. Your vector database lives in <code class="text-primary font-mono text-xs">~/Library/Application Support/Trace/ledger.db</code> and is encrypted with your user credentials via macOS Keychain.
+        </div>
+</div>
+</div>
+</section>
+<!-- SECTION 6: FINAL INVITATION WITH CLOSING TRACE CONVERGENCE -->
+<section class="relative w-full max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg py-32 mb-16 text-center">
+<!-- Thread Terminal Node -->
+<div class="flex justify-center mb-space-lg relative z-20">
+<div class="relative flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-surface-elevated flex items-center justify-center shadow-2xl ring-2 ring-primary">
+<div class="w-4 h-4 rounded-full bg-primary animate-ping"></div>
+</div>
+<div class="h-8 w-[1px] bg-gradient-to-b from-primary to-transparent mt-2"></div>
+</div>
+</div>
+<div class="relative z-20 max-w-[720px] mx-auto space-y-space-md">
+<h2 class="font-headline-lg text-headline-lg text-text-primary tracking-tight">
+        Never lose the thread again.
+      </h2>
+<p class="font-body-lg text-body-lg text-text-secondary leading-relaxed">
+        Join the private developer preview for macOS. Experience seamless memory continuity that stays strictly within your machine.
+      </p>
+<div class="pt-space-md flex flex-col sm:flex-row items-center justify-center gap-space-sm">
+<a class="w-full sm:w-auto bg-primary hover:bg-tertiary-fixed text-on-primary font-label-md text-label-md px-space-xl py-3.5 rounded-full transition-all duration-200 shadow-xl hover:shadow-primary/30 flex items-center justify-center gap-2 cursor-pointer" href="#inviteForm">
+<span class="material-symbols-outlined text-[18px]">terminal</span>
+<span>Install Local Binary</span>
+</a>
+<a class="w-full sm:w-auto bg-surface-card hover:bg-surface-elevated text-text-secondary hover:text-text-primary font-label-md text-label-md px-space-lg py-3.5 rounded-full transition-colors flex items-center justify-center gap-2" data-path="how-it-works" href="#">
+<span>Read Technical Spec</span>
+<span class="material-symbols-outlined text-[16px]">north_east</span>
+</a>
+</div>
+<p class="font-label-sm text-label-sm text-text-secondary/60 pt-space-sm font-mono">
+        VERSION 0.9.4 PREVIEW • COMPATIBLE WITH APPLE SILICON • ZERO NETWORK EGRESS
+      </p>
+</div>
+</section>
+<!-- INTERACTIVE SCROLL & VIDEO SCRIPTLOGIC -->
+<script>
+    // 1. Dynamic Parallax Glowing Continuity Thread Logic
+    function updateLivingThread() {
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrollPos = window.scrollY;
+      const scrollPercent = Math.min(Math.max((scrollPos / (docHeight || 1)) * 100, 0), 100);
+      
+      const activeLine = document.getElementById('threadActive');
+      const glowLine = document.getElementById('threadGlow');
+      if (activeLine && glowLine) {
+        activeLine.style.height = scrollPercent + '%';
+        glowLine.style.height = scrollPercent + '%';
+      }
+
+      // Parallax offset on Moment 1 fragments based on scroll
+      const fragContainer = document.getElementById('scatteredContainer');
+      if (fragContainer) {
+        const rect = fragContainer.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          const shift = (rect.top - window.innerHeight / 2) * 0.05;
+          fragContainer.style.transform = `translateY(${shift}px)`;
+        }
+      }
+    }
+
+    window.addEventListener('scroll', updateLivingThread, { passive: true });
+    window.addEventListener('resize', updateLivingThread);
+    updateLivingThread();
+
+    // 2. Interactive Concept Video Simulation Controls
+    let isPlaying = false;
+    let progressTimer = null;
+    let currentPct = 14;
+
+    const playBtn = document.getElementById('videoPlayToggle');
+    const playIcon = document.getElementById('playIcon');
+    const fill = document.getElementById('videoProgressFill');
+    const label = document.getElementById('activeMarkerLabel');
+
+    if (playBtn) {
+      playBtn.addEventListener('click', function() {
+        isPlaying = !isPlaying;
+        if (isPlaying) {
+          playIcon.textContent = 'pause';
+          progressTimer = setInterval(() => {
+            currentPct += 1.5;
+            if (currentPct > 100) {
+              currentPct = 0;
+            }
+            applyTimelineState(currentPct);
+          }, 200);
+        } else {
+          playIcon.textContent = 'play_arrow';
+          clearInterval(progressTimer);
+        }
+      });
+    }
+
+    function applyTimelineState(pct) {
+      currentPct = pct;
+      if (fill) fill.style.width = pct + '%';
+      if (label) {
+        if (pct < 35) {
+          label.textContent = '0:00 — SCATTERED CONTEXT';
+          label.previousElementSibling.className = 'w-1.5 h-1.5 rounded-full bg-source-coral';
+        } else if (pct < 75) {
+          label.textContent = '0:15 — TRACE SYNTHESIS';
+          label.previousElementSibling.className = 'w-1.5 h-1.5 rounded-full bg-primary';
+        } else {
+          label.textContent = '0:30 — GROUNDED RECALL';
+          label.previousElementSibling.className = 'w-1.5 h-1.5 rounded-full bg-source-teal';
+        }
+      }
+    }
+
+    function jumpToTimeline(pct, text) {
+      applyTimelineState(pct);
+    }
+
+    // 3. Accordion Interaction
+    function toggleAccordion(id) {
+      const panel = document.getElementById(id);
+      const icon = document.getElementById(id + '-icon');
+      if (panel) {
+        const isHidden = panel.classList.contains('hidden');
+        if (isHidden) {
+          panel.classList.remove('hidden');
+          if (icon) icon.style.transform = 'rotate(180deg)';
+        } else {
+          panel.classList.add('hidden');
+          if (icon) icon.style.transform = 'rotate(0deg)';
+        }
+      }
+    }
+  </script>
+</div></main><footer class="w-full bg-surface-alt py-space-xl shadow-[0_-1px_8px_rgba(0,0,0,0.4)]"><div class="max-w-[1180px] mx-auto px-margin-sm lg:px-margin-lg flex flex-col md:flex-row items-center justify-between gap-space-md"><div class="flex items-center gap-space-sm font-label-sm text-label-sm text-text-secondary"><span class="w-1.5 h-1.5 rounded-full bg-outline-variant"></span><span>© 2025 Trace OS. Precise Context Retrieval. All rights reserved.</span></div><div class="flex items-center gap-space-lg font-label-sm text-label-sm"><a class="text-text-secondary hover:text-text-primary transition-colors" data-path="contact" href="#">Contact</a><a class="text-text-secondary hover:text-text-primary transition-colors" data-path="privacy" href="#">Privacy</a></div></div></footer></body></html>

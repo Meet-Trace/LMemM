@@ -1,0 +1,301 @@
+{
+  "screens": [
+    {
+      "deviceType": "DESKTOP",
+      "height": "12632",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/397798ca88a84475a19adaf2d953533b:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/397798ca88a84475a19adaf2d953533b/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/397798ca88a84475a19adaf2d953533b",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8e8cb62e110503c9be3305eb76:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/397798ca88a84475a19adaf2d953533b/fileEntries/screenshot"
+      },
+      "title": "Trace — Direction 2: Follow the Thread (Desktop)",
+      "width": "2560"
+    },
+    {
+      "deviceType": "MOBILE",
+      "height": "8888",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/226ffc463ce04469a78e81f23c4d63b3:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/226ffc463ce04469a78e81f23c4d63b3/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/226ffc463ce04469a78e81f23c4d63b3",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8e9dee1a2401ee666caf1b791e:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/226ffc463ce04469a78e81f23c4d63b3/fileEntries/screenshot"
+      },
+      "title": "Trace — Direction 3: Soft Clarity, Cinematic Core (Mobile)",
+      "width": "780"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "10704",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/14517901475349114189:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/files/14517901475349114189"
+      },
+      "name": "projects/7294693543806422121/screens/14517901475349112259",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/14517901475349111176:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/files/14517901475349111176"
+      },
+      "title": "Trace — Option A: Cinematic Continuity",
+      "width": "2560"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "11344",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/6aa49a9b3eb64db39a2933f07ed5ca13:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/6aa49a9b3eb64db39a2933f07ed5ca13/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/6aa49a9b3eb64db39a2933f07ed5ca13",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8e9ddef6ed02a9b47b882bf537:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/6aa49a9b3eb64db39a2933f07ed5ca13/fileEntries/screenshot"
+      },
+      "title": "Trace — Direction 3: Soft Clarity, Cinematic Core (Desktop)",
+      "width": "2560"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "11162",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/8a22c3995cad4cd399379f0c607ca269:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/8a22c3995cad4cd399379f0c607ca269/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/8a22c3995cad4cd399379f0c607ca269",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f893d5e58ed07c4d9eab2386af8:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/8a22c3995cad4cd399379f0c607ca269/fileEntries/screenshot"
+      },
+      "title": "Trace — Option C: The Living Thread (Parallax)",
+      "width": "2560"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "13804",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/a882bf37f1cc4d2ba10c246943f0bd2d:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/a882bf37f1cc4d2ba10c246943f0bd2d/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/a882bf37f1cc4d2ba10c246943f0bd2d",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8eb3af865507c4e8a7a63131f3:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/a882bf37f1cc4d2ba10c246943f0bd2d/fileEntries/screenshot"
+      },
+      "title": "Trace — Refined Desktop Landing Page",
+      "width": "2560"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "3794",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/ca72deff06aa432ba67387bf9354b560:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/ca72deff06aa432ba67387bf9354b560/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/ca72deff06aa432ba67387bf9354b560",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f89247248eb0392c7bc8c0ae81e:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/ca72deff06aa432ba67387bf9354b560/fileEntries/screenshot"
+      },
+      "title": "Trace — Desktop Landing Page",
+      "width": "2560"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "10704",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/4510351831025596924:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/files/4510351831025596924"
+      },
+      "name": "projects/7294693543806422121/screens/4510351831025594974",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/4510351831025595949:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/files/4510351831025595949"
+      },
+      "title": "Trace — Option A: Cinematic Continuity",
+      "width": "2560"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "10704",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/08139e3ea6ea4c3bbabbbb48777049b5:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/08139e3ea6ea4c3bbabbbb48777049b5/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/08139e3ea6ea4c3bbabbbb48777049b5",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f892acf630602a9a75e2c1632a9:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/08139e3ea6ea4c3bbabbbb48777049b5/fileEntries/screenshot"
+      },
+      "title": "Trace — Option A: Cinematic Continuity",
+      "width": "2560"
+    },
+    {
+      "deviceType": "MOBILE",
+      "height": "8758",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/1ce3640008884bdea51773676afe992a:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/1ce3640008884bdea51773676afe992a/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/1ce3640008884bdea51773676afe992a",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8eb1d3ff9c02a982ae6524594c:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/1ce3640008884bdea51773676afe992a/fileEntries/screenshot"
+      },
+      "title": "Trace — Refined Mobile Landing Page",
+      "width": "780"
+    },
+    {
+      "deviceType": "MOBILE",
+      "height": "9940",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/85efb9bb44af4652b1bbeab604a9fc0e:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/85efb9bb44af4652b1bbeab604a9fc0e/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/85efb9bb44af4652b1bbeab604a9fc0e",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8e7cce66a0020793251529dedc:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/85efb9bb44af4652b1bbeab604a9fc0e/fileEntries/screenshot"
+      },
+      "title": "Trace — The Expanding Cinema (Mobile)",
+      "width": "780"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "10704",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/14530256572035686011:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/files/14530256572035686011"
+      },
+      "name": "projects/7294693543806422121/screens/14530256572035682725",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/14530256572035682320:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/files/14530256572035682320"
+      },
+      "title": "Trace — Option A: Cinematic Continuity",
+      "width": "2560"
+    },
+    {
+      "deviceType": "MOBILE",
+      "height": "9008",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/ee2971b3be3248dabb67c04c38337243:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/ee2971b3be3248dabb67c04c38337243/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/ee2971b3be3248dabb67c04c38337243",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8e8b85391904312429410c3a6f:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/ee2971b3be3248dabb67c04c38337243/fileEntries/screenshot"
+      },
+      "title": "Trace — Direction 2: Follow the Thread (Mobile)",
+      "width": "780"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "7984",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/c5ac304cd7a14c8c8616b844bb8a3a25:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/c5ac304cd7a14c8c8616b844bb8a3a25/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/c5ac304cd7a14c8c8616b844bb8a3a25",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f893d9e658f0925d88fec33d360:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/c5ac304cd7a14c8c8616b844bb8a3a25/fileEntries/screenshot"
+      },
+      "title": "Trace — Option B: Product First (Video Centered)",
+      "width": "2560"
+    },
+    {
+      "deviceType": "DESKTOP",
+      "height": "12674",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/69f05ff180c5453caee7fd22b48521a3:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/69f05ff180c5453caee7fd22b48521a3/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/69f05ff180c5453caee7fd22b48521a3",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f8e7e883e9601ee666caf1b791e:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/69f05ff180c5453caee7fd22b48521a3/fileEntries/screenshot"
+      },
+      "title": "Trace — The Expanding Cinema (Desktop)",
+      "width": "2560"
+    },
+    {
+      "deviceType": "MOBILE",
+      "height": "884",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/d7e447a30e7e47d6ba1d0950ffccc340:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/d7e447a30e7e47d6ba1d0950ffccc340/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/d7e447a30e7e47d6ba1d0950ffccc340",
+      "screenshot": {},
+      "title": "Trace — Option B: Product First (Video Centered)",
+      "width": "390"
+    },
+    {
+      "deviceType": "MOBILE",
+      "height": "10672",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/20da0d74b8224224bcb9f9e999fd81aa:download",
+        "mimeType": "text/html",
+        "name": "projects/7294693543806422121/screens/20da0d74b8224224bcb9f9e999fd81aa/fileEntries/html"
+      },
+      "name": "projects/7294693543806422121/screens/20da0d74b8224224bcb9f9e999fd81aa",
+      "screenshot": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/screenshot_00065f89248599ff089af5d17e3566ca:download",
+        "mimeType": "image/png",
+        "name": "projects/7294693543806422121/screens/20da0d74b8224224bcb9f9e999fd81aa/fileEntries/screenshot"
+      },
+      "title": "Trace — Mobile Landing Page",
+      "width": "780"
+    },
+    {
+      "height": "1768",
+      "htmlCode": {
+        "downloadUrl": "https://stitch.googleapis.com/v1/projects/7294693543806422121/files/4501724677571459212:download",
+        "mimeType": "text/markdown",
+        "name": "projects/7294693543806422121/files/4501724677571459212"
+      },
+      "name": "projects/7294693543806422121/screens/4501724677571457927",
+      "screenshot": {},
+      "title": "DESIGN.md",
+      "width": "780"
+    }
+  ]
+}

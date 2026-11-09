@@ -32,6 +32,7 @@ draws it and forwards presses to `press()`; it decides nothing.
 """
 
 import functools
+import re
 import unicodedata
 from datetime import datetime
 
@@ -92,6 +93,22 @@ def ago(iso, now):
     return when.strftime("%b ") + str(when.day) + ("" if when.year == now.year else f", {when.year}")
 
 
+def stamp(iso, now):
+    """An exact moment for telling versions apart: "Today 14:02", "Yesterday 09:30", "Sat 14:02", "3 Nov 14:02"."""
+    when = parse(iso)
+    if not when:
+        return ""
+    clock = when.strftime("%H:%M")
+    days = (now.date() - when.date()).days
+    if days == 0:
+        return "Today " + clock
+    if days == 1:
+        return "Yesterday " + clock
+    if 0 < days < 7:
+        return when.strftime("%a ") + clock
+    return f"{when.day} {when.strftime('%b')} " + clock
+
+
 def group_of(iso, now):
     when = parse(iso)
     if not when:
@@ -120,12 +137,12 @@ def plural(n, one, many=None):
 
 def new_state():
     return {"view": "home", "pid": None, "q": "", "open": [], "deep": True, "app": None,
-            "shown": THINGS_SHOWN, "subs": SUBS_SHOWN, "lim": {}, "needs_all": False, "tid": None, "back": None, "ex_open": [], "sec": "you"}
+            "shown": THINGS_SHOWN, "subs": SUBS_SHOWN, "lim": {}, "needs_all": False, "tid": None, "back": None, "sec": "you"}
 
 
 def press(reg, state, action, arg=None, items=None):
     """A new state after a press. Unknown projects (deleted since) fall back to home."""
-    s = {**state, "open": list(state["open"]), "lim": dict(state["lim"]), "ex_open": list(state.get("ex_open", []))}
+    s = {**state, "open": list(state["open"]), "lim": dict(state["lim"])}
     if action == "home":
         s.update(view="home", pid=None, q="", needs_all=False)
     elif action == "go":
@@ -140,17 +157,12 @@ def press(reg, state, action, arg=None, items=None):
             return state
         if state["view"] != "thing":
             s["back"] = {"view": state["view"], "pid": state["pid"], "q": state["q"]}
-        s.update(view="thing", tid=arg, ex_open=[])
+        s.update(view="thing", tid=arg)
     elif action == "back":
         before = state.get("back") or {"view": "home", "pid": None, "q": ""}
         if before["view"] == "project" and not projects.exists(reg, before["pid"]):
             before = {"view": "home", "pid": None, "q": ""}
         s.update(view=before["view"], pid=before["pid"], q=before["q"], tid=None, back=None)
-    elif action == "expand":
-        if arg in s["ex_open"]:
-            s["ex_open"].remove(arg)
-        else:
-            s["ex_open"].append(arg)
     elif action == "toggle":
         if arg in s["open"]:
             s["open"].remove(arg)
@@ -308,7 +320,7 @@ def main(reg, items, state, counts, now, fading=(), sugg=None, prefs=None):
     if view == "settings" and prefs:
         return prefs
     if view == "thing" and state.get("tid") in items:
-        return thing_page(reg, items[state["tid"]], now, state.get("ex_open", ()), fading)
+        return thing_page(reg, items[state["tid"]], now, fading)
     if view == "search":
         return search(reg, items, state["q"], now)
     if view == "archived":
@@ -403,15 +415,24 @@ def project_page(reg, items, state, counts, now, sugg=None):
 LATEST_SHOWN = 6
 
 
-VISIBLE_LINES = 6
-EXCERPTS_SHOWN = 3
+VERSIONS_SHOWN = 4
 DECISIONS_SHOWN = 3
 
 
-def excerpts_of(content, now, expanded=()):
-    """What LMemM read from a thing, newest first, as short readable passages (P9). Older memory
-    kept one plain string; now it is {"excerpts": [{"id", "text", "source", "last_seen",
-    "decision_quotes"}, ...]}, newest last (memory_content.py). Anything odd becomes no passage."""
+def place_of(source):
+    """Where a passage was read, in plain words: the page address, else the window and app. Never OCR text."""
+    url = source.get("url")
+    if favicons.host_of(url):
+        return re.sub(r"^https?://(www\.)?", "", url).rstrip("/")
+    parts = [p for p in (source.get("window"), source.get("app")) if isinstance(p, str) and p.strip()]
+    return " · ".join(dict.fromkeys(" ".join(p.split()) for p in parts)) or "Screen"
+
+
+def screen_of(content, now, summary=None):
+    """"What was on screen" as ONE card: where it was (once), a plain summary, and the raw text as
+    dated versions, newest first, for the viewer. Older memory kept one plain string; now it is
+    {"excerpts": [{"id", "text", "source", "last_seen", "decision_quotes"}, ...]}, newest last
+    (memory_content.py). Anything odd becomes no card."""
     if isinstance(content, str):
         raw = [{"id": "text", "text": content}]
     elif isinstance(content, dict):
@@ -420,7 +441,7 @@ def excerpts_of(content, now, expanded=()):
             raw = [{"id": "text", "text": content["text"]}]
     else:
         raw = []
-    out = []
+    versions, quotes = [], []
     for e in reversed(raw):
         text = e.get("text")
         if not isinstance(text, str):
@@ -432,21 +453,23 @@ def excerpts_of(content, now, expanded=()):
                 lines.append(line)
         if not lines:
             continue
-        eid = str(e.get("id") or len(out))
-        open_ = eid in expanded
         source = e.get("source") if isinstance(e.get("source"), dict) else {}
-        quotes = [q for q in e.get("decision_quotes") or [] if isinstance(q, str)][:DECISIONS_SHOWN]
-        out.append({"id": eid, "when": ago(e.get("last_seen") or e.get("observed_at"), now),
-                    "source": source.get("window") or source.get("app") or "",
-                    "lines": lines if open_ else lines[:VISIBLE_LINES],
-                    "more": 0 if open_ else max(0, len(lines) - VISIBLE_LINES), "open": open_,
-                    "decisions": quotes})
-        if len(out) == EXCERPTS_SHOWN:
+        seen = e.get("last_seen") or e.get("observed_at")
+        versions.append({"when": ago(seen, now), "label": stamp(seen, now) or ago(seen, now), "place": place_of(source),
+                         "url": source.get("url") if favicons.host_of(source.get("url")) else None, "lines": lines})
+        quotes += [q for q in e.get("decision_quotes") or [] if isinstance(q, str) and q not in quotes]
+        if len(versions) == VERSIONS_SHOWN:
             break
-    return out
+    if not versions:
+        return None
+    top = dict(versions[0])
+    for v in versions:                                   # the link is shown once; a version only names its place if it differs
+        v["place"] = v["place"] if v["place"] != top["place"] else None
+    return {"place": top["place"], "url": top["url"], "when": top["when"], "summary": summary,
+            "decisions": quotes[:DECISIONS_SHOWN], "versions": versions, "count": len(versions)}
 
 
-def thing_page(reg, item, now, expanded=(), fading=()):
+def thing_page(reg, item, now, fading=()):
     """Everything LMemM knows about one thing, read only (P9)."""
     main = projects._main(item)
     places = [{"id": p, "name": projects.get(reg, p)["name"], "hue": hue(p), "main": p == main,
@@ -470,7 +493,7 @@ def thing_page(reg, item, now, expanded=(), fading=()):
             "done": [{"id": notes.note_id(n), "text": n["text"], "when": ago(n.get("at"), now)} for n in done],
             "stats": [(k, v) for k, v in stats if v],
             "latest": [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]],
-            "excerpts": excerpts_of(item.get("content"), now, expanded)}
+            "screen": screen_of(item.get("content"), now, summary=item.get("doing") or None)}
 
 
 # ---------------------------------------------------------------- search

@@ -13,7 +13,7 @@ import traceback
 
 import objc
 from Foundation import NSData, NSObject
-from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView,
+from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView, NSTextView,
                     NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
 import apps
@@ -328,6 +328,12 @@ class MainWindow:
     def key(self, code):
         """An arrow or Return. True when it was used."""
         if self.dialog:
+            d = self.dialog
+            if d["kind"] == "viewer" and code in (keynav.LEFT, keynav.RIGHT):      # step through the dated versions
+                k = d["v"] + (1 if code == keynav.RIGHT else -1)
+                if 0 <= k < len(d["screen"]["versions"]):
+                    self._viewer_to(k)
+                return True
             return False
         rows = {z: [(i, cb) for i, cb, _v in r] for z, r in self.krows.items()}
         state, call = keynav.press(self.cur, rows, code)
@@ -395,6 +401,22 @@ class MainWindow:
             self.sel = None                                        # a selection belongs to the page it was made on
         self.nav = page_model.press(reg, self.nav, action, arg, items)
         self.render()
+
+    def open_url(self, url):
+        """Open a remembered web address in the default browser (only http/https ever reaches here)."""
+        from Foundation import NSURL
+        target = NSURL.URLWithString_(url) if favicons.host_of(url) else None
+        if not (target and NSWorkspace.sharedWorkspace().openURL_(target)):
+            self.done = {"message": "Couldn't open that.", "undo": None, "until": time.time() + 4}
+            self.render_now()
+
+    def copy_text(self, text, message):
+        from AppKit import NSPasteboard
+        paste = NSPasteboard.generalPasteboard()
+        paste.clearContents()
+        paste.setString_forType_(text, "public.utf8-plain-text")
+        self.done = {"message": message, "undo": None, "until": time.time() + 3}
+        self.render_now()
 
     def back(self, kind):
         if kind in ("thing", "settings"):
@@ -734,6 +756,9 @@ class MainWindow:
         scrim.washes = False                                         # a backdrop does not light up under the pointer
         cw, cx = 460, (self.W - 460) / 2
         cy = max(16, min(120, (self.H - 520) // 2))                  # a tall picker still ends inside the smallest window
+        if d["kind"] == "viewer":
+            cw = min(720, self.W - 64)
+            cx, cy = (self.W - cw) / 2, 32
         card = self._tap(self.overlay, cx, cy, cw, 100, None)
         card.tint = kit.card_background()
         reg = self._reg()
@@ -824,6 +849,14 @@ class MainWindow:
                 kit.put_text(card, "No app matches.", 24, y + 2, cw - 48, 13, 400, kit.mute(), wrap=False, height=20)
                 y += 28
             y = self._dialog_buttons(card, cw, y + 10, "Done", None, None)
+        elif d["kind"] == "viewer":
+            ch = max(320, self.H - 64)
+            card.setFrame_(NSMakeRect(cx, cy, cw, ch))
+            self._viewer(card, cw, ch, d)
+            if arriving:
+                motion.fade_in(scrim)
+                motion.pop(card, origin="center", seconds=motion.MODAL_SECONDS, scale=motion.MODAL_SCALE)
+            return
         elif d["kind"] == "task":
             plan = d["plan"]
             y += kit.put_text(card, plan["title"], 24, y, cw - 48, 17, 700) + 10
@@ -1686,10 +1719,9 @@ class MainWindow:
                     top += max(kit.put_text(box, v, 14 + 140, 12 + top, inner - 140, 13, 500), 18) + 8
                 return top - 8
             y = self._card_box(doc, x, y, w, facts)
-        if page["excerpts"]:
+        if page["screen"]:
             y = self._section(doc, "What was on screen", x, y + 14, w)
-            for e in page["excerpts"]:
-                y = self._excerpt(doc, e, x, y, w) + 12
+            y = self._screen(doc, page["screen"], x, y, w) + 12
         return y
 
     def _note_body(self, box, inner, n):
@@ -1719,27 +1751,76 @@ class MainWindow:
         parent.addSubview_(view)
         return height
 
-    def _excerpt(self, doc, e, x, y, w):
-        """One passage LMemM read: where and when, any decision it found, then its lines as short paragraphs."""
+    def _screen(self, doc, e, x, y, w):
+        """One short card: where it was (once) with a quiet Open, a one-line summary, any decision found,
+        and a link to the viewer, where the raw text lives."""
         def body(box, inner):
-            top = 0
-            head = e["source"] or "Screen"
-            kit.put_text(box, head, 14, 12, inner - 100, 13, 600, wrap=False, height=20)
-            kit.put_text(box, e["when"], 14 + inner - 96, 12, 96, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=20)
-            top = 30
+            reach = inner - 70 if e["url"] else inner
+            kit.put_text(box, e["place"], 14, 12, reach, 14, 600, wrap=False, height=20)
+            if e["url"]:
+                self._link(box, "Open", 14 + inner - 52, 8, (lambda u=e["url"]: self.open_url(u)), size=13, color=kit.accent_text())
+            top = 24
+            if e["summary"]:
+                top += kit.put_text(box, e["summary"] + (f" · as of {e['when']}" if e["when"] else ""), 14, 12 + top, inner, 13, 400, kit.mute()) + 8
             for quote in e["decisions"]:
                 h = kit.put_text(box, "“" + quote + "”", 28, 12 + top, inner - 14, 13, 600, kit.accent_text())
-                bar = _Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14)))
-                box.addSubview_(bar)
+                box.addSubview_(_Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14))))
                 top += h + 10
-            for line in e["lines"]:
-                top += kit.put_text(box, line, 14, 12 + top, inner, 13, 400) + 7
-            if e["more"] or e["open"]:
-                label = f"Show {e['more']} more lines" if e["more"] else "Show less"
-                self._link(box, label, 8, 12 + top - 2, (lambda i=e["id"]: self.press("expand", i)), size=12, color=kit.accent_text())
-                top += 24
-            return top - 7
+            label = "View text" + (f" · {e['count']} versions" if e["count"] > 1 else "")
+            self._link(box, label, 8, 12 + top - 2, (lambda: self.open_viewer(e)), size=12)
+            return top + 18
         return self._card_box(doc, x, y, w, body)
+
+    def open_viewer(self, screen):
+        """The raw screen text in a viewer of its own: a fixed header, one tab per dated version, and a
+        scroll area of bounded height, so Close and Copy never scroll away."""
+        self.dialog = {"kind": "viewer", "screen": screen, "v": 0}
+        self._dialog()
+
+    def _viewer(self, card, cw, ch, d):
+        screen, i = d["screen"], d["v"]
+        v = screen["versions"][i]
+        kit.put_text(card, screen["place"], 24, 20, cw - 48 - 90, 15, 700, wrap=False, height=24)
+        kit.button(card, "Close", cw - 24 - 76, 16, 76, 32, self.close_dialog, kind="quiet", size=13, weight=600)
+        x = 24
+        for n, ver in enumerate(screen["versions"]):                # one tab per dated version, newest first
+            width = kit.text_width(ver["label"], 13, 600) + 28
+            kit.button(card, ver["label"], x, 60, width, 30, (lambda k=n: self._viewer_to(k)),
+                       kind="primary" if n == i else "quiet", size=13, weight=600)
+            x += width + 8
+        top = 104
+        if v["place"]:
+            kit.put_text(card, v["place"], 24, top, cw - 48, 12, 400, kit.mute(), wrap=False, height=16)
+            top += 22
+        box = self._tap(card, 24, top, cw - 48, ch - top - 76, None, fill=True)       # the text sits in a box of its own
+        box.washes = False                                          # a text box does not light up under the pointer
+        scroll = _scroll(box)
+        scroll.setFrame_(NSMakeRect(12, 10, cw - 48 - 24, ch - top - 76 - 20))
+        view = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, cw - 48 - 24, 10))
+        view.setEditable_(False)
+        view.setSelectable_(True)                                   # drag to select, Cmd-C copies, Cmd-A selects all
+        view.setDrawsBackground_(False)
+        view.setRichText_(False)
+        view.setFont_(kit.font(13))
+        view.setTextColor_(kit.ink())
+        view.setTextContainerInset_((0, 4))
+        view.textContainer().setLineFragmentPadding_(0)
+        view.setVerticallyResizable_(True)
+        view.setHorizontallyResizable_(False)
+        view.setAutoresizingMask_(2)
+        view.textContainer().setWidthTracksTextView_(True)
+        view.setString_("\n\n".join(v["lines"]))
+        scroll.setDocumentView_(view)
+        kit.button(card, "Copy text", 24, ch - 52, 110, 36, (lambda t="\n".join(v["lines"]): self.copy_text(t, "Copied the text.")),
+                   kind="primary", size=13, weight=600)
+        link = v["url"] or screen["url"]
+        if link:
+            kit.button(card, "Copy link", 24 + 118, ch - 52, 110, 36, (lambda u=link: self.copy_text(u, "Copied the link.")),
+                       kind="quiet", size=13, weight=600)
+
+    def _viewer_to(self, k):
+        self.dialog["v"] = k
+        self._dialog()
 
     def _search(self, doc, page, x, y, w):
         if page["none"]:

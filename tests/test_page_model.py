@@ -282,15 +282,12 @@ class ThingPageTests(unittest.TestCase):
         state = pm.press(reg, pm.new_state(), "thing", "a", items)
         page = pm.view(reg, items, state, NOW)["main"]
         self.assertEqual(page["latest"], [("To", "Sam"), ("Subject", "Numbers")])
-        first, second = page["excerpts"]
-        self.assertEqual((first["id"], first["source"], first["when"]), ("new", "Q3 deck", "1 h ago"))     # newest first
-        self.assertEqual((len(first["lines"]), first["more"]), (pm.VISIBLE_LINES, 4))                      # repeats dropped
-        self.assertEqual(first["decisions"], ["We agreed on the Q3 numbers."])
-        self.assertEqual((second["id"], second["source"], second["more"]), ("old", "Docs", 0))
-        state = pm.press(reg, state, "expand", "new")
-        again = pm.view(reg, items, state, NOW)["main"]["excerpts"][0]
-        self.assertEqual((len(again["lines"]), again["more"], again["open"]), (10, 0, True))
-        self.assertFalse(pm.press(reg, state, "expand", "new")["ex_open"])                                 # toggles back
+        card = page["screen"]
+        self.assertEqual((card["place"], card["when"], card["count"]), ("Q3 deck · Docs", "1 h ago", 2))   # newest on top, one card
+        self.assertEqual(card["decisions"], ["We agreed on the Q3 numbers."])
+        new, old = card["versions"]                                                                         # the viewer's dated tabs
+        self.assertEqual((new["place"], len(new["lines"])), (None, 10))                                    # place shown once; repeats dropped
+        self.assertEqual((old["place"], old["when"], old["lines"]), ("Docs", "2 days ago", ["Older passage here"]))
 
     def test_a_ticked_note_stays_crossed_out_until_its_hold_is_over(self):
         reg, items, ids = world()
@@ -305,12 +302,35 @@ class ThingPageTests(unittest.TestCase):
         self.assertEqual([n["text"] for n in folded["open"]], ["call Lee"])
         self.assertEqual([(n["id"], n["text"]) for n in folded["done"]], [(nid, "buy soil")])
 
+    def test_a_passage_says_where_it_was_and_what_it_was_without_the_raw_text(self):
+        src = {"url": "https://www.godaddy.com/domainsearch/find?q=trace", "app": "Chrome", "window": "Domain search"}
+        self.assertEqual(pm.place_of(src), "godaddy.com/domainsearch/find?q=trace")                        # the page address
+        self.assertEqual(pm.place_of({"app": "VS Code", "window": "lmemm.py — LMemM"}), "lmemm.py — LMemM · VS Code")
+        self.assertEqual(pm.place_of({"app": "Notes", "window": "Notes"}), "Notes")
+        self.assertEqual(pm.place_of({}), "Screen")
+        content = {"excerpts": [{"id": "a", "text": "Istyronly with 3 yrtorm O", "source": src}, {"id": "b", "text": "older words"}]}
+        card = pm.screen_of(content, NOW, summary="Searching for a domain")
+        self.assertEqual((card["place"], card["summary"], card["url"]), ("Screen", "Searching for a domain", None))   # newest has no url
+        self.assertEqual(pm.screen_of(content, NOW)["summary"], None)                                       # no sentence yet: nothing invented
+        self.assertEqual(pm.screen_of({"excerpts": [{"id": "x", "text": "t", "source": src}]}, NOW)["url"], src["url"])
+        self.assertIsNone(pm.screen_of({"excerpts": [{"id": "x", "text": "t", "source": {"url": "file:///etc/hosts"}}]}, NOW)["url"])
+
+    def test_versions_with_the_same_age_still_have_different_tab_labels(self):
+        self.assertEqual(pm.stamp(when(minutes=47), NOW), "Today 14:13")
+        self.assertEqual(pm.stamp(when(days=1), NOW), "Yesterday 15:00")
+        self.assertEqual(pm.stamp(when(days=2, hours=1), NOW), "Wed 14:00")
+        self.assertEqual(pm.stamp(when(days=20), NOW), "19 Sep 15:00")
+        self.assertEqual(pm.stamp("not a time", NOW), "")
+        content = {"excerpts": [{"id": str(n), "text": f"t{n}", "last_seen": when(days=2, minutes=n * 7)} for n in range(3)]}
+        labels = [v["label"] for v in pm.screen_of(content, NOW)["versions"]]
+        self.assertEqual(len(set(labels)), 3, labels)                                                       # "2 days ago" x3 are now told apart
+
     def test_the_text_it_read_survives_every_shape_memory_has_had(self):
         now = NOW
-        self.assertEqual(pm.excerpts_of("plain words", now)[0]["lines"], ["plain words"])
+        self.assertEqual(pm.screen_of("plain words", now)["versions"][0]["lines"], ["plain words"])
         for odd in (None, {}, {"excerpts": []}, {"excerpts": [None, {"text": 5}, {"text": "  "}]}, 5, []):
-            self.assertEqual(pm.excerpts_of(odd, now), [])
-        self.assertEqual(len(pm.excerpts_of({"excerpts": [{"id": str(n), "text": f"t{n}"} for n in range(9)]}, now)), pm.EXCERPTS_SHOWN)
+            self.assertIsNone(pm.screen_of(odd, now))
+        self.assertEqual(pm.screen_of({"excerpts": [{"id": str(n), "text": f"t{n}"} for n in range(9)]}, now)["count"], pm.VERSIONS_SHOWN)
 
     def test_odd_stored_values_never_break_a_page(self):
         reg, items, ids = world()
@@ -491,7 +511,7 @@ class WindowWiringTests(unittest.TestCase):
         with open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")) as fh:
             source = fh.read()
         sent = set(re.findall(r'self\.press\("([a-z_]+)"', source))
-        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_subs", "more_side", "needs", "search", "clear", "thing", "back", "expand"} <= sent, sent)
+        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_subs", "more_side", "needs", "search", "clear", "thing", "back"} <= sent, sent)
         reg, _items, ids = world()
         for action in sent:
             pm.press(reg, pm.new_state(), action, ids["work"] if action in {"go", "toggle"} else "x")      # none raises

@@ -284,14 +284,10 @@ class ThingPageTests(unittest.TestCase):
         self.assertEqual(page["latest"], [("To", "Sam"), ("Subject", "Numbers")])
         card = page["screen"]
         self.assertEqual((card["place"], card["when"], card["count"]), ("Q3 deck · Docs", "1 h ago", 2))   # newest on top, one card
-        self.assertEqual((card["versions"], card["open"]), ([], False))                                    # raw text hidden by default
         self.assertEqual(card["decisions"], ["We agreed on the Q3 numbers."])
-        state = pm.press(reg, state, "expand", "screen")
-        card = pm.view(reg, items, state, NOW)["main"]["screen"]
-        new, old = card["versions"]
-        self.assertEqual((new["place"], len(new["lines"])), (None, 10))                                    # link shown once; repeats dropped
+        new, old = card["versions"]                                                                         # the viewer's dated tabs
+        self.assertEqual((new["place"], len(new["lines"])), (None, 10))                                    # place shown once; repeats dropped
         self.assertEqual((old["place"], old["when"], old["lines"]), ("Docs", "2 days ago", ["Older passage here"]))
-        self.assertFalse(pm.press(reg, state, "expand", "screen")["ex_open"])                              # toggles back
 
     def test_a_ticked_note_stays_crossed_out_until_its_hold_is_over(self):
         reg, items, ids = world()
@@ -321,7 +317,7 @@ class ThingPageTests(unittest.TestCase):
 
     def test_the_text_it_read_survives_every_shape_memory_has_had(self):
         now = NOW
-        self.assertEqual(pm.screen_of("plain words", now, expanded=("screen",))["versions"][0]["lines"], ["plain words"])
+        self.assertEqual(pm.screen_of("plain words", now)["versions"][0]["lines"], ["plain words"])
         for odd in (None, {}, {"excerpts": []}, {"excerpts": [None, {"text": 5}, {"text": "  "}]}, 5, []):
             self.assertIsNone(pm.screen_of(odd, now))
         self.assertEqual(pm.screen_of({"excerpts": [{"id": str(n), "text": f"t{n}"} for n in range(9)]}, now)["count"], pm.VERSIONS_SHOWN)
@@ -505,7 +501,7 @@ class WindowWiringTests(unittest.TestCase):
         with open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")) as fh:
             source = fh.read()
         sent = set(re.findall(r'self\.press\("([a-z_]+)"', source))
-        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_subs", "more_side", "needs", "search", "clear", "thing", "back", "expand"} <= sent, sent)
+        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_subs", "more_side", "needs", "search", "clear", "thing", "back"} <= sent, sent)
         reg, _items, ids = world()
         for action in sent:
             pm.press(reg, pm.new_state(), action, ids["work"] if action in {"go", "toggle"} else "x")      # none raises

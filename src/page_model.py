@@ -121,12 +121,12 @@ def plural(n, one, many=None):
 
 def new_state():
     return {"view": "home", "pid": None, "q": "", "open": [], "deep": True, "app": None,
-            "shown": THINGS_SHOWN, "subs": SUBS_SHOWN, "lim": {}, "needs_all": False, "tid": None, "back": None, "ex_open": [], "sec": "you"}
+            "shown": THINGS_SHOWN, "subs": SUBS_SHOWN, "lim": {}, "needs_all": False, "tid": None, "back": None, "sec": "you"}
 
 
 def press(reg, state, action, arg=None, items=None):
     """A new state after a press. Unknown projects (deleted since) fall back to home."""
-    s = {**state, "open": list(state["open"]), "lim": dict(state["lim"]), "ex_open": list(state.get("ex_open", []))}
+    s = {**state, "open": list(state["open"]), "lim": dict(state["lim"])}
     if action == "home":
         s.update(view="home", pid=None, q="", needs_all=False)
     elif action == "go":
@@ -141,17 +141,12 @@ def press(reg, state, action, arg=None, items=None):
             return state
         if state["view"] != "thing":
             s["back"] = {"view": state["view"], "pid": state["pid"], "q": state["q"]}
-        s.update(view="thing", tid=arg, ex_open=[])
+        s.update(view="thing", tid=arg)
     elif action == "back":
         before = state.get("back") or {"view": "home", "pid": None, "q": ""}
         if before["view"] == "project" and not projects.exists(reg, before["pid"]):
             before = {"view": "home", "pid": None, "q": ""}
         s.update(view=before["view"], pid=before["pid"], q=before["q"], tid=None, back=None)
-    elif action == "expand":
-        if arg in s["ex_open"]:
-            s["ex_open"].remove(arg)
-        else:
-            s["ex_open"].append(arg)
     elif action == "toggle":
         if arg in s["open"]:
             s["open"].remove(arg)
@@ -309,7 +304,7 @@ def main(reg, items, state, counts, now, fading=(), sugg=None, prefs=None):
     if view == "settings" and prefs:
         return prefs
     if view == "thing" and state.get("tid") in items:
-        return thing_page(reg, items[state["tid"]], now, state.get("ex_open", ()), fading)
+        return thing_page(reg, items[state["tid"]], now, fading)
     if view == "search":
         return search(reg, items, state["q"], now)
     if view == "archived":
@@ -417,9 +412,9 @@ def place_of(source):
     return " · ".join(dict.fromkeys(" ".join(p.split()) for p in parts)) or "Screen"
 
 
-def screen_of(content, now, expanded=(), summary=None):
-    """"What was on screen" as ONE card: where it was (once), a plain summary, and, behind History, the
-    raw text as dated versions, newest first. Older memory kept one plain string; now it is
+def screen_of(content, now, summary=None):
+    """"What was on screen" as ONE card: where it was (once), a plain summary, and the raw text as
+    dated versions, newest first, for the viewer. Older memory kept one plain string; now it is
     {"excerpts": [{"id", "text", "source", "last_seen", "decision_quotes"}, ...]}, newest last
     (memory_content.py). Anything odd becomes no card."""
     if isinstance(content, str):
@@ -454,11 +449,10 @@ def screen_of(content, now, expanded=(), summary=None):
     for v in versions:                                   # the link is shown once; a version only names its place if it differs
         v["place"] = v["place"] if v["place"] != top["place"] else None
     return {"place": top["place"], "url": top["url"], "when": top["when"], "summary": summary,
-            "decisions": quotes[:DECISIONS_SHOWN], "open": "screen" in expanded,
-            "versions": versions if "screen" in expanded else [], "count": len(versions)}
+            "decisions": quotes[:DECISIONS_SHOWN], "versions": versions, "count": len(versions)}
 
 
-def thing_page(reg, item, now, expanded=(), fading=()):
+def thing_page(reg, item, now, fading=()):
     """Everything LMemM knows about one thing, read only (P9)."""
     main = projects._main(item)
     places = [{"id": p, "name": projects.get(reg, p)["name"], "hue": hue(p), "main": p == main,
@@ -482,7 +476,7 @@ def thing_page(reg, item, now, expanded=(), fading=()):
             "done": [{"id": notes.note_id(n), "text": n["text"], "when": ago(n.get("at"), now)} for n in done],
             "stats": [(k, v) for k, v in stats if v],
             "latest": [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]],
-            "screen": screen_of(item.get("content"), now, expanded, summary=item.get("doing") or None)}
+            "screen": screen_of(item.get("content"), now, summary=item.get("doing") or None)}
 
 
 # ---------------------------------------------------------------- search

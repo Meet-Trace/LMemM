@@ -748,6 +748,9 @@ class MainWindow:
         scrim.washes = False                                         # a backdrop does not light up under the pointer
         cw, cx = 460, (self.W - 460) / 2
         cy = max(16, min(120, (self.H - 520) // 2))                  # a tall picker still ends inside the smallest window
+        if d["kind"] == "viewer":
+            cw = min(720, self.W - 64)
+            cx, cy = (self.W - cw) / 2, 32
         card = self._tap(self.overlay, cx, cy, cw, 100, None)
         card.tint = kit.card_background()
         reg = self._reg()
@@ -838,6 +841,14 @@ class MainWindow:
                 kit.put_text(card, "No app matches.", 24, y + 2, cw - 48, 13, 400, kit.mute(), wrap=False, height=20)
                 y += 28
             y = self._dialog_buttons(card, cw, y + 10, "Done", None, None)
+        elif d["kind"] == "viewer":
+            ch = max(320, self.H - 64)
+            card.setFrame_(NSMakeRect(cx, cy, cw, ch))
+            self._viewer(card, cw, ch, d)
+            if arriving:
+                motion.fade_in(scrim)
+                motion.pop(card, origin="center", seconds=motion.MODAL_SECONDS, scale=motion.MODAL_SCALE)
+            return
         elif d["kind"] == "task":
             plan = d["plan"]
             y += kit.put_text(card, plan["title"], 24, y, cw - 48, 17, 700) + 10
@@ -1733,11 +1744,11 @@ class MainWindow:
         return height
 
     def _screen(self, doc, e, x, y, w):
-        """One card: where it was (once) with a quiet Open, a one-line summary, any decision found, and a
-        History link that lists the raw text as dated versions."""
+        """One short card: where it was (once) with a quiet Open, a one-line summary, any decision found,
+        and a link to the viewer, where the raw text lives."""
         def body(box, inner):
             reach = inner - 70 if e["url"] else inner
-            top = kit.put_text(box, e["place"], 14, 12, reach, 14, 600, wrap=False, height=20)
+            kit.put_text(box, e["place"], 14, 12, reach, 14, 600, wrap=False, height=20)
             if e["url"]:
                 self._link(box, "Open", 14 + inner - 52, 8, (lambda u=e["url"]: self.open_url(u)), size=13, color=kit.accent_text())
             top = 24
@@ -1747,22 +1758,51 @@ class MainWindow:
                 h = kit.put_text(box, "“" + quote + "”", 28, 12 + top, inner - 14, 13, 600, kit.accent_text())
                 box.addSubview_(_Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14))))
                 top += h + 10
-            for i, v in enumerate(e["versions"]):
-                head = v["when"] + (" · " + v["place"] if v["place"] else "")
-                kit.put_text(box, head.upper(), 14, 12 + top + 6, inner - 90, 11, 600, kit.mute(), wrap=False, height=14)
-                if i == 0:
-                    self._link(box, "Copy text", 14 + inner - 80, 12 + top, (lambda t="\n".join(v["lines"]): self.copy_text(t, "Copied the text.")), size=12)
-                top += 28
-                for line in v["lines"]:
-                    top += kit.put_text(box, line, 14, 12 + top, inner, 12, 400, kit.mute()) + 5
-                top += 10
-            label = "Hide history" if e["open"] else "History" + (f" · {e['count']} versions" if e["count"] > 1 else "")
-            self._link(box, label, 8, 12 + top - 2, (lambda: self.press("expand", "screen")), size=12)
-            if e["url"] and e["open"]:
-                self._link(box, "Copy link", 8 + kit.text_width(label, 12, 500) + 24, 12 + top - 2,
-                           (lambda u=e["url"]: self.copy_text(u, "Copied the link.")), size=12)
+            label = "View text" + (f" · {e['count']} versions" if e["count"] > 1 else "")
+            self._link(box, label, 8, 12 + top - 2, (lambda: self.open_viewer(e)), size=12)
             return top + 18
         return self._card_box(doc, x, y, w, body)
+
+    def open_viewer(self, screen):
+        """The raw screen text in a viewer of its own: a fixed header, one tab per dated version, and a
+        scroll area of bounded height, so Close and Copy never scroll away."""
+        self.dialog = {"kind": "viewer", "screen": screen, "v": 0}
+        self._dialog()
+
+    def _viewer(self, card, cw, ch, d):
+        screen, i = d["screen"], d["v"]
+        v = screen["versions"][i]
+        kit.put_text(card, screen["place"], 24, 20, cw - 48 - 90, 15, 700, wrap=False, height=24)
+        kit.button(card, "Close", cw - 24 - 76, 16, 76, 32, self.close_dialog, kind="quiet", size=13, weight=600)
+        x = 24
+        for n, ver in enumerate(screen["versions"]):                # one tab per dated version, newest first
+            width = kit.text_width(ver["when"], 13, 600) + 28
+            kit.button(card, ver["when"], x, 60, width, 30, (lambda k=n: self._viewer_to(k)),
+                       kind="primary" if n == i else "quiet", size=13, weight=600)
+            x += width + 8
+        top = 104
+        if v["place"]:
+            kit.put_text(card, v["place"], 24, top, cw - 48, 12, 400, kit.mute(), wrap=False, height=16)
+            top += 22
+        scroll = _scroll(card)
+        scroll.setFrame_(NSMakeRect(24, top, cw - 48, ch - top - 64))
+        inner = cw - 48 - 16
+        pane = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, inner, 10))
+        y = 4
+        for line in v["lines"]:
+            y += kit.put_text(pane, line, 0, y, inner, 13, 400) + 8
+        pane.setFrame_(NSMakeRect(0, 0, inner, y + 8))
+        scroll.setDocumentView_(pane)
+        kit.button(card, "Copy text", 24, ch - 52, 110, 36, (lambda t="\n".join(v["lines"]): self.copy_text(t, "Copied the text.")),
+                   kind="primary", size=13, weight=600)
+        link = v["url"] or screen["url"]
+        if link:
+            kit.button(card, "Copy link", 24 + 118, ch - 52, 110, 36, (lambda u=link: self.copy_text(u, "Copied the link.")),
+                       kind="quiet", size=13, weight=600)
+
+    def _viewer_to(self, k):
+        self.dialog["v"] = k
+        self._dialog()
 
     def _search(self, doc, page, x, y, w):
         if page["none"]:

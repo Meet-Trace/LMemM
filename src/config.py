@@ -36,6 +36,9 @@ FINDER_WORTH = True                    # a new group must also pass "is this del
 FINDER_WORK_JUDGE = "lmemm-judge-v4-cpu"   # the Ollama model that answers only that question ("" = FINDER_JUDGE
                                        # itself); it spots idle looking around but groups worse than the judge
 FINDER_CANDIDATES = 5                  # projects a task is judged against, out of all of them
+FINDER_EXACT_LINKS = True              # beta: windows that are exactly the same thing (versions of one file in one
+                                       # folder, one git branch of one repository) start as one task, and the judge is
+                                       # told so; it still decides which project (exact_links.py). False = off
 IDLE = 60               # no input for this long -> pause
 MAX_QUEUE = 8           # resolver backlog above which timer captures are skipped
 MAX_PX = 1600           # a captured screen wider than this is scaled down to it

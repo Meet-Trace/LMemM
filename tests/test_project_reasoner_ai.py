@@ -454,13 +454,19 @@ class TrailDaysTest(unittest.TestCase):
         try:
             with redirect_stdout(io.StringIO()) as out:
                 runs, _ = bench_ai_grouping.main(["--narrator", "fake", "--judge", "fake", "--url", url, "--cpu", "2",
-                                                  "--days", "pivot_day,versions_day,dev_day", "--variants", "finder-work",
-                                                  "--rules", "raw"])
+                                                  "--days", "pivot_day,versions_day,dev_day", "--variants",
+                                                  "finder-work,finder-work-links", "--rules", "raw"])
         finally:
             server.shutdown()
             server.server_close()
         for name in ("pivot_day", "versions_day", "dev_day"):
             self.assertIn(f"reader {name} finder-work raw:", out.getvalue())
+            self.assertIn(f"reader {name} finder-work-links raw:", out.getvalue())
+        linked = [r for r in runs if r["variant"] == "finder-work-links"]
+        self.assertEqual(len(linked), 3)
+        for run in linked:
+            self.assertTrue(any(e["step"] == "links" for e in run["log"]), run["day"])
+        self.assertTrue(any(e["bundles"] for r in linked if r["day"] == "versions_day" for e in r["log"] if e["step"] == "links"))
 
 
 if __name__ == "__main__":

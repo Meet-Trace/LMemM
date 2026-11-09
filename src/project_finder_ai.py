@@ -198,7 +198,7 @@ def find(reg, items, visits, now=None, days=finder.LOOKBACK_DAYS, url=URL):
                                      library=library, retrieve=retriever, margin=config.FINDER_MARGIN,
                                      abstain_shared=True, confirm=config.FINDER_CONFIRM or None,
                                      use_description=config.FINDER_DESCRIBE, worth=config.FINDER_WORTH,
-                                     work_judge=work_judge)
+                                     work_judge=work_judge, links=config.FINDER_EXACT_LINKS)
         except ai.OutOfBudget:
             finder.record("look", method="ai", things=len(loose), paused=True, calls=calls(),
                           seconds=round((datetime.now() - t0).total_seconds()))

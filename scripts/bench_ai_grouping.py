@@ -19,6 +19,8 @@ Research only: reads the two labelled days in tests/fixtures/project_grouping, w
                   app and title, then again with what was typed, then with what was read. Compare narrator
                   models (--narrator, --cpu) on finder-work and finder-work-steps: after each run a line says
                   how many sentences, seconds a call and how many windows got an invented name
+    finder-work-links  finder-work with the beta exact links (exact_links.py): versions of one file in one folder
+                  and one git branch of one repository start as one task and the judge is told so
     ai-nogeneral  skip the specific-or-general step, so inboxes go in and the pair judge must keep them out
 
 Each variant runs with both decision rules (raw, calibrated). --blind adds runs on a copy of each day
@@ -53,6 +55,8 @@ VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs"
             "finder-work": {"retrieve": True, "abstain_shared": True, "confirm": "mean", "worth": True},
             "finder-work-steps": {"retrieve": True, "abstain_shared": True, "confirm": "mean", "worth": True,
                                   "say_steps": True},
+            "finder-work-links": {"retrieve": True, "abstain_shared": True, "confirm": "mean", "worth": True,
+                                  "links": True},
             "finder-nodesc-mean": {"retrieve": True, "abstain_shared": True, "use_description": False,
                                    "confirm": "mean"},
             "finder-nodesc-best": {"retrieve": True, "abstain_shared": True, "use_description": False,

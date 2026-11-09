@@ -34,6 +34,9 @@ In the app (project_finder.py) three more things hold, so it scales to hundreds 
     abstain     a task the judge says yes to for two projects is a shared resource: it is logged as linked
                 to both and filed in neither, and joins need the answer to clear `margin`
 A Budget caps new model calls per look; everything answered is cached, so the next look carries on.
+Beta, links=True: exact facts (exact_links.py: versions of one file in one folder, one git branch of one repository)
+start two linked windows of a sitting as one task in A3, and A4 tells the judge the link in words. They never choose
+a project: that is still the model's answer.
 
 Decisions read the judge's probabilities (tiny_scorer), never its written words. Two rules:
     raw         yes when P(yes) > P(no)
@@ -47,11 +50,13 @@ import math
 import re
 import time
 
+import exact_links
 import project_reasoner as reasoner
 import project_reasoner_graph as graph
 import tiny_scorer as ts
 
 RULES = ("raw", "calibrated")
+LINK_SCORE = 10.0           # what a pair of exactly linked windows counts as in A3 (no model call)
 WINDOW_CHARS = 500          # what the narrator reads of one window
 ACTIVITY_CHARS = 300        # what the judge reads of one window, beside the narrator's sentence
 TASK_CHARS = 1400           # what the judge reads of one task
@@ -294,7 +299,7 @@ def day_sittings(timeline, ids, all_pairs=False):
 
 def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False, gate_rule=None,
         seeds=(), library=None, retrieve=None, margin=0.0, abstain_shared=False, confirm=None,
-        use_description=True, worth=False, work_judge=None, say_steps=False):
+        use_description=True, worth=False, work_judge=None, say_steps=False, links=False):
     """Group the things in `items`. `judge(instruct, query, doc)` returns log-odds yes vs no; `narrator(system,
     user, max_tokens)` writes a sentence, or None to let the judge read raw windows only.
     `gate_rule` is the rule for the general-place step when it should differ from `rule`.
@@ -312,6 +317,9 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
     (same call shape) answers only that question when it should be another model than the one grouping.
     With `say_steps` the narrator is given a window a little at a time (window_steps): a sentence from the app
     and title alone, then again with what was typed, then with what was read, each time shown its last sentence.
+    With `links` (beta), windows tied by an exact fact (exact_links: versions of one file in one folder, the same git
+    branch of one repository) start as one task when they share a sitting, and the judge of a task is told its links
+    in plain words. A link never files anything: which project a task belongs to is still the model's answer.
     Returns (assigned {id: [project]}, projects {project: summary}, log)."""
     if rule not in RULES or (gate_rule or rule) not in RULES:
         raise ValueError(f"Rule must be one of {', '.join(RULES)}.")
@@ -374,7 +382,18 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
             log.append({"step": "general", "id": i, "score": s,
                         "decision": "a general place: not filed" if s > 0 else "kept"})
 
+    linked, partners = set(), {}                                                  # beta: exact links
+    if links:
+        found = exact_links.bundles({i: lookup[i] for i in keep})
+        for b in found:
+            linked |= {frozenset(p) for p in itertools.combinations(b["ids"], 2)}
+            for i in b["ids"]:
+                partners.setdefault(i, []).append(b)
+        log.append({"step": "links", "bundles": [{k: b[k] for k in ("kind", "key", "ids")} for b in found]})
+
     def pair_score(a, b):                                                         # A3
+        if frozenset((a, b)) in linked:
+            return LINK_SCORE
         s = (judge(INSTRUCT_PAIR, act[a], act[b]) + judge(INSTRUCT_PAIR, act[b], act[a])) / 2
         if calibrated:
             s -= (judge(INSTRUCT_PAIR, act[a], ts.NULL_CARD) + judge(INSTRUCT_PAIR, ts.NULL_CARD, act[b])
@@ -401,7 +420,9 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
 
     def task_doc(task):
         budget = max(120, ACTIVITY_CHARS // len(task) * 2)
-        return "\n\n".join(activity(m, budget) for m in task)[:TASK_CHARS]
+        notes = list(dict.fromkeys(b["note"] for m in task for b in partners.get(m, ())))
+        head = "\n".join(notes) + "\n\n" if notes else ""
+        return head + "\n\n".join(activity(m, budget) for m in task)[:max(0, TASK_CHARS - len(head))]
 
     raw = {}
 

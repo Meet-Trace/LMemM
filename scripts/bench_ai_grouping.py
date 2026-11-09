@@ -15,6 +15,10 @@ Research only: reads the two labelled days in tests/fixtures/project_grouping, w
     ai-allpairs-unread  every pair of the day, without the narrator
     finder        what the app runs (project_finder_ai.py): candidates retrieved per task (--embed,
                   --candidates), a task two projects both claim is filed in neither, joins above --margin
+    finder-work-steps  finder-work with the narrator given each window a little at a time: a sentence from the
+                  app and title, then again with what was typed, then with what was read. Compare narrator
+                  models (--narrator, --cpu) on finder-work and finder-work-steps: after each run a line says
+                  how many sentences, seconds a call and how many windows got an invented name
     ai-nogeneral  skip the specific-or-general step, so inboxes go in and the pair judge must keep them out
 
 Each variant runs with both decision rules (raw, calibrated). --blind adds runs on a copy of each day
@@ -47,6 +51,8 @@ VARIANTS = {"ai": {}, "ai-unread": {"unread": True}, "ai-allpairs": {"all_pairs"
             "finder-nodesc": {"retrieve": True, "abstain_shared": True, "use_description": False},
             "finder-mean": {"retrieve": True, "abstain_shared": True, "confirm": "mean"},
             "finder-work": {"retrieve": True, "abstain_shared": True, "confirm": "mean", "worth": True},
+            "finder-work-steps": {"retrieve": True, "abstain_shared": True, "confirm": "mean", "worth": True,
+                                  "say_steps": True},
             "finder-nodesc-mean": {"retrieve": True, "abstain_shared": True, "use_description": False,
                                    "confirm": "mean"},
             "finder-nodesc-best": {"retrieve": True, "abstain_shared": True, "use_description": False,
@@ -149,9 +155,11 @@ def main(argv=None):
     if args.narrator_mlx:
         narrator = ai.Narrator(ts.MlxChatScorer(args.narrator_mlx), cache, name=f"mlx={args.narrator_mlx}")
     elif args.narrator:
+        # a sentence is cached under the model that wrote it, so narrators compared on one cache never read each other's
+        tag = ("cold=" if args.narrator_cold else "") + ("cpu=" if args.cpu else "")
         narrator = ai.Narrator(ts.ChatScorer(args.narrator, args.url, timeout=300, extra=cpu,
                                              keep_alive=0 if args.narrator_cold else None),
-                               cache, name=f"cold={args.narrator}" if args.narrator_cold else "")
+                               cache, name=f"{tag}{args.narrator}" if tag else "")
     else:
         narrator = None
     retriever = ai.Retriever(ts.Embedder(args.embed, args.url, timeout=300, extra=cpu) if args.embed else None,
@@ -189,8 +197,19 @@ def main(argv=None):
                         + ((work_judge.seconds - ws) if work_judge else 0.0)
                     sc = scores(truth, assigned, log)
                     table.append((scope, f"{v} {rule}", sc, calls, secs))
+                    said = [e for e in log if e["step"] == "understand"]
+                    reader = None
+                    if narrator is not None and not unread and said:
+                        n_calls, n_secs = narrator.calls - n0, narrator.seconds - ns
+                        invented = sum(1 for e in said if e.get("cut"))
+                        reader = {"sentences": len(said), "new_calls": n_calls, "seconds": n_secs,
+                                  "seconds_a_call": n_secs / n_calls if n_calls else None,
+                                  "invented": invented, "invented_share": invented / len(said)}
+                        print(f"   reader {scope} {v} {rule}: {len(said)} sentences, {n_calls} new calls"
+                              + (f", {n_secs / n_calls:.2f} s a call" if n_calls else " (all from the cache)")
+                              + f", {invented} with a name the window never showed ({100 * invented / len(said):.0f}%)")
                     runs.append({"day": day.stem, "blind": blind, "variant": v, "rule": rule, "scores": sc,
-                                 "assigned": assigned, "projects": summary, "log": log,
+                                 "assigned": assigned, "projects": summary, "log": log, "reader": reader,
                                  "new_calls": calls, "seconds": secs, "wall": time.monotonic() - t0})
                     if v == "ai" and rule == rules[0]:
                         print(f"\n== {scope}: what the model understood ({v}, {rule})")

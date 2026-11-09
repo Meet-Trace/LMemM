@@ -255,6 +255,29 @@ class FinderOptionsTest(unittest.TestCase):
         self.assertEqual(len([p for p in summary.values() if p.get("idle")]), 1)
         self.assertEqual(len(asked["work"]), len(summary))                            # one question a group
 
+    def test_the_narrator_can_be_given_each_window_a_little_at_a_time(self):
+        asked = []
+
+        def narrate(system, user, max_tokens):
+            asked.append(user)
+            return narrator(system, user, max_tokens)
+        _, _, plain = ai.run(self.items, self.timeline, judge, narrate)
+        self.assertFalse(any(u.startswith("Window so far:") for u in asked))
+        self.assertFalse(any("passes" in e for e in plain))
+        asked.clear()
+        _, _, log = ai.run(self.items, self.timeline, judge, narrate, say_steps=True)
+        firsts = [u for u in asked if u.startswith("Window:")]
+        mores = [u for u in asked if u.startswith("Window so far:")]
+        self.assertEqual(len(firsts), len(self.items))                                # every window starts from who and what
+        self.assertTrue(all("\n- " not in u for u in firsts))                          # no text lines yet
+        self.assertTrue(mores)
+        self.assertTrue(all("Your sentence so far: The person edited" in u and "App: " in u and "More of the window:\n- " in u
+                            for u in mores))
+        said = [e for e in log if e["step"] == "understand"]
+        self.assertEqual(len(said), len(self.items))
+        self.assertEqual(len(firsts) + len(mores), sum(e["passes"] for e in said))
+        self.assertGreater(max(e["passes"] for e in said), 1)
+
     def test_a_small_budget_stops_the_run_and_the_cache_carries_it_on(self):
         cache, answers = {}, []
         scorer = type("S", (), {"options_for": lambda self, i, q, d: answers.append(1) or (
@@ -316,6 +339,27 @@ class BenchTest(unittest.TestCase):
         ai_runs = [r for r in runs if r["variant"] == "ai" and not r["blind"]]
         self.assertTrue(all(r["scores"]["pair_auc"] > 0.5 and r["scores"]["general_auc"] > 0.5 for r in ai_runs))
         self.assertIn("pair AUC", text)
+
+
+class BenchReaderTest(unittest.TestCase):
+    def test_the_bench_reports_how_each_narrator_reads_and_can_step_through_a_window(self):
+        import bench_ai_grouping
+        server = HTTPServer(("127.0.0.1", 0), FakeOllama)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            with redirect_stdout(io.StringIO()) as out:
+                runs, _ = bench_ai_grouping.main(["--narrator", "fake", "--judge", "fake", "--url", url, "--cpu", "2",
+                                                  "--days", "sample_day", "--variants", "finder-work-steps",
+                                                  "--rules", "raw"])
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertIn("reader sample_day finder-work-steps raw:", out.getvalue())
+        reader = runs[0]["reader"]
+        self.assertGreater(reader["sentences"], 0)
+        self.assertGreater(reader["new_calls"], reader["sentences"])                   # more than one pass a window
+        self.assertTrue(any("passes" in e for e in runs[0]["log"] if e["step"] == "understand"))
 
 
 class MeaningDayTest(unittest.TestCase):

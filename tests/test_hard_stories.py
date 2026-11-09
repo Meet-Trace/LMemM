@@ -125,6 +125,19 @@ class LessonsOfHardStoriesTest(unittest.TestCase):
                      for n, d in (("without", a), ("with", b))}
         self.assertEqual(valid["without"], valid["with"])
 
+    def test_the_grouping_judge_recipe_leaves_out_idle_stories_and_work_lessons(self):
+        with tempfile.TemporaryDirectory() as out:
+            counts = lessons.main(["--stories", str(STORIES), "--out", out, "--skip", "stories_aimless,stories_tooling",
+                                   "--kinds", "pair,project,general"])
+            rows = [json.loads(x) for n in ("train", "valid") for x in (Path(out) / f"{n}.jsonl").read_text().splitlines()]
+        self.assertEqual({r["kind"] for r in rows}, {"pair", "project", "general"})
+        self.assertEqual(counts["train"]["work"], 0)
+        left_out = {s["id"] for name in ("stories_aimless", "stories_tooling")
+                    for s in json.loads((STORIES / f"{name}.json").read_text())}
+        self.assertFalse(left_out & {r["story"] for r in rows})
+        with self.assertRaises(SystemExit):
+            lessons.main(["--stories", str(STORIES), "--out", out, "--kinds", "pairs"])
+
 
 if __name__ == "__main__":
     unittest.main()

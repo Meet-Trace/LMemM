@@ -244,11 +244,20 @@ def main(argv=None):
                    help="a folder of general places (*.json lists of windows), split like the stories")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--valid", type=float, default=0.15, help="share of stories kept for validation")
+    p.add_argument("--skip", default="", help="comma-separated stories file names (without .json) to leave out, "
+                   "e.g. stories_aimless,stories_tooling")
+    p.add_argument("--kinds", default="", help="comma-separated kinds of lesson to keep: pair, project, general, work "
+                   "(all when empty). The grouping judge (judge_v3) was taught without work lessons.")
     p.add_argument("--hard-valid", type=float, default=0.25,
                    help="share of the round-5 twin pairs and pivots kept for validation")
     p.add_argument("--seed", type=int, default=7)
     args = p.parse_args(argv)
     files = sorted(args.stories.glob("*.json")) if args.stories.is_dir() else [args.stories]
+    skip = {x.strip() for x in args.skip.split(",") if x.strip()}
+    files = [f for f in files if f.stem not in skip]
+    kinds = {x.strip() for x in args.kinds.split(",") if x.strip()}
+    if kinds - {"pair", "project", "general", "work"}:
+        p.error("--kinds takes pair, project, general and work")
     stories = [s for f in files for s in json.loads(f.read_text())]
     check(stories)
     rnd = random.Random(args.seed)
@@ -269,6 +278,7 @@ def main(argv=None):
     counts = {}
     for name, group in split.items():
         rows = lessons(group, rnd, places[name], name)
+        rows = [r for r in rows if not kinds or r["kind"] in kinds]
         rnd.shuffle(rows)
         with open(args.out / f"{name}.jsonl", "w") as fh:
             for r in rows:

@@ -1,0 +1,620 @@
+{
+ "version": 1,
+ "about": "Sixth invented day, the developer test. Not real data. Two pieces of work, a feature and a bug fix, are in the same repository, so the repository does not tell them apart; the branch in each terminal does, and the bug-fix terminal's stash message names the feature branch. A home-server move shares tools with neither. An inbox, a news front page and idle log reading belong to no project.",
+ "items": {
+  "cx-term": {
+   "id": "cx-term",
+   "app": "Terminal",
+   "kind": "terminal",
+   "title": "ledgerly (feat/csv-export) - zsh",
+   "doing": "Working on \"ledgerly (feat/csv-export) - zsh\"",
+   "state": {
+    "cwd": "~/code/ledgerly"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 90,
+     "text": [
+      "$ git checkout -b feat/csv-export",
+      "$ pytest tests/test_export.py -q",
+      "$ git push -u origin feat/csv-export"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "3 passed in 0.41s"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T09:03:00",
+   "last_seen": "2026-11-11T14:50:00",
+   "seconds": 600,
+   "visits": 3,
+   "label": [
+    "CSV export"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Switched to a new branch 'feat/csv-export'",
+      "source": {
+       "app": "Terminal"
+      }
+     }
+    ]
+   }
+  },
+  "cx-code": {
+   "id": "cx-code",
+   "app": "Visual Studio Code",
+   "kind": "code_file",
+   "title": "export.py - ledgerly",
+   "doing": "Working on \"export.py - ledgerly\"",
+   "state": {
+    "file": "~/code/ledgerly/ledgerly/export.py"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 120,
+     "text": [
+      "def export_csv(rows, path):",
+      "writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)",
+      "# TODO: utf-8 BOM for Excel",
+      "writer.writerow(['date', 'account', 'amount', 'memo'])"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "class ExportJob",
+      "rows = ledger.query(account=account)"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T09:07:00",
+   "last_seen": "2026-11-11T14:58:00",
+   "seconds": 2580,
+   "visits": 3,
+   "label": [
+    "CSV export"
+   ]
+  },
+  "cx-page-so": {
+   "id": "cx-page-so",
+   "app": "Safari",
+   "kind": "page",
+   "title": "python - csv.writer and unicode in Excel - Stack Overflow",
+   "doing": "Working on \"python - csv.writer and unicode in Excel - Stack Overflow\"",
+   "state": {
+    "url": "https://stackoverflow.example/questions/csv-writer-unicode-excel"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Open the file with encoding='utf-8-sig' so Excel detects UTF-8"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T09:32:00",
+   "last_seen": "2026-11-11T09:38:00",
+   "seconds": 360,
+   "visits": 1,
+   "label": [
+    "CSV export"
+   ]
+  },
+  "cx-page-pr": {
+   "id": "cx-page-pr",
+   "app": "GitHub",
+   "kind": "page",
+   "title": "Add CSV export by account #212 - tidepool/ledgerly",
+   "doing": "Working on \"Add CSV export by account #212 - tidepool/ledgerly\"",
+   "state": {
+    "url": "https://github.com/tidepool/ledgerly/pull/212"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "feat/csv-export into main",
+      "2 files changed",
+      "Review requested: Meera"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T14:00:00",
+   "last_seen": "2026-11-11T14:05:00",
+   "seconds": 300,
+   "visits": 1,
+   "label": [
+    "CSV export"
+   ]
+  },
+  "cx-chat-slack": {
+   "id": "cx-chat-slack",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "#ledgerly-dev",
+   "doing": "Working on \"#ledgerly-dev\"",
+   "state": {
+    "chat": "#ledgerly-dev",
+    "workspace": "Tidepool"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Yes, adding the memo column now"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Meera: can the export include the memo column?"
+     ],
+     "count": 1
+    }
+   },
+   "first_seen": "2026-11-11T09:51:00",
+   "last_seen": "2026-11-11T14:08:00",
+   "seconds": 360,
+   "visits": 2,
+   "label": [
+    "CSV export"
+   ]
+  },
+  "lt-term": {
+   "id": "lt-term",
+   "app": "Terminal",
+   "kind": "terminal",
+   "title": "ledgerly (fix/login-timeout) - zsh",
+   "doing": "Working on \"ledgerly (fix/login-timeout) - zsh\"",
+   "state": {
+    "cwd": "~/code/ledgerly"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 90,
+     "text": [
+      "$ git stash",
+      "$ git checkout -b fix/login-timeout",
+      "$ pytest tests/test_session.py -q"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "1 failed: test_session_expires_after_idle"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T14:18:00",
+   "last_seen": "2026-11-11T14:47:00",
+   "seconds": 540,
+   "visits": 2,
+   "label": [
+    "Login timeout bug"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Saved working directory and index state WIP on feat/csv-export",
+      "source": {
+       "app": "Terminal"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Switched to a new branch 'fix/login-timeout'",
+      "source": {
+       "app": "Terminal"
+      }
+     }
+    ]
+   }
+  },
+  "lt-code": {
+   "id": "lt-code",
+   "app": "Visual Studio Code",
+   "kind": "code_file",
+   "title": "session.py - ledgerly",
+   "doing": "Working on \"session.py - ledgerly\"",
+   "state": {
+    "file": "~/code/ledgerly/ledgerly/session.py"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "SESSION_TTL = 30 * 60",
+      "if now - last_seen > SESSION_TTL: raise SessionExpired"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "def refresh_session(token)"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T14:23:00",
+   "last_seen": "2026-11-11T14:43:00",
+   "seconds": 1200,
+   "visits": 1,
+   "label": [
+    "Login timeout bug"
+   ]
+  },
+  "lt-page-issue": {
+   "id": "lt-page-issue",
+   "app": "GitHub",
+   "kind": "page",
+   "title": "Users logged out after 5 minutes - Issue #198 - tidepool/ledgerly",
+   "doing": "Working on \"Users logged out after 5 minutes - Issue #198 - tidepool/ledgerly\"",
+   "state": {
+    "url": "https://github.com/tidepool/ledgerly/issues/198"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Reported by 14 users",
+      "Started after release 2.3.1"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T14:08:00",
+   "last_seen": "2026-11-11T14:12:00",
+   "seconds": 240,
+   "visits": 1,
+   "label": [
+    "Login timeout bug"
+   ]
+  },
+  "lt-page-sentry": {
+   "id": "lt-page-sentry",
+   "app": "Safari",
+   "kind": "page",
+   "title": "TimeoutError: session refresh - Sentry",
+   "doing": "Working on \"TimeoutError: session refresh - Sentry\"",
+   "state": {
+    "url": "https://sentry.example/tidepool/ledgerly/issues/5531"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Seen 212 times in 24 hours",
+      "First seen in release 2.3.1"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T14:12:00",
+   "last_seen": "2026-11-11T14:18:00",
+   "seconds": 360,
+   "visits": 1,
+   "label": [
+    "Login timeout bug"
+   ]
+  },
+  "hs-notes": {
+   "id": "hs-notes",
+   "app": "Notes",
+   "kind": "note",
+   "title": "Server move checklist",
+   "doing": "Working on \"Server move checklist\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Back up /mnt/nas before the cutover",
+      "Update the DNS record for cloud.example"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T11:00:00",
+   "last_seen": "2026-11-11T11:06:00",
+   "seconds": 360,
+   "visits": 1,
+   "label": [
+    "Home server move"
+   ]
+  },
+  "hs-page-docs": {
+   "id": "hs-page-docs",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Migrate Nextcloud to a new server - Nextcloud docs",
+   "doing": "Working on \"Migrate Nextcloud to a new server - Nextcloud docs\"",
+   "state": {
+    "url": "https://docs.nextcloud.example/admin/migrating"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Copy the data directory with rsync",
+      "Run occ maintenance:mode --on before copying"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T11:06:00",
+   "last_seen": "2026-11-11T11:14:00",
+   "seconds": 480,
+   "visits": 1,
+   "label": [
+    "Home server move"
+   ]
+  },
+  "hs-code": {
+   "id": "hs-code",
+   "app": "Visual Studio Code",
+   "kind": "code_file",
+   "title": "docker-compose.yml - homeserver",
+   "doing": "Working on \"docker-compose.yml - homeserver\"",
+   "state": {
+    "file": "~/homeserver/docker-compose.yml"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "services: jellyfin, nextcloud",
+      "volumes: /mnt/nas/media:/media"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "restart: unless-stopped"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T11:14:00",
+   "last_seen": "2026-11-11T18:44:00",
+   "seconds": 1080,
+   "visits": 2,
+   "label": [
+    "Home server move"
+   ]
+  },
+  "hs-term": {
+   "id": "hs-term",
+   "app": "Terminal",
+   "kind": "terminal",
+   "title": "ssh pi@192.168.1.40 - zsh",
+   "doing": "Working on \"ssh pi@192.168.1.40 - zsh\"",
+   "state": {
+    "cwd": "~/homeserver"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "$ ssh pi@192.168.1.40",
+      "$ docker compose up -d"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T11:26:00",
+   "last_seen": "2026-11-11T18:38:00",
+   "seconds": 1080,
+   "visits": 2,
+   "label": [
+    "Home server move"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Container nextcloud Started",
+      "source": {
+       "app": "Terminal"
+      }
+     }
+    ]
+   }
+  },
+  "hub-gmail": {
+   "id": "hub-gmail",
+   "app": "Gmail",
+   "kind": "mailbox",
+   "title": "Inbox (31)",
+   "doing": "Working on \"Inbox (31)\"",
+   "state": {},
+   "activity": {
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "[tidepool/ledgerly] Pull request #212",
+      "Sentry alert: TimeoutError in ledgerly",
+      "Your weekly digest"
+     ],
+     "count": 3
+    }
+   },
+   "first_seen": "2026-11-11T09:00:00",
+   "last_seen": "2026-11-11T09:03:00",
+   "seconds": 180,
+   "visits": 1,
+   "label": []
+  },
+  "hn-front": {
+   "id": "hn-front",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Hacker News",
+   "doing": "Working on \"Hacker News\"",
+   "state": {
+    "url": "https://news.ycombinator.example/"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Show HN: a faster JSON parser",
+      "The case against microservices",
+      "Ask HN: how do you stay focused?"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T09:54:00",
+   "last_seen": "2026-11-11T09:58:00",
+   "seconds": 240,
+   "visits": 1,
+   "label": []
+  },
+  "n-console": {
+   "id": "n-console",
+   "app": "Console",
+   "kind": "app",
+   "title": "system.log",
+   "doing": "Working on \"system.log\"",
+   "state": {},
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Nov 11 09:14:02 kernel: AppleThunderboltNHI",
+      "Nov 11 09:14:05 mDNSResponder: Sleep proxy"
+     ]
+    }
+   },
+   "first_seen": "2026-11-11T11:36:00",
+   "last_seen": "2026-11-11T11:40:00",
+   "seconds": 240,
+   "visits": 1,
+   "label": []
+  }
+ },
+ "timeline": [
+  {
+   "item": "hub-gmail",
+   "from": "2026-11-11T09:00:00",
+   "to": "2026-11-11T09:03:00"
+  },
+  {
+   "item": "cx-term",
+   "from": "2026-11-11T09:03:00",
+   "to": "2026-11-11T09:07:00"
+  },
+  {
+   "item": "cx-code",
+   "from": "2026-11-11T09:07:00",
+   "to": "2026-11-11T09:32:00"
+  },
+  {
+   "item": "cx-page-so",
+   "from": "2026-11-11T09:32:00",
+   "to": "2026-11-11T09:38:00"
+  },
+  {
+   "item": "cx-code",
+   "from": "2026-11-11T09:38:00",
+   "to": "2026-11-11T09:48:00"
+  },
+  {
+   "item": "cx-term",
+   "from": "2026-11-11T09:48:00",
+   "to": "2026-11-11T09:51:00"
+  },
+  {
+   "item": "cx-chat-slack",
+   "from": "2026-11-11T09:51:00",
+   "to": "2026-11-11T09:54:00"
+  },
+  {
+   "item": "hn-front",
+   "from": "2026-11-11T09:54:00",
+   "to": "2026-11-11T09:58:00"
+  },
+  {
+   "item": "hs-notes",
+   "from": "2026-11-11T11:00:00",
+   "to": "2026-11-11T11:06:00"
+  },
+  {
+   "item": "hs-page-docs",
+   "from": "2026-11-11T11:06:00",
+   "to": "2026-11-11T11:14:00"
+  },
+  {
+   "item": "hs-code",
+   "from": "2026-11-11T11:14:00",
+   "to": "2026-11-11T11:26:00"
+  },
+  {
+   "item": "hs-term",
+   "from": "2026-11-11T11:26:00",
+   "to": "2026-11-11T11:36:00"
+  },
+  {
+   "item": "n-console",
+   "from": "2026-11-11T11:36:00",
+   "to": "2026-11-11T11:40:00"
+  },
+  {
+   "item": "cx-page-pr",
+   "from": "2026-11-11T14:00:00",
+   "to": "2026-11-11T14:05:00"
+  },
+  {
+   "item": "cx-chat-slack",
+   "from": "2026-11-11T14:05:00",
+   "to": "2026-11-11T14:08:00"
+  },
+  {
+   "item": "lt-page-issue",
+   "from": "2026-11-11T14:08:00",
+   "to": "2026-11-11T14:12:00"
+  },
+  {
+   "item": "lt-page-sentry",
+   "from": "2026-11-11T14:12:00",
+   "to": "2026-11-11T14:18:00"
+  },
+  {
+   "item": "lt-term",
+   "from": "2026-11-11T14:18:00",
+   "to": "2026-11-11T14:23:00"
+  },
+  {
+   "item": "lt-code",
+   "from": "2026-11-11T14:23:00",
+   "to": "2026-11-11T14:43:00"
+  },
+  {
+   "item": "lt-term",
+   "from": "2026-11-11T14:43:00",
+   "to": "2026-11-11T14:47:00"
+  },
+  {
+   "item": "cx-term",
+   "from": "2026-11-11T14:47:00",
+   "to": "2026-11-11T14:50:00"
+  },
+  {
+   "item": "cx-code",
+   "from": "2026-11-11T14:50:00",
+   "to": "2026-11-11T14:58:00"
+  },
+  {
+   "item": "hs-term",
+   "from": "2026-11-11T18:30:00",
+   "to": "2026-11-11T18:38:00"
+  },
+  {
+   "item": "hs-code",
+   "from": "2026-11-11T18:38:00",
+   "to": "2026-11-11T18:44:00"
+  }
+ ]
+}

@@ -382,5 +382,86 @@ class MeaningDayTest(unittest.TestCase):
         self.assertEqual(assigned, {})
 
 
+class TrailDaysTest(unittest.TestCase):
+    """pivot_day, versions_day and dev_day: invented days built around cases the first four days lack."""
+    FIXTURES = ROOT / "tests" / "fixtures" / "project_grouping"
+
+    def load(self, name):
+        path = self.FIXTURES / f"{name}.json"
+        return pge.load_day(path), json.loads(path.read_text())
+
+    def words(self, items, ids):
+        import project_reasoner_graph as graph
+        return set().union(*(graph.tokens(" ".join(graph._lines(items[i]))) for i in ids))
+
+    def test_the_committed_days_are_what_the_generator_writes(self):
+        import make_trail_days
+        for name, (day_, items_def, timeline_def, about) in make_trail_days.DAYS.items():
+            built = make_trail_days.build(day_, items_def, timeline_def, about)
+            self.assertEqual(json.loads(json.dumps(built)), json.loads((self.FIXTURES / f"{name}.json").read_text()), name)
+
+    def test_each_day_has_three_projects_and_things_that_belong_to_none(self):
+        for name, unlabelled in {"pivot_day": {"hub-gmail", "slack-random", "yt-lofi", "news-monsoon"},
+                                 "versions_day": {"dl-finder", "hub-gmail", "slack-random", "news-monsoon"},
+                                 "dev_day": {"hub-gmail", "hn-front", "n-console"}}.items():
+            items, doc = self.load(name)
+            gold = pge.gold(items, "project")
+            self.assertEqual(len({p for g in gold.values() for p in g}), 3, name)
+            self.assertEqual({i for i in items if not gold.get(i)}, unlabelled, name)
+            self.assertEqual({v["item"] for v in doc["timeline"]}, set(items), name)
+
+    def test_after_the_pivot_the_project_shares_no_word_with_its_morning_but_the_trail_carries_on(self):
+        items, _ = self.load("pivot_day")
+        gold = pge.gold(items, "project")
+        before, after = ("wg-page-rover", "wg-sheet-sitters"), ("wg-sheet-routes", "wg-page-pricing", "wg-notion-walkers")
+        self.assertLessEqual(self.words(items, before) & self.words(items, after), {"example"})
+        self.assertEqual({next(iter(gold[i])) for i in before + after + ("wg-doc-memo", "wg-chat-tara")}, {"Wagtail"})
+        for bridge in ("wg-doc-memo", "wg-chat-tara"):                         # the doc and the chat span both stages
+            self.assertTrue(self.words(items, [bridge]) & self.words(items, before), bridge)
+            self.assertTrue(self.words(items, [bridge]) & self.words(items, after), bridge)
+        self.assertIn("walks", self.words(items, ["bs-page-crate"]) & self.words(items, ["wg-doc-memo"]))   # same topic, other project
+        self.assertNotEqual(gold["bs-page-crate"], gold["wg-doc-memo"])
+
+    def test_the_same_file_name_in_two_folders_is_two_files(self):
+        items, _ = self.load("versions_day")
+        gold = pge.gold(items, "project")
+        a, b = items["hb-sheet-fee"], items["fl-sheet-v2"]
+        self.assertEqual(a["title"], b["title"])
+        self.assertNotEqual(a["state"]["file"], b["state"]["file"])
+        self.assertNotEqual(gold["hb-sheet-fee"], gold["fl-sheet-v2"])
+        chain = [items[i]["title"] for i in ("hb-word-v1", "hb-word-v2", "hb-word-final", "hb-word-final-copy")]
+        self.assertEqual(chain, ["Harbour_Proposal_v1.docx", "Harbour_Proposal_v2.docx", "Harbour_Proposal_final.docx",
+                                 "Harbour_Proposal_final_FINAL (1).docx"])
+        listing = " ".join(items["dl-finder"]["activity"]["reading"]["text"])
+        for name in ("Harbour_Proposal_final_FINAL (1).docx", "Lantern_Report_final.pdf", "Budget_v2.xlsx"):
+            self.assertIn(name, listing)
+
+    def test_two_branches_of_one_repository_are_two_projects_and_a_stash_names_the_other_branch(self):
+        items, _ = self.load("dev_day")
+        gold = pge.gold(items, "project")
+        self.assertEqual(items["cx-term"]["state"]["cwd"], items["lt-term"]["state"]["cwd"])
+        self.assertNotEqual(gold["cx-term"], gold["lt-term"])
+        import project_reasoner_graph as graph
+        self.assertIn("feat/csv-export", " ".join(graph._lines(items["lt-term"])))
+        self.assertIn("fix/login-timeout", items["lt-term"]["title"])
+        self.assertEqual(items["cx-code"]["state"]["file"].rsplit("/", 1)[0], items["lt-code"]["state"]["file"].rsplit("/", 1)[0])
+
+    def test_the_bench_runs_on_the_new_days(self):
+        import bench_ai_grouping
+        server = HTTPServer(("127.0.0.1", 0), FakeOllama)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            with redirect_stdout(io.StringIO()) as out:
+                runs, _ = bench_ai_grouping.main(["--narrator", "fake", "--judge", "fake", "--url", url, "--cpu", "2",
+                                                  "--days", "pivot_day,versions_day,dev_day", "--variants", "finder-work",
+                                                  "--rules", "raw"])
+        finally:
+            server.shutdown()
+            server.server_close()
+        for name in ("pivot_day", "versions_day", "dev_day"):
+            self.assertIn(f"reader {name} finder-work raw:", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

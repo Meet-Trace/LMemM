@@ -1,0 +1,757 @@
+{
+ "version": 1,
+ "about": "Fifth invented day, the version-chain test. Not real data. Three client projects each keep files that go v1, v2, final, and one is a copy named final_FINAL (1) in Downloads. Harbour and the flat renovation each own a file called Budget_v2.xlsx in different folders with different contents: the same name is not the same file. A Downloads listing names files of all three projects and belongs to none.",
+ "items": {
+  "hb-word-v1": {
+   "id": "hb-word-v1",
+   "app": "Microsoft Word",
+   "kind": "document",
+   "title": "Harbour_Proposal_v1.docx",
+   "doing": "Working on \"Harbour_Proposal_v1.docx\"",
+   "state": {
+    "file": "~/Documents/Harbour/Harbour_Proposal_v1.docx"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Scope: 3 workshops over 6 weeks",
+      "Fee: 4.2 lakh plus GST"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Objective: cut dock turnaround time"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T09:03:00",
+   "last_seen": "2026-11-10T09:21:00",
+   "seconds": 1080,
+   "visits": 1,
+   "label": [
+    "Harbour proposal/Proposal"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Harbour Logistics - proposal",
+      "source": {
+       "app": "Microsoft Word"
+      }
+     }
+    ]
+   }
+  },
+  "hb-word-v2": {
+   "id": "hb-word-v2",
+   "app": "Microsoft Word",
+   "kind": "document",
+   "title": "Harbour_Proposal_v2.docx",
+   "doing": "Working on \"Harbour_Proposal_v2.docx\"",
+   "state": {
+    "file": "~/Documents/Harbour/Harbour_Proposal_v2.docx"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Scope: 4 workshops over 8 weeks",
+      "Fee: 5.0 lakh plus GST"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Objective: cut dock turnaround time",
+      "Comment from Vikram: add a pilot phase"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T09:31:00",
+   "last_seen": "2026-11-10T09:45:00",
+   "seconds": 840,
+   "visits": 1,
+   "label": [
+    "Harbour proposal/Proposal"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Harbour Logistics - proposal",
+      "source": {
+       "app": "Microsoft Word"
+      }
+     }
+    ]
+   }
+  },
+  "hb-word-final": {
+   "id": "hb-word-final",
+   "app": "Microsoft Word",
+   "kind": "document",
+   "title": "Harbour_Proposal_final.docx",
+   "doing": "Working on \"Harbour_Proposal_final.docx\"",
+   "state": {
+    "file": "~/Documents/Harbour/Harbour_Proposal_final.docx"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Pilot phase: 2 weeks at the Nhava Sheva terminal",
+      "Payment: 50% advance"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Scope: 4 workshops over 8 weeks",
+      "Fee: 5.0 lakh plus GST"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T17:35:00",
+   "last_seen": "2026-11-10T17:50:00",
+   "seconds": 900,
+   "visits": 1,
+   "label": [
+    "Harbour proposal/Proposal"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Harbour Logistics - proposal",
+      "source": {
+       "app": "Microsoft Word"
+      }
+     }
+    ]
+   }
+  },
+  "hb-word-final-copy": {
+   "id": "hb-word-final-copy",
+   "app": "Microsoft Word",
+   "kind": "document",
+   "title": "Harbour_Proposal_final_FINAL (1).docx",
+   "doing": "Working on \"Harbour_Proposal_final_FINAL (1).docx\"",
+   "state": {
+    "file": "~/Downloads/Harbour_Proposal_final_FINAL (1).docx"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Pilot phase: 2 weeks at the Nhava Sheva terminal",
+      "Payment: 50% advance",
+      "Fee: 5.0 lakh plus GST"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T17:52:00",
+   "last_seen": "2026-11-10T17:58:00",
+   "seconds": 360,
+   "visits": 1,
+   "label": [
+    "Harbour proposal/Proposal"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Harbour Logistics - proposal",
+      "source": {
+       "app": "Microsoft Word"
+      }
+     }
+    ]
+   }
+  },
+  "hb-mail-vikram": {
+   "id": "hb-mail-vikram",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Re: Proposal - one more round",
+   "doing": "Working on \"Re: Proposal - one more round\"",
+   "state": {
+    "subject": "Re: Proposal - one more round",
+    "from": "vikram@harbourlogistics.example"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Attached: Harbour_Proposal_final.docx"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Can you send the final with the pilot phase?",
+      "Our board meets on the 20th"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-10T17:30:00",
+   "last_seen": "2026-11-10T17:35:00",
+   "seconds": 300,
+   "visits": 1,
+   "label": [
+    "Harbour proposal/Proposal"
+   ]
+  },
+  "hb-sheet-fee": {
+   "id": "hb-sheet-fee",
+   "app": "Microsoft Excel",
+   "kind": "spreadsheet",
+   "title": "Budget_v2.xlsx",
+   "doing": "Working on \"Budget_v2.xlsx\"",
+   "state": {
+    "file": "~/Documents/Harbour/Budget_v2.xlsx",
+    "sheet": "Fees"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Workshop day rate 62,500",
+      "Travel 38,000"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Line item | Days | Rate | Total"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T09:21:00",
+   "last_seen": "2026-11-10T09:31:00",
+   "seconds": 600,
+   "visits": 1,
+   "label": [
+    "Harbour proposal/Fees"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Line item | Days | Rate | Total",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     }
+    ]
+   }
+  },
+  "fl-sheet-v1": {
+   "id": "fl-sheet-v1",
+   "app": "Microsoft Excel",
+   "kind": "spreadsheet",
+   "title": "Budget_v1.xlsx",
+   "doing": "Working on \"Budget_v1.xlsx\"",
+   "state": {
+    "file": "~/Documents/Flat/Budget_v1.xlsx",
+    "sheet": "Rooms"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Kitchen 3.5 L",
+      "Bathroom 1.8 L"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Item | Estimate | Paid"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T11:00:00",
+   "last_seen": "2026-11-10T11:12:00",
+   "seconds": 720,
+   "visits": 1,
+   "label": [
+    "Flat renovation/Budget"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Item | Estimate | Paid",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     }
+    ]
+   }
+  },
+  "fl-sheet-v2": {
+   "id": "fl-sheet-v2",
+   "app": "Microsoft Excel",
+   "kind": "spreadsheet",
+   "title": "Budget_v2.xlsx",
+   "doing": "Working on \"Budget_v2.xlsx\"",
+   "state": {
+    "file": "~/Documents/Flat/Budget_v2.xlsx",
+    "sheet": "Rooms"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 90,
+     "text": [
+      "Kitchen 4.1 L",
+      "Bathroom 1.8 L",
+      "Contingency 10%"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Item | Estimate | Paid"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T11:20:00",
+   "last_seen": "2026-11-10T11:35:00",
+   "seconds": 900,
+   "visits": 1,
+   "label": [
+    "Flat renovation/Budget"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Item | Estimate | Paid",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     }
+    ]
+   }
+  },
+  "fl-chat-contractor": {
+   "id": "fl-chat-contractor",
+   "app": "WhatsApp",
+   "kind": "chat",
+   "title": "Imran (contractor)",
+   "doing": "Working on \"Imran (contractor)\"",
+   "state": {
+    "chat": "Imran (contractor)"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Send me the revised quote"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Kitchen cabinets will take 3 weeks",
+      "A quartz counter adds 60k"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-10T09:45:00",
+   "last_seen": "2026-11-10T11:38:00",
+   "seconds": 420,
+   "visits": 2,
+   "label": [
+    "Flat renovation/Contractor"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Imran (contractor): A quartz counter adds 60k",
+      "source": {
+       "app": "WhatsApp"
+      }
+     }
+    ]
+   }
+  },
+  "fl-page-quartz": {
+   "id": "fl-page-quartz",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Quartz vs granite countertops | HomeGuide",
+   "doing": "Working on \"Quartz vs granite countertops | HomeGuide\"",
+   "state": {
+    "url": "https://www.homeguide.example/quartz-vs-granite"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Quartz: 8k to 14k per square metre",
+      "Granite needs sealing every year"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T11:12:00",
+   "last_seen": "2026-11-10T11:20:00",
+   "seconds": 480,
+   "visits": 1,
+   "label": [
+    "Flat renovation/Contractor"
+   ]
+  },
+  "ln-pdf-v2": {
+   "id": "ln-pdf-v2",
+   "app": "Preview",
+   "kind": "document",
+   "title": "Lantern_Report_v2.pdf",
+   "doing": "Working on \"Lantern_Report_v2.pdf\"",
+   "state": {
+    "file": "~/Documents/Lantern/Lantern_Report_v2.pdf"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Revenue grew 18% year on year",
+      "Chapter 3: Community programmes"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T14:00:00",
+   "last_seen": "2026-11-10T14:10:00",
+   "seconds": 600,
+   "visits": 1,
+   "label": [
+    "Lantern annual report/Report"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Lantern Foundation - annual report",
+      "source": {
+       "app": "Preview"
+      }
+     }
+    ]
+   }
+  },
+  "ln-pdf-final": {
+   "id": "ln-pdf-final",
+   "app": "Preview",
+   "kind": "document",
+   "title": "Lantern_Report_final.pdf",
+   "doing": "Working on \"Lantern_Report_final.pdf\"",
+   "state": {
+    "file": "~/Documents/Lantern/Lantern_Report_final.pdf"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Revenue grew 18.4% year on year",
+      "Chapter 3: Community programmes",
+      "Auditor's note added"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T14:22:00",
+   "last_seen": "2026-11-10T14:32:00",
+   "seconds": 600,
+   "visits": 1,
+   "label": [
+    "Lantern annual report/Report"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Lantern Foundation - annual report",
+      "source": {
+       "app": "Preview"
+      }
+     }
+    ]
+   }
+  },
+  "ln-doc-notes": {
+   "id": "ln-doc-notes",
+   "app": "Google Docs",
+   "kind": "document",
+   "title": "Review comments",
+   "doing": "Working on \"Review comments\"",
+   "state": {
+    "url": "https://docs.google.com/document/d/1Lr5Qz"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Fix the chart on page 14",
+      "Replace the cover photo"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T14:10:00",
+   "last_seen": "2026-11-10T14:22:00",
+   "seconds": 720,
+   "visits": 1,
+   "label": [
+    "Lantern annual report/Report"
+   ]
+  },
+  "ln-mail-print": {
+   "id": "ln-mail-print",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Print-ready file for the annual report",
+   "doing": "Working on \"Print-ready file for the annual report\"",
+   "state": {
+    "subject": "Print-ready file for the annual report",
+    "from": "priya@lanternfoundation.example"
+   },
+   "activity": {
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Print run of 2,000 copies",
+      "Use the final PDF, not v2"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-10T14:34:00",
+   "last_seen": "2026-11-10T14:38:00",
+   "seconds": 240,
+   "visits": 1,
+   "label": [
+    "Lantern annual report/Report"
+   ]
+  },
+  "dl-finder": {
+   "id": "dl-finder",
+   "app": "Finder",
+   "kind": "folder",
+   "title": "Downloads",
+   "doing": "Working on \"Downloads\"",
+   "state": {
+    "folder": "~/Downloads"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Harbour_Proposal_final_FINAL (1).docx",
+      "Lantern_Report_final.pdf",
+      "Budget_v2.xlsx",
+      "IMG_2210.heic"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T14:32:00",
+   "last_seen": "2026-11-10T17:52:00",
+   "seconds": 240,
+   "visits": 2,
+   "label": []
+  },
+  "hub-gmail": {
+   "id": "hub-gmail",
+   "app": "Gmail",
+   "kind": "mailbox",
+   "title": "Inbox (58)",
+   "doing": "Working on \"Inbox (58)\"",
+   "state": {},
+   "activity": {
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Re: Proposal - one more round",
+      "Print-ready file for the annual report",
+      "Promotions: 40% off monsoon sale"
+     ],
+     "count": 3
+    }
+   },
+   "first_seen": "2026-11-10T09:00:00",
+   "last_seen": "2026-11-10T18:01:00",
+   "seconds": 360,
+   "visits": 2,
+   "label": []
+  },
+  "slack-random": {
+   "id": "slack-random",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "#random",
+   "doing": "Working on \"#random\"",
+   "state": {
+    "chat": "#random",
+    "workspace": "Lumen Labs"
+   },
+   "activity": {
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "who's up for lunch at 1?",
+      "the new coffee machine is a game changer"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-10T09:49:00",
+   "last_seen": "2026-11-10T09:52:00",
+   "seconds": 180,
+   "visits": 1,
+   "label": []
+  },
+  "news-monsoon": {
+   "id": "news-monsoon",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Monsoon may arrive early in Mumbai this year",
+   "doing": "Working on \"Monsoon may arrive early in Mumbai this year\"",
+   "state": {
+    "url": "https://www.dailyherald.example/weather/monsoon-early"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "IMD forecasts above-normal rainfall"
+     ]
+    }
+   },
+   "first_seen": "2026-11-10T11:38:00",
+   "last_seen": "2026-11-10T11:41:00",
+   "seconds": 180,
+   "visits": 1,
+   "label": []
+  }
+ },
+ "timeline": [
+  {
+   "item": "hub-gmail",
+   "from": "2026-11-10T09:00:00",
+   "to": "2026-11-10T09:03:00"
+  },
+  {
+   "item": "hb-word-v1",
+   "from": "2026-11-10T09:03:00",
+   "to": "2026-11-10T09:21:00"
+  },
+  {
+   "item": "hb-sheet-fee",
+   "from": "2026-11-10T09:21:00",
+   "to": "2026-11-10T09:31:00"
+  },
+  {
+   "item": "hb-word-v2",
+   "from": "2026-11-10T09:31:00",
+   "to": "2026-11-10T09:45:00"
+  },
+  {
+   "item": "fl-chat-contractor",
+   "from": "2026-11-10T09:45:00",
+   "to": "2026-11-10T09:49:00"
+  },
+  {
+   "item": "slack-random",
+   "from": "2026-11-10T09:49:00",
+   "to": "2026-11-10T09:52:00"
+  },
+  {
+   "item": "fl-sheet-v1",
+   "from": "2026-11-10T11:00:00",
+   "to": "2026-11-10T11:12:00"
+  },
+  {
+   "item": "fl-page-quartz",
+   "from": "2026-11-10T11:12:00",
+   "to": "2026-11-10T11:20:00"
+  },
+  {
+   "item": "fl-sheet-v2",
+   "from": "2026-11-10T11:20:00",
+   "to": "2026-11-10T11:35:00"
+  },
+  {
+   "item": "fl-chat-contractor",
+   "from": "2026-11-10T11:35:00",
+   "to": "2026-11-10T11:38:00"
+  },
+  {
+   "item": "news-monsoon",
+   "from": "2026-11-10T11:38:00",
+   "to": "2026-11-10T11:41:00"
+  },
+  {
+   "item": "ln-pdf-v2",
+   "from": "2026-11-10T14:00:00",
+   "to": "2026-11-10T14:10:00"
+  },
+  {
+   "item": "ln-doc-notes",
+   "from": "2026-11-10T14:10:00",
+   "to": "2026-11-10T14:22:00"
+  },
+  {
+   "item": "ln-pdf-final",
+   "from": "2026-11-10T14:22:00",
+   "to": "2026-11-10T14:32:00"
+  },
+  {
+   "item": "dl-finder",
+   "from": "2026-11-10T14:32:00",
+   "to": "2026-11-10T14:34:00"
+  },
+  {
+   "item": "ln-mail-print",
+   "from": "2026-11-10T14:34:00",
+   "to": "2026-11-10T14:38:00"
+  },
+  {
+   "item": "hb-mail-vikram",
+   "from": "2026-11-10T17:30:00",
+   "to": "2026-11-10T17:35:00"
+  },
+  {
+   "item": "hb-word-final",
+   "from": "2026-11-10T17:35:00",
+   "to": "2026-11-10T17:50:00"
+  },
+  {
+   "item": "dl-finder",
+   "from": "2026-11-10T17:50:00",
+   "to": "2026-11-10T17:52:00"
+  },
+  {
+   "item": "hb-word-final-copy",
+   "from": "2026-11-10T17:52:00",
+   "to": "2026-11-10T17:58:00"
+  },
+  {
+   "item": "hub-gmail",
+   "from": "2026-11-10T17:58:00",
+   "to": "2026-11-10T18:01:00"
+  }
+ ]
+}

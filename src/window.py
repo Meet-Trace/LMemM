@@ -13,7 +13,7 @@ import traceback
 
 import objc
 from Foundation import NSData, NSObject
-from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView,
+from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView, NSTextView,
                     NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
 import apps
@@ -1784,15 +1784,25 @@ class MainWindow:
         if v["place"]:
             kit.put_text(card, v["place"], 24, top, cw - 48, 12, 400, kit.mute(), wrap=False, height=16)
             top += 22
-        scroll = _scroll(card)
-        scroll.setFrame_(NSMakeRect(24, top, cw - 48, ch - top - 64))
-        inner = cw - 48 - 16
-        pane = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, inner, 10))
-        y = 4
-        for line in v["lines"]:
-            y += kit.put_text(pane, line, 0, y, inner, 13, 400) + 8
-        pane.setFrame_(NSMakeRect(0, 0, inner, y + 8))
-        scroll.setDocumentView_(pane)
+        box = self._tap(card, 24, top, cw - 48, ch - top - 76, None, fill=True)       # the text sits in a box of its own
+        box.washes = False                                          # a text box does not light up under the pointer
+        scroll = _scroll(box)
+        scroll.setFrame_(NSMakeRect(12, 10, cw - 48 - 24, ch - top - 76 - 20))
+        view = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, cw - 48 - 24, 10))
+        view.setEditable_(False)
+        view.setSelectable_(True)                                   # drag to select, Cmd-C copies, Cmd-A selects all
+        view.setDrawsBackground_(False)
+        view.setRichText_(False)
+        view.setFont_(kit.font(13))
+        view.setTextColor_(kit.ink())
+        view.setTextContainerInset_((0, 4))
+        view.textContainer().setLineFragmentPadding_(0)
+        view.setVerticallyResizable_(True)
+        view.setHorizontallyResizable_(False)
+        view.setAutoresizingMask_(2)
+        view.textContainer().setWidthTracksTextView_(True)
+        view.setString_("\n\n".join(v["lines"]))
+        scroll.setDocumentView_(view)
         kit.button(card, "Copy text", 24, ch - 52, 110, 36, (lambda t="\n".join(v["lines"]): self.copy_text(t, "Copied the text.")),
                    kind="primary", size=13, weight=600)
         link = v["url"] or screen["url"]

@@ -337,6 +337,20 @@ class Trail:
             return dict(cur)
         return None
 
+    def read_now(self, front):
+        """A full accessibility read of the window in front, for the screenshot tracker to use instead of
+        OCR. None when it cannot be trusted: paused, a page the privacy gate refuses, an app whose tree
+        is still filling in, or nothing readable."""
+        if self.paused() or self.reader.warming(front["pid"]) or self.engine.gate.app(front):
+            return None
+        try:
+            snap = self.reader.read(front, True)
+        except Exception:
+            return None
+        if snap is None or snap.focus_secure or self.engine.gate.page(snap.url, snap.title, snap.focus_secure):
+            return None
+        return snap
+
     def paused(self):
         return bool(self.flags & {"asleep", "display_off", "locked"}) or bool(self.external_pause()) or os.path.exists(
             os.path.join(self.paths.trail_dir, ".paused"))

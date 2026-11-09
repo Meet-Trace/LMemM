@@ -6,6 +6,7 @@
     trail status                is it running, permissions, what a read costs
     trail pause | resume
     trail forget (--last MIN | --app NAME | --all)
+    trail cover [SECONDS]       compare what accessibility sees of the front window with its pixels
     trail probe [SECONDS]       dump the front app's accessibility tree (for tuning on a new app)
 
 Everything except `start` and `probe` is plain Python and works on any OS.
@@ -21,7 +22,7 @@ import config
 import trail_ax
 from trail_store import TrailStore
 
-USAGE = "usage: lmemm.py trail start|show [N] [--text]|places [--hours H]|status|pause|resume|forget (--last MIN|--app NAME|--all)|probe [SECONDS]"
+USAGE = "usage: lmemm.py trail start|show [N] [--text]|places [--hours H]|status|pause|resume|forget (--last MIN|--app NAME|--all)|probe [SECONDS]|cover [SECONDS]"
 
 
 def hms(ts):
@@ -192,6 +193,50 @@ def probe(delay=3.0):
           f"The file has on-screen text: look it over before sharing it.")
 
 
+def cover(delay=3.0):
+    """What the screen reader sees of the window in front, against its pixels (macOS)."""
+    import collections
+    import macos
+    import trail_cover
+    import trail_mac
+    print(f"switch to the window you want to check; reading in {delay:.0f} s…")
+    time.sleep(delay)
+    info = macos.front()                      # the screenshot tracker's own view of the front window (has its bounds)
+    trail = trail_mac.Trail()
+    for _ in range(3 if trail.reader.warming(info["pid"]) else 1):
+        trail.reader.app_element(info["pid"], info["bundle_id"])
+        time.sleep(1.5)
+    display_index, _frame = macos.display_for(info["bounds"])
+    display = macos.display_bounds(display_index)
+    shot = macos.grab(display_index)
+    snap = None
+    for attempt in range(6):                  # a browser builds its page tree a while after being asked to
+        trail.reader.enabled_at.pop(info["pid"], None)       # read_now refuses while "warming"; here we wait ourselves
+        snap = trail.read_now(info)
+        print(f"  read {attempt + 1}: {snap.nodes if snap else '-'} nodes, {len(snap.items) if snap else '-'} texts")
+        if snap is not None and snap.items:
+            break
+        time.sleep(1.5)
+    if shot is None or snap is None:
+        sys.exit(f"could not read: screenshot={'ok' if shot else 'none (Screen Recording?)'} tree={'ok' if snap else 'none'}")
+    scale = shot.width / display["Width"]
+    v = trail_cover.judge(snap, shot.gray, display, scale)
+    kinds = collections.Counter(k for _r, k in snap.regions)
+    print(f"app: {info['app']}   window bounds (CG): {info['bounds']}")
+    print(f"tree window rect: {snap.window}   display: {display}   frame: {shot.width}x{shot.height}   scale: {scale:.3f}")
+    print(f"nodes: {snap.nodes}  truncated: {snap.truncated}  texts: {len(snap.items)}  regions: {dict(kinds)}")
+    print(f"verdict: {'READ FROM ACCESSIBILITY' if v['ok'] else 'read the screen'}  ({v['why']}; {v['gap']} of {v['ink']} ink cells unexplained)")
+    for text, rect in snap.items[:6] + snap.items[-3:]:
+        print("  sample:", [round(n) for n in rect], text[:40])
+    if snap.items:
+        xs = [r[0] for _t, r in snap.items]
+        ys = [r[1] for _t, r in snap.items]
+        print(f"  text boxes span x {round(min(xs))}..{round(max(xs))}  y {round(min(ys))}..{round(max(ys))}")
+    print("\n# explained ink   X unexplained ink   + covered, no ink   . empty\n")
+    print(trail_cover.ascii_map(snap, shot.gray, display, scale))
+    shot.release()
+
+
 def main(args):
     cmd = args[0] if args else "show"
     rest = args[1:]
@@ -210,6 +255,8 @@ def main(args):
         set_pause(cmd == "pause")
     elif cmd == "forget":
         forget(TrailStore(), rest)
+    elif cmd == "cover":
+        cover(float(rest[0]) if rest else 3.0)
     elif cmd == "probe":
         probe(float(rest[0]) if rest else 3.0)
     else:

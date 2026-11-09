@@ -24,6 +24,10 @@ MAX_PX = 1600           # a captured screen wider than this is scaled down to it
 
 # ---------------------------------------------------------------- cost control
 
+OCR_REGIONS = True             # a later frame of the same window: read only the changed boxes, keep the rest
+OCR_REGION_MAX_SHARE = 0.35    # ...unless they cover more than this share of the screen
+OCR_REGION_PAD = 24            # pixels added around each changed box (the line next to a change)
+OCR_REGION_FULL_EVERY = 8      # a full read after this many partial ones in a row: no drift
 FAST_CONTINUATION = True    # fast OCR for later frames of the same window; accurate for the first look
 THIN_RATIO = 0.5            # fast OCR that finds under this share of the previous frame's lines is redone accurately
 THUMB_PX = 480              # kept screenshots are thumbnails with this long edge...
@@ -46,6 +50,8 @@ TRAIL_SETTLE_MS = 150           # a shaky place must hold this long before it co
 TRAIL_POLL = 1.0                # seconds: the cheap fallback check when an app sends no notifications
 TRAIL_IDLE = 60                 # no input for this long -> idle event, reads slow right down
 TRAIL_VISION = True             # fall back to a screenshot read when an app exposes too little text
+TRAIL_SKIP_OCR = True           # when the accessibility text explains the screen, do not OCR it (any app)
+TRAIL_GAP = 0.12                # share of the screen's ink the tree may leave unexplained and still count as explained
 TRAIL_VISION_EVERY = 20         # seconds: least time between screenshot reads of one place
 
 # ---------------------------------------------------------------- memory

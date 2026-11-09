@@ -99,6 +99,40 @@ is 6 for the app in front; if it is 0 the trail still works but at about 1 s del
 under ~45; (4) Activity Monitor CPU while you type and switch; (5) Chrome/VS Code feel the same (the trail turns on
 their accessibility tree, which costs them some work; it is switched back off on exit).
 
+## When the screen is read, and when it is not (any app)
+
+The tracker used to OCR every changed screen (1-4 s of Vision, most of its CPU). Now the app's own
+accessibility text is the answer whenever it explains what is drawn (`src/trail_cover.py`). No app is
+special-cased:
+
+1. At the moment of the picture the trail reads the window's tree (about 60 ms).
+2. Pixels: every 16 px cell with strong contrast has "ink".
+3. Tree: every node with a position and size accounts for the cells it covers (text, buttons, images, toolbars
+   skipped on purpose, a small input box that is withheld).
+4. Ink that nothing accounts for is the gap. Gap <= 12% of the ink (`TRAIL_GAP`) -> the tree stands in for OCR and
+   the result has the same shape as an OCR result. Larger gap -> the screen is read as before.
+5. Always read the screen when: the walk was cut short, the tree gave no text, or a text box covering over a
+   quarter of the window was not read (a terminal's body is its content). Unsure means slower, never wrong.
+
+`lmemm.py start` prints, once per app and reason, why it still read a screen, and its end-of-run summary counts
+"read from accessibility" against "sent to OCR anyway". Turn it off with `TRAIL_SKIP_OCR = False`.
+
+Tested on Linux with synthetic trees and screens (`tests/test_trail_cover.py`). Not yet run on a Mac: that the
+rectangles line up with real windows on a Retina display, and what the gap is for real apps.
+
+## Reading only what changed (any app)
+
+A later frame of the same window is read only inside the boxes the pixel diff marked as changed
+(`src/ocr_regions.py`, `resolver.resolve_regions`); everything else is carried over from the last read.
+A scroll, a change over 35% of the screen, more than three separate boxes, a thin result, or eight partial
+reads in a row means a full read. Settings: `OCR_REGIONS`, `OCR_REGION_MAX_SHARE`, `OCR_REGION_PAD`,
+`OCR_REGION_FULL_EVERY`. An app whose accessibility tree keeps failing to explain the screen is only tried
+again every tenth capture.
+
+Found on a Mac (`lmemm.py trail cover`): rectangles line up exactly with the pixels, but Gmail's tree is cut
+off by the 90 ms budget after ~140 nodes and VS Code's editor text is not in the tree unless its
+screen-reader mode is on. For those the screen is rightly read, now only where it changed.
+
 ## Decisions taken (change in `config.py`)
 
 - 48 h retention, 50 MB cap. - Text inside text boxes is not read. - Screenshot fallback on. -

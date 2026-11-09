@@ -49,6 +49,8 @@ import notes
 import permissions
 import onboarding
 import resolver
+import ocr_regions
+import trail_cover
 import retention
 import rules
 import settings_model
@@ -92,6 +94,10 @@ class Tracker:
         self.notes = []                      # this session's notes
         self.now = None                      # the quick answer to "what am I on?" (see identify_now)
         self.quick_q = queue.Queue()
+        self.declined = set()
+        self.region_streak = 0                # partial reads in a row since the last full one
+        self.decline_run = {}                 # bundle id -> screens in a row the tree did not explain
+        self.snaps = {}                      # capture ts -> (accessibility snapshot, display bounds), until it is handled
         self.ocr_apps = {}                   # app -> metadata, for apps whose place can only be told by reading the screen
         self.last_read = 0.0
         self.nsapp = None
@@ -292,9 +298,11 @@ class Tracker:
             "memory_mb": self.resources.get("rss_mb"), "peak_memory_mb": self.resources.get("peak_rss_mb"),
             "cpu_pct_now": self.resources.get("cpu_pct_recent"), "cpu_pct_average": self.resources.get("cpu_pct_avg"),
             "captures": self.stats["captured"], "skipped_ocr_unchanged": self.stats["no_ocr"],
+            "partial_ocr": self.stats["ocr_partial"], "from_accessibility": self.stats["trail_read"], "accessibility_declined": self.stats["trail_declined"],
             "ocr": {"fast": m["ocr_fast_n"], "accurate": m["ocr_accurate_n"], "redone_accurate": m["ocr_redo_n"]},
             "avg_ms": {"capture": avg("capture"), "ocr_fast": avg("ocr_fast"), "ocr_accurate": avg("ocr_accurate"),
-                       "handle": avg("handle"), "save": avg("save")},
+                       "handle": avg("handle"), "save": avg("save"),
+                       "ocr_region": avg("ocr_region"), "trail_read": avg("trail_read"), "trail_judge": avg("trail_judge")},
             "capture_interval_s": round(self.current_interval(time.time(), quiet=True)),
         }
 
@@ -613,6 +621,17 @@ class Tracker:
                     meta["input_event_ids"] = self.input_store.link_capture(
                         ts, permitted["id"], meta["capture_start_offset_ns"], meta["capture_end_offset_ns"])
                     self.input_store.keep_capture(ts, shot)
+        run = self.decline_run.get(f["bundle_id"], 0)
+        if self.trail and config.TRAIL_SKIP_OCR and (run < 3 or run % 10 == 0):    # an app that keeps declining is tried every 10th time
+            started = time.perf_counter()
+            snap = self.trail.read_now(f)        # what the app says is on screen, read at the moment of the picture
+            if snap is not None:
+                if len(self.snaps) > 8:
+                    self.snaps.pop(next(iter(self.snaps)))
+                self.snaps[ts] = (snap, macos.display_bounds(display))
+            self.timed("trail_read", started)
+        elif self.trail and config.TRAIL_SKIP_OCR:
+            self.decline_run[f["bundle_id"]] = run + 1
         meta_path = os.path.join(data_dir, ts + ".json")    # written only if this frame is kept
         self.frames[ts] = shot
         self.stats["captured"] += 1
@@ -1334,7 +1353,7 @@ class Tracker:
                 self.idle_steps = min(self.idle_steps + 1, 8)     # nothing changed: slow the timer
             else:
                 self.idle_steps = 0
-                res = self.read(meta_path, meta, frame, last, change, pinned)
+                res = self.from_trail(meta, frame) or self.read(meta_path, meta, frame, last, change, pinned)
                 st = understand.describe(res, meta)
             self.interval_cap = (config.BACKOFF_CAP_CHAT if st["kind"] in CHATTY else config.BACKOFF_CAP)
             content = extract_content(res, meta)
@@ -1345,7 +1364,35 @@ class Tracker:
         finally:
             if frame is not None:
                 frame.release()
+            self.snaps.pop(meta["ts"], None)
             self.timed("handle", started)
+
+    def from_trail(self, meta, frame):
+        """The screen as the app describes it, when that explains what is drawn (trail_cover). Works the
+        same for every app: ink on screen that no accessibility node accounts for sends it to OCR."""
+        got = self.snaps.pop(meta["ts"], None)
+        if got is None or frame is None:
+            return None
+        snap, display = got
+        bundle = meta.get("bundle_id")
+        scale = frame.width / display["Width"]
+        started = time.perf_counter()
+        verdict = trail_cover.judge(snap, frame.gray, display, scale)
+        if not verdict["ok"]:
+            self.stats["trail_declined"] += 1
+            self.decline_run[bundle] = self.decline_run.get(bundle, 0) + 1
+            key = (meta.get("app"), verdict["why"])
+            if key not in self.declined:                  # say it once per app and reason, so a Mac run shows what OCR is still for
+                self.declined.add(key)
+                say(f"  reading {meta.get('app')} from the screen: {verdict['why']} "
+                    f"({verdict['gap']} of {verdict['ink']} ink cells unexplained)")
+            return None
+        self.stats["trail_read"] += 1
+        self.decline_run[bundle] = 0
+        res = trail_cover.to_res(snap, meta, (frame.width, frame.height), display, scale,
+                                 time.perf_counter() - started)
+        self.timed("trail_judge", started)
+        return res
 
     def read(self, meta_path, meta, frame, last, change, pinned):
         """OCR a changed screen. Fast OCR (~9x cheaper) for a later frame of the same window;
@@ -1355,6 +1402,17 @@ class Tracker:
         continuation = (config.FAST_CONTINUATION and last is not None and change is not None
                         and not pinned and meta.get("trigger") not in ("note", "pin"))
         started = time.perf_counter()
+        if continuation and config.OCR_REGIONS and self.region_streak < config.OCR_REGION_FULL_EVERY:
+            boxes = ocr_regions.plan(change, (frame.width, frame.height))
+            if boxes:                       # one place changed: read it, keep everything else from the last read
+                share = sum(b[2] * b[3] for b in boxes) / (frame.width * frame.height)
+                part = resolver.resolve_regions(meta, frame, last["res"], boxes, fast=share > 0.12)   # small boxes: accurate is still cheap
+                if part is not None and not self.looks_thin(part, last["res"]):
+                    self.region_streak += 1
+                    self.stats["ocr_partial"] += 1
+                    self.timed("ocr_region", started)
+                    return part
+        self.region_streak = 0
         res = resolver.resolve_frame(meta, frame, fast=continuation)
         if continuation and self.looks_thin(res, last["res"]):
             self.timed("ocr_fast", started)
@@ -1763,8 +1821,9 @@ class Tracker:
         say(f"\ncost: {c['running_for']} running, {c['cpu_pct_average']}% of a core on average, "
             f"memory {c['memory_mb']} MB (peak {c['peak_memory_mb']} MB)")
         say(f"      {c['captures']} captures: {c['skipped_ocr_unchanged']} unchanged (no OCR), "
-            f"{c['ocr']['fast']} fast OCR, {c['ocr']['accurate']} accurate OCR; "
-            f"avg capture {ms['capture']} ms, fast OCR {ms['ocr_fast']} ms, accurate OCR {ms['ocr_accurate']} ms")
+            f"{c['from_accessibility']} read from accessibility (no OCR), {c['accessibility_declined']} sent to OCR anyway, "
+            f"{c['partial_ocr']} changed-part-only OCR, {c['ocr']['fast']} fast OCR, {c['ocr']['accurate']} accurate OCR; "
+            f"avg capture {ms['capture']} ms, changed-part OCR {ms['ocr_region']} ms, fast OCR {ms['ocr_fast']} ms, accurate OCR {ms['ocr_accurate']} ms")
         say(f"\nsaved to {os.path.relpath(config.paths().items_file)}")
 
 

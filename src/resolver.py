@@ -306,6 +306,11 @@ def resolve_image(meta, source, w, h, fast=None):
     t0 = time.time()
     lines, rects, labels = run_vision(source, w, h, fast)
     objs, panels = classify(lines, rects, meta, w, h)
+    return assemble(meta, w, h, objs, panels, labels, fast, t0)
+
+
+def assemble(meta, w, h, objs, panels, labels, fast, t0, regions=0):
+    """Order, number and summarise classified objects into a resolver result."""
 
     # reading order, then ids; panels first so children can point at them
     objs.sort(key=lambda o: (round(o["box"][1] / 8), o["box"][0]))
@@ -351,9 +356,37 @@ def resolve_image(meta, source, w, h, fast=None):
         "focus": focus,
         "entities": ents,
         "objects": everything,
-        "resolver": {"engine": "apple-vision", "fast": fast,
+        "resolver": {"engine": "apple-vision", "fast": fast, "regions": regions,
                      "seconds": round(time.time() - t0, 2)},
     }
+
+
+def resolve_regions(meta, frame, previous, boxes, fast=None):
+    """A later frame of the same window, read only inside `boxes` (frame pixels, see ocr_regions.plan);
+    everything outside them is carried over from `previous`, the last result for this window."""
+    import Quartz
+    import ocr_regions
+    fast = FAST_OCR if fast is None else fast
+    t0 = time.time()
+    w, h = frame.width, frame.height
+    fresh = []
+    for x, y, bw, bh in boxes:
+        crop = Quartz.CGImageCreateWithImageInRect(frame.cg, Quartz.CGRectMake(x, y, bw, bh))
+        if crop is None:
+            return None
+        lines, _rects, _labels = run_vision(crop, bw, bh, fast)
+        for l in lines:
+            l["box"] = [l["box"][0] + x, l["box"][1] + y, l["box"][2], l["box"][3]]
+        objs, _panels = classify(lines, [], meta, w, h)
+        fresh.extend(objs)
+    old = previous["objects"]
+    objs = [dict(o) for o in ocr_regions.merge([o for o in old if o["kind"] != "panel"], boxes, fresh)]
+    panels = [dict(o) for o in old if o["kind"] == "panel"
+              and not any(ocr_regions.touches(o["box"], b) for b in boxes)]
+    for o in objs + panels:                # copies: the last result stays as it was
+        o.pop("id", None)
+        o.pop("parent", None)
+    return assemble(meta, w, h, objs, panels, [], fast, t0, regions=len(boxes))
 
 
 def image_size(path):

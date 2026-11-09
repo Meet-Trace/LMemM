@@ -15,6 +15,10 @@ import project_reasoner_ai as ai  # noqa: E402
 
 STORIES = ROOT / "research" / "judge_lessons"
 FIXTURES = ROOT / "tests" / "fixtures" / "project_grouping"
+# Three plain windows that the lesson pool had before the trail days were written, and the days use as
+# distractors (a news front page, a Downloads listing, a system log). They carry no project, only "this is
+# a general place" or "this is idle looking around". Every other title must be new.
+GENERIC_WINDOWS = {"Hacker News", "Downloads", "system.log"}
 
 try:
     import mlx.core  # noqa: F401
@@ -47,7 +51,7 @@ class LessonsTest(unittest.TestCase):
         titles |= {g["title"] for f in sorted((STORIES / "places").glob("*.json")) for g in json.loads(f.read_text())}
         for day in FIXTURES.glob("*.json"):
             fixture = {it["title"] for it in json.loads(day.read_text())["items"].values()}
-            self.assertFalse(titles & fixture, day.name)
+            self.assertFalse(titles & fixture - GENERIC_WINDOWS, day.name)
 
     def test_idle_stories_only_teach_the_work_question(self):
         import random

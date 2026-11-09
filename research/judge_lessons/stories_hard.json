@@ -1,0 +1,2096 @@
+[
+ {
+  "id": "rb-meal-planner",
+  "theme": "building a weekly meal planner screen for a recipe app",
+  "round": 5,
+  "twins": [
+   "rb-image-upload"
+  ],
+  "windows": [
+   {
+    "app": "Terminal",
+    "title": "recipe-box (feat/meal-planner) - zsh",
+    "details": {
+     "cwd": "~/code/recipe-box"
+    },
+    "lines": [
+     "$ git checkout -b feat/meal-planner",
+     "Switched to a new branch 'feat/meal-planner'",
+     "$ pytest tests/test_planner.py",
+     "2 failed, 5 passed"
+    ],
+    "did": "Starting a new branch for the meal planner and running its tests."
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "planner.py - recipe-box",
+    "details": {
+     "file": "~/code/recipe-box/app/planner.py"
+    },
+    "lines": [
+     "def build_week(user, start):",
+     "slots = ['breakfast', 'lunch', 'dinner']",
+     "# TODO: skip days marked as eating out"
+    ],
+    "did": "Writing the function that lays out a week of meals."
+   },
+   {
+    "app": "Safari",
+    "title": "Drag and drop a week calendar with Alpine.js - CSS Recipes",
+    "details": {
+     "url": "https://cssrecipes.example/week-drag"
+    },
+    "lines": [
+     "x-on:drop moves a meal from one day to another",
+     "Keep the day cells as drop targets"
+    ],
+    "did": "Reading how to drag meals between the days of a week grid."
+   },
+   {
+    "app": "GitHub",
+    "title": "Add weekly meal planner by Dev - Pull Request #81 - pantry-labs/recipe-box",
+    "details": {
+     "url": "https://github.com/pantry-labs/recipe-box/pull/81"
+    },
+    "lines": [
+     "Draft",
+     "4 files changed",
+     "app/planner.py, templates/planner.html"
+    ],
+    "did": "Opening a draft pull request for the meal planner."
+   },
+   {
+    "app": "Slack",
+    "title": "#recipe-box-dev",
+    "details": {},
+    "lines": [
+     "Dev: can the planner show leftovers from the night before?",
+     "Isha: yes, add a leftovers slot"
+    ],
+    "did": "Chatting with the team about what the meal planner should show."
+   },
+   {
+    "app": "Figma",
+    "title": "Planner screen - Recipe Box UI",
+    "details": {},
+    "lines": [
+     "Week view, 7 columns",
+     "Meal chip: photo, name, minutes"
+    ],
+    "did": "Looking at the design of the week view."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (23)",
+    "details": {},
+    "lines": [
+     "Your grocery delivery is on its way",
+     "Pantry Labs standup notes",
+     "Invoice for hosting"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "rb-image-upload",
+  "theme": "fixing photo uploads that fail in a recipe app",
+  "round": 5,
+  "twins": [
+   "rb-meal-planner"
+  ],
+  "windows": [
+   {
+    "app": "Terminal",
+    "title": "recipe-box (fix/image-upload) - zsh",
+    "details": {
+     "cwd": "~/code/recipe-box"
+    },
+    "lines": [
+     "$ git checkout -b fix/image-upload",
+     "$ curl -F photo=@big.jpg localhost:5000/recipes/12/photo",
+     "413 Request Entity Too Large"
+    ],
+    "did": "Reproducing a failing photo upload from the terminal."
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "uploads.py - recipe-box",
+    "details": {
+     "file": "~/code/recipe-box/app/uploads.py"
+    },
+    "lines": [
+     "MAX_BYTES = 5 * 1024 * 1024",
+     "if len(data) > MAX_BYTES: abort(413)",
+     "img = Image.open(buf); img.thumbnail((1600, 1600))"
+    ],
+    "did": "Changing the upload code to shrink big photos instead of rejecting them."
+   },
+   {
+    "app": "Safari",
+    "title": "ImageOps.exif_transpose - Pillow documentation",
+    "details": {
+     "url": "https://pillow.example/docs/ImageOps"
+    },
+    "lines": [
+     "Transpose a PIL.Image by the EXIF Orientation tag"
+    ],
+    "did": "Reading the Pillow docs about rotating photos that come from phones."
+   },
+   {
+    "app": "GitHub",
+    "title": "Photos over 5 MB fail to save - Issue #77 - pantry-labs/recipe-box",
+    "details": {
+     "url": "https://github.com/pantry-labs/recipe-box/issues/77"
+    },
+    "lines": [
+     "Reported by 3 users",
+     "Works on Wi-Fi, fails on phone camera photos"
+    ],
+    "did": "Reading the bug report about photos that will not save."
+   },
+   {
+    "app": "Slack",
+    "title": "#recipe-box-dev",
+    "details": {},
+    "lines": [
+     "Isha: a customer sent a 9 MB photo of her lasagna",
+     "Dev: I'll resize on the server"
+    ],
+    "did": "Chatting with the team about a customer's photo that would not upload."
+   },
+   {
+    "app": "Safari",
+    "title": "client_max_body_size - nginx documentation",
+    "details": {
+     "url": "https://nginx.example/docs/client_max_body_size"
+    },
+    "lines": [
+     "Sets the maximum allowed size of the client request body"
+    ],
+    "did": "Checking the web server's size limit for uploads."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (34)",
+    "details": {},
+    "lines": [
+     "Pantry Labs standup notes",
+     "Your Wi-Fi bill is ready",
+     "New comment on issue #77"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "ps-blog-move",
+  "theme": "moving a pottery shop's blog to a static site",
+  "round": 5,
+  "twins": [
+   "ps-accessibility"
+  ],
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Tools - Export - Kiln & Clay Blog - WordPress",
+    "details": {
+     "url": "https://kilnandclay.example/wp-admin/export.php"
+    },
+    "lines": [
+     "Choose what to export",
+     "All content",
+     "Download Export File"
+    ],
+    "did": "Exporting the old blog's posts from WordPress."
+   },
+   {
+    "app": "Terminal",
+    "title": "pottery-site - zsh",
+    "details": {
+     "cwd": "~/code/pottery-site"
+    },
+    "lines": [
+     "$ npx wp2md export.xml --out content/blog",
+     "Converted 142 posts",
+     "38 images still point at the old site"
+    ],
+    "did": "Converting exported blog posts into files for the new site."
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "2023-05-glaze-tests.md - pottery-site",
+    "details": {
+     "file": "~/code/pottery-site/content/blog/2023-05-glaze-tests.md"
+    },
+    "lines": [
+     "title: Glaze tests for the summer",
+     "![shino test tiles](https://oldblog.kilnandclay.example/wp-content/uploads/shino.jpg)"
+    ],
+    "did": "Fixing image links inside a converted blog post."
+   },
+   {
+    "app": "Safari",
+    "title": "Redirects - kilnandclay - Netlify",
+    "details": {
+     "url": "https://app.netlify.example/sites/kilnandclay/redirects"
+    },
+    "lines": [
+     "/blog/:slug  /journal/:slug  301",
+     "Add redirect rule"
+    ],
+    "did": "Setting up redirects so old blog addresses still work."
+   },
+   {
+    "app": "Safari",
+    "title": "Collections - Eleventy documentation",
+    "details": {
+     "url": "https://eleventy.example/docs/collections"
+    },
+    "lines": [
+     "Create collections from content in folders with tags"
+    ],
+    "did": "Reading how the site generator builds a list of posts."
+   },
+   {
+    "app": "Safari",
+    "title": "Pages - Search Console",
+    "details": {
+     "url": "https://search.example/console/pages"
+    },
+    "lines": [
+     "Page indexing",
+     "Not found (404): 63 pages"
+    ],
+    "did": "Checking for broken old blog addresses in the search console."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (18)",
+    "details": {},
+    "lines": [
+     "Your Netlify deploy succeeded",
+     "Clay delivery on Thursday",
+     "Workshop booking: two seats"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "ps-accessibility",
+  "theme": "fixing accessibility problems on a pottery shop's website",
+  "round": 5,
+  "twins": [
+   "ps-blog-move"
+  ],
+  "windows": [
+   {
+    "app": "Google Chrome",
+    "title": "Lighthouse - Accessibility 71 - localhost:4000",
+    "details": {
+     "url": "http://localhost:4000/shop/"
+    },
+    "lines": [
+     "Accessibility score 71",
+     "Background and foreground colors do not have a sufficient contrast ratio",
+     "Image elements do not have [alt] attributes"
+    ],
+    "did": "Reading an accessibility check of the shop pages."
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "styles.css - pottery-site",
+    "details": {
+     "file": "~/code/pottery-site/src/styles.css"
+    },
+    "lines": [
+     ".price { color: #b9a58f; } /* 2.1:1 on white */",
+     ".price { color: #6b5a45; }"
+    ],
+    "did": "Darkening low-contrast text colours in the stylesheet."
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "product.njk - pottery-site",
+    "details": {
+     "file": "~/code/pottery-site/src/product.njk"
+    },
+    "lines": [
+     "<img src=\"{{ item.photo }}\" alt=\"\">",
+     "<img src=\"{{ item.photo }}\" alt=\"{{ item.photoAlt }}\">"
+    ],
+    "did": "Adding alt text to product photo tags."
+   },
+   {
+    "app": "Terminal",
+    "title": "pottery-site - zsh",
+    "details": {
+     "cwd": "~/code/pottery-site"
+    },
+    "lines": [
+     "$ npx pa11y-ci",
+     "http://localhost:4000/shop/ - 9 errors",
+     "http://localhost:4000/ - 2 errors"
+    ],
+    "did": "Running an automated accessibility checker on the pages."
+   },
+   {
+    "app": "Safari",
+    "title": "Understanding Success Criterion 1.4.3: Contrast (Minimum) - W3C",
+    "details": {
+     "url": "https://w3.example/WAI/WCAG/Understanding/contrast-minimum"
+    },
+    "lines": [
+     "Text has a contrast ratio of at least 4.5:1"
+    ],
+    "did": "Reading the contrast rule the shop pages need to meet."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Can't read the shop on my phone - Kiln & Clay",
+    "details": {},
+    "lines": [
+     "The grey prices are very hard to read for me",
+     "Thanks for letting us know, fixing this week"
+    ],
+    "did": "Replying to a customer who could not read the prices."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (27)",
+    "details": {},
+    "lines": [
+     "Your Netlify deploy succeeded",
+     "Clay delivery on Thursday",
+     "Workshop booking: two seats"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "school-fair",
+  "theme": "organising the school fair",
+  "round": 5,
+  "twins": [
+   "loft-conversion"
+  ],
+  "windows": [
+   {
+    "app": "Microsoft Excel",
+    "title": "Timeline_v1.xlsx",
+    "details": {
+     "file": "~/Documents/SchoolFair/Timeline_v1.xlsx"
+    },
+    "lines": [
+     "Fri 16:00 stalls delivered",
+     "Sat 08:30 volunteers arrive",
+     "Sat 10:00 gates open"
+    ],
+    "did": "Drafting the school fair's day-by-day timeline."
+   },
+   {
+    "app": "WhatsApp",
+    "title": "Fair volunteers (Class 5)",
+    "details": {},
+    "lines": [
+     "Anita: I can do the cake stall 10 to 12",
+     "We need two more for the games table"
+    ],
+    "did": "Sorting out volunteers for fair stalls in a parents' group."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Permission for the field on 18 Oct - Greenfield Primary",
+    "details": {},
+    "lines": [
+     "The field is yours from 3 pm Friday",
+     "Please return the key by 6 pm Saturday"
+    ],
+    "did": "Reading the school office's reply about using the field."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Timeline_v2.xlsx",
+    "details": {
+     "file": "~/Documents/SchoolFair/Timeline_v2.xlsx"
+    },
+    "lines": [
+     "Sat 09:00 stalls open (moved from 10:00)",
+     "Sat 15:00 prize draw"
+    ],
+    "did": "Revising the fair timeline after the school's reply."
+   },
+   {
+    "app": "Canva",
+    "title": "Fair poster A3 - Canva",
+    "details": {},
+    "lines": [
+     "Greenfield Primary School Fair",
+     "Saturday 18 October, 10 am"
+    ],
+    "did": "Designing the poster for the school fair."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Timeline_final.xlsx",
+    "details": {
+     "file": "~/Documents/SchoolFair/Timeline_final.xlsx"
+    },
+    "lines": [
+     "Sat 09:00 stalls open",
+     "Sat 15:00 prize draw",
+     "Sat 17:30 clear-up"
+    ],
+    "did": "Finalising the fair timeline."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (40)",
+    "details": {},
+    "lines": [
+     "Class 5 parents: fair update",
+     "Your parcel was delivered",
+     "Library books due Friday"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "loft-conversion",
+  "theme": "converting the loft into a bedroom",
+  "round": 5,
+  "twins": [
+   "school-fair"
+  ],
+  "windows": [
+   {
+    "app": "Microsoft Excel",
+    "title": "Timeline_v1.xlsx",
+    "details": {
+     "file": "~/Documents/LoftBuild/Timeline_v1.xlsx"
+    },
+    "lines": [
+     "Wk 1 scaffold up",
+     "Wk 2 roof window cut-in",
+     "Wk 4 plumber first fix"
+    ],
+    "did": "Drafting the loft conversion's week-by-week timeline."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Quote for dormer and roof windows - Hartley Builders",
+    "details": {},
+    "lines": [
+     "Dormer frame has a 3 week lead time",
+     "Windows are delivered in week 2 if ordered by Friday"
+    ],
+    "did": "Reading the builder's reply about lead times."
+   },
+   {
+    "app": "Safari",
+    "title": "Planning permission for loft conversions - Planning Guide",
+    "details": {
+     "url": "https://planningguide.example/loft-conversions"
+    },
+    "lines": [
+     "Most loft conversions are permitted development",
+     "Volume limit of 40 cubic metres for terraced houses"
+    ],
+    "did": "Checking whether the loft work needs planning permission."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Timeline_v2.xlsx",
+    "details": {
+     "file": "~/Documents/LoftBuild/Timeline_v2.xlsx"
+    },
+    "lines": [
+     "Wk 3 roof window cut-in (moved: lead time)",
+     "Wk 6 plaster"
+    ],
+    "did": "Revising the build timeline after the builder's lead times."
+   },
+   {
+    "app": "Preview",
+    "title": "Structural_calc_loft.pdf",
+    "details": {
+     "file": "~/Documents/LoftBuild/Structural_calc_loft.pdf"
+    },
+    "lines": [
+     "Steel beam 203x133x25",
+     "Bearing on the existing wall plate"
+    ],
+    "did": "Looking over the engineer's structural calculation."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Timeline_final.xlsx",
+    "details": {
+     "file": "~/Documents/LoftBuild/Timeline_final.xlsx"
+    },
+    "lines": [
+     "Wk 3 roof window cut-in",
+     "Wk 6 plaster",
+     "Wk 9 decorating"
+    ],
+    "did": "Finalising the loft build timeline."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (36)",
+    "details": {},
+    "lines": [
+     "Hartley Builders: site visit Tuesday",
+     "Your parcel was delivered",
+     "Council tax statement"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "orchard-brand-guide",
+  "theme": "writing a brand guide for a dental clinic",
+  "round": 5,
+  "twins": [
+   "peak-brand-guide"
+  ],
+  "windows": [
+   {
+    "app": "Microsoft Word",
+    "title": "Brand_Guide_v1.docx",
+    "details": {
+     "file": "~/Clients/OrchardDental/Brand_Guide_v1.docx"
+    },
+    "lines": [
+     "Voice: warm, reassuring, never clinical",
+     "Words we avoid: drill, pain, needle"
+    ],
+    "did": "Writing the voice section of a dental clinic's brand guide."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Tone of voice questions - Orchard Dental",
+    "details": {},
+    "lines": [
+     "Dr. Kapoor: please keep it gentle, many of our patients are nervous children",
+     "We would like the guide by the 20th"
+    ],
+    "did": "Reading a dentist's answers about how the clinic should sound."
+   },
+   {
+    "app": "Safari",
+    "title": "Plain language for dental practices - Practice Journal",
+    "details": {
+     "url": "https://practicejournal.example/plain-language"
+    },
+    "lines": [
+     "Say 'a little pinch' rather than 'injection'",
+     "Explain each step before you do it"
+    ],
+    "did": "Researching gentle wording for talking to nervous patients."
+   },
+   {
+    "app": "Figma",
+    "title": "Orchard Dental - Logo and colors",
+    "details": {},
+    "lines": [
+     "Teal 1FA3A0",
+     "Rounded sans-serif"
+    ],
+    "did": "Looking at the clinic's logo and colours to match the guide."
+   },
+   {
+    "app": "Microsoft Word",
+    "title": "Brand_Guide_v2.docx",
+    "details": {
+     "file": "~/Clients/OrchardDental/Brand_Guide_v2.docx"
+    },
+    "lines": [
+     "Voice: warm, reassuring, playful with children",
+     "Sample line: 'Your smile is in good hands.'"
+    ],
+    "did": "Revising the dental clinic's brand guide after feedback."
+   },
+   {
+    "app": "Zoom",
+    "title": "Zoom Meeting - Orchard Dental review",
+    "details": {},
+    "lines": [
+     "Dr. Kapoor, Reception lead",
+     "Screen share: Brand_Guide_v2"
+    ],
+    "did": "In a video call walking the clinic through the guide."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (52)",
+    "details": {},
+    "lines": [
+     "Invoice 114 sent to Orchard Dental",
+     "Your coworking desk renewal",
+     "Newsletter: The Copy Desk"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "peak-brand-guide",
+  "theme": "writing a brand guide for an outdoor gear shop",
+  "round": 5,
+  "twins": [
+   "orchard-brand-guide"
+  ],
+  "windows": [
+   {
+    "app": "Microsoft Word",
+    "title": "Brand_Guide_v1.docx",
+    "details": {
+     "file": "~/Clients/PeakOutfitters/Brand_Guide_v1.docx"
+    },
+    "lines": [
+     "Voice: bold, practical, a bit cheeky",
+     "Words we avoid: luxury, extreme"
+    ],
+    "did": "Writing the voice section of an outdoor gear shop's brand guide."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Tone of voice questions - Peak Outfitters",
+    "details": {},
+    "lines": [
+     "Rohan: we sound like a friend who has done the climb, not a catalogue",
+     "Can we have the guide by the 22nd?"
+    ],
+    "did": "Reading the shop owner's answers about how the brand should sound."
+   },
+   {
+    "app": "Safari",
+    "title": "Copy that sells gear - The Copy Desk",
+    "details": {
+     "url": "https://copydesk.example/gear-copy"
+    },
+    "lines": [
+     "Lead with the trail, not the specs",
+     "One honest sentence beats three adjectives"
+    ],
+    "did": "Researching how outdoor brands write about gear."
+   },
+   {
+    "app": "Figma",
+    "title": "Peak Outfitters - Logo and colors",
+    "details": {},
+    "lines": [
+     "Rust C8501E",
+     "Condensed bold type"
+    ],
+    "did": "Looking at the shop's logo and colours to match the guide."
+   },
+   {
+    "app": "Microsoft Word",
+    "title": "Brand_Guide_v2.docx",
+    "details": {
+     "file": "~/Clients/PeakOutfitters/Brand_Guide_v2.docx"
+    },
+    "lines": [
+     "Voice: bold, practical, a bit cheeky",
+     "Sample line: 'Built for the second hour of the climb.'"
+    ],
+    "did": "Revising the outdoor shop's brand guide after feedback."
+   },
+   {
+    "app": "Zoom",
+    "title": "Zoom Meeting - Peak Outfitters review",
+    "details": {},
+    "lines": [
+     "Rohan, Store manager",
+     "Screen share: Brand_Guide_v2"
+    ],
+    "did": "In a video call walking the shop through the guide."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (47)",
+    "details": {},
+    "lines": [
+     "Invoice 115 sent to Peak Outfitters",
+     "Your coworking desk renewal",
+     "Newsletter: The Copy Desk"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "family-health-cover",
+  "theme": "choosing a health insurance plan for a family of four",
+  "round": 5,
+  "twins": [
+   "japan-trip-cover"
+  ],
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Compare family health plans - CoverCompare",
+    "details": {
+     "url": "https://covercompare.example/health/family"
+    },
+    "lines": [
+     "Family of 4, sum insured 10,00,000",
+     "Premium 24,500 per year",
+     "Waiting period for existing conditions: 3 years"
+    ],
+    "did": "Comparing health insurance plans for a family of four."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Plans comparison.xlsx",
+    "details": {
+     "file": "~/Documents/Family/Plans comparison.xlsx"
+    },
+    "lines": [
+     "Plan, Premium, Room rent cap, Existing-condition wait",
+     "Plan A, 24500, none, 3 yrs",
+     "Plan B, 27800, none, 2 yrs"
+    ],
+    "did": "Putting health plans side by side in a spreadsheet."
+   },
+   {
+    "app": "WhatsApp",
+    "title": "Sneha",
+    "details": {},
+    "lines": [
+     "Papa's BP medicines are covered only after 3 years?",
+     "Then plan B is better, it is 2 years"
+    ],
+    "did": "Discussing with a spouse which plan covers a parent's existing condition."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Quote for 4 members - Mehta Insurance Advisors",
+    "details": {},
+    "lines": [
+     "Attached: quotes for you, Sneha and the two kids",
+     "Please send last year's medical reports"
+    ],
+    "did": "Reading an insurance advisor's quote for the whole family."
+   },
+   {
+    "app": "Safari",
+    "title": "Cashless hospitals near Pune - CoverCompare network",
+    "details": {
+     "url": "https://covercompare.example/network/pune"
+    },
+    "lines": [
+     "Network hospitals in Pune: 118",
+     "Ruby Hall Clinic, Jehangir Hospital"
+    ],
+    "did": "Checking which nearby hospitals accept the plans."
+   },
+   {
+    "app": "Preview",
+    "title": "Policy_wording_PlanB.pdf",
+    "details": {
+     "file": "~/Documents/Family/Policy_wording_PlanB.pdf"
+    },
+    "lines": [
+     "Exclusions: cosmetic treatment",
+     "Maternity cover after 2 years"
+    ],
+    "did": "Reading the fine print of a health plan."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (33)",
+    "details": {},
+    "lines": [
+     "Premium reminder: car policy",
+     "Mehta Insurance Advisors",
+     "School fee receipt"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "japan-trip-cover",
+  "theme": "buying travel insurance for a month in Japan",
+  "round": 5,
+  "twins": [
+   "family-health-cover"
+  ],
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Compare travel insurance - CoverCompare",
+    "details": {
+     "url": "https://covercompare.example/travel"
+    },
+    "lines": [
+     "Trip to Japan, 30 days, 2 travellers",
+     "Premium 3,900",
+     "Baggage loss up to 50,000"
+    ],
+    "did": "Comparing travel insurance for a month in Japan."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Trip cover options.xlsx",
+    "details": {
+     "file": "~/Documents/Japan/Trip cover options.xlsx"
+    },
+    "lines": [
+     "Plan, Premium, Medical limit, Baggage, Trip delay",
+     "Plan X, 3900, 50 lakh, 50000, 6 hrs"
+    ],
+    "did": "Putting travel insurance options side by side in a spreadsheet."
+   },
+   {
+    "app": "WhatsApp",
+    "title": "Kabir",
+    "details": {},
+    "lines": [
+     "Does it cover the ski day in Nagano?",
+     "Adventure sports add-on is +900"
+    ],
+    "did": "Discussing with a travel partner whether skiing is covered."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Flight change - departure 14 Mar",
+    "details": {},
+    "lines": [
+     "Your new departure is 14 March 07:10",
+     "Cover must start on the day you leave"
+    ],
+    "did": "Reading an airline email that changes the trip dates."
+   },
+   {
+    "app": "Safari",
+    "title": "Hospital costs for visitors in Japan - Travel Health Guide",
+    "details": {
+     "url": "https://travelhealth.example/japan"
+    },
+    "lines": [
+     "Visitors are not in the national scheme",
+     "A clinic visit can cost 15,000 yen"
+    ],
+    "did": "Reading what a doctor's visit costs a tourist in Japan."
+   },
+   {
+    "app": "Preview",
+    "title": "Travel_policy_wording.pdf",
+    "details": {
+     "file": "~/Documents/Japan/Travel_policy_wording.pdf"
+    },
+    "lines": [
+     "Exclusions: adventure sports unless added",
+     "Claims within 30 days of return"
+    ],
+    "did": "Reading the fine print of a travel policy."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (29)",
+    "details": {},
+    "lines": [
+     "Your visa slot is confirmed",
+     "Bank statement for October",
+     "Yen exchange rates"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "hills-offsite",
+  "theme": "planning a team offsite in the hills",
+  "round": 5,
+  "twins": [
+   "quarter-numbers"
+  ],
+  "windows": [
+   {
+    "app": "Slack",
+    "title": "Meera Rao (DM)",
+    "details": {},
+    "lines": [
+     "Can you check if Lonavala has space for 22 on the 14th?",
+     "Budget cap is 1,500 per head"
+    ],
+    "did": "Chatting with a colleague about where to hold the team offsite."
+   },
+   {
+    "app": "Safari",
+    "title": "Hill View Resort - Conference rooms and packages",
+    "details": {
+     "url": "https://hillview.example/conference"
+    },
+    "lines": [
+     "Capacity 30, projector, 2 breakout rooms",
+     "Day package from 1,350 per head"
+    ],
+    "did": "Looking at a resort's offsite packages."
+   },
+   {
+    "app": "Google Sheets",
+    "title": "Offsite headcount and dietary",
+    "details": {},
+    "lines": [
+     "Name, Dietary, Room share",
+     "Arjun, vegetarian, with Dev"
+    ],
+    "did": "Tracking who is coming to the offsite and what they eat."
+   },
+   {
+    "app": "Calendar",
+    "title": "Calendar - November",
+    "details": {},
+    "lines": [
+     "14 Nov: Offsite (all day)",
+     "Block the team's calendars"
+    ],
+    "did": "Blocking the offsite day in the team calendar."
+   },
+   {
+    "app": "Gmail",
+    "title": "Quote: Hill View Resort offsite, 22 guests",
+    "details": {},
+    "lines": [
+     "Quote valid until 5 Nov",
+     "50% advance to confirm"
+    ],
+    "did": "Reading a resort's quote for the offsite."
+   },
+   {
+    "app": "Google Slides",
+    "title": "Offsite agenda - draft",
+    "details": {},
+    "lines": [
+     "09:30 Welcome",
+     "11:00 Planning for the next half",
+     "16:00 Games"
+    ],
+    "did": "Drafting the offsite's agenda."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (61)",
+    "details": {},
+    "lines": [
+     "Standup notes",
+     "Expense report approved",
+     "Lunch order for Thursday"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "quarter-numbers",
+  "theme": "preparing the quarterly numbers for a review",
+  "round": 5,
+  "twins": [
+   "hills-offsite"
+  ],
+  "windows": [
+   {
+    "app": "Slack",
+    "title": "Meera Rao (DM)",
+    "details": {},
+    "lines": [
+     "Can you pull Q3 churn by plan for the review?",
+     "I need it by Thursday"
+    ],
+    "did": "Chatting with a colleague about numbers for the quarterly review."
+   },
+   {
+    "app": "Google Sheets",
+    "title": "Q3 metrics pack - raw",
+    "details": {},
+    "lines": [
+     "Month, New, Churned, Net",
+     "Jul, 412, 96, 316"
+    ],
+    "did": "Checking monthly customer numbers in a sheet."
+   },
+   {
+    "app": "Safari",
+    "title": "Churn by plan - Metabase",
+    "details": {
+     "url": "https://metrics.example/dashboard/churn-by-plan"
+    },
+    "lines": [
+     "Starter 4.1%, Pro 2.2%, Team 1.4%"
+    ],
+    "did": "Looking at a dashboard of churn by plan."
+   },
+   {
+    "app": "Calendar",
+    "title": "Calendar - November",
+    "details": {},
+    "lines": [
+     "13 Nov: Quarterly review 3:00 pm",
+     "Meera, Arjun, Dev"
+    ],
+    "did": "Checking when the quarterly review is."
+   },
+   {
+    "app": "Google Slides",
+    "title": "Q3 review - draft",
+    "details": {},
+    "lines": [
+     "Net adds 1,030 (+8%)",
+     "Churn down from 3.1% to 2.7%"
+    ],
+    "did": "Drafting slides for the quarterly review."
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Q3 numbers - mismatch on the Pro plan",
+    "details": {},
+    "lines": [
+     "Billing shows 1,418 Pro accounts, the dashboard shows 1,402",
+     "Can you reconcile before the review?"
+    ],
+    "did": "Reading an email about a small mismatch in the numbers."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (63)",
+    "details": {},
+    "lines": [
+     "Standup notes",
+     "Expense report approved",
+     "Dashboard access request"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "dinner-party",
+  "theme": "cooking a dinner for eight on Saturday",
+  "round": 5,
+  "twins": [
+   "weekly-meal-prep"
+  ],
+  "windows": [
+   {
+    "app": "Notes",
+    "title": "Saturday dinner - menu",
+    "details": {},
+    "lines": [
+     "Starter: burrata and roasted tomatoes",
+     "Main: lamb shoulder, 4 hours",
+     "Vegetarian: stuffed aubergine"
+    ],
+    "did": "Planning the menu for a Saturday dinner for eight."
+   },
+   {
+    "app": "Safari",
+    "title": "Slow-roast lamb shoulder with rosemary - Kitchen Notes",
+    "details": {
+     "url": "https://kitchennotes.example/slow-roast-lamb"
+    },
+    "lines": [
+     "Serves 8, 4 hours",
+     "Rest for 30 minutes before carving"
+    ],
+    "did": "Reading a recipe for the main dish."
+   },
+   {
+    "app": "WhatsApp",
+    "title": "Dinner Sat",
+    "details": {},
+    "lines": [
+     "Priya: I'm bringing dessert",
+     "Karan doesn't drink, any mocktail?"
+    ],
+    "did": "Sorting out who brings what for a dinner with friends."
+   },
+   {
+    "app": "Safari",
+    "title": "Wines to pair with lamb - Vine and Table",
+    "details": {
+     "url": "https://vineandtable.example/lamb"
+    },
+    "lines": [
+     "Syrah or Rioja Reserva",
+     "Allow one bottle per two guests"
+    ],
+    "did": "Choosing wine to go with the main dish."
+   },
+   {
+    "app": "Notes",
+    "title": "Shopping list - Saturday",
+    "details": {},
+    "lines": [
+     "lamb shoulder 2.2 kg",
+     "aubergines x4",
+     "burrata x3"
+    ],
+    "did": "Writing a shopping list for the dinner."
+   },
+   {
+    "app": "Safari",
+    "title": "Setting a table for 8 - Home and Hosting",
+    "details": {
+     "url": "https://homeandhosting.example/table-for-8"
+    },
+    "lines": [
+     "Candles, place cards, a long runner"
+    ],
+    "did": "Looking at ideas for setting the table for guests."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (19)",
+    "details": {},
+    "lines": [
+     "Your grocery delivery slot",
+     "Priya sent you a message",
+     "Electricity bill"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "weekly-meal-prep",
+  "theme": "cooking food ahead for the work week",
+  "round": 5,
+  "twins": [
+   "dinner-party"
+  ],
+  "windows": [
+   {
+    "app": "Notes",
+    "title": "Meal prep - week of 10 Nov",
+    "details": {},
+    "lines": [
+     "Mon to Thu lunches: chicken, rice, broccoli",
+     "Snacks: boiled eggs, hummus"
+    ],
+    "did": "Planning lunches and snacks to cook ahead for the week."
+   },
+   {
+    "app": "Safari",
+    "title": "Batch-cook lentil soup - Kitchen Notes",
+    "details": {
+     "url": "https://kitchennotes.example/batch-lentil-soup"
+    },
+    "lines": [
+     "Makes 6 portions",
+     "Freezes for 3 months"
+    ],
+    "did": "Reading a recipe that can be cooked in bulk."
+   },
+   {
+    "app": "Safari",
+    "title": "Glass or plastic meal prep containers - Home and Hosting",
+    "details": {
+     "url": "https://homeandhosting.example/containers"
+    },
+    "lines": [
+     "Glass keeps smells out; plastic is lighter"
+    ],
+    "did": "Comparing food containers for packed lunches."
+   },
+   {
+    "app": "Google Sheets",
+    "title": "Portions tracker",
+    "details": {},
+    "lines": [
+     "Meal, Servings, Cost per serving",
+     "Chicken rice bowl, 4, 62"
+    ],
+    "did": "Tracking servings and cost of prepared meals."
+   },
+   {
+    "app": "Notes",
+    "title": "Shopping list - meal prep",
+    "details": {},
+    "lines": [
+     "chicken thighs 1.5 kg",
+     "brown rice 1 kg",
+     "broccoli x4"
+    ],
+    "did": "Writing a shopping list for the week's cooking."
+   },
+   {
+    "app": "YouTube",
+    "title": "Sunday meal prep in 90 minutes",
+    "details": {
+     "url": "https://video.example/watch?v=mp90"
+    },
+    "lines": [
+     "Cook the rice and roast the vegetables at the same time"
+    ],
+    "did": "Watching a video about cooking a week of meals in one go."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (22)",
+    "details": {},
+    "lines": [
+     "Your grocery delivery slot",
+     "Cooking class timetable",
+     "Electricity bill"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "laptop-for-editing",
+  "theme": "choosing a laptop for video editing work",
+  "round": 5,
+  "twins": [
+   "laptop-for-mother"
+  ],
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Best laptops for video editing - LaptopLab",
+    "details": {
+     "url": "https://laptoplab.example/best-for-editing"
+    },
+    "lines": [
+     "16 GB of RAM is the minimum, 32 GB for 4K timelines",
+     "Look for a screen with full sRGB coverage"
+    ],
+    "did": "Reading a review of laptops for video editing."
+   },
+   {
+    "app": "Safari",
+    "title": "ProBook 16 Studio review - LaptopLab",
+    "details": {
+     "url": "https://laptoplab.example/probook-16-studio"
+    },
+    "lines": [
+     "Export of a 10 minute 4K clip: 3 min 40 s",
+     "Fans are loud under load"
+    ],
+    "did": "Reading a review of one editing laptop."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Laptop shortlist.xlsx",
+    "details": {
+     "file": "~/Documents/Laptops/Laptop shortlist.xlsx"
+    },
+    "lines": [
+     "Model, RAM, Graphics, Price",
+     "ProBook 16 Studio, 32 GB, RTX, 1,89,000"
+    ],
+    "did": "Comparing shortlisted editing laptops by memory and graphics."
+   },
+   {
+    "app": "YouTube",
+    "title": "Is 16GB enough for video editing in 2026?",
+    "details": {
+     "url": "https://video.example/watch?v=16gb"
+    },
+    "lines": [
+     "The timeline stutters with several 4K layers"
+    ],
+    "did": "Watching a video about memory needs for video editing."
+   },
+   {
+    "app": "Safari",
+    "title": "System requirements - editing software help",
+    "details": {
+     "url": "https://editsoft.example/help/system-requirements"
+    },
+    "lines": [
+     "Recommended: 32 GB of RAM, 8 GB of graphics memory"
+    ],
+    "did": "Checking the editing software's recommended specs."
+   },
+   {
+    "app": "WhatsApp",
+    "title": "Rahul (client)",
+    "details": {},
+    "lines": [
+     "Can you deliver 4K this time?",
+     "Your old laptop kept crashing last time"
+    ],
+    "did": "Chatting with a client who needs 4K video work."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (44)",
+    "details": {},
+    "lines": [
+     "Order shipped",
+     "Client feedback on the reel",
+     "Cloud storage almost full"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "laptop-for-mother",
+  "theme": "choosing a laptop for my mother",
+  "round": 5,
+  "twins": [
+   "laptop-for-editing"
+  ],
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Best laptops for seniors - LaptopLab",
+    "details": {
+     "url": "https://laptoplab.example/best-for-seniors"
+    },
+    "lines": [
+     "Look for a bright screen and large keys",
+     "Keep it simple: 8 GB of RAM is plenty"
+    ],
+    "did": "Reading a review of laptops that suit older users."
+   },
+   {
+    "app": "Safari",
+    "title": "SlimBook 14 Easy review - LaptopLab",
+    "details": {
+     "url": "https://laptoplab.example/slimbook-14-easy"
+    },
+    "lines": [
+     "The touchpad is large and forgiving",
+     "Battery lasts 12 hours"
+    ],
+    "did": "Reading a review of one easy-to-use laptop."
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Laptop shortlist.xlsx",
+    "details": {
+     "file": "~/Documents/Mummy/Laptop shortlist.xlsx"
+    },
+    "lines": [
+     "Model, Screen, Weight, Price",
+     "SlimBook 14 Easy, 14 in, 1.2 kg, 52,000"
+    ],
+    "did": "Comparing shortlisted laptops by screen size, weight and price."
+   },
+   {
+    "app": "YouTube",
+    "title": "Bigger text and cursor on a laptop, step by step",
+    "details": {
+     "url": "https://video.example/watch?v=bigtext"
+    },
+    "lines": [
+     "Settings, Accessibility, Text size"
+    ],
+    "did": "Watching a video about making text bigger on a laptop."
+   },
+   {
+    "app": "WhatsApp",
+    "title": "Didi",
+    "details": {},
+    "lines": [
+     "Mummy wants to see everyone on video calls",
+     "Under 55k please, she won't use anything fancy"
+    ],
+    "did": "Chatting with a sibling about what a mother needs from a laptop."
+   },
+   {
+    "app": "Safari",
+    "title": "Video calls on a laptop for beginners - Tech for Seniors",
+    "details": {
+     "url": "https://techforseniors.example/video-calls"
+    },
+    "lines": [
+     "Click the green button to join"
+    ],
+    "did": "Reading a beginner's guide to video calls."
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (37)",
+    "details": {},
+    "lines": [
+     "Order shipped",
+     "Didi: Mummy's birthday plan",
+     "Cloud storage almost full"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "zine-to-shop",
+  "theme": "a hand-printed zine that grows into a small online shop",
+  "round": 5,
+  "pivot": true,
+  "windows": [
+   {
+    "app": "Affinity Publisher",
+    "title": "Moth Notes issue 1.afpub",
+    "details": {
+     "file": "~/Zine/Moth Notes issue 1.afpub"
+    },
+    "lines": [
+     "Page 5: field notes on hawk moths",
+     "A5 booklet, 16 pages"
+    ],
+    "did": "Laying out the pages of a small zine about moths.",
+    "phase": "early"
+   },
+   {
+    "app": "Safari",
+    "title": "File prep and colour layers - Print Club",
+    "details": {
+     "url": "https://printclub.example/riso-file-prep"
+    },
+    "lines": [
+     "Separate each ink colour into its own greyscale layer"
+    ],
+    "did": "Reading how to prepare artwork for risograph printing.",
+    "phase": "early"
+   },
+   {
+    "app": "Gmail",
+    "title": "Quote: 100 copies A5, 2 colours - Little Press Studio",
+    "details": {},
+    "lines": [
+     "100 copies, 16 pages, 2 colours: 3,200",
+     "Turnaround 5 working days"
+    ],
+    "did": "Reading a print studio's quote for a run of zines.",
+    "phase": "early"
+   },
+   {
+    "app": "Notes",
+    "title": "Moth Notes - what's next",
+    "details": {},
+    "lines": [
+     "Issue 1 sold out at the market stall in a day",
+     "Idea: sell issue 1 and prints online, a small shop instead of one-off stalls",
+     "Need: a shop, shipping, product photos"
+    ],
+    "did": "Writing down the plan to turn a zine into a small online shop.",
+    "phase": "bridge"
+   },
+   {
+    "app": "Safari",
+    "title": "Add product - Inkshop admin",
+    "details": {
+     "url": "https://inkshop.example/admin/products/new"
+    },
+    "lines": [
+     "Product: Moth Notes issue 1 (zine)",
+     "Weight 60 g",
+     "Stock 40"
+    ],
+    "did": "Adding the zine as a product in an online shop's admin.",
+    "phase": "late"
+   },
+   {
+    "app": "Safari",
+    "title": "Small packet rates - India Post",
+    "details": {
+     "url": "https://post.example/small-packet-rates"
+    },
+    "lines": [
+     "Up to 100 g: 45 within India"
+    ],
+    "did": "Checking postage rates for sending small parcels.",
+    "phase": "late"
+   },
+   {
+    "app": "Safari",
+    "title": "Product photos at home with a window and white card - Shop Tips",
+    "details": {
+     "url": "https://shoptips.example/home-photos"
+    },
+    "lines": [
+     "Shoot near a window and bounce the light with white card"
+    ],
+    "did": "Reading how to photograph products at home.",
+    "phase": "late"
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (26)",
+    "details": {},
+    "lines": [
+     "Market stall slot confirmed",
+     "Your parcel was delivered",
+     "Paper order dispatched"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "soil-to-satellite",
+  "theme": "a thesis chapter that moves from field sensors to satellite images",
+  "round": 5,
+  "pivot": true,
+  "windows": [
+   {
+    "app": "Arduino IDE",
+    "title": "soil_logger | Arduino IDE 2.3",
+    "details": {
+     "file": "~/thesis/soil_logger/soil_logger.ino"
+    },
+    "lines": [
+     "int raw = analogRead(A0);",
+     "float vwc = map(raw, 520, 260, 0, 100);"
+    ],
+    "did": "Writing code that reads a soil moisture sensor.",
+    "phase": "early"
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "plot_readings_march.xlsx",
+    "details": {
+     "file": "~/thesis/data/plot_readings_march.xlsx"
+    },
+    "lines": [
+     "Plot, Depth cm, Moisture %",
+     "A3, 15, 24.1"
+    ],
+    "did": "Looking over soil moisture readings from field plots.",
+    "phase": "early"
+   },
+   {
+    "app": "Safari",
+    "title": "Capacitive soil moisture sensor v1.2 datasheet",
+    "details": {
+     "url": "https://sensors.example/soil-v1-2.pdf"
+    },
+    "lines": [
+     "Operating voltage 3.3 to 5.5 V",
+     "Output 1.2 to 2.5 V"
+    ],
+    "did": "Reading the datasheet of a soil moisture sensor.",
+    "phase": "early"
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Chapter 3 direction - Prof. Iyer",
+    "details": {},
+    "lines": [
+     "Sensors only cover 12 plots; satellite estimates cover the whole district",
+     "Keep the sensor readings as ground truth to check the satellite numbers"
+    ],
+    "did": "Reading the supervisor's advice to use satellite estimates checked against sensor readings.",
+    "phase": "bridge"
+   },
+   {
+    "app": "Safari",
+    "title": "Level-2A scene search - Copernicus Browser",
+    "details": {
+     "url": "https://copernicus.example/browser"
+    },
+    "lines": [
+     "Tile 43QDV, cloud cover 4%",
+     "Download bands B04, B08, B11"
+    ],
+    "did": "Choosing satellite images of the study area.",
+    "phase": "late"
+   },
+   {
+    "app": "JupyterLab",
+    "title": "ndvi_maps.ipynb - JupyterLab",
+    "details": {
+     "file": "~/thesis/notebooks/ndvi_maps.ipynb"
+    },
+    "lines": [
+     "import rasterio",
+     "ndvi = (nir - red) / (nir + red)"
+    ],
+    "did": "Computing a vegetation index from satellite bands.",
+    "phase": "late"
+   },
+   {
+    "app": "Safari",
+    "title": "Soil moisture from radar backscatter - Remote Sensing Reviews",
+    "details": {
+     "url": "https://rsreviews.example/radar-soil-moisture"
+    },
+    "lines": [
+     "Backscatter at VV polarisation tracks surface moisture"
+    ],
+    "did": "Reading a paper on estimating soil moisture from radar images.",
+    "phase": "late"
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (35)",
+    "details": {},
+    "lines": [
+     "Prof. Iyer: meeting moved",
+     "Library fine notice",
+     "Conference deadline reminder"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "book-swap-to-tool-library",
+  "theme": "a street book swap that becomes a lending corner for tools too",
+  "round": 5,
+  "pivot": true,
+  "windows": [
+   {
+    "app": "Canva",
+    "title": "Lane 4 Book Swap flyer - Canva",
+    "details": {},
+    "lines": [
+     "Take a book, leave a book",
+     "Little shelf outside No. 12"
+    ],
+    "did": "Designing a flyer for a neighbourhood book swap shelf.",
+    "phase": "early"
+   },
+   {
+    "app": "Safari",
+    "title": "Build a weatherproof shelf - Woodworks Blog",
+    "details": {
+     "url": "https://woodworks.example/weatherproof-shelf"
+    },
+    "lines": [
+     "Use 18 mm exterior plywood",
+     "Slope the roof 15 degrees so rain runs off"
+    ],
+    "did": "Reading how to build a weatherproof shelf for the book swap.",
+    "phase": "early"
+   },
+   {
+    "app": "WhatsApp",
+    "title": "Lane 4 readers",
+    "details": {},
+    "lines": [
+     "Meena: first books are in!",
+     "Someone left a pile of crime novels"
+    ],
+    "did": "Chatting in the neighbours' group about the new book shelf.",
+    "phase": "early"
+   },
+   {
+    "app": "Google Docs",
+    "title": "Lending corner plan - books and tools",
+    "details": {},
+    "lines": [
+     "Phase 1: books (done)",
+     "Phase 2: tools, with a sign-out sheet, a deposit and care rules",
+     "Sunil: people keep asking to borrow a drill"
+    ],
+    "did": "Writing a plan to lend tools as well as books.",
+    "phase": "bridge"
+   },
+   {
+    "app": "Google Sheets",
+    "title": "Tool inventory",
+    "details": {},
+    "lines": [
+     "Item, Condition, Owner, Deposit",
+     "Cordless drill, good, Sunil, 500"
+    ],
+    "did": "Listing tools that neighbours offer to lend.",
+    "phase": "late"
+   },
+   {
+    "app": "Safari",
+    "title": "Lending tools to neighbours: who is responsible - Community Law Guide",
+    "details": {
+     "url": "https://communitylaw.example/lending-tools"
+    },
+    "lines": [
+     "A signed waiver does not remove all risk",
+     "Check household insurance"
+    ],
+    "did": "Reading about who is responsible if a lent tool causes harm.",
+    "phase": "late"
+   },
+   {
+    "app": "Microsoft Word",
+    "title": "Tool lending rules.docx",
+    "details": {
+     "file": "~/Documents/Lane4/Tool lending rules.docx"
+    },
+    "lines": [
+     "Return within 3 days",
+     "Clean the tool before returning it"
+    ],
+    "did": "Writing the rules for borrowing tools.",
+    "phase": "late"
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (14)",
+    "details": {},
+    "lines": [
+     "Lane 4 residents newsletter",
+     "Your parcel was delivered",
+     "Water bill"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "cardgame-to-app",
+  "theme": "a card game design that becomes a phone app",
+  "round": 5,
+  "pivot": true,
+  "windows": [
+   {
+    "app": "Figma",
+    "title": "Hedgerow - card templates",
+    "details": {},
+    "lines": [
+     "Creature card 63 x 88 mm",
+     "Cost, Power, Ability text"
+    ],
+    "did": "Designing the card layouts for a card game.",
+    "phase": "early"
+   },
+   {
+    "app": "Google Docs",
+    "title": "Hedgerow rulebook v3",
+    "details": {},
+    "lines": [
+     "Each turn: draw, play one creature, attack",
+     "A player with no seeds left loses"
+    ],
+    "did": "Editing the rules of a card game.",
+    "phase": "early"
+   },
+   {
+    "app": "Notes",
+    "title": "Playtest notes - Saturday",
+    "details": {},
+    "lines": [
+     "Too slow when two players hold 5 or more cards",
+     "The Burrow ability is too strong"
+    ],
+    "did": "Writing down what went wrong in a playtest of the card game.",
+    "phase": "early"
+   },
+   {
+    "app": "Google Docs",
+    "title": "Hedgerow digital - scope",
+    "details": {},
+    "lines": [
+     "Same rules as rulebook v3, played on phones",
+     "Turn timer; pass-and-play first, online later",
+     "No new cards in the first version"
+    ],
+    "did": "Scoping a phone version of the card game.",
+    "phase": "bridge"
+   },
+   {
+    "app": "Safari",
+    "title": "Build a card game - Flame engine, Flutter docs",
+    "details": {
+     "url": "https://flutterdocs.example/flame/card-game"
+    },
+    "lines": [
+     "class CardComponent extends PositionComponent"
+    ],
+    "did": "Following a tutorial for building a card game in Flutter.",
+    "phase": "late"
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "card_component.dart - hedgerow_app",
+    "details": {
+     "file": "~/code/hedgerow_app/lib/card_component.dart"
+    },
+    "lines": [
+     "class CardComponent extends PositionComponent with TapCallbacks",
+     "void onTapDown(TapDownEvent event)"
+    ],
+    "did": "Writing the code for a card that can be tapped on a phone.",
+    "phase": "late"
+   },
+   {
+    "app": "Safari",
+    "title": "Hedgerow - TestFlight - App Store Connect",
+    "details": {
+     "url": "https://appstore.example/testflight/hedgerow"
+    },
+    "lines": [
+     "Build 0.1 (1): Processing",
+     "Add internal testers"
+    ],
+    "did": "Uploading a first test build for friends to try on their phones.",
+    "phase": "late"
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (20)",
+    "details": {},
+    "lines": [
+     "Print shop: card stock samples",
+     "Your parcel was delivered",
+     "Game night on Friday"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "sheet-to-tutor-app",
+  "theme": "a tutor's fee spreadsheet that becomes a small web app",
+  "round": 5,
+  "pivot": true,
+  "windows": [
+   {
+    "app": "Microsoft Excel",
+    "title": "Students_tracker.xlsx",
+    "details": {
+     "file": "~/Tutoring/Students_tracker.xlsx"
+    },
+    "lines": [
+     "Student, Subject, Day, Fee paid",
+     "Aarav, Maths, Tue, Yes"
+    ],
+    "did": "Updating the sheet that tracks students and fees.",
+    "phase": "early"
+   },
+   {
+    "app": "Microsoft Excel",
+    "title": "Fees_due_pivot.xlsx",
+    "details": {
+     "file": "~/Tutoring/Fees_due_pivot.xlsx"
+    },
+    "lines": [
+     "Row labels, Sum of Due",
+     "Oct, 18,500"
+    ],
+    "did": "Summarising fees due per month with a pivot table.",
+    "phase": "early"
+   },
+   {
+    "app": "Safari",
+    "title": "XLOOKUP and VLOOKUP compared - Sheet Tips",
+    "details": {
+     "url": "https://sheettips.example/xlookup"
+    },
+    "lines": [
+     "XLOOKUP can look left and returns exact matches by default"
+    ],
+    "did": "Reading how to look up a student's row in a sheet.",
+    "phase": "early"
+   },
+   {
+    "app": "Notes",
+    "title": "Tutoring - the sheet is breaking",
+    "details": {},
+    "lines": [
+     "Two people edited at once and overwrote each other",
+     "Move to a small web app: students, sessions, fees",
+     "Keep the sheet as the starting data"
+    ],
+    "did": "Noting that the sheet should become a small web app.",
+    "phase": "bridge"
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "schema.sql - tutor-app",
+    "details": {
+     "file": "~/code/tutor-app/schema.sql"
+    },
+    "lines": [
+     "CREATE TABLE students (id INTEGER PRIMARY KEY, name TEXT, subject TEXT);",
+     "CREATE TABLE payments (student_id INTEGER, month TEXT, amount INTEGER);"
+    ],
+    "did": "Writing database tables for students and payments.",
+    "phase": "late"
+   },
+   {
+    "app": "Terminal",
+    "title": "tutor-app - zsh",
+    "details": {
+     "cwd": "~/code/tutor-app"
+    },
+    "lines": [
+     "$ flask run",
+     "* Running on http://127.0.0.1:5000",
+     "$ python import_sheet.py Students_tracker.xlsx",
+     "Imported 64 students"
+    ],
+    "did": "Starting the web app and importing the old sheet's rows.",
+    "phase": "late"
+   },
+   {
+    "app": "Safari",
+    "title": "Sessions and cookies - Flask documentation",
+    "details": {
+     "url": "https://flask.example/docs/sessions"
+    },
+    "lines": [
+     "session['user_id'] = user.id"
+    ],
+    "did": "Reading how to keep a tutor signed in on the web app.",
+    "phase": "late"
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (30)",
+    "details": {},
+    "lines": [
+     "Parent: fee receipt please",
+     "Your parcel was delivered",
+     "Exam timetable"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ },
+ {
+  "id": "poster-to-eye-camp",
+  "theme": "a clinic poster that turns into organising a free eye check-up camp",
+  "round": 5,
+  "pivot": true,
+  "windows": [
+   {
+    "app": "Canva",
+    "title": "Poster - Eye care awareness (A3)",
+    "details": {},
+    "lines": [
+     "Get your eyes checked",
+     "Sunrise Community Clinic"
+    ],
+    "did": "Designing a poster about eye care for a community clinic.",
+    "phase": "early"
+   },
+   {
+    "app": "Safari",
+    "title": "Legible fonts for older readers - Design for Good",
+    "details": {
+     "url": "https://designforgood.example/legible-fonts"
+    },
+    "lines": [
+     "Use at least 28 pt for body text on posters"
+    ],
+    "did": "Reading how to make a poster easy to read for older people.",
+    "phase": "early"
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Poster text approval - Dr. Menon",
+    "details": {},
+    "lines": [
+     "Please add the clinic's phone number and timings",
+     "Remove the word 'cure'"
+    ],
+    "did": "Reading the doctor's changes to the poster text.",
+    "phase": "early"
+   },
+   {
+    "app": "Google Docs",
+    "title": "Poster meeting notes",
+    "details": {},
+    "lines": [
+     "The poster is for a free eye check-up camp on 23 Nov",
+     "Need: 2 optometrists, 150 slips, volunteers for the queue, a hall"
+    ],
+    "did": "Reading meeting notes saying the poster is for a free eye camp.",
+    "phase": "bridge"
+   },
+   {
+    "app": "Google Sheets",
+    "title": "Camp volunteers and roster",
+    "details": {},
+    "lines": [
+     "Name, Role, Shift",
+     "Kavya, Registration desk, 9 to 12"
+    ],
+    "did": "Making a roster of volunteers for the day.",
+    "phase": "late"
+   },
+   {
+    "app": "Gmail",
+    "title": "Re: Request for the community hall on 23 Nov - Ward 12 Office",
+    "details": {},
+    "lines": [
+     "The hall is free from 8 am to 2 pm",
+     "Fee waived for registered clinics"
+    ],
+    "did": "Reading the ward office's reply about booking a hall.",
+    "phase": "late"
+   },
+   {
+    "app": "Safari",
+    "title": "Equipment and consent forms - Vision Outreach Guide",
+    "details": {
+     "url": "https://visionoutreach.example/camp-checklist"
+    },
+    "lines": [
+     "Letter charts, trial lens kit, torches",
+     "Consent form for dilating drops"
+    ],
+    "did": "Reading a checklist of equipment for an eye camp.",
+    "phase": "late"
+   }
+  ],
+  "general": [
+   {
+    "app": "Gmail",
+    "title": "Inbox (24)",
+    "details": {},
+    "lines": [
+     "Sunrise Clinic: staff rota",
+     "Your parcel was delivered",
+     "Printing quote"
+    ],
+    "did": "Looking at an email inbox."
+   }
+  ]
+ }
+]

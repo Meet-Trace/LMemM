@@ -24,10 +24,20 @@ learns the exact questions it is asked:
 The narrator's sentence is kept in half the lessons and dropped in the rest, so the judge reads windows
 well whether or not the sentence is good. Stories are split into train and valid, never one story in
 both. Themes of the test days are refused (TEST_THEMES): those days must stay unseen.
+
+Round 5 (stories with "round": 5, written by make_hard_stories.py) teaches the cases the judge got wrong:
+    twins     a story names a look-alike story ("twins"); three in four of its "no" answers use a window of the
+              twin (the same repository on another branch, the same file name in another folder), and the two
+              always land in the same split, so the validation set holds look-alikes too
+    pivots    a story that changes topic ("pivot": true, windows marked "phase": early, bridge, late); pairs of
+              an early and a late window are taught twice, and a late window is judged against a project made
+              only of early windows, and the other way round
+Such stories may not use the words of the invented trail days (EXAM_WORDS): those days stay the exam.
 """
 import argparse
 import json
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -42,7 +52,14 @@ TEST_THEMES = ("wedding", "fundrais", "investor", "marathon", "running", "pricin
                # near relatives of the no-shared-words day, so it tests reading, not recall of a lesson
                "fitness", "gym", "cycling", "triathlon", "sangeet", "mehendi", "ceremony", "seed round", "angel",
                "venture", "pitch deck")
+# The words of the invented trail days (make_trail_days.py), refused in round-5 stories whole word by whole word.
+EXAM_WORDS = re.compile(
+    r"\b(wagtail|biscuit\w*|rover|sitters?|walkers?|pupp(?:y|ies)|dogs?|pets?|labradors?|vaccinat\w*|shelter|crates?"
+    r"|gst|stripe|pincodes?|harbour|proposals?|lantern|quartz|granite|contractors?|countertops?|flat renovation"
+    r"|ledgerly|tidepool|csv|login|timeouts?|sentry|nextcloud|homeserver|docker|annual report|monsoon|mumbai"
+    r"|lofi|budget_v\d|report_v\d|report_final)\b", re.I)
 DOC_CHARS = 1400
+TWIN_SHARE = 0.75          # of a twin story's "no" answers, the share that use a window of its twin
 
 
 def item(window):
@@ -74,6 +91,15 @@ def words(window):
                                  + list(window.get("lines") or [])))
 
 
+def story_text(s):
+    """Everything a story says, as one text."""
+    parts = [s["id"], s["theme"]]
+    for win in list(s["windows"]) + list(s.get("general") or []):
+        parts += [win["app"], win["title"], win.get("did", "")] + [str(v) for v in (win.get("details") or {}).values()]
+        parts += list(win.get("lines") or [])
+    return "\n".join(parts)
+
+
 def check(stories):
     seen = set()
     for s in stories:
@@ -86,6 +112,18 @@ def check(stories):
             raise ValueError(f"Story {s['id']} is about {hit[0]}, a theme of the test days. Leave it out.")
         if len(s["windows"]) < 3:
             raise ValueError(f"Story {s['id']} needs at least 3 windows.")
+        if s.get("round"):
+            word = EXAM_WORDS.search(story_text(s))
+            if word:
+                raise ValueError(f"Story {s['id']} uses '{word.group(0)}', a word of the trail days. Leave it out.")
+    ids = {s["id"] for s in stories}
+    by_id = {s["id"]: s for s in stories}
+    for s in stories:
+        for t in s.get("twins") or []:
+            if t not in ids or s["id"] not in (by_id[t].get("twins") or []):
+                raise ValueError(f"Story {s['id']} names {t} as its twin, which does not name it back.")
+        if s.get("pivot") and {x.get("phase") for x in s["windows"]} != {"early", "bridge", "late"}:
+            raise ValueError(f"Pivot story {s['id']} needs early, bridge and late windows.")
 
 
 def lessons(stories, rnd, places=(), split="train"):
@@ -99,9 +137,16 @@ def lessons(stories, rnd, places=(), split="train"):
         out.append({"kind": "work", "instruct": ai.INSTRUCT_WORK, "query": ai.QUERY_WORK,
                     "doc": group_doc(windows, said), "label": label, "story": story})
 
+    twins = {s["id"]: set(s.get("twins") or []) for s in stories}
+
     def other(sid, near):
-        """A window of another story; with `near`, one sharing a word with `near` when there is one."""
+        """A window of another story; with `near`, one sharing a word with `near` when there is one.
+        A story with a twin draws most of its answers from the twin, the look-alike project."""
         pool = [(o, w) for o, w in flat if o != sid]
+        if twins.get(sid) and rnd.random() < TWIN_SHARE:
+            look_alikes = [(o, w) for o, w in pool if o in twins[sid]]
+            if look_alikes:
+                pool = look_alikes
         if near is not None:
             mine = words(near)
             close = [(o, w) for o, w in pool if mine & words(w)]
@@ -113,7 +158,8 @@ def lessons(stories, rnd, places=(), split="train"):
         ws = s["windows"]
         for i, a in enumerate(ws):
             for b in ws[i + 1:]:
-                for q, d in ((a, b), (b, a)):
+                across = s.get("pivot") and {a.get("phase"), b.get("phase")} == {"early", "late"}
+                for q, d in ((a, b), (b, a)) * (2 if across else 1):
                     said = rnd.random() < 0.5
                     out.append({"kind": "pair", "instruct": ai.INSTRUCT_PAIR, "query": activity(q, said),
                                 "doc": activity(d, said), "label": 1, "story": s["id"]})
@@ -128,6 +174,16 @@ def lessons(stories, rnd, places=(), split="train"):
             for doc, label in ((held, 1), (other(s["id"], held if rnd.random() < 0.5 else None), 0)):
                 out.append({"kind": "project", "instruct": ai.INSTRUCT_PROJECT, "query": query,
                             "doc": activity(doc, said)[:DOC_CHARS], "label": label, "story": s["id"]})
+        if s.get("pivot"):         # a project of one topic, a window of the other, in both directions
+            for held_phase, member_phases in (("late", ("early", "bridge")), ("early", ("late", "bridge"))):
+                members_pool = [m for m in ws if m.get("phase") in member_phases]
+                for held in (w for w in ws if w.get("phase") == held_phase):
+                    said = rnd.random() < 0.5
+                    members = rnd.sample(members_pool, min(len(members_pool), rnd.randint(2, 3)))
+                    query = "Activities already in it:\n" + "\n".join(f"- {brief(m, said)}" for m in members)
+                    for doc, label in ((held, 1), (other(s["id"], held if rnd.random() < 0.5 else None), 0)):
+                        out.append({"kind": "project", "instruct": ai.INSTRUCT_PROJECT, "query": query,
+                                    "doc": activity(doc, said)[:DOC_CHARS], "label": label, "story": s["id"]})
         for _ in range(2):
             work(rnd.sample(ws, min(len(ws), rnd.randint(3, 5))), 1, s["id"])
         for g in s.get("general") or []:
@@ -147,6 +203,39 @@ def lessons(stories, rnd, places=(), split="train"):
     return out
 
 
+def twin_clusters(stories):
+    """Stories grouped by twin (a pair, or one alone), each group in id order, groups in id order."""
+    by_id = {s["id"]: s for s in stories}
+    seen, groups = set(), []
+    for sid in sorted(by_id):
+        if sid in seen:
+            continue
+        group, todo = [], [sid]
+        while todo:
+            cur = todo.pop()
+            if cur in seen or cur not in by_id:
+                continue
+            seen.add(cur)
+            group.append(cur)
+            todo += list(by_id[cur].get("twins") or [])
+        groups.append(sorted(group))
+    return groups
+
+
+def split_hard(stories, valid, seed):
+    """Round-5 stories into train and valid by group, so a story and its twin are never apart: a share of the
+    twin pairs and a share of the pivots (at least one of each) go to validation."""
+    pairs = [g for g in twin_clusters(stories) if len(g) > 1]
+    alone = [g for g in twin_clusters(stories) if len(g) == 1]
+    rnd = random.Random(seed + 5)
+    rnd.shuffle(pairs)
+    rnd.shuffle(alone)
+    taken = pairs[:max(1, round(len(pairs) * valid))] + alone[:max(1, round(len(alone) * valid))]
+    ids = {i for g in taken for i in g}
+    by_id = {s["id"]: s for s in stories}
+    return {"valid": [by_id[i] for i in sorted(ids)], "train": [s for s in stories if s["id"] not in ids]}
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--stories", type=Path, default=ROOT / "research" / "judge_lessons",
@@ -155,16 +244,22 @@ def main(argv=None):
                    help="a folder of general places (*.json lists of windows), split like the stories")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--valid", type=float, default=0.15, help="share of stories kept for validation")
+    p.add_argument("--hard-valid", type=float, default=0.25,
+                   help="share of the round-5 twin pairs and pivots kept for validation")
     p.add_argument("--seed", type=int, default=7)
     args = p.parse_args(argv)
     files = sorted(args.stories.glob("*.json")) if args.stories.is_dir() else [args.stories]
     stories = [s for f in files for s in json.loads(f.read_text())]
     check(stories)
     rnd = random.Random(args.seed)
-    order = sorted(stories, key=lambda s: s["id"])
-    rnd.shuffle(order)
+    hard = [s for s in stories if s.get("round")]
+    order = sorted((s for s in stories if not s.get("round")), key=lambda s: s["id"])
+    rnd.shuffle(order)                     # as before round 5, so the older stories split the same way
     n_valid = max(1, round(len(order) * args.valid))
     split = {"valid": order[:n_valid], "train": order[n_valid:]}
+    if hard:
+        for name, group in split_hard(hard, args.hard_valid, args.seed).items():
+            split[name] += group
     pool = [g for f in (sorted(args.places.glob("*.json")) if args.places.is_dir() else [])
             for g in json.loads(f.read_text())]
     rnd.shuffle(pool)
@@ -180,6 +275,7 @@ def main(argv=None):
                 fh.write(json.dumps(r, ensure_ascii=False) + "\n")
         counts[name] = {k: sum(1 for r in rows if r["kind"] == k) for k in ("pair", "project", "general", "work")}
         counts[name]["yes share"] = round(sum(r["label"] for r in rows) / max(1, len(rows)), 2)
+        counts[name]["round 5"] = sum(1 for r in rows if r["story"] in {s["id"] for s in hard})
     print(json.dumps({"stories": {k: len(v) for k, v in split.items()}, "lessons": counts}, indent=1))
     return counts
 

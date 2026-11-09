@@ -20,10 +20,12 @@ import project_grouping_eval as pge  # noqa: E402
 import project_reasoner as reasoner  # noqa: E402
 import project_reasoner_assign as assign  # noqa: E402
 import project_reasoner_graph as graph  # noqa: E402
+import project_reasoner_judge as judge  # noqa: E402
 import synthetic_days  # noqa: E402
 
 METHODS = {"graph": lambda items, timeline, model: graph.run(items, timeline, model),
-           "assign": lambda items, timeline, model: assign.run(items, timeline, model)}
+           "assign": lambda items, timeline, model: assign.run(items, timeline, model),
+           "judge": lambda items, timeline, model: judge.run(items, timeline, model)}
 
 
 def pct(x):

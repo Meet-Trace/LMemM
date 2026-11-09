@@ -1177,6 +1177,7 @@ class Tracker:
         thread while you are idle: the method works on a copy, the lock is held only to copy and to offer."""
         import copy
         import project_finder
+        import project_reasoner
         import projects
         import real_days
         try:
@@ -1189,7 +1190,10 @@ class Tracker:
                     return
                 items = copy.deepcopy(self.items)
             visits = real_days.read_visits(config.paths().memory_dir)
-            planned = project_finder.find(reg, items, visits)
+            namer = (project_reasoner.OllamaModel(config.NAME_MODEL, config.NAME_MODEL_URL, timeout=30,
+                                                  keep_alive="20s")
+                     if config.NAME_MODEL else None)
+            planned = project_finder.find(reg, items, visits, namer=namer)
             with self.lock:
                 added = project_finder.offer(self.sug, reg, self.items, planned)
                 if added:

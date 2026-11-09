@@ -33,7 +33,9 @@ from datetime import datetime, timedelta
 import config
 import project_reasoner_assign as assign
 import project_reasoner_graph as graph
+import group_names
 import projects
+import understand
 import suggestions
 
 LOOKBACK_DAYS = 14
@@ -55,7 +57,11 @@ def recent(items, visits, now, days=LOOKBACK_DAYS):
     timeline = [v for v in visits if v["from"] >= since and v["item"] in items]
     timeline = [v for v in timeline if items[v["item"]].get("app") not in OWN_APPS]
     used = dict.fromkeys(v["item"] for v in timeline)
-    return {i: {k: v for k, v in items[i].items() if k not in SKIP_FIELDS} for i in used}, timeline
+    out = {i: {k: v for k, v in items[i].items() if k not in SKIP_FIELDS} for i in used}
+    for thing in out.values():                    # older things saved before capture named every window
+        if not thing.get("title"):
+            thing["title"] = understand.place_name(thing)
+    return out, timeline
 
 
 def _filed(reg, item):
@@ -91,7 +97,7 @@ def name_for(items, ids, keys_of):
     return " ".join(_spelling(k, items, ids) for k in top)
 
 
-def plan(reg, items, groups, keys_of=None):
+def plan(reg, items, groups, keys_of=None, namer=None, seen=None):
     """What to offer for each group the method found: [(strength, kind, payload)], strongest first.
     kind "items": (pid, ids, reason); kind "project": (name, ids, reason)."""
     out = []
@@ -109,6 +115,8 @@ def plan(reg, items, groups, keys_of=None):
         if g["tasks"] >= NEW_MIN_TASKS and len(ids) >= NEW_MIN_THINGS:
             name = name_for(items, ids, keys_of) if keys_of else None
             name = name or g["label"]
+            if namer is not None:                 # a tiny model names what code grouped (group_names.py)
+                name = group_names.suggest(namer, seen or items, ids, fallback=name)["name"] or name
             why = f"Used together in {g['tasks']} separate sittings"
             out.append((g["tasks"] * 2 + len(ids), "project", (name, ids, why)))
     # two groups the method kept apart but that carry the same name are offered as one project: you can
@@ -127,7 +135,7 @@ def plan(reg, items, groups, keys_of=None):
     return sorted(merged, key=lambda x: -x[0])
 
 
-def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS):
+def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS, namer=None):
     """Run the method over the last LOOKBACK_DAYS days and plan what to offer (see `plan`). Reads only;
     the tracker calls it outside its lock, on a copy of its items."""
     now = now or datetime.now()
@@ -136,7 +144,7 @@ def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS):
         return []
     _, _, log = assign.run(things, timeline, model if model is not None else graph.CapitalisedNames())
     groups = next((e["projects"] for e in log if e["step"] == "projects"), {})
-    return plan(reg, items, groups, {i: _keys(things[i]) for i in things})
+    return plan(reg, items, groups, {i: _keys(things[i]) for i in things}, namer, things)
 
 
 def _when(text):

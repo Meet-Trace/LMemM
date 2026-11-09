@@ -21,6 +21,11 @@ chained everything into one project through Slack workspace names and colleagues
                   is split between them and damped, so it can never pull the two together on its own.
     5. Parts      Inside a project, tasks are assigned to sub-projects the same way, using every entity
                   including plain words and numbers.
+    6. Meaning    Optional: a vector per place from a tiny embedding model (all-minilm, card_notes.py).
+                  Two places whose cards mean similar things add evidence to a task link (more when
+                  visited back to back), and a task close to a project's average vector adds to that
+                  project's score. Anchor conflicts still block both. Comparing a task with every
+                  project's average is arithmetic, not model calls, so 100 projects cost nothing extra.
 """
 
 import math
@@ -41,6 +46,10 @@ LEAD = 3.0                       # ... and at least this many times the runner-u
 SUB_ACCEPT = 1.0                 # score to join an existing sub-project
 MAX_PROJECTS_PER_ENTITY = 5      # entities in more projects than this are not used to find candidates
 HUB_ANCHORS = 4                  # an entity seen beside more distinct anchors than this identifies nothing
+EMBED = {"floor": 0.3,             # cosine below this says nothing; 1.0 maps to full similarity
+         "task": 4.0,              # evidence for a back-to-back pair at full similarity (half if not adjacent)
+         "project": 1.0,           # score for a task at full similarity to a project's average
+         "nearest": 3}             # projects found by vector, besides those sharing an entity
 SKIP_FOLDERS = {"~", "users", "desktop", "documents", "downloads", "home", "clients", "projects", ""}
 FREE_MAIL = {"gmail", "outlook", "yahoo", "icloud", "hotmail", "mail"}
 
@@ -211,9 +220,28 @@ def _sub_score(profile, ents):
     return sum(prior * min(1.0, profile[k] / max(1, total / 20)) for k, prior in ents.items() if k in profile)
 
 
-def run(items, timeline, model=None):
+def _sim(a, b, floor):
+    """Cosine of two unit vectors mapped to 0..1 above `floor`."""
+    if a is None or b is None:
+        return 0.0
+    c = sum(x * y for x, y in zip(a, b))
+    return max(0.0, (c - floor) / (1 - floor))
+
+
+def _mean(vs):
+    vs = [v for v in vs if v is not None]
+    if not vs:
+        return None
+    total = [sum(xs) for xs in zip(*vs)]
+    n = math.sqrt(sum(x * x for x in total)) or 1.0
+    return [x / n for x in total]
+
+
+def run(items, timeline, model=None, vectors=None, embed=None):
     """Group a stream. `model(system, user, schema) -> dict` copies names, or None to use only what the
-    app knows. Returns (assigned {id: [paths]}, projects {path: summary}, log)."""
+    app knows. `vectors` {place: unit vector} adds meaning (6); None leaves it out. Returns
+    (assigned {id: [paths]}, projects {path: summary}, log)."""
+    vectors, embed = vectors or {}, {**EMBED, **(embed or {})}
     log = []
     ask = Model(model, log)
     places = [i for i in items if items[i].get("kind") not in HUB_KINDS]
@@ -256,18 +284,35 @@ def run(items, timeline, model=None):
                 adj = frozenset((a, b)) in next_to
                 ev[frozenset((a, b))] = sum(_task_weight(min(ents[a][k], ents[b][k]), adj) * idf[k]
                                             for k in ents[a].keys() & ents[b].keys())
+                if vectors:
+                    ev[frozenset((a, b))] += (embed["task"] * (1.0 if adj else 0.5)
+                                              * _sim(vectors.get(a), vectors.get(b), embed["floor"]))
         groups = _complete_link(here, ev)
         tasks.extend(groups)
 
     reg = Projects()
     task_project, task_sub, made = {}, {}, 0
+    centre, held = {}, defaultdict(dict)      # project -> average vector; project -> {entity: prior}
     for t_idx, task in enumerate(tasks):
         te = {f"place:{p}": PRIOR["repo"] for p in task}       # the places themselves are evidence too
         for p in task:
             for k, prior in ents[p].items():
                 te[k] = max(te.get(k, 0), prior)
         cands = reg.candidates(te)
-        scored = sorted(((reg.score(te, c), c) for c in cands), key=lambda x: -x[0][0])
+        tv = _mean(vectors.get(p) for p in task) if vectors else None
+        meaning = {}
+        if tv is not None:
+            own = {k: v for k, v in te.items() if not k.startswith("place:")}
+            near = sorted(((_sim(tv, v, embed["floor"]), c) for c, v in centre.items()), reverse=True)
+            for s_, c in near[:embed["nearest"]]:
+                if s_ > 0 and not _conflict(own, held[c]):
+                    meaning[c] = embed["project"] * s_
+            cands = set(cands) | set(meaning)
+
+        def total(c):
+            s_, why = reg.score(te, c)
+            return (s_ + meaning.get(c, 0.0), why + ([f"meaning {meaning[c]:.2f}"] if c in meaning else []))
+        scored = sorted(((total(c), c) for c in sorted(cands)), key=lambda x: (-x[0][0], x[1]))  # same answer every run
         best = scored[0] if scored else ((0.0, []), None)
         second = scored[1][0][0] if len(scored) > 1 else 0.0
         (s, why), proj = best
@@ -285,6 +330,12 @@ def run(items, timeline, model=None):
             continue
         names = [k for k, prior in te.items() if prior >= 0.6 and not k.startswith("place:")]
         reg.add(proj, te, names)
+        for k, prior in te.items():
+            if not k.startswith("place:"):
+                held[proj][k] = max(held[proj].get(k, 0), prior)
+        if tv is not None:
+            members = [p for t, pr in task_project.items() if pr == proj for p in tasks[t]] + list(task)
+            centre[proj] = _mean(vectors.get(p) for p in members)
         task_project[t_idx] = proj
         # sub-project inside the project
         subs = reg.subs[proj]
@@ -300,7 +351,8 @@ def run(items, timeline, model=None):
     # names and paths
     def label(proj):
         c = reg.names.get(proj) or Counter()
-        top = [k for k, _ in c.most_common(3)]
+        words = {k: n for k, n in c.items() if not k.replace(".", "").isdigit()} or c   # "468" is not a name
+        top = [k for k, _ in sorted(words.items(), key=lambda x: (-x[1], x[0]))[:3]]
         return (top[0] if top else proj).title()
     labels = {p: label(p) for p in set(task_project.values())}
     assigned, projects = defaultdict(set), {}

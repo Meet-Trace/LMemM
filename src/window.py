@@ -1699,11 +1699,12 @@ class MainWindow:
         kit.put_text(doc, where, px + 36, top + 3, tw - 36, 12, 400, kit.warm("mute"), wrap=False, height=18)
         cy = top + 44
         cy += kit.put_text(doc, page["headline"], px, cy, tw, 24, 600, kit.warm("ink")) + 10
-        if page["observed"]:
+        if page["ai_summary"]:                                                # written by the model from the window and your notes: labelled
+            cy += kit.put_text(doc, page["ai_summary"], px, cy, tw, 14, 400, kit.warm("ink")) + 6
+            kit.put_text(doc, "Summary by Trace", px, cy, tw, 11, 500, kit.accent_text(), wrap=False, height=16)
+            cy += 28
+        elif page["observed"]:                                                # no AI line yet: only stored facts
             cy += kit.put_text(doc, page["observed"], px, cy, tw, 14, 400, kit.warm("ink")) + 12
-        if page["intent"]:                                                    # the AI's reading: labelled, grey, never mixed with your notes
-            kit.put_text(doc, "Trace's reading", px, cy, tw, 12, 600, kit.accent_text(), wrap=False, height=16)
-            cy += 18 + kit.put_text(doc, page["intent"], px, cy + 18, tw, 13, 400, kit.warm("mute")) + 14
         if page["reopen"]:
             kit.button(doc, "Reopen", px, cy + 4, 120, 36, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
             self._link(doc, "Copy link", px + 130, cy + 10, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13)

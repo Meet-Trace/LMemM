@@ -1,4 +1,4 @@
-"""AI summaries of a window's on-screen text: a short title for what the person was doing, and what they seem to be trying to do.
+"""AI summaries of a window's on-screen text: a short title and a one-sentence summary of what the person was doing.
 
 The narrator (config.FINDER_NARRATOR, the same small model the project finder uses, through your own
 Ollama) reads what LMemM stored for a window and writes two short lines. They replace the raw text on
@@ -6,7 +6,7 @@ the thing page (the raw text stays one tap away in the viewer). Nothing here dec
 projects: the lines are only shown.
 
 Contract
-  summarize(item, narrator) -> {"title", "intent", "of", "model", "v"} or None when there is nothing to read
+  summarize(item, narrator) -> {"title", "summary", "of", "model", "v"} or None when there is nothing to read
       or the model wrote nothing usable. Never raises for a model that answers badly.
   stale(item) -> whether the stored summary is missing or was written for older text.
   Capitalised names the model wrote that the window never mentions are cut (project_reasoner_ai.ground),
@@ -19,22 +19,24 @@ import hashlib
 import re
 
 import config
+import notes
 import project_reasoner_ai as ai
 import project_reasoner_graph as graph
 import tiny_scorer as ts
 
 READ_CHARS = 1500            # how much of one window the model reads
-SUMMARY_TOKENS = 90
+SUMMARY_TOKENS = 110
 SYSTEM = ("You read what was on a person's computer screen and say, plainly, what it shows and what the person "
           f"seems to be trying to do. {ai.UNTRUSTED}")
-VERSION = 2                  # 1 wrote a description of the screen; 2 writes a title and an intent
-PROMPT = ("Window:\n{window}\n\nAnswer in exactly two lines.\n"
+VERSION = 3                  # 1 described the screen; 2 a title and an intent; 3 a title and a summary that reads the notes
+PROMPT = ("Window:\n{window}\n{notes}\nAnswer in exactly two lines.\n"
           "Title: what the person was doing, in 3 to 7 words, starting with a verb ending in -ing "
           "(for example: Updating the outreach tracker). Do not describe the screen.\n"
-          "Intent: what the person seems to be trying to do, in one sentence of at most 20 words. "
-          "If the window does not show it, write: Intent: unclear.\n"
-          "Say only what the window shows.")
-_LINE = re.compile(r"^\W*(title|intent)\W*[:\-]\s*(.*)$", re.I)
+          "Summary: one sentence of at most 25 words, speaking to the person (\"You were ...\"), saying what they were "
+          "doing and, only when the window or their notes show it, what they meant to do next. Never guess a reason.\n"
+          "Say only what the window and the notes show.")
+_LINE = re.compile(r"^\W*(title|summary)\W*[:\-]\s*(.*)$", re.I)
+NOTES_SHOWN, NOTE_CHARS = 3, 140
 
 
 def readable(item):
@@ -43,8 +45,15 @@ def readable(item):
     return any(texts[f] for f in ("typed", "received", "notes", "read", "screen"))
 
 
+def note_lines(item):
+    """What the person wrote on this thing and has not finished: the newest few notes, shortened."""
+    mine = [n["text"] for n in item.get("notes", []) if isinstance(n, dict) and isinstance(n.get("text"), str)
+            and not notes.is_done(item, n)]
+    return [" ".join(t.split())[:NOTE_CHARS] for t in mine[-NOTES_SHOWN:]]
+
+
 def source_hash(item):
-    return hashlib.sha1(ai.source_text(item).encode("utf-8", "replace")).hexdigest()[:16]
+    return hashlib.sha1((ai.source_text(item) + "\x1f" + "\x1f".join(note_lines(item))).encode("utf-8", "replace")).hexdigest()[:16]
 
 
 def stale(item):
@@ -57,17 +66,17 @@ def stale(item):
 
 
 def parse(answer):
-    """The two lines out of the model's answer: {"title", "intent"}. Without markers the whole answer is
-    the title (cut to its first sentence). "unclear" intents are dropped."""
+    """The two lines out of the model's answer: {"title", "summary"}. Without markers the whole answer is
+    the title (cut to its first sentence). An "unclear" summary is dropped."""
     found = {}
-    for line in re.split(r"\s*(?=\b(?:Title|Intent)\s*:)", answer or ""):
+    for line in re.split(r"\s*(?=\b(?:Title|Summary)\s*:)", answer or ""):
         m = _LINE.match(line.strip())
         if m and m.group(2).strip():
             found.setdefault(m.group(1).lower(), m.group(2).strip())
     if not found and (answer or "").strip():
         found["title"] = re.split(r"(?<=[.!?])\s", answer.strip())[0]
-    if re.match(r"^\W*unclear\b", found.get("intent", ""), re.I):
-        del found["intent"]
+    if re.match(r"^\W*unclear\b", found.get("summary", ""), re.I):
+        del found["summary"]
     return found
 
 
@@ -75,14 +84,16 @@ def summarize(item, narrator):
     if not readable(item):
         return None
     window = ai.window_text(item, READ_CHARS)
-    answer = narrator(SYSTEM, PROMPT.format(window=window), SUMMARY_TOKENS)
+    written = note_lines(item)
+    notes_text = ("Notes the person wrote here:\n" + "\n".join(f"- {t}" for t in written) + "\n") if written else ""
+    answer = narrator(SYSTEM, PROMPT.format(window=window, notes=notes_text), SUMMARY_TOKENS)
     lines = parse(answer)
-    haystack = ai.source_text(item)
+    haystack = ai.source_text(item) + " " + " ".join(written)
     out = {k: ai.ground(v, haystack)[0] for k, v in lines.items()}
     out = {k: v for k, v in out.items() if v}
     if "title" not in out:
         return None
-    return {"title": out["title"].rstrip(".").strip(), "intent": out.get("intent", ""), "of": source_hash(item),
+    return {"title": out["title"].rstrip(".").strip(), "summary": out.get("summary", ""), "of": source_hash(item),
             "model": config.FINDER_NARRATOR, "v": VERSION}
 
 

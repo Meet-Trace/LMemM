@@ -267,9 +267,9 @@ class ThingPageTests(unittest.TestCase):
     def test_the_page_leads_with_what_you_were_doing_and_shows_the_address_once(self):
         reg, items, ids = world()
         items["d"].update(doing="Searching domains", state={"url": "https://x.test/a", "page": "Garden"}, last_seen=NOW.isoformat(),
-                          summary={"title": "Checking free .com names", "intent": "Pick a name", "of": "x", "model": "m", "v": 2})
+                          summary={"title": "Checking free .com names", "summary": "You were checking free .com names.", "of": "x", "model": "m", "v": 2})
         page = pm.view(reg, items, pm.press(reg, pm.new_state(), "thing", "d", items), NOW)["main"]
-        self.assertEqual((page["headline"], page["intent"], page["reopen"]), ("Checking free .com names", "Pick a name", "https://x.test/a"))
+        self.assertEqual((page["headline"], page["ai_summary"], page["reopen"]), ("Checking free .com names", "You were checking free .com names.", "https://x.test/a"))
         self.assertEqual(page["address"], "https://x.test/a")
         self.assertTrue(page["observed"].startswith("You were on x.test."))
         self.assertIn("You left yourself two reminders.", page["observed"])               # built from stored facts only
@@ -280,7 +280,7 @@ class ThingPageTests(unittest.TestCase):
         reg, items, ids = world()
         items["d"]["doing"] = "Editing Garden plan"
         page = pm.view(reg, items, pm.press(reg, pm.new_state(), "thing", "d", items), NOW)["main"]
-        self.assertEqual((page["headline"], page["intent"], page["shot"]), ("Editing Garden plan", None, None))
+        self.assertEqual((page["headline"], page["ai_summary"], page["shot"]), ("Editing Garden plan", None, None))
 
     def test_a_kept_screenshot_is_offered_only_when_the_file_exists(self):
         import tempfile, os

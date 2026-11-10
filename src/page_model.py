@@ -429,7 +429,7 @@ def place_of(source):
     return " · ".join(dict.fromkeys(" ".join(p.split()) for p in parts)) or "Screen"
 
 
-def screen_of(content, now, summary=None, intent=None):
+def screen_of(content, now, summary=None):
     """"What was on screen" as ONE card: where it was (once), a plain summary, and the raw text as
     dated versions, newest first, for the viewer. Older memory kept one plain string; now it is
     {"excerpts": [{"id", "text", "source", "last_seen", "decision_quotes"}, ...]}, newest last
@@ -466,7 +466,7 @@ def screen_of(content, now, summary=None, intent=None):
     top = dict(versions[0])
     for v in versions:                                   # the link is shown once; a version only names its place if it differs
         v["place"] = v["place"] if v["place"] != top["place"] else None
-    return {"place": top["place"], "url": top["url"], "when": top["when"], "summary": summary, "intent": intent or None,
+    return {"place": top["place"], "url": top["url"], "when": top["when"], "summary": summary,
             "decisions": quotes[:DECISIONS_SHOWN], "versions": versions, "count": len(versions)}
 
 
@@ -530,16 +530,15 @@ def thing_page(reg, item, now, fading=(), shots_dir=None):
             "stats": [(k, v) for k, v in stats if v],
             "latest": state_rows,
             # recognition first: what you were doing (the AI's line, else the stored label), what Trace read as
-            # your intent (AI, labelled as such), a screenshot only when one was kept, and one way back
+            # a short AI summary (labelled as such), a screenshot only when one was kept, and one way back
             "headline": headline, "ai_title": bool(written.get("title")), "observed": observed(item, url, len(open_now)),
-            "intent": written.get("intent") or None, "shot": shot, "shot_when": ago(item.get("last_seen"), now),
+            "ai_summary": written.get("summary") or None, "shot": shot, "shot_when": ago(item.get("last_seen"), now),
             "reopen": url, "address": url,
             "glance": " · ".join(b for b in (f"Last seen {ago(item.get('last_seen'), now).lower()}" if item.get("last_seen") else "",
                                            store.duration(item.get("seconds")),
                                            plural(int(item.get("visits") or 0), "visit") if item.get("visits") else "") if b),
             "details": details,
-            "screen": screen_of(item.get("content"), now, summary=item.get("doing") or None,
-                                intent=written.get("intent"))}
+            "screen": screen_of(item.get("content"), now, summary=item.get("doing") or None)}
 
 
 # ---------------------------------------------------------------- search

@@ -20,7 +20,11 @@ FOCUS = {"morning": (0.42, 0.41), "afternoon": (0.36, 0.50), "evening": (0.28, 0
 
 # A graphite wash over each picture so the light text and cards stay readable: opacity of black, 0..1. The
 # morning and evening pictures are pale, so they get the most; night is dark already. A guess to tune by eye.
-SCRIM = {"morning": 0.62, "afternoon": 0.50, "evening": 0.52, "night": 0.68}
+SCRIM = {"morning": 0.62, "afternoon": 0.50, "evening": 0.58, "night": 0.68}
+
+# Extra darkening that follows the picture's own brightness: the picture is multiplied by itself this many
+# times (1.0 = once, fractions blend), so the bright areas darken most and the dark ones hardly change. Tune by eye.
+TONE = {"morning": 2.0, "afternoon": 1.0, "evening": 2.0, "night": 1.0}
 
 # The light fields: (x, y, size, (r, g, b), strength, drift_x, drift_y, drift_phase, pulse_phase). x, y are the
 # centre as a fraction of the window; size is a fraction of its longer side; strength is the peak opacity of a

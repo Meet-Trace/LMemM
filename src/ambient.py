@@ -33,6 +33,7 @@ import motion
 _blobs = {}
 _grain_colors = {}
 SOURCE_OVER = 2                # NSCompositingOperationSourceOver
+MULTIPLY = 25                  # NSCompositingOperationMultiply
 WINDOW_BELOW = -1
 WIDTH_HEIGHT_SIZABLE = 2 | 16  # NSViewWidthSizable | NSViewHeightSizable
 
@@ -93,6 +94,10 @@ class _Picture(_Passive):
             iw, ih = image.size()
             x, y, w, h = model.crop(box.size.width, box.size.height, iw, ih, self.focus)
             image.drawInRect_fromRect_operation_fraction_(box, NSMakeRect(x * iw, (1.0 - y - h) * ih, w * iw, h * ih), SOURCE_OVER, 1.0)
+            left = self.tone                                           # bright areas darken most: the picture times itself
+            while left > 0:
+                image.drawInRect_fromRect_operation_fraction_(box, NSMakeRect(x * iw, (1.0 - y - h) * ih, w * iw, h * ih), MULTIPLY, min(1.0, left))
+                left -= 1.0
             if self.scrim > 0:
                 NSColor.blackColor().colorWithAlphaComponent_(self.scrim).setFill()
                 NSBezierPath.fillRect_(box)
@@ -217,7 +222,7 @@ class AmbientCanvas:
         if image is None:
             return None
         picture = _Picture.alloc().initWithFrame_(self.view.bounds())
-        picture.image, picture.focus, picture.scrim = image, model.FOCUS[key], model.SCRIM[key]
+        picture.image, picture.focus, picture.scrim, picture.tone = image, model.FOCUS[key], model.SCRIM[key], model.TONE[key]
         picture.setAutoresizingMask_(WIDTH_HEIGHT_SIZABLE)
         picture.setWantsLayer_(True)
         picture.glows = []

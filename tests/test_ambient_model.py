@@ -67,6 +67,10 @@ class MotionDataTests(unittest.TestCase):
         self.assertEqual(set(m.SCRIM), set(m.PERIODS))
         self.assertTrue(all(0.3 <= v <= 0.8 for v in m.SCRIM.values()))
 
+    def test_tone_is_a_valid_strength_for_every_period(self):
+        self.assertEqual(set(m.TONE), set(m.PERIODS))
+        self.assertTrue(all(0 <= v <= 3 for v in m.TONE.values()))
+
     def test_timings_are_inside_the_asked_ranges(self):
         lo, hi = config.AMBIENT_MOVE_SECONDS
         self.assertTrue(45 <= lo <= hi <= 90)

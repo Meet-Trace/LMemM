@@ -1762,6 +1762,8 @@ class MainWindow:
             top = 24
             if e["summary"]:
                 top += kit.put_text(box, e["summary"] + (f" · as of {e['when']}" if e["when"] else ""), 14, 12 + top, inner, 13, 400, kit.mute()) + 8
+            if e.get("intent"):
+                top += kit.put_text(box, "Likely trying to: " + e["intent"], 14, 12 + top, inner, 13, 500) + 8
             for quote in e["decisions"]:
                 h = kit.put_text(box, "“" + quote + "”", 28, 12 + top, inner - 14, 13, 600, kit.accent_text())
                 box.addSubview_(_Bar.alloc().initWithFrame_(NSMakeRect(14, 12 + top + 2, 3, max(h - 4, 14))))

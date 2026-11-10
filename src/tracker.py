@@ -157,6 +157,7 @@ class Tracker:
         self.suggestion = None               # a group offered as one project: {name, ids, reason}
         self.suggest_answers = self.load_answers()
         self.sug = self.load_sug()           # proposals waiting for an answer (suggestions.py): the pill and the window share them
+        self.last_summary, self.summary_busy = 0.0, False   # screen_summary.py: last pass, and one running now
         self.last_finder, self.finder_busy = 0.0, False   # project_finder.py: last look for projects, and one running now
         self.last_widget_refresh = 0.0
         self.control_file = Path(p.control_file)
@@ -518,6 +519,10 @@ class Tracker:
                 and now - self.last_finder >= config.FIND_EVERY):
             self.last_finder, self.finder_busy = now, True
             threading.Thread(target=self.finder_pass, daemon=True).start()
+        if (config.SUMMARIZE and self.paused == "idle" and not self.summary_busy and not self.finder_busy
+                and now - self.last_summary >= config.SUMMARY_EVERY):
+            self.last_summary, self.summary_busy = now, True
+            threading.Thread(target=self.summary_pass, daemon=True).start()
         if now - self.last_retention_sweep >= config.RETENTION_SWEEP:
             self.last_retention_sweep = now
             with self.lock:
@@ -1171,6 +1176,31 @@ class Tracker:
                 self.save_sug()
             self.sync_pill()
         return view
+
+    def summary_pass(self):
+        """Write the short AI summary for a few things that have none (screen_summary.py). Runs on its own
+        thread while you are idle; the model works on a copy and the lock is held only to copy and to store."""
+        import copy
+        import screen_summary
+        try:
+            model = screen_summary.narrator()
+            if model is None:
+                return
+            with self.lock:
+                ids = screen_summary.pending(self.items, config.SUMMARY_BATCH)
+                work = {i: copy.deepcopy(self.items[i]) for i in ids}
+            for i, item in work.items():
+                if self.paused != "idle":
+                    break                           # you are back: stop, the rest waits
+                made = screen_summary.summarize(item, model)
+                with self.lock:
+                    if made and i in self.items:
+                        self.items[i]["summary"] = made
+                        self.dirty = True
+        except Exception as error:                  # a summary that fails must never stop capture
+            line(now_hms(), "", f"summary skipped: {error}")
+        finally:
+            self.summary_busy = False
 
     def finder_pass(self):
         """Look for projects in what you did lately and offer them (project_finder.py). Runs on its own

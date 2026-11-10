@@ -428,7 +428,7 @@ def place_of(source):
     return " · ".join(dict.fromkeys(" ".join(p.split()) for p in parts)) or "Screen"
 
 
-def screen_of(content, now, summary=None):
+def screen_of(content, now, summary=None, intent=None):
     """"What was on screen" as ONE card: where it was (once), a plain summary, and the raw text as
     dated versions, newest first, for the viewer. Older memory kept one plain string; now it is
     {"excerpts": [{"id", "text", "source", "last_seen", "decision_quotes"}, ...]}, newest last
@@ -465,7 +465,7 @@ def screen_of(content, now, summary=None):
     top = dict(versions[0])
     for v in versions:                                   # the link is shown once; a version only names its place if it differs
         v["place"] = v["place"] if v["place"] != top["place"] else None
-    return {"place": top["place"], "url": top["url"], "when": top["when"], "summary": summary,
+    return {"place": top["place"], "url": top["url"], "when": top["when"], "summary": summary, "intent": intent or None,
             "decisions": quotes[:DECISIONS_SHOWN], "versions": versions, "count": len(versions)}
 
 
@@ -482,6 +482,7 @@ def thing_page(reg, item, now, fading=()):
     state = {k: v for k, v in (item.get("state") or {}).items() if v and str(v) != title_of(item)}
     stats = [("Last seen", ago(item.get("last_seen"), now)), ("First seen", ago(item.get("first_seen"), now)),
              ("Time spent", store.duration(item.get("seconds"))), ("Visits", f"{int(item.get('visits') or 0):,}")]
+    written = item.get("summary") if isinstance(item.get("summary"), dict) else {}     # the AI's lines (screen_summary.py)
     return {"kind": "thing", "title": title_of(item), "app": item.get("app", ""), "back": True,
             "thing_kind": item.get("kind", ""), "url": favicons.page_url(item),
             "meta": " · ".join(b for b in (item.get("app", ""), "last seen " + ago(item.get("last_seen"), now).lower()) if b),
@@ -493,7 +494,8 @@ def thing_page(reg, item, now, fading=()):
             "done": [{"id": notes.note_id(n), "text": n["text"], "when": ago(n.get("at"), now)} for n in done],
             "stats": [(k, v) for k, v in stats if v],
             "latest": [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]],
-            "screen": screen_of(item.get("content"), now, summary=item.get("doing") or None)}
+            "screen": screen_of(item.get("content"), now, summary=written.get("screen") or item.get("doing") or None,
+                                intent=written.get("intent"))}
 
 
 # ---------------------------------------------------------------- search

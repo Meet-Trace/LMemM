@@ -192,6 +192,10 @@ class AmbientCanvas(NSView):
             layer.setOpacity_(0.0)
             layer.setActions_({"bounds": _NONE, "position": _NONE, "contents": _NONE, "contentsRect": _NONE})
             self.layer().insertSublayer_below_(layer, self.grain_layer) if self.grain_layer is not None else self.layer().addSublayer_(layer)
+            scrim = CALayer.layer()                                 # always the first sublayer; the glows follow it
+            scrim.setBackgroundColor_(NSColor.blackColor().colorWithAlphaComponent_(model.SCRIM[key]).CGColor())
+            scrim.setActions_({"bounds": _NONE, "position": _NONE})
+            layer.addSublayer_(scrim)
             for spec in model.LIGHTS[key]:
                 glow = CALayer.layer()
                 glow.setContents_(_blob(spec[3]))
@@ -218,7 +222,8 @@ class AmbientCanvas(NSView):
         x, y, cw, ch = model.crop(w, h, iw, ih, model.FOCUS[key])
         layer.setContentsRect_(((x, 1.0 - y - ch), (cw, ch)))             # contentsRect's origin is bottom-left
         longer = max(w, h)
-        for glow, (fx, fy, size, _color, _strength, _dx, _dy, _p, _q) in zip(layer.sublayers() or (), model.LIGHTS[key]):
+        layer.sublayers()[0].setFrame_(NSMakeRect(0, 0, w, h))
+        for glow, (fx, fy, size, _color, _strength, _dx, _dy, _p, _q) in zip(list(layer.sublayers())[1:], model.LIGHTS[key]):
             side = size * longer
             glow.setBounds_(NSMakeRect(0, 0, side, side))
             glow.setPosition_((fx * w, (1.0 - fy) * h))
@@ -247,7 +252,7 @@ class AmbientCanvas(NSView):
         layer = self.layers.get(key) if key else None
         if layer is None:
             return
-        glows = list(layer.sublayers() or ())
+        glows = list(layer.sublayers() or ())[1:]                        # [0] is the still scrim
         for glow in glows:
             glow.removeAllAnimations()
         if not (on and self._running()):

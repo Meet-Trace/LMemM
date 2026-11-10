@@ -63,6 +63,10 @@ class MotionDataTests(unittest.TestCase):
                 self.assertTrue(0 <= pa <= 1 and 0 <= pb <= 1)
                 self.assertTrue(color[2] >= color[0] and color[2] >= color[1], "blue-indigo-violet family")
 
+    def test_scrim_is_a_valid_opacity_for_every_period(self):
+        self.assertEqual(set(m.SCRIM), set(m.PERIODS))
+        self.assertTrue(all(0 <= v <= 0.8 for v in m.SCRIM.values()))
+
     def test_timings_are_inside_the_asked_ranges(self):
         lo, hi = config.AMBIENT_MOVE_SECONDS
         self.assertTrue(45 <= lo <= hi <= 90)

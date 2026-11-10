@@ -15,7 +15,12 @@ EXTENSIONS = (".webp", ".png", ".jpg", ".jpeg")      # first match wins; webp is
 # Where each picture's light sits, as a fraction of the picture (x from the left, y from the top). When the
 # window's shape is not the picture's, the crop keeps this point as near the middle as the picture allows,
 # so the lit region is never the part that gets cut off. Tune per picture once the artwork is in.
-FOCUS = {"morning": (0.62, 0.30), "afternoon": (0.55, 0.35), "evening": (0.66, 0.35), "night": (0.60, 0.40)}
+# Measured on the supplied pictures (brightness-weighted centre of each).
+FOCUS = {"morning": (0.42, 0.41), "afternoon": (0.36, 0.50), "evening": (0.28, 0.46), "night": (0.19, 0.37)}
+
+# A graphite wash over each picture so the light text and cards stay readable: opacity of black, 0..1. The
+# morning and evening pictures are pale, so they get the most; night is dark already. A guess to tune by eye.
+SCRIM = {"morning": 0.58, "afternoon": 0.30, "evening": 0.45, "night": 0.0}
 
 # The light fields: (x, y, size, (r, g, b), strength, drift_x, drift_y, drift_phase, pulse_phase). x, y are the
 # centre as a fraction of the window; size is a fraction of its longer side; strength is the peak opacity of a

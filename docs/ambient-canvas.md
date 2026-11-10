@@ -14,7 +14,7 @@ Behaviour: a period change fades the new picture over the old (`AMBIENT_FADE_SEC
 about 1.2 s). Lights drift 45-90 s and swell 30-60 s with opacity/transform animations run by the compositor; nothing is drawn per
 frame. Movement stops when the window is hidden, minimised, covered or the app is hidden, and when Reduce Motion is on
 (or `AMBIENT_MOTION = False`). The grain is one static tile (`AMBIENT_GRAIN`); the pictures' own grain is untouched.
-Only the showing picture is kept decoded.
+Only the showing picture is kept decoded. A graphite wash per period (`SCRIM` in `ambient_model.py`) keeps text readable over the pale pictures; tune it by eye.
 
 Checking CPU/GPU on a Mac: open Activity Monitor (CPU and GPU history, filter "LMemM"), leave the window open and still for a
 minute, then compare with `AMBIENT_MOTION = False` and with the pictures moved away (stand-in). Expect near-zero CPU

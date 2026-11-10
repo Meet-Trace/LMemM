@@ -21,19 +21,19 @@ ORANGE_STATUS_ON_LIGHT = (0.75, 0.30, 0.02)
 RED_TEXT_ON_LIGHT = (0.80, 0.15, 0.12)
 TOAST_LIGHT, TOAST_DARK = 0.12, 0.22                   # the toast's grey in each mode (the dark page is 0.133)
 
-# The thing page's surfaces: (dark mode, light mode). Warm charcoal with a little brown, the way Trace's own site is
-# warm: the app's background is the darkest step, the page's workspace one step up, the panel inside it another,
-# and the note field sits back down in an inset. Edges are one quiet step from the surface they bound. In light mode,
-# warm paper. Text is a soft off-white. The window's other pages keep the system colours.
-WARM = {"canvas": ((0.078, 0.070, 0.064), (0.945, 0.930, 0.905)),
-        "surface": ((0.124, 0.111, 0.099), (0.992, 0.987, 0.974)),
-        "raised": ((0.152, 0.137, 0.123), (0.976, 0.967, 0.946)),
-        "inset": ((0.092, 0.083, 0.075), (0.996, 0.992, 0.984)),
-        "edge": ((0.205, 0.187, 0.170), (0.870, 0.850, 0.815)),
-        "ink": ((0.945, 0.925, 0.895), (0.130, 0.120, 0.105)),
-        "mute": ((0.700, 0.665, 0.625), (0.390, 0.370, 0.335))}
+# The main window's colours: neutral warm-light, in the manner of a calm writing app, with Trace's blue as the one
+# accent. Warm in the way paper is, not brown. The window is drawn in the light appearance (config.WINDOW_LIGHT).
+# canvas = the page behind everything; sidebar = one small step darker; surface = white, only where content is
+# grouped; inset = a field sitting in a surface; edge = the one hairline colour.
+WARM = {"canvas": (0.965, 0.961, 0.945),         # #F6F5F1
+        "sidebar": (0.941, 0.937, 0.918),
+        "surface": (1.0, 1.0, 1.0),
+        "inset": (0.973, 0.970, 0.957),
+        "edge": (0.910, 0.902, 0.878),           # #E8E6E0
+        "ink": (0.145, 0.149, 0.165),            # #25262A
+        "mute": (0.420, 0.416, 0.447)}           # a step darker than #85838A, which is 3.8:1 on white
 
-ACCENT = (0.17, 0.40, 0.92)                    # buttons: white text on this
+ACCENT = (0.208, 0.388, 0.914)                 # #3563E9 buttons: white text on this
 ACCENT_TEXT_ON_LIGHT = ACCENT                  # blue words on the light card
 ACCENT_TEXT_ON_DARK = (0.40, 0.60, 1.0)        # blue words on the dark card (a lighter blue)
 

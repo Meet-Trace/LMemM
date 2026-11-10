@@ -17,6 +17,7 @@ from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, 
                     NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
 import apps
+import config
 import favicons
 import icon_images
 import menu_model
@@ -35,7 +36,7 @@ from widget import _Fields, _Flipped, _Ring, _Tap
 
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
-RADIUS_PAGE, RADIUS_PANEL, RADIUS_FIELD = 20, 14, 12                # one family of corners for the thing page
+RADIUS_PANEL, RADIUS_FIELD = 14, 10                # one family of corners for the thing page
 BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
@@ -118,9 +119,14 @@ class _SideBackdrop(_Flipped):
     """The sidebar's soft tint and the hairline between it and the page."""
 
     def drawRect_(self, rect):
-        kit.faint(0.035).setFill()
-        NSBezierPath.fillRect_(self.bounds())
-        kit.faint(0.09).setFill()
+        if config.WINDOW_LIGHT:
+            kit.warm("sidebar").setFill()
+            NSBezierPath.fillRect_(self.bounds())
+            kit.warm("edge").setFill()
+        else:
+            kit.faint(0.035).setFill()
+            NSBezierPath.fillRect_(self.bounds())
+            kit.faint(0.09).setFill()
         NSBezierPath.fillRect_(NSMakeRect(self.bounds().size.width - 1, 0, 1, self.bounds().size.height))
 
 
@@ -179,7 +185,12 @@ class MainWindow:
         self.window.setHidesOnDeactivate_(False)                   # it stays where it is when you go to another app
         self.window.setCollectionBehavior_(1 << 7)                 # the green button makes it full screen
         self.window.setContentMinSize_((MIN_W, MIN_H))
-        self.window.setBackgroundColor_(kit.card_background())
+        if config.WINDOW_LIGHT:                                    # one warm-light application: sidebar and pages together
+            from AppKit import NSAppearance
+            self.window.setAppearance_(NSAppearance.appearanceNamed_("NSAppearanceNameAqua"))
+            self.window.setBackgroundColor_(kit.warm("canvas"))
+        else:
+            self.window.setBackgroundColor_(kit.card_background())
         self.closing = _MainClosing.alloc().init()
         self.closing.on_resize = self._resized
         self.closing.on_close = lambda: self._regular(False)
@@ -1182,10 +1193,6 @@ class MainWindow:
             return self._things(doc, page, x, 6, w)
         y = 30
         kind = page["kind"]
-        if kind == "thing":                                       # a warm canvas under the whole page
-            canvas = kit._KitCanvasWarm.alloc().initWithFrame_(NSMakeRect(0, 0, self.W - SIDE_W, 10))
-            canvas.setAutoresizingMask_(18)                       # grows with the scrolling area
-            doc.addSubview_(canvas)
         if kind in ("search", "needs", "thing", "archived", "settings"):
             self._link(doc, "‹ Back", x - 6, y - 8, lambda: self.back(kind))
             y += 24
@@ -1685,36 +1692,31 @@ class MainWindow:
         return y + inner + 24
 
     def _thing_page(self, doc, page, x, y, w):
-        """One workspace: the hero (who, what you were doing, the screenshot) on the page's surface, and under it one
-        inset panel holding your notes with their composer, and the quiet facts. One surface, one panel."""
-        workspace = kit.surface(doc, x, y, w, 10, "surface", radius=RADIUS_PAGE)
+        """The activity sits on the page itself: identity, headline, summary and Reopen beside the screenshot, then your
+        notes in the one white surface that groups them, and the quiet facts beside it on the page."""
         top = self._hero(doc, page, x, y, w)
-        margin = 12
-        px, pw, pad = x + margin, w - 2 * margin, 20
-        panel = kit.surface(doc, px, top, pw, 10, "raised", edge=False, radius=RADIUS_PANEL)
-        inner = pw - 2 * pad
         wide = w >= 640
-        nw = int(inner * 0.6) if wide else inner
-        notes_bottom = self._notes(doc, page, px + pad, top + pad, nw)
+        pad = 20
+        nw = int(w * 0.6) if wide else w
+        card = kit.surface(doc, x, top, nw, 10, "surface", radius=RADIUS_PANEL)
+        notes_bottom = self._notes(doc, page, x + pad, top + pad, nw - 2 * pad)
+        card.setFrame_(NSMakeRect(x, top, nw, notes_bottom + pad - top))
+        notes_bottom += pad
         if wide:
-            facts_bottom = self._facts(doc, page, px + pad + nw + 36, top + pad + 2, inner - nw - 36)
+            facts_bottom = self._facts(doc, page, x + nw + 36, top + 6, w - nw - 36)
         else:
-            facts_bottom = self._facts(doc, page, px + pad, notes_bottom + 24, inner)
-        bottom = max(notes_bottom, facts_bottom) + pad
-        panel.setFrame_(NSMakeRect(px, top, pw, bottom - top))
-        workspace.setFrame_(NSMakeRect(x, y, w, bottom + margin - y))
-        return bottom + margin
+            facts_bottom = self._facts(doc, page, x, notes_bottom + 24, w)
+        return max(notes_bottom, facts_bottom) + 16
 
     def _hero(self, doc, page, x, y, w):
-        """The top of the workspace. Left: where it was, a short headline, the summary, Reopen. Right: the screenshot
-        and its caption (or the app's own icon when none was kept). Returns where the panel below begins."""
-        pad, gap = 32, 40
-        inner = w - 2 * pad
+        """The top of the page. Left: where it was, a short headline, the summary, Reopen. Right: the screenshot
+        and its caption (or the app's own icon when none was kept). Returns where the notes begin."""
+        gap = 44
         shot = page["shot"] and NSImage.alloc().initWithContentsOfFile_(page["shot"])
         wide = w >= 640
-        tw = int(inner * 0.42) if (shot and wide) else inner
-        sw = min(inner - tw - gap, 560) if (shot and wide) else min(inner, 560)
-        px, top = x + pad, y + pad
+        tw = int(w * 0.40) if (shot and wide) else w
+        sw = min(w - tw - gap, 580) if (shot and wide) else min(w, 580)
+        px, top = x, y
         self._app_icon(doc, page["app"], px, top - 2, 26, page.get("thing_kind", ""), page.get("url"))
         main = next((p["name"] for p in page["places"] if p["main"]), "")
         where = " · ".join(b for b in (page.get("meta"), "in " + main if main else "") if b)
@@ -1737,22 +1739,28 @@ class MainWindow:
         elif shot is not None:
             bottom = self._moment(doc, page, shot, px, cy + 12, sw)
         elif wide:                                                            # no screenshot kept: the app's own icon, large, as the anchor
-            self._app_icon(doc, page["app"], x + w - pad - 96, top, 96, page.get("thing_kind", ""), page.get("url"))
+            self._app_icon(doc, page["app"], x + w - 96, top, 96, page.get("thing_kind", ""), page.get("url"))
             bottom = max(bottom, top + 96)
-        return bottom + 24
+        return bottom + 28
 
     def _moment(self, doc, page, image, x, y, w):
         """The screenshot LMemM kept: a thin edge, a caption, and Full size set right after the caption."""
         size = image.size()
         h = min(w * size.height / max(size.width, 1), 340)
         w = h * size.width / max(size.height, 1)
-        holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, w, h))
+        lift = _Flipped.alloc().initWithFrame_(NSMakeRect(x, y, w, h))            # a faint ambient shadow, nothing more
+        lift.setWantsLayer_(True)
+        lift.layer().setShadowOpacity_(0.13)
+        lift.layer().setShadowRadius_(16)
+        lift.layer().setShadowOffset_((0, 0))
+        doc.addSubview_(lift)
+        holder = NSImageView.alloc().initWithFrame_(NSMakeRect(0, 0, w, h))
         holder.setImage_(image)
         holder.setImageScaling_(3)
         holder.setWantsLayer_(True)
         holder.layer().setCornerRadius_(RADIUS_PANEL)
         holder.layer().setMasksToBounds_(True)
-        doc.addSubview_(holder)
+        lift.addSubview_(holder)
         doc.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, w, h), None, kit.warm("edge"), RADIUS_PANEL))
         tap = self._tap(doc, x, y, w, h, (lambda p=page["shot"]: self.open_file(p)))
         tap.ax_label = "Screenshot of " + page["title"] + ". Opens full size."

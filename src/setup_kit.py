@@ -63,17 +63,8 @@ def status_text(kind):
 
 
 def warm(token):
-    """A warm surface or text colour of the thing page (palette.WARM): follows light and dark by itself."""
-    dark, light = palette.WARM[token]
-    try:
-        def pick(appearance):
-            is_dark = appearance.bestMatchFromAppearancesWithNames_(["NSAppearanceNameAqua", "NSAppearanceNameDarkAqua"]) \
-                == "NSAppearanceNameDarkAqua"
-            r, g, b = dark if is_dark else light
-            return NSColor.colorWithRed_green_blue_alpha_(r, g, b, 1.0)
-        return NSColor.colorWithName_dynamicProvider_(None, pick)
-    except Exception:
-        return NSColor.colorWithRed_green_blue_alpha_(*dark, 1.0)
+    """A colour of the main window's warm-light scheme (palette.WARM)."""
+    return NSColor.colorWithRed_green_blue_alpha_(*palette.WARM[token], 1.0)
 
 
 def ink():
@@ -507,14 +498,6 @@ class _KitSurface(_Flipped):
 
     def hitTest_(self, point):
         return None if self.fill is None else objc.super(_KitSurface, self).hitTest_(point)
-
-
-class _KitCanvasWarm(_Flipped):
-    """The warm near-black (or warm paper) under the whole thing page."""
-
-    def drawRect_(self, rect):
-        warm("canvas").setFill()
-        NSBezierPath.fillRect_(self.bounds())
 
 
 def surface(parent, x, y, w, h, token="surface", edge=True, radius=18):

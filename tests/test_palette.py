@@ -32,22 +32,21 @@ class PaletteContrast(unittest.TestCase):
     def test_the_toast_has_an_edge_in_dark_mode(self):
         self.assertGreaterEqual(p.contrast((p.TOAST_DARK,) * 3, p.CARD_DARK), 1.2)
 
-    def test_the_warm_surfaces_keep_text_readable_in_both_modes(self):
-        for mode in (0, 1):
-            ink, mute, accent = p.WARM["ink"][mode], p.WARM["mute"][mode], (p.ACCENT_TEXT_ON_DARK, p.ACCENT_TEXT_ON_LIGHT)[mode]
-            for ground in ("canvas", "surface", "raised", "inset"):
-                self.assertGreaterEqual(p.contrast(ink, p.WARM[ground][mode]), 7.0, (mode, ground))
-                self.assertGreaterEqual(p.contrast(mute, p.WARM[ground][mode]), 4.5, (mode, ground))
-            for ground in ("surface", "raised", "inset"):                       # blue words are only set on these
-                self.assertGreaterEqual(p.contrast(accent, p.WARM[ground][mode]), 4.5, (mode, ground))
+    def test_the_light_surfaces_keep_text_readable(self):
+        ink, mute, accent = p.WARM["ink"], p.WARM["mute"], p.ACCENT_TEXT_ON_LIGHT
+        for ground in ("canvas", "sidebar", "surface", "inset"):
+            self.assertGreaterEqual(p.contrast(ink, p.WARM[ground]), 7.0, ground)
+            self.assertGreaterEqual(p.contrast(mute, p.WARM[ground]), 4.5, ground)
+        for ground in ("canvas", "surface", "inset"):                           # blue words are set on these
+            self.assertGreaterEqual(p.contrast(accent, p.WARM[ground]), 4.5, ground)
 
-    def test_the_dark_surfaces_step_up_from_the_background(self):
-        dark = [p.luminance(p.WARM[k][0]) for k in ("canvas", "surface", "raised")]
-        self.assertEqual(dark, sorted(dark))
-        self.assertGreaterEqual(p.contrast(p.WARM["surface"][0], p.WARM["canvas"][0]), 1.1)
-        self.assertLess(p.luminance(p.WARM["inset"][0]), p.luminance(p.WARM["raised"][0]))     # the note field sits back
-        r, g, b = p.WARM["surface"][0]
-        self.assertGreater(r, b)                                                              # warm, not navy
+    def test_the_page_is_warm_light_and_not_brown(self):
+        r, g, b = p.WARM["canvas"]
+        self.assertGreater(r, 0.93)                                             # light
+        self.assertLess(r - b, 0.04)                                            # a touch warm, nowhere near beige
+        self.assertGreater(p.luminance(p.WARM["surface"]), p.luminance(p.WARM["canvas"]))
+        self.assertGreater(p.luminance(p.WARM["canvas"]), p.luminance(p.WARM["sidebar"]))
+        self.assertGreaterEqual(p.contrast(p.WARM["surface"], p.WARM["edge"]), 1.1)       # the hairline can be seen
 
     def test_contrast_is_symmetric_and_bounded(self):
         self.assertAlmostEqual(p.contrast((0, 0, 0), (1, 1, 1)), 21.0, places=1)

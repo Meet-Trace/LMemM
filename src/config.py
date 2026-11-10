@@ -16,6 +16,7 @@ SETTLE = 1.0            # debounce: wait this long after the last trigger
 MAX_SETTLE = 3.0        # ...but never longer than this after the first one
 MIN_GAP = 2.0           # never two captures closer than this (pinned excepted)
 POLL = 0.5              # seconds between window/tab title checks
+WINDOW_LIGHT = True     # the main window is drawn warm-light (sidebar and pages alike), whatever the Mac's appearance; False follows the Mac
 FIND_PROJECTS = True    # notice projects in what you did and suggest them (project_finder.py); never files anything
 FIND_EVERY = 30 * 60    # seconds between looks, taken only while you are idle
 SUMMARIZE = True        # write a short AI summary of what was on screen and what you were trying to do (screen_summary.py)

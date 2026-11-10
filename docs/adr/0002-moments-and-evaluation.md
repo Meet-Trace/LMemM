@@ -12,8 +12,16 @@ One record per stretch of a visit in which nothing material changed (`src/moment
 - In memory: 30 minutes, 400 moments. On disk: `memory/moments/<day>.jsonl`, owner-only, 48 h retention sweep, partial forget by time or app, and `forget.delete_all` already removes the folder. Off by default (`MOMENT_LOG`); the tracker hook is read-only and swallows errors.
 
 ## Evaluation (`src/activity_eval.py`, `scripts/eval_activities.py`)
-Units are moments or visits. Gold is labelled by you in `units.csv`/`activities.csv` (blank = unlabelled and excluded, `-` = noise, `also` for a second label). Metrics: pairwise P/R/F1 (plain and dwell-weighted), B-cubed, fragmentation, wrong-merge rate, cross-app recall, switch correctness, return correctness, and a sandwich test (A, short X, A) reporting both wrong absorption and wrong splitting. Calibration (ECE) is implemented for later PRs. Objective accuracy, boundary error and evidence reconstruction need inference output and arrive with it.
+- **Unit.** The primary annotation unit is the moment. `units.csv` carries `unit_id` (= the moment id), `visit_id` and `moment_id`; a label may span many moments and many visits, and `also` marks concurrent work. Stored sessions and the invented days are visit-level, a legacy coarser view: they are marked as such, written to their own sheets, and never mixed with or compared to moment-level scores. `HOW_TO_LABEL.txt` is written beside each sheet.
+- **Gold.** Blank = unlabelled (excluded, counted). `-` = noise. `unsure = Y` units are excluded from the primary scores and counted; inclusive numbers are reported separately. Objectives are optional context for later evaluation and are never required to score grouping.
+- **Primary metrics.** Pairwise precision/recall/F1; B-cubed; fragmentation; `wrong_pair_share` (share of merged pairs that are wrong, 1 minus precision); `impure_clusters` (share of clusters holding any wrong pair); cross-app recall; switch correctness; return correctness; the sandwich test (A, short X, A) reporting both wrong absorption and wrong splitting. Dwell-weighted pairwise is supplementary.
+- **B-cubed with overlapping labels.** A unit's class is every unit it shares a label with, plus itself, so classes can overlap; no partition then reaches 1.0, which is a documented limit, not a bug.
+- **Returns.** A run of a label is a maximal stretch of consecutive units carrying it; a return is a run after the first. Concurrent labels do not break each other's runs. A unit returning to several labels is one event, correct if grouped with an earlier unit of any of them.
+- Calibration (ECE) is implemented for later PRs. Objective accuracy, boundary error and evidence reconstruction need inference output and arrive with it.
 Baselines (structure only): each visit, each item, sittings (300 s), each app, whole session, and an absorb-short-visits rule marked reference only.
+
+## Forget
+Partial forget (`Recorder.forget`) clears memory first, the open moment included and without writing it, then disk, under the buffer's lock. The next frame starts a new visit with no link to anything forgotten. `forget.delete_all` is unchanged.
 
 ## Constraints carried forward
 Activities feed the existing project finder in Step 3 and do not duplicate it. Completion is user-set only. `uncertain` is a flag, not a status. Contiguity is a candidate signal that needs supporting evidence. Reuse the existing CPU judge and narrator before any larger model.

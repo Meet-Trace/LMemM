@@ -142,6 +142,15 @@ class Recorder:
         except Exception as e:           # shadow mode: a bug here must never touch the tracker
             print(f"moments: {e!r}")
 
+    def forget(self, minutes=None, app=None, now=None):
+        """Partial forget: memory first (the open moment included, never written), then disk. Returns (memory, disk)."""
+        now = now or time.time()
+        since = now - minutes * 60 if minutes is not None else None
+        with self.buffer.lock:                      # a frame cannot slip a forgotten moment back in between the two
+            mem = self.buffer.forget(since, app)
+            disk = self.store.forget(minutes, app, now)
+        return mem, disk
+
     def sweep(self, now=None):
         try:
             self.buffer.idle_flush(now or time.time())

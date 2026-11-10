@@ -11,6 +11,14 @@ you label real sessions, and every later system (and the baselines below) is sco
             (it is then its own singleton).
 
 Two units are TOGETHER when their gold label sets share a label. Noise is together with nothing.
+
+Levels. The primary annotation unit is the MOMENT (level "moment"): a label may span many moments and many
+visits, and a moment may carry two labels (`also`). Visit-level units (level "visit": stored sessions and the
+invented fixture days) are a legacy, coarser view; they are scored the same way but are never mixed with, or
+compared to, moment-level results.
+
+Primary scores leave out UNSURE units (their count is reported). `inclusive` repeats the headline numbers with
+them in. Dwell-weighted numbers are supplementary.
 """
 
 import csv
@@ -23,8 +31,29 @@ from datetime import datetime
 SHORT_S = 120.0            # an intervening visit this short is "a short visit" for the sandwich test
 SITTING_GAP = 300.0        # same gap project_reasoner uses for a sitting
 
-SHEET_UNITS = ["unit_id", "start", "dur_s", "app", "where", "item_id", "what", "activity", "also", "unsure", "note"]
+SHEET_UNITS = ["unit_id", "visit_id", "moment_id", "start", "dur_s", "app", "where", "item_id", "what", "activity", "also", "unsure", "note"]
 SHEET_ACTIVITIES = ["label", "objective", "outcome", "started", "ended", "notes"]
+INSTRUCTIONS = """HOW TO LABEL (units.csv)
+
+Unit. Each row is one MOMENT: a stretch of one visit where nothing material changed (level: {level}).
+One activity usually spans many rows, across apps and across separate visits. visit_id groups the rows of a
+visit; moment_id is the row's own id (unit_id).{legacy}
+
+activity   A short name you choose, e.g. paper, invoices, trip. Use the same name every time for the same piece
+           of work, also when you come back to it later or after other work in between.
+           '-' means noise: it belongs to no activity (idle browsing, a notification, a look at the clock).
+           Leave blank to skip a row: it is left out of every score and counted as unlabelled.
+also       Only for concurrent work: a row that truly serves TWO activities (reading a paper while writing the
+           invoice that cites it). Put the second name here; several can be separated with ';'. Do not use it
+           to hedge: if you are not sure, use `unsure`.
+unsure     Put Y when you could not tell what you were doing in this row, or which activity it belongs to.
+           Unsure rows are excluded from the main scores and reported as a count (inclusive scores are shown
+           separately).
+note       Anything you want to remember. Never scored.
+
+activities.csv is optional context for later evaluation: one row per activity with its objective, outcome and
+start/end if you want. An objective is NOT needed to score grouping.
+"""
 NOISE_WORDS = {"-", "noise", "none", "n/a"}
 
 
@@ -46,7 +75,7 @@ def units_from_day(day):
         uid = f"e{i:03d}"
         a, b = _ts(ev["from"]), _ts(ev["to"])
         units.append({"unit_id": uid, "t_start": a, "t_end": b, "dur_s": max(0.0, b - a), "app": it.get("app"),
-                      "item_id": ev["item"], "visit_id": uid,
+                      "item_id": ev["item"], "visit_id": uid, "moment_id": None, "level": "visit",
                       "text": it.get("title") or it.get("doing") or ev["item"]})
         gold[uid] = set(it.get("label") or [])
     return units, gold
@@ -59,8 +88,8 @@ def units_from_moments(records):
         d = r.get("digest") or {}
         units.append({"unit_id": r["id"], "t_start": r["t_start"], "t_end": r["t_end"],
                       "dur_s": max(0.0, r["t_end"] - r["t_start"]), "app": r.get("app"),
-                      "item_id": r.get("item_id"), "visit_id": r.get("visit_id"),
-                      "where": r.get("url") or r.get("window") or "",
+                      "item_id": r.get("item_id"), "visit_id": r.get("visit_id"), "moment_id": r["id"],
+                      "level": "moment", "where": r.get("url") or r.get("window") or "",
                       "text": " | ".join(d.get("lines") or []) or ", ".join((d.get("terms") or [])[:6])})
     return units
 
@@ -78,7 +107,7 @@ def units_from_session(doc, items=None):
         uid = f"s{i:03d}"
         units.append({"unit_id": uid, "t_start": a, "t_end": b, "dur_s": max(0.0, b - a),
                       "app": ev.get("app") or it.get("app"), "item_id": ev.get("item"), "visit_id": uid,
-                      "text": it.get("title") or ev.get("doing") or ""})
+                      "moment_id": None, "level": "visit", "text": it.get("title") or ev.get("doing") or ""})
     return units
 
 
@@ -90,10 +119,21 @@ def _hms(t):
 
 def write_sheet(units, directory):
     """Write units.csv and activities.csv for you to fill in. Files are owner-only. Returns the two paths."""
+    levels = {u.get("level", "moment") for u in units}
+    if len(levels) > 1:
+        raise ValueError("a sheet holds one level of unit; moment-level and visit-level are never mixed")
+    level = levels.pop() if levels else "moment"
     os.makedirs(directory, mode=0o700, exist_ok=True)
+    legacy = "" if level == "moment" else ("\nLEGACY visit-level sheet: each row is a whole visit from a stored session, a coarser unit than a "
+                                          "moment. Its scores are not comparable with moment-level ones.")
+    ip = os.path.join(directory, "HOW_TO_LABEL.txt")
+    fd = os.open(ip, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(INSTRUCTIONS.format(level=level, legacy=legacy))
     up, ap = os.path.join(directory, "units.csv"), os.path.join(directory, "activities.csv")
     for path, header, rows in (
-            (up, SHEET_UNITS, [{"unit_id": u["unit_id"], "start": _hms(u["t_start"]), "dur_s": round(u["dur_s"]),
+            (up, SHEET_UNITS, [{"unit_id": u["unit_id"], "visit_id": u.get("visit_id") or "", "moment_id": u.get("moment_id") or "",
+                                "start": _hms(u["t_start"]), "dur_s": round(u["dur_s"]),
                                 "app": u.get("app") or "", "where": u.get("where") or "",
                                 "item_id": u.get("item_id") or "", "what": (u.get("text") or "")[:200],
                                 "activity": "", "also": "", "unsure": "", "note": ""} for u in units]),
@@ -112,10 +152,10 @@ def _read_csv(path):
 
 
 def load_sheet(directory):
-    """Read what you filled in. -> (gold, unsure, problems). Blank `activity` = unlabelled; "-"/"noise" = noise;
+    """Read what you filled in. -> (gold, unsure, problems). An objective is never required (activities.csv is
+    context for later evaluation, not an input to grouping scores). Blank `activity` = unlabelled; "-"/"noise" = noise;
     `also` adds a second label to a unit that belongs to two. Problems are listed, never guessed around."""
     rows = _read_csv(os.path.join(directory, "units.csv"))
-    acts = {r["label"].strip(): r for r in _read_csv(os.path.join(directory, "activities.csv")) if (r.get("label") or "").strip()}
     gold, unsure, problems, seen = {}, set(), [], set()
     for r in rows:
         uid = (r.get("unit_id") or "").strip()
@@ -135,12 +175,6 @@ def load_sheet(directory):
         gold[uid] = labels
         if (r.get("unsure") or "").strip().lower() in ("y", "yes", "1", "x"):
             unsure.add(uid)
-    used = {l for s in gold.values() for l in s}
-    for l in sorted(used):
-        if l not in acts:
-            problems.append(f"activity '{l}' is used but has no row in activities.csv")
-        elif not (acts[l].get("objective") or "").strip():
-            problems.append(f"activity '{l}' has no objective")
     return gold, unsure, problems
 
 
@@ -187,7 +221,11 @@ def pairwise(units, gold, pred, weighted=False, cross_app=False):
 
 
 def bcubed(units, gold, pred):
-    """B-cubed precision/recall with the TOGETHER relation (a unit is together with itself)."""
+    """B-cubed precision/recall, multi-label reading: a unit's gold class is every unit it is TOGETHER with
+    (shares at least one label with) plus itself, so classes may overlap. Per unit: precision = share of its
+    predicted cluster that is in its class; recall = share of its class that is in its predicted cluster.
+    A partition cannot place a two-label unit with both of its activities' units AND keep those apart, so
+    with overlapping labels the best possible score is below 1.0 (see tests)."""
     lab = [u["unit_id"] for u in units if gold.get(u["unit_id"]) is not None]
     if not lab:
         return {"precision": None, "recall": None, "f1": None}
@@ -211,8 +249,9 @@ def fragmentation(units, gold, pred):
     return (sum(len(v) for v in per.values()) / len(per)) if per else None
 
 
-def wrong_merge(units, gold, pred):
-    """Share of predicted clusters (2+ labelled units) that hold two units that are NOT together."""
+def impure_clusters(units, gold, pred):
+    """Share of predicted clusters (2+ labelled units) that contain ANY pair that is not together. A coarse
+    cluster-level view; `wrong_pair_share` is the pair-level one."""
     groups = {}
     for u in units:
         if gold.get(u["unit_id"]) is not None:
@@ -222,6 +261,12 @@ def wrong_merge(units, gold, pred):
         return None
     bad = sum(1 for g in multi if any(not gold[a] & gold[b] for a, b in itertools.combinations(g, 2)))
     return bad / len(multi)
+
+
+def wrong_pair_share(units, gold, pred):
+    """Share of the pairs the grouping put together that are wrong (1 - pairwise precision). None if no pairs."""
+    p = pairwise(units, gold, pred)["precision"]
+    return None if p is None else 1.0 - p
 
 
 def switches(units, gold, pred):
@@ -240,20 +285,27 @@ def switches(units, gold, pred):
 
 
 def returns(units, gold, pred):
-    """When a gold activity resumes after other work: is the first unit of the later run in the same
-    cluster as the last unit of the earlier run?"""
+    """Return events and whether the grouping kept them with the earlier work.
+
+    Over the labelled, non-noise units in time order, a RUN of label L is a maximal stretch of consecutive units
+    that carry L (a unit that carries L and other labels continues L's run; concurrent activities do not break
+    each other). A RETURN is a run of L that comes after some other unit(s) that did not carry L, i.e. a run
+    after the first. A unit that returns to several labels at once is ONE event, and it is correct if it is
+    grouped with at least one unit of an earlier run of any label it returns to. Staying on L is never an event."""
     us = [u for u in sorted(units, key=lambda u: u["t_start"]) if gold.get(u["unit_id"])]
-    by = {}
-    for i, u in enumerate(us):
-        for l in gold[u["unit_id"]]:
-            by.setdefault(l, []).append(i)
-    right = total = 0
-    for l, idx in by.items():
-        for a, b in zip(idx, idx[1:]):
-            if b - a > 1:                                # something else happened in between
-                total += 1
-                right += _cluster(pred, us[a]["unit_id"]) == _cluster(pred, us[b]["unit_id"])
-    return {"accuracy": _ratio(right, total), "n": total}
+    events = {}                                          # unit index -> earlier units of the labels it returns to
+    for l in {l for u in us for l in gold[u["unit_id"]]}:
+        seen_run, prev_has = [], False
+        for i, u in enumerate(us):
+            has = l in gold[u["unit_id"]]
+            if has and not prev_has and seen_run:
+                events.setdefault(i, []).extend(seen_run)
+            if has:
+                seen_run.append(i)
+            prev_has = has
+    right = sum(1 for i, earlier in events.items()
+                if any(_cluster(pred, us[j]["unit_id"]) == _cluster(pred, us[i]["unit_id"]) for j in earlier))
+    return {"accuracy": _ratio(right, len(events)), "n": len(events)}
 
 
 def sandwiches(units, gold, pred, short_s=SHORT_S):
@@ -282,10 +334,13 @@ def sandwiches(units, gold, pred, short_s=SHORT_S):
 
 
 def coverage(units, gold, unsure=()):
-    labelled = [u for u in units if gold.get(u["unit_id"]) is not None]
+    """Counts. `labelled` excludes unsure units (they are left out of the primary scores)."""
+    unsure = set(unsure)
+    labelled = [u for u in units if gold.get(u["unit_id"]) is not None and u["unit_id"] not in unsure]
     noise = [u for u in labelled if not gold[u["unit_id"]]]
     return {"units": len(units), "labelled": len(labelled), "noise": len(noise),
-            "unlabelled": len(units) - len(labelled), "unsure": len([u for u in units if u["unit_id"] in unsure]),
+            "unlabelled": len([u for u in units if gold.get(u["unit_id"]) is None]),
+            "unsure": len([u for u in units if gold.get(u["unit_id"]) is not None and u["unit_id"] in unsure]),
             "activities": len({l for u in labelled for l in gold[u["unit_id"]]})}
 
 
@@ -302,14 +357,25 @@ def ece(confidences, correct, bins=10):
     return err
 
 
-def evaluate(units, gold, pred, unsure=(), short_s=SHORT_S):
-    """Every metric for one grouping."""
-    return {"coverage": coverage(units, gold, unsure),
-            "pairwise": pairwise(units, gold, pred), "pairwise_dwell": pairwise(units, gold, pred, weighted=True),
-            "cross_app": pairwise(units, gold, pred, cross_app=True), "bcubed": bcubed(units, gold, pred),
-            "fragmentation": fragmentation(units, gold, pred), "wrong_merge": wrong_merge(units, gold, pred),
+def _metrics(units, gold, pred, short_s):
+    return {"pairwise": pairwise(units, gold, pred), "cross_app": pairwise(units, gold, pred, cross_app=True),
+            "bcubed": bcubed(units, gold, pred), "fragmentation": fragmentation(units, gold, pred),
+            "impure_clusters": impure_clusters(units, gold, pred), "wrong_pair_share": wrong_pair_share(units, gold, pred),
             "switches": switches(units, gold, pred), "returns": returns(units, gold, pred),
             "sandwich": sandwiches(units, gold, pred, short_s)}
+
+
+def evaluate(units, gold, pred, unsure=(), short_s=SHORT_S):
+    """Every metric for one grouping. The top level is PRIMARY: unsure units are left out and counted in
+    `coverage`. `inclusive` holds the same headline numbers with unsure units kept in; `supplementary` holds the
+    dwell-weighted pairwise numbers."""
+    unsure = set(unsure)
+    primary = {k: v for k, v in gold.items() if k not in unsure}
+    out = _metrics(units, primary, pred, short_s)
+    out["coverage"] = coverage(units, gold, unsure)
+    out["inclusive"] = _metrics(units, gold, pred, short_s) if unsure else None
+    out["supplementary"] = {"pairwise_dwell": pairwise(units, primary, pred, weighted=True)}
+    return out
 
 
 # ---------------------------------------------------------------- baselines (structure only, no models)
@@ -354,15 +420,21 @@ def _pct(v):
     return "  -  " if v is None else f"{100 * v:4.0f}%"
 
 
-def report(name, res):
-    """One printed line of headline numbers."""
+def report(name, res, supplementary=False):
+    """One printed line of headline numbers (primary: unsure units left out)."""
     pw, ca, bc = res["pairwise"], res["cross_app"], res["bcubed"]
     sw, rt, sa = res["switches"], res["returns"], res["sandwich"]
     frag = res["fragmentation"]
-    return (f"{name:34s} P {_pct(pw['precision'])} R {_pct(pw['recall'])} F1 {_pct(pw['f1'])} | "
+    line = (f"{name:34s} P {_pct(pw['precision'])} R {_pct(pw['recall'])} F1 {_pct(pw['f1'])} | "
             f"x-app R {_pct(ca['recall'])} | b-cubed F1 {_pct(bc['f1'])} | frag {'-' if frag is None else f'{frag:.1f}'} | "
-            f"wrong-merge {_pct(res['wrong_merge'])} | switch {_pct(sw['accuracy'])} | return {_pct(rt['accuracy'])} | "
+            f"wrong pairs {_pct(res['wrong_pair_share'])} impure clusters {_pct(res['impure_clusters'])} | "
+            f"switch {_pct(sw['accuracy'])} | return {_pct(rt['accuracy'])} (n {rt['n']}) | "
             f"sandwich absorbed {_pct(sa['absorbed_wrong'])} split {_pct(sa['split_wrong'])}")
+    if supplementary:
+        line += f" || dwell-weighted F1 {_pct(res['supplementary']['pairwise_dwell']['f1'])}"
+        if res.get("inclusive"):
+            line += f" | with unsure F1 {_pct(res['inclusive']['pairwise']['f1'])}"
+    return line
 
 
 def limits(cov):
@@ -374,6 +446,8 @@ def limits(cov):
         out.append("fewer than 3 activities: grouping metrics are easy to game")
     if cov["unlabelled"]:
         out.append(f"{cov['unlabelled']} unlabelled units left out of every score")
+    if cov["unsure"]:
+        out.append(f"{cov['unsure']} unsure units left out of the primary scores (inclusive numbers shown with --supplementary)")
     return out
 
 

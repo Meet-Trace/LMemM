@@ -29,14 +29,17 @@ import moment_store  # noqa: E402
 DAYS = ROOT / "tests" / "fixtures" / "project_grouping"
 
 
-def show(units, gold, extra=None, unsure=(), out=print):
+def show(units, gold, extra=None, unsure=(), out=print, supplementary=False):
+    levels = {u.get("level", "moment") for u in units}
+    out("  level: " + ("moment (primary annotation unit)" if levels == {"moment"} else
+                       "visit (legacy / invented days; not comparable with moment-level scores)"))
     cov = ev.coverage(units, gold, unsure)
     out(f"  units {cov['units']}, labelled {cov['labelled']} (noise {cov['noise']}), unlabelled {cov['unlabelled']}, "
         f"unsure {cov['unsure']}, activities {cov['activities']}")
     systems = dict(ev.baselines(units))
     systems.update(extra or {})
     for name, pred in systems.items():
-        out("  " + ev.report(name, ev.evaluate(units, gold, pred, unsure)))
+        out("  " + ev.report(name, ev.evaluate(units, gold, pred, unsure), supplementary))
     for note in ev.limits(cov):
         out("  note: " + note)
 
@@ -47,7 +50,7 @@ def cmd_days(a):
         day = json.loads(Path(p).read_text())
         units, gold = ev.units_from_day(day)
         print(f"{Path(p).name}")
-        show(units, gold)
+        show(units, gold, supplementary=a.supplementary)
     return 0
 
 
@@ -72,7 +75,7 @@ def cmd_sheet(a):
     fd = os.open(Path(a.out) / "units.json", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(units, fh)
-    print(f"{len(units)} units -> {up}\nfill `activity` there (blank = skip, '-' = noise), and list each activity in {ap}")
+    print(f"{len(units)} units -> {up}\nread {Path(a.out) / 'HOW_TO_LABEL.txt'}, then fill `activity` (and `also` / `unsure`) in units.csv")
     return 0
 
 
@@ -85,21 +88,21 @@ def cmd_score(a):
     extra = {}
     if a.predicted:
         extra["predicted"] = {k: v for k, v in json.loads(Path(a.predicted).read_text()).items()}
-    show(units, gold, extra, unsure)
+    show(units, gold, extra, unsure, supplementary=a.supplementary)
     return 1 if problems else 0
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
-    d = sub.add_parser("days"); d.add_argument("--day", type=Path); d.set_defaults(fn=cmd_days)
+    d = sub.add_parser("days"); d.add_argument("--day", type=Path); d.add_argument("--supplementary", action="store_true"); d.set_defaults(fn=cmd_days)
     s = sub.add_parser("sheet")
     s.add_argument("--moments-dir", type=Path); s.add_argument("--since", type=float)
     s.add_argument("--session", type=Path); s.add_argument("--memory", type=Path)
     s.add_argument("--out", type=Path, required=True); s.set_defaults(fn=cmd_sheet)
     c = sub.add_parser("score")
     c.add_argument("--sheet", type=Path, required=True); c.add_argument("--units", type=Path)
-    c.add_argument("--predicted", type=Path); c.set_defaults(fn=cmd_score)
+    c.add_argument("--predicted", type=Path); c.add_argument("--supplementary", action="store_true"); c.set_defaults(fn=cmd_score)
     a = p.parse_args(argv)
     return a.fn(a)
 

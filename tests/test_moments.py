@@ -232,6 +232,71 @@ class StoreTests(unittest.TestCase):
         self.assertFalse(os.path.exists(d))
 
 
+class PartialForgetTests(unittest.TestCase):
+    """Partial forget while recording: memory and disk, and the open moment must not come back."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.rec = moment_store.Recorder(moment_store.MomentStore(os.path.join(self.tmp.name, "m")))
+        self.buf, self.store = self.rec.buffer, self.rec.store
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def frame(self, t, item, app, text):
+        self.rec.frame(t, item, {"bundle_id": "b." + app, "window": item}, {"app": app, "kind": "doc"}, "r",
+                       {"category": "reading"}, 5, {"text": text}, False)
+
+    def test_forget_clears_memory_disk_and_the_open_moment(self):
+        self.frame(T0, "a", "Docs", DOC)
+        self.frame(T0 + 60, "b", "Mail", OTHER)              # a closed (on disk), b open
+        self.assertEqual(len(self.store.read()), 1)
+        self.assertIsNotNone(self.buf.open)
+        mem, disk = self.rec.forget(app="Mail", now=T0 + 70)
+        self.assertEqual((mem, disk), (1, 0))                # the open Mail moment is dropped; a stays
+        self.assertIsNone(self.buf.open)
+        self.rec.close()                                      # shutdown: nothing forgotten is written
+        self.assertEqual([r["item_id"] for r in self.store.read()], ["a"])
+        self.assertEqual([m.item_id for m in self.buf.recent], ["a"])
+
+    def test_forgotten_open_moment_is_not_written_on_the_next_frame(self):
+        self.frame(T0, "a", "Docs", DOC)
+        self.rec.forget(minutes=30, now=T0 + 10)
+        self.assertEqual(self.store.read(), [])
+        self.frame(T0 + 15, "b", "Mail", OTHER)              # the next frame starts a NEW visit and closes nothing old
+        self.rec.close()
+        self.assertEqual([r["item_id"] for r in self.store.read()], ["b"])
+        [m] = self.store.read()
+        self.assertIsNone(m["context"]["same_item_before"])
+        self.assertIsNone(m["context"]["prev_moment_id"])
+
+    def test_forgotten_visit_is_not_linked_from_a_later_return(self):
+        self.frame(T0, "a", "Docs", DOC)
+        self.frame(T0 + 20, "b", "Mail", OTHER)
+        self.rec.forget(minutes=30, now=T0 + 25)             # both gone
+        self.frame(T0 + 40, "a", "Docs", DOC)
+        self.rec.close()
+        [m] = self.store.read()
+        self.assertIsNone(m["context"]["same_item_before"])
+
+    def test_forget_by_time_keeps_older_records(self):
+        self.frame(T0, "a", "Docs", DOC)
+        self.frame(T0 + 4000, "b", "Mail", OTHER)
+        self.frame(T0 + 4100, "a", "Docs", DOC)
+        self.rec.forget(minutes=5, now=T0 + 4110)
+        self.rec.close()
+        self.assertEqual([r["item_id"] for r in self.store.read()], ["a"])
+        self.assertEqual(self.store.read()[0]["t_start"], T0)
+
+    def test_delete_all_still_works_after_recording(self):
+        data = os.path.join(self.tmp.name, "a", "b", "data")
+        rec = moment_store.Recorder(moment_store.MomentStore(os.path.join(data, "memory", "moments")))
+        rec.frame(T0, "a", {}, {"app": "Docs"}, "r", {"category": "reading"}, 0, {"text": DOC}, False)
+        rec.close()
+        forget.delete_all(data)
+        self.assertEqual(os.listdir(data), [])
+
+
 class RecorderTests(unittest.TestCase):
     def test_off_by_default(self):
         self.assertFalse(config.MOMENT_LOG)

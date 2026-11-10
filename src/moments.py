@@ -199,6 +199,32 @@ class MomentBuffer:
             self.open = None
             return [m]
 
+    def forget(self, since=None, app=None):
+        """Drop what matches from memory, the OPEN moment included, WITHOUT writing it: a forgotten open moment
+        must not come back on the next frame or at shutdown. `since`: moments that ended at or after it (None =
+        all); `app`: name or bundle id (None = any). The next frame starts a new visit. Returns how many were dropped."""
+        def hit(m):
+            return (since is None or m.t_end >= since) and (app is None or app in (m.app, m.bundle_id))
+        with self.lock:
+            n = 0
+            if self.open is not None and hit(self.open):
+                self.open = None
+                self._seen_terms, self._seen_idents, self._seen_hash = set(), set(), None
+                n += 1
+            keep = [m for m in self.recent if not hit(m)]
+            n += len(self.recent) - len(keep)
+            self.recent.clear()
+            self.recent.extend(keep)
+            # nothing may point at a forgotten visit
+            gone = {k for k, v in self._last_visit.items()
+                    if (since is None or v["ended_at"] >= since) and (app is None or app in (v.get("app"), v.get("bundle_id")))}
+            for k in gone:
+                del self._last_visit[k]
+            if self._prev_id is not None and not any(m.id == self._prev_id for m in self.recent):
+                self._prev_id = self.recent[-1].id if self.recent else None
+                self._prev_end = self.recent[-1].t_end if self.recent else None
+            return n
+
     def idle_flush(self, now):
         """No frame for longer than `visit_gap`: the visit is over; close its moment."""
         with self.lock:
@@ -241,7 +267,7 @@ class MomentBuffer:
                      "same_item_before": same, "trigger": trigger, "pinned": bool(pinned)}
         self._visit_start = t
         self._begin(m, dg)
-        self._last_visit[item_id] = {"visit_id": visit_id, "ended_at": t,
+        self._last_visit[item_id] = {"visit_id": visit_id, "ended_at": t, "app": app, "bundle_id": bundle_id,
                                      "visits": (before["visits"] + 1) if before else 1}
 
     def _next(self, o, t, category, ages, dg, obs_id, provenance, trigger, pinned, continued):
@@ -254,7 +280,7 @@ class MomentBuffer:
         m.context = {"prev_moment_id": o.id, "gap_s": 0.0, "same_item_before": o.context.get("same_item_before"),
                      "trigger": trigger, "pinned": bool(pinned)}
         self._begin(m, dg)
-        self._last_visit[o.item_id]["ended_at"] = t
+        self._touch(o, t)
 
     def _begin(self, m, dg):
         self.open = m
@@ -277,7 +303,11 @@ class MomentBuffer:
         self._seen_terms |= set(dg["terms"])
         self._seen_idents |= set(dg["identifiers"])
         self._seen_hash = dg["text_hash"] or self._seen_hash
-        self._last_visit[o.item_id]["ended_at"] = t
+        self._touch(o, t)
+
+    def _touch(self, o, t):
+        v = self._last_visit.setdefault(o.item_id, {"visit_id": o.visit_id, "app": o.app, "bundle_id": o.bundle_id, "visits": 1})
+        v["ended_at"] = t
 
     def _close(self, m):
         self._prev_id, self._prev_end = m.id, m.t_end

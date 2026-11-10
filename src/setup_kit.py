@@ -133,12 +133,28 @@ def font(size, weight=400):
     return _fonts[key]
 
 
-def _attributed(text, size, weight, color, align, wrap):
+_serifs = {}
+
+
+def serif_italic(size):
+    """The expressive italic serif (New York, else Georgia, else the system serif) for a few words that
+    carry the page's voice; Trace's website pairs it with the sans for the same reason."""
+    if size not in _serifs:
+        found = None
+        for name in ("NewYork-RegularItalic", "NewYorkMedium-RegularItalic", "Georgia-Italic", "Times-Italic"):
+            found = NSFont.fontWithName_size_(name, size)
+            if found is not None:
+                break
+        _serifs[size] = found or font(size, 400)
+    return _serifs[size]
+
+
+def _attributed(text, size, weight, color, align, wrap, serif=False):
     style = NSMutableParagraphStyle.alloc().init()
     style.setAlignment_(align)
     style.setLineBreakMode_(0 if wrap else 4)
     style.setLineHeightMultiple_(1.18 if wrap else 1.0)
-    attrs = {NSFontAttributeName: font(size, weight), NSForegroundColorAttributeName: color,
+    attrs = {NSFontAttributeName: serif_italic(size) if serif else font(size, weight), NSForegroundColorAttributeName: color,
              NSParagraphStyleAttributeName: style}
     if size >= 24:                                   # large type reads too loose: tighten it as it grows
         attrs[NSKernAttributeName] = -0.02 * size
@@ -150,9 +166,9 @@ def text_width(text, size, weight=400):
         text, {NSFontAttributeName: font(size, weight)}).size().width
 
 
-def text_height(text, size, weight, width, wrap=True):
+def text_height(text, size, weight, width, wrap=True, serif=False):
     """The height this text needs at this width (one line when it does not wrap)."""
-    shown = _attributed(text, size, weight, ink(), LEFT, wrap)
+    shown = _attributed(text, size, weight, ink(), LEFT, wrap, serif)
     rect = shown.boundingRectWithSize_options_(NSMakeSize(width, 100000), 1)
     return float(int(rect.size.height) + 1)
 
@@ -166,11 +182,12 @@ class _KitText(_Flipped):
         self.text, self.size, self.weight, self.color = text, size, weight, color
         self.align, self.wrap, self.middle = align, wrap, middle
         self.attributed = None                       # set to draw mixed weights (a bold lead-in)
+        self.serif = False                           # the italic serif instead of the sans
         return self
 
     def drawRect_(self, rect):
         bounds = self.bounds()
-        shown = self.attributed if self.attributed is not None else _attributed(self.text, self.size, self.weight, self.color, self.align, self.wrap)
+        shown = self.attributed if self.attributed is not None else _attributed(self.text, self.size, self.weight, self.color, self.align, self.wrap, self.serif)
         height = shown.boundingRectWithSize_options_(NSMakeSize(bounds.size.width, 100000), 1).size.height
         y = (bounds.size.height - height) / 2 if self.middle else 0
         shown.drawWithRect_options_(NSMakeRect(0, y, bounds.size.width, height + 2), 1)
@@ -202,11 +219,12 @@ class _KitText(_Flipped):
         self.setNeedsDisplay_(True)
 
 
-def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False):
+def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False, serif=False):
     """Add text to `parent`; returns the height it takes."""
-    h = height if height is not None else text_height(text, size, weight, w, wrap)
+    h = height if height is not None else text_height(text, size, weight, w, wrap, serif)
     view = _KitText.alloc().initWithText_size_weight_color_align_wrap_middle_(
         text, size, weight, color or ink(), align, wrap, middle)
+    view.serif = serif
     view.setFrame_(NSMakeRect(x, y, w, h))
     parent.addSubview_(view)
     try:

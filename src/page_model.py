@@ -31,6 +31,7 @@ draws it and forwards presses to `press()`; it decides nothing.
         came from, scrolled to the top of it.
 """
 
+import os
 import functools
 import re
 import unicodedata
@@ -320,7 +321,7 @@ def main(reg, items, state, counts, now, fading=(), sugg=None, prefs=None):
     if view == "settings" and prefs:
         return prefs
     if view == "thing" and state.get("tid") in items:
-        return thing_page(reg, items[state["tid"]], now, fading)
+        return thing_page(reg, items[state["tid"]], now, fading, shots_dir=state.get("shots_dir") or _shots_dir())
     if view == "search":
         return search(reg, items, state["q"], now)
     if view == "archived":
@@ -469,7 +470,16 @@ def screen_of(content, now, summary=None, intent=None):
             "decisions": quotes[:DECISIONS_SHOWN], "versions": versions, "count": len(versions)}
 
 
-def thing_page(reg, item, now, fading=()):
+def _shots_dir():
+    """Where kept screenshot thumbnails live (None when the config cannot say)."""
+    try:
+        import config
+        return config.paths().data_dir
+    except Exception:
+        return None
+
+
+def thing_page(reg, item, now, fading=(), shots_dir=None):
     """Everything LMemM knows about one thing, read only (P9)."""
     main = projects._main(item)
     places = [{"id": p, "name": projects.get(reg, p)["name"], "hue": hue(p), "main": p == main,
@@ -483,6 +493,15 @@ def thing_page(reg, item, now, fading=()):
     stats = [("Last seen", ago(item.get("last_seen"), now)), ("First seen", ago(item.get("first_seen"), now)),
              ("Time spent", store.duration(item.get("seconds"))), ("Visits", f"{int(item.get('visits') or 0):,}")]
     written = item.get("summary") if isinstance(item.get("summary"), dict) else {}     # the AI's lines (screen_summary.py)
+    url = favicons.page_url(item)
+    headline = written.get("screen") or item.get("doing") or title_of(item)
+    state_rows = [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]
+                  if not (url and str(v) == url)]                  # the address is shown once, in the details
+    details = [(k, v) for k, v in stats if v and k in ("Last seen", "First seen", "Time spent", "Visits")]
+    shot = None
+    if shots_dir and isinstance(item.get("screenshot"), str) and item["screenshot"] not in ("quick",):
+        path = os.path.join(shots_dir, os.path.basename(item["screenshot"]))
+        shot = path if os.path.isfile(path) else None
     return {"kind": "thing", "title": title_of(item), "app": item.get("app", ""), "back": True,
             "thing_kind": item.get("kind", ""), "url": favicons.page_url(item),
             "meta": " · ".join(b for b in (item.get("app", ""), "last seen " + ago(item.get("last_seen"), now).lower()) if b),
@@ -493,7 +512,16 @@ def thing_page(reg, item, now, fading=()):
             "open_count": sum(1 for n in shown if not notes.is_done(item, n)),
             "done": [{"id": notes.note_id(n), "text": n["text"], "when": ago(n.get("at"), now)} for n in done],
             "stats": [(k, v) for k, v in stats if v],
-            "latest": [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]],
+            "latest": state_rows,
+            # recognition first: what you were doing (the AI's line, else the stored label), what Trace read as
+            # your intent (AI, labelled as such), a screenshot only when one was kept, and one way back
+            "headline": headline, "identity": title_of(item) if headline != title_of(item) else "",
+            "intent": written.get("intent") or None, "shot": shot, "shot_when": ago(item.get("last_seen"), now),
+            "reopen": url, "address": url,
+            "glance": " · ".join(b for b in (f"Last seen {ago(item.get('last_seen'), now).lower()}" if item.get("last_seen") else "",
+                                           store.duration(item.get("seconds")),
+                                           plural(int(item.get("visits") or 0), "visit") if item.get("visits") else "") if b),
+            "details": details,
             "screen": screen_of(item.get("content"), now, summary=written.get("screen") or item.get("doing") or None,
                                 intent=written.get("intent"))}
 

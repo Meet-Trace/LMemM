@@ -20,7 +20,7 @@ The original checkout's experimental grouping changes were intentionally not car
 - Final app source: 1,056 Python tests passed with a temporary config data context; 15 browser/editor extension tests passed.
 - Four identical-input rules runs on the user-reviewed 65 items match main's measured membership scores. This is a no-regression check, not proof of good grouping or blind accuracy.
 - A fresh-context reviewer found two note-identity issues; both were reproduced and fixed. Follow-up review found no remaining blocker in this batch and independently passed 22 focused tests.
-- `build_app.sh --standalone` succeeded. Strict ad hoc signature verification and the packaged diagnostics worker passed. This is a local beta artifact, not a notarized public release.
+- `build_app.sh --standalone` succeeded. Strict ad hoc signature verification and the packaged diagnostics worker passed. A copied bundle also passed signature verification and diagnostics outside the checkout under a temporary path containing spaces. All packaged Python source modules were checked against the worktree. This is a local beta artifact, not a notarized public release.
 
 ## Run and test
 

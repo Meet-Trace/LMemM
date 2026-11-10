@@ -43,9 +43,12 @@ MergedLine   text (original, never normalised), source (primary reader), conf, s
 1. **Same place only.** Same bundle id, process id, OS window id when both known, same URL (fragment included when
    both have one), compatible window title, read within `OBS_MAX_AGE` seconds. Two windows of one app that share a
    title and have no URL cannot be told apart by metadata, so rule 2 decides.
-2. **The lines must agree.** An app read is used only if at least `OBS_MIN_AGREE` of the OCR's substantial lines
-   (8+ characters, inside the window), and at least `OBS_MIN_SHARE` of them, match it. Otherwise the app read is
-   ignored entirely and the OCR is used alone (reported as `gate: disagrees` or `no_app_text`).
+2. **The lines must agree, when there is something to check.** If the OCR has substantial lines (8+ characters,
+   inside the window), an app read is used only if at least `OBS_MIN_AGREE` of them, and at least `OBS_MIN_SHARE`
+   of them, match it; otherwise it is ignored (`gate: disagrees`). If the OCR has nothing substantial (a canvas or
+   Electron view it cannot read, or no OCR at all), the app's text is kept as it is, marked `single` and never
+   corroborated (`gate: ax_only`), provided the app read names its app and a page or window title; one that does
+   not is never used (`gate: unreliable_context`).
 3. **Matching compares a normalised copy; originals are never modified.** An OCR line matches an app line when
    they are equal after normalising, when the OCR line is a wrapped piece of one app line, when it spans two or more
    app lines, or when they are 0.82+ similar.
@@ -61,7 +64,7 @@ In memory only (no raw observation is persisted in this change). At most `OBS_LO
 `OBS_RETENTION` seconds before the newest are dropped; observations may arrive in any order and are kept sorted by
 time; an exact repeat of a read already held (same reader, place and lines) only refreshes its time; one lock guards
 every operation, and observations are treated as read-only once added. The log ends with the process and is cleared
-on shutdown. Privacy skips (private windows, password managers, secure fields) happen before anything is added.
+on shutdown, after the tracker's worker has drained its queue. Privacy skips (private windows, password managers, secure fields) happen before anything is added.
 
 ### Who uses it
 

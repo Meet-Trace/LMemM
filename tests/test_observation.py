@@ -122,9 +122,29 @@ class ConservativeMatchingTests(unittest.TestCase):
         self.assertEqual(report["gate"], "disagrees")
         self.assertEqual([m.text for m in out], lines)
 
-    def test_nothing_substantial_to_check_against_means_no_merge(self):
-        _, report = merge_report([obs("trail", [AX("Some app text that is long enough")]), obs("tracker", [OCR("ok")])])
-        self.assertEqual(report["gate"], "no_app_text")
+    def test_ocr_with_nothing_substantial_keeps_the_app_text_as_single_source(self):
+        out, report = merge_report([obs("trail", [AX("Some app text that is long enough"), AX("Another app line that is long")]),
+                                    obs("tracker", [OCR("ok"), OCR("x", 0.4, "text")])])
+        self.assertEqual(report["gate"], "ax_only")
+        ax = [m for m in out if m.source == "ax"]
+        self.assertEqual([m.text for m in ax], ["Some app text that is long enough", "Another app line that is long"])
+        self.assertTrue(all(m.agreement == ob.SINGLE and m.sources == ["ax"] and m.variants == [] for m in ax))
+        self.assertEqual(ob.counts(out)["agreed"], 0)
+
+    def test_an_app_read_with_no_ocr_at_all_is_single_source(self):
+        out, report = merge_report([obs("trail", [AX("Only the app could read this line")])])
+        self.assertEqual((report["gate"], [(m.source, m.agreement) for m in out]), ("ax_only", [("ax", ob.SINGLE)]))
+
+    def test_an_app_read_that_cannot_name_its_app_and_page_is_never_used(self):
+        out, report = merge_report([obs("trail", [AX("Only the app could read this line")], bundle_id=None, window=None, url=None),
+                                    obs("tracker", [OCR("ok")])])
+        self.assertEqual(report["gate"], "unreliable_context")
+        self.assertTrue(all(m.source == "ocr" for m in out))
+
+    def test_the_agreement_gate_still_applies_when_the_ocr_has_substantial_lines(self):
+        _, report = merge_report([obs("trail", [AX("Some app text that is long enough")]),
+                                  obs("tracker", [OCR("A completely different line on screen")])])
+        self.assertEqual(report["gate"], "disagrees")
 
     def test_unrelated_lines_stay_separate_and_short_lines_need_exact_matches(self):
         out = merge([obs("trail", [AX("Shared long line on the page"), AX("A second shared line on the page"), AX("Remind me to change this as per the guidelines"), AX("Search")]),
@@ -313,6 +333,14 @@ class ExcerptTests(unittest.TestCase):
         self.assertIsNone(extract_content(res, meta))
         res, meta = screen([("A line that sits in the corner", "paragraph", 0.9)], region=(0.9, 0.9, 0.1, 0.1))
         self.assertIsNone(extract_content(res, meta))
+
+    def test_screen_content_keeps_app_text_when_the_ocr_found_nothing_usable(self):
+        res, meta = screen([("ok", "text", 0.9)])
+        log = ObservationLog()
+        log.add(obs("trail", [AX(APP_FIRST), AX(APP_SECOND)], t=1000))
+        c = screen_content(log, res, meta, 1002)
+        self.assertEqual(c["text"], APP_FIRST + "\n" + APP_SECOND)
+        self.assertEqual(c["provenance"], {"ax_only": 2, "ocr_only": 0, "agreed": 0, "differed": 0})
 
     def test_no_window_region_still_means_no_content(self):
         res, meta = screen([SECOND])

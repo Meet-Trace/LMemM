@@ -16,6 +16,10 @@ Provenance and confidence are kept apart. `source` says who read a line. `conf` 
 extraction confidence (OCR reports one; the accessibility tree does not, so it is None, never "1.0").
 `agreement` says whether a second reader saw the same line. None of these says the text is correct or relevant.
 
+When the OCR has no substantial line to check against (a canvas or Electron view it cannot read), the app's text is kept
+as it is: single-source (`agreement == "single"`, `sources == ["ax"]`), never corroborated. When both readers have
+substantial lines, the agreement gate below applies. An app read that cannot name its app and page is never used.
+
 Matching is conservative: a line is only replaced when exactly one counterpart fits, each app line is claimed by
 at most one fuzzy match, and a whole observation is ignored unless enough of its lines agree with the OCR
 (so a different window that happens to share a title is not merged). Originals are never altered; matching
@@ -192,7 +196,7 @@ def _add_variant(merged, line):
 
 
 def merge_report(observations, threshold=None):
-    """merge() plus how it went: (lines, {"matched": n, "ocr_lines": n, "gate": "merged"|"no_app_text"|"disagrees"}).
+    """merge() plus how it went: (lines, {"matched": n, "ocr_lines": n, "gate": "merged"|"ax_only"|"disagrees"|"unreliable_context"}).
     The report is for the evaluation log; callers that only want the lines use merge()."""
     threshold = config.OBS_MATCH if threshold is None else threshold
     ax, ocr = [], []
@@ -250,14 +254,15 @@ def merge_report(observations, threshold=None):
     substantial = [i for i, f in enumerate(ofold) if len(f) >= MIN_CONTAIN and ocr[i].in_window]
     agree = sum(1 for i in substantial if i in matched)
     report = {"matched": 0, "ocr_lines": len(ocr), "gate": "merged"}
-    if app and ocr:
-        if not substantial:
-            report["gate"] = "no_app_text"
+    if app:
+        reliable = all(o.bundle_id and (o.url or o.window) for o in observations if any(l.source == "ax" for l in o.lines))
+        if not reliable:
+            report["gate"] = "unreliable_context"      # the app read cannot say which app and page it came from
+        elif not substantial:
+            report["gate"] = "ax_only"                 # the OCR has nothing to check against: keep the app text, single-source
         elif agree < min(config.OBS_MIN_AGREE, len(substantial)) or agree < config.OBS_MIN_SHARE * len(substantial):
             report["gate"] = "disagrees"
-    elif app:
-        report["gate"] = "no_app_text"
-    if report["gate"] != "merged":
+    if report["gate"] in ("unreliable_context", "disagrees"):
         app, matched = [], {}                     # use the OCR alone, as if the app had said nothing
 
     out = list(app)

@@ -1728,9 +1728,9 @@ class Tracker:
         say("\nstopping…")
         if self.trail:
             self.trail.stop()
-        self.observations.clear()
         self.q.put(None)
         self.thread.join(timeout=60)
+        self.observations.clear()                      # after the worker has drained its queue: it still reads the trail's evidence
         with self.lock:
             if self.dirty:
                 self.save(force=True)                 # flush anything batched

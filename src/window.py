@@ -80,6 +80,15 @@ def _local_minute():
         return backdrop.minute_of(time.localtime())
 
 
+class _MenuTarget(NSObject):
+    """Receives a menu pick and runs the callable kept for that item's tag."""
+
+    def pick_(self, sender):
+        call = self.calls.get(sender.tag())
+        if call:
+            call()
+
+
 class _Rail(_Flipped):
     """The thin vertical line that ties a session's Things together on the Overview timeline."""
 
@@ -1816,37 +1825,65 @@ class MainWindow:
         return y + 38
 
     def _toolbar(self, host, page, x, y, w):
-        """One slim line over the history: its name and count, the filters as quiet text, and Select. The
-        sub-projects are in the sidebar tree, and "With sub-projects" is here."""
-        kit.put_text(host, "Things", x, y, w, 14, 700, wrap=False, height=24, middle=True)
-        cx = x + kit.text_width("Things", 14, 700) + 8
-        kit.put_text(host, str(page["total"]), cx, y, 60, 12, 400, kit.mute(), wrap=False, height=24, middle=True)
-        cx += kit.text_width(str(page["total"]), 12, 400) + 16
-        scope = []
-        if page["deep"]["show"]:
-            scope = [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
-                     ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))]
-        apps = []
-        if len(page["filters"]) > 1:
-            apps = [("All apps", self.nav["app"] is None, lambda: self.press("app", None))]
-            apps += [(f["app"], self.nav["app"] == f["app"], (lambda a=f["app"]: self.press("app", a))) for f in page["filters"]]
-        right = x + w
+        """The Things heading on its own line (count and Select beside it), then the controls on a line of their
+        own: where to look (a segmented Only here / With sub-projects) at the left, which source (one menu) at the right."""
+        kit.put_text(host, "Things", x, y, w, 17, 700, wrap=False, height=26, middle=True)
+        cx = x + kit.text_width("Things", 17, 700) + 8
+        kit.put_text(host, str(page["total"]), cx, y + 1, 60, 13, 400, kit.mute(), wrap=False, height=26, middle=True)
         if self.sel is None and page["total"]:
-            right -= self._link(host, "Select", right - kit.text_width("Select", 12, 500) - 12, y - 1, self.start_select, size=12)
-        left, row = cx, 0
-        for group in (scope, apps):
-            for label, on, call in group:
-                width = kit.text_width(label, 12, 500) + 16
-                if left + width > right and left > x:
-                    left, row = x, row + 1
-                tap = self._tap(host, left, y + row * 28, width, 24, call, fill=on)
-                kit.put_text(tap, label, 8, 0, width - 16, 12, 600 if on else 500, None if on else kit.mute(), wrap=False, height=24, middle=True)
-                left += width + 2
-            left += 10
-        y += 28 * (row + 1) + 4
+            self._link(host, "Select", x + w - kit.text_width("Select", 12, 500) - 12, y + 1, self.start_select, size=12)
+        y += 38
+        if page["deep"]["show"]:
+            self._segmented(host, x, y, [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
+                                         ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))])
+        if len(page["filters"]) > 1 or self.nav["app"] is not None:
+            self._source_menu(host, page, x + w, y)
+        y += 28 + 16
         if self.sel is not None:
             y += self._select_bar(host, page, x, y, w) + 10
         return y
+
+    def _segmented(self, parent, x, y, items):
+        """A compact two-or-more way toggle: a soft track with the chosen segment lifted."""
+        widths = [kit.text_width(label, 12, 500) + 24 for label, _on, _call in items]
+        track = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, sum(widths) + 4, 28), kit.faint(0.07), None, 9)
+        parent.addSubview_(track)
+        sx = x + 2
+        for (label, on, call), width in zip(items, widths):
+            seg = self._tap(parent, sx, y + 2, width, 24, call)
+            if on:
+                seg.tint = kit.faint(0.16)
+            kit.put_text(seg, label, 12, 0, width - 24, 12, 600 if on else 500, None if on else kit.mute(), wrap=False, height=24, middle=True)
+            sx += width
+        return sx + 2 - x
+
+    def _source_menu(self, parent, page, right, y):
+        """One control for the source filter. Closed, it names what is chosen; open, it is a native menu."""
+        chosen = self.nav["app"]
+        label = chosen or "All sources"
+        width = min(kit.text_width(label, 12, 600) + 44, 240)
+        tap = self._tap(parent, right - width, y, width, 28, None, fill=True)
+        kit.put_text(tap, label, 12, 0, width - 36, 12, 600 if chosen else 500, None if chosen else kit.mute(), wrap=False, height=28, middle=True)
+        kit.glyph(tap, ("chevron.down",), width - 22, 8, 12, kit.mute())
+        tap.callback = lambda: self._popup_sources(tap, page)
+
+    def _popup_sources(self, anchor, page):
+        menu = NSMenu.alloc().initWithTitle_("")
+        helper = _MenuTarget.alloc().init()
+        helper.calls = {}
+        entries = [("All sources", None, self.nav["app"] is None)]
+        entries += [(f"{f['app']}  ·  {f['count']}", f["app"], self.nav["app"] == f["app"]) for f in page["filters"]]
+        for n, (title, app, on) in enumerate(entries):
+            if n == 1:
+                menu.addItem_(NSMenuItem.separatorItem())
+            item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(title, "pick:", "")
+            item.setTarget_(helper)
+            item.setTag_(n)
+            item.setState_(1 if on else 0)
+            helper.calls[n] = (lambda a=app: self.press("app", a))
+            menu.addItem_(item)
+        self._source_helper = helper                                   # AppKit keeps only a weak reference to a menu's target
+        menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, anchor.bounds().size.height + 4), anchor)
 
     def _select_bar(self, parent, page, x, y, w):
         """While selecting: how many, and what to do with them. Returns the height."""

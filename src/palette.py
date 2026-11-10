@@ -21,6 +21,15 @@ ORANGE_STATUS_ON_LIGHT = (0.75, 0.30, 0.02)
 RED_TEXT_ON_LIGHT = (0.80, 0.15, 0.12)
 TOAST_LIGHT, TOAST_DARK = 0.12, 0.22                   # the toast's grey in each mode (the dark page is 0.133)
 
+# The thing page's warm surfaces: (dark mode, light mode). Near-black with a touch of brown, each surface one step
+# lighter than the one under it; in light mode, warm paper. The window's other pages keep the system colours.
+WARM = {"canvas": ((0.082, 0.075, 0.071), (0.977, 0.967, 0.949)),
+        "surface": ((0.125, 0.114, 0.106), (0.988, 0.982, 0.968)),
+        "raised": ((0.168, 0.153, 0.141), (1.0, 1.0, 1.0)),
+        "edge": ((0.255, 0.235, 0.218), (0.88, 0.86, 0.83)),
+        "ink": ((0.94, 0.92, 0.89), (0.13, 0.12, 0.11)),
+        "mute": ((0.69, 0.66, 0.62), (0.38, 0.36, 0.34))}
+
 ACCENT = (0.17, 0.40, 0.92)                    # buttons: white text on this
 ACCENT_TEXT_ON_LIGHT = ACCENT                  # blue words on the light card
 ACCENT_TEXT_ON_DARK = (0.40, 0.60, 1.0)        # blue words on the dark card (a lighter blue)

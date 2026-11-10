@@ -470,6 +470,21 @@ def screen_of(content, now, summary=None, intent=None):
             "decisions": quotes[:DECISIONS_SHOWN], "versions": versions, "count": len(versions)}
 
 
+_NUMBERS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+
+
+def observed(item, url, open_notes):
+    """What LMemM saw and what you wrote, in one plain sentence or two, built only from stored facts (never the
+    model): where you were, and how many reminders you left yourself."""
+    host = favicons.host_of(url) if url else None
+    place = host or item.get("app") or ""
+    parts = [f"You were {'on' if host else 'in'} {place}." if place else ""]
+    if open_notes:
+        count = _NUMBERS[open_notes] if open_notes < len(_NUMBERS) else str(open_notes)
+        parts.append(f"You left yourself {count} reminder{'s' * (open_notes != 1)}.")
+    return " ".join(p for p in parts if p)
+
+
 def _shots_dir():
     """Where kept screenshot thumbnails live (None when the config cannot say)."""
     try:
@@ -494,10 +509,11 @@ def thing_page(reg, item, now, fading=(), shots_dir=None):
              ("Time spent", store.duration(item.get("seconds"))), ("Visits", f"{int(item.get('visits') or 0):,}")]
     written = item.get("summary") if isinstance(item.get("summary"), dict) else {}     # the AI's lines (screen_summary.py)
     url = favicons.page_url(item)
-    headline = written.get("screen") or item.get("doing") or title_of(item)
+    headline = written.get("title") or item.get("doing") or title_of(item)        # the AI's short title, else the stored label
     state_rows = [(str(k).replace("_", " ").capitalize(), str(v)[:200]) for k, v in list(state.items())[:LATEST_SHOWN]
                   if not (url and str(v) == url)]                  # the address is shown once, in the details
     details = [(k, v) for k, v in stats if v and k in ("Last seen", "First seen", "Time spent", "Visits")]
+    open_now = [n for n in mine if not notes.is_done(item, n)]
     shot = None
     if shots_dir and isinstance(item.get("screenshot"), str) and item["screenshot"] not in ("quick",):
         path = os.path.join(shots_dir, os.path.basename(item["screenshot"]))
@@ -515,14 +531,14 @@ def thing_page(reg, item, now, fading=(), shots_dir=None):
             "latest": state_rows,
             # recognition first: what you were doing (the AI's line, else the stored label), what Trace read as
             # your intent (AI, labelled as such), a screenshot only when one was kept, and one way back
-            "headline": headline,
+            "headline": headline, "ai_title": bool(written.get("title")), "observed": observed(item, url, len(open_now)),
             "intent": written.get("intent") or None, "shot": shot, "shot_when": ago(item.get("last_seen"), now),
             "reopen": url, "address": url,
             "glance": " · ".join(b for b in (f"Last seen {ago(item.get('last_seen'), now).lower()}" if item.get("last_seen") else "",
                                            store.duration(item.get("seconds")),
                                            plural(int(item.get("visits") or 0), "visit") if item.get("visits") else "") if b),
             "details": details,
-            "screen": screen_of(item.get("content"), now, summary=written.get("screen") or item.get("doing") or None,
+            "screen": screen_of(item.get("content"), now, summary=item.get("doing") or None,
                                 intent=written.get("intent"))}
 
 

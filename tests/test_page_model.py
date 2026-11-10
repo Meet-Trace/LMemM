@@ -267,10 +267,12 @@ class ThingPageTests(unittest.TestCase):
     def test_the_page_leads_with_what_you_were_doing_and_shows_the_address_once(self):
         reg, items, ids = world()
         items["d"].update(doing="Searching domains", state={"url": "https://x.test/a", "page": "Garden"}, last_seen=NOW.isoformat(),
-                          summary={"screen": "Checking free .com names", "intent": "Pick a name", "of": "x", "model": "m"})
+                          summary={"title": "Checking free .com names", "intent": "Pick a name", "of": "x", "model": "m", "v": 2})
         page = pm.view(reg, items, pm.press(reg, pm.new_state(), "thing", "d", items), NOW)["main"]
         self.assertEqual((page["headline"], page["intent"], page["reopen"]), ("Checking free .com names", "Pick a name", "https://x.test/a"))
         self.assertEqual(page["address"], "https://x.test/a")
+        self.assertTrue(page["observed"].startswith("You were on x.test."))
+        self.assertIn("You left yourself two reminders.", page["observed"])               # built from stored facts only
         self.assertNotIn("https://x.test/a", [v for _, v in page["latest"]])        # not repeated in the facts
         self.assertIn(("Page", "Garden"), page["latest"])
 

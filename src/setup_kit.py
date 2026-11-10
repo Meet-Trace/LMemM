@@ -62,6 +62,20 @@ def status_text(kind):
         return system()
 
 
+def warm(token):
+    """A warm surface or text colour of the thing page (palette.WARM): follows light and dark by itself."""
+    dark, light = palette.WARM[token]
+    try:
+        def pick(appearance):
+            is_dark = appearance.bestMatchFromAppearancesWithNames_(["NSAppearanceNameAqua", "NSAppearanceNameDarkAqua"]) \
+                == "NSAppearanceNameDarkAqua"
+            r, g, b = dark if is_dark else light
+            return NSColor.colorWithRed_green_blue_alpha_(r, g, b, 1.0)
+        return NSColor.colorWithName_dynamicProvider_(None, pick)
+    except Exception:
+        return NSColor.colorWithRed_green_blue_alpha_(*dark, 1.0)
+
+
 def ink():
     return NSColor.labelColor()
 
@@ -467,6 +481,45 @@ def tile(parent, symbol, color, x, y, size=28):
     """A coloured icon square at (x, y). `symbol` is an SF Symbol name or a list to try in order."""
     view = _KitColorTile.alloc().initWithColor_symbol_size_(color, symbol, size)
     view.setFrame_(NSMakeRect(x, y, size, size))
+    parent.addSubview_(view)
+    return view
+
+
+class _KitSurface(_Flipped):
+    """A rounded warm surface, optionally with a thin edge. It paints itself and lets clicks through to what is on it."""
+
+    def initWithFrame_fill_edge_radius_(self, frame, fill, edge, radius):
+        self = objc.super(_KitSurface, self).initWithFrame_(frame)
+        self.fill, self.edge, self.radius = fill, edge, radius
+        return self
+
+    def drawRect_(self, rect):
+        box = self.bounds()
+        shape = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+            NSMakeRect(0.5, 0.5, box.size.width - 1, box.size.height - 1), self.radius, self.radius)
+        if self.fill is not None:
+            self.fill.setFill()
+            shape.fill()
+        if self.edge is not None:
+            self.edge.setStroke()
+            shape.setLineWidth_(1)
+            shape.stroke()
+
+    def hitTest_(self, point):
+        return None if self.fill is None else objc.super(_KitSurface, self).hitTest_(point)
+
+
+class _KitCanvasWarm(_Flipped):
+    """The warm near-black (or warm paper) under the whole thing page."""
+
+    def drawRect_(self, rect):
+        warm("canvas").setFill()
+        NSBezierPath.fillRect_(self.bounds())
+
+
+def surface(parent, x, y, w, h, token="surface", edge=True, radius=18):
+    """A warm rounded surface at (x, y); anything added to `parent` afterwards sits on it."""
+    view = _KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, w, h), warm(token), warm("edge") if edge else None, radius)
     parent.addSubview_(view)
     return view
 

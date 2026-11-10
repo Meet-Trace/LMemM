@@ -49,3 +49,15 @@ The guided actual-app section uses `assets/app-decision.png` and `assets/app-sou
 Live URL: https://trace-landing-wine.vercel.app
 
 Vercel project: `trace-landing` in `divyaansh-seths-projects`. Deployment ID: `dpl_HfZRX6wzHiT4kkyUUMFDgYWFjFDZ`. Static deployment; no waitlist backend. Design references and browser logs are excluded through `.vercelignore`. GitHub publication was not needed for this deployment.
+
+## Cloudflare Pages: hey-trace.app
+
+Use GitHub repository `adityakhuntia/LMemM`, root directory `trace-landing`, build command `python3 build.py`, and output directory `dist`. The build publishes runtime files and assets only; design exports, docs, source helpers and repository data are excluded. No Node package installation is required.
+
+The purchased domain is `hey-trace.app`. Attach it through Pages → Custom domains after the preview deployment passes. Add `www.hey-trace.app` separately if desired. Keep the existing Vercel deployment until Cloudflare is verified.
+
+The signup form still truthfully remains a preview. Actual storage, spam protection and email provisioning must be configured and verified before enabling signup success. Email provider choice: user requested checking Zoho's free custom-domain plan; no mailbox/DNS records have yet been created.
+
+## Photography
+
+Hero, workday and closing photographs now use free commercial-use Pexels sources. See `IMAGE-LICENSES.md` for authors, exact source pages, verification date and file hashes. Unverified former `assets/web-images` images are removed from the public build.

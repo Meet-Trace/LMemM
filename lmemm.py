@@ -12,6 +12,7 @@ LMemM - the one command.
     lmemm.py suggest [NAME] [ID…]     offer things as one project (stands in for the model)
     lmemm.py suggest-for PROJECT [ID…]
                                       offer things for an existing project (the three latest not in it, or the ids)
+    lmemm.py summarize [N]      write the AI summaries now for the N (12) latest things without one
     lmemm.py look-for-projects [--dry-run [--days N] [--method ai|assign] [--calls N] [--explain]]
                                       look for projects in the last two weeks now and suggest them
                                       (--dry-run: only print what would be suggested; files and offers nothing.
@@ -246,6 +247,15 @@ def cmd_suggest_for(args):
     if not tracker.send_control("suggest_for", project=args[0], ids=args[1:], reason="Looks like it belongs here"):
         sys.exit("LMemM isn't running.")
     print(f"offered things for '{projects.get(projects.load(), pid)['name']}'. Open LMemM and look on that project's page.")
+
+
+def cmd_summarize(args):
+    """AI summaries now (screen_summary.py), instead of waiting for you to be idle. Needs LMemM running and Ollama
+    with the narrator model."""
+    count = int(args[0]) if args and args[0].isdigit() else 12
+    if not tracker.send_control("summarize", count=count):
+        sys.exit("LMemM isn't running. Open the app, then run this again.")
+    print(f"Summarising up to {count} things. Watch the app's log, then open a thing's page.")
 
 
 def cmd_look_for_projects(args):
@@ -525,6 +535,8 @@ def main():
         cmd_suggest(rest)
     elif cmd == "suggest-for":
         cmd_suggest_for(rest)
+    elif cmd == "summarize":
+        cmd_summarize(rest)
     elif cmd == "look-for-projects":
         cmd_look_for_projects(rest)
     elif cmd == "projects":

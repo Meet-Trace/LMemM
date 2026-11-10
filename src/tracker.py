@@ -238,6 +238,10 @@ class Tracker:
 
         elif doc.get("action") == "suggest":
             self.offer_project(doc.get("name"), doc.get("ids") or [], doc.get("reason", ""))
+        elif doc.get("action") == "summarize":
+            if not self.summary_busy:
+                self.summary_busy = True
+                threading.Thread(target=self.summary_pass, args=(int(doc.get("count") or 12), True), daemon=True).start()
         elif doc.get("action") == "look_for_projects":
             if not self.finder_busy:
                 self.last_finder, self.finder_busy = time.time(), True
@@ -1177,9 +1181,10 @@ class Tracker:
             self.sync_pill()
         return view
 
-    def summary_pass(self):
+    def summary_pass(self, batch=None, now=False):
         """Write the short AI summary for a few things that have none (screen_summary.py). Runs on its own
-        thread while you are idle; the model works on a copy and the lock is held only to copy and to store."""
+        thread while you are idle (`now`: whatever you are doing, for `lmemm.py summarize`); the model works
+        on a copy and the lock is held only to copy and to store."""
         import copy
         import screen_summary
         try:
@@ -1187,16 +1192,17 @@ class Tracker:
             if model is None:
                 return
             with self.lock:
-                ids = screen_summary.pending(self.items, config.SUMMARY_BATCH)
+                ids = screen_summary.pending(self.items, batch or config.SUMMARY_BATCH)
                 work = {i: copy.deepcopy(self.items[i]) for i in ids}
             for i, item in work.items():
-                if self.paused != "idle":
+                if self.paused != "idle" and not now:
                     break                           # you are back: stop, the rest waits
                 made = screen_summary.summarize(item, model)
                 with self.lock:
                     if made and i in self.items:
                         self.items[i]["summary"] = made
                         self.dirty = True
+                line(now_hms(), "", f"summary {'written' if made else 'not written'}: {item.get('title') or i}")
         except Exception as error:                  # a summary that fails must never stop capture
             line(now_hms(), "", f"summary skipped: {error}")
         finally:

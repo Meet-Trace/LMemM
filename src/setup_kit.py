@@ -479,7 +479,7 @@ class _KitColorTile(_Flipped):
         NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(self.bounds(), self.size * 0.28, self.size * 0.28).fill()
 
 
-def line(parent, symbols, x, y, size=18, color=None):
+def glyph(parent, symbols, x, y, size=18, color=None):
     """One family of line icons for navigation and actions: an outline SF Symbol at a fixed light weight,
     centred in a size x size box, no fill. `symbols` is a name or a list to try in order. Returns the view
     (None when this macOS has none of them)."""

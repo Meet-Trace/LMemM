@@ -15,7 +15,7 @@ if STANDALONE:
     for directory in ('src','semantic_memory','scripts','packaging','assets','extensions','bin'):
         grouped={}
         for path in Path(directory).rglob('*'):
-            if path.is_file() and '__pycache__' not in path.parts and path.suffix not in {'.pyc','.log'}:
+            if path.is_file() and '__pycache__' not in path.parts and 'app_bg_v2' not in path.parts and path.suffix not in {'.pyc','.log'}:
                 grouped.setdefault(str(path.parent),[]).append(str(path))
         resources.extend(grouped.items())
 

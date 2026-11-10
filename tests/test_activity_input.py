@@ -346,5 +346,78 @@ class VisitIntegrityTests(unittest.TestCase):
                 ai.prepare(f.records)
 
 
+class V3ScaleInvarianceTests(unittest.TestCase):
+    """V3 slack is TOL_REL * max_intra_visit_gap_s, compared with differences of timestamps only (module docstring)."""
+    SCALES = (1.0, 1e-3, 1e-6, 1e-9)
+    G = ai.MAX_INTRA_VISIT_GAP_S
+
+    def base(self):
+        r = copy.deepcopy(fx.BUILDERS["internal_shift"]().records)
+        vid = max({x["visit_id"] for x in r}, key=lambda v: sum(x["visit_id"] == v for x in r))
+        return r, vid
+
+    def case(self, k, c, edit=None):
+        """Records scaled by k, translated by c*k, with an optional edit(moments_of_visit, max_gap), then prepared."""
+        r, vid = self.base()
+        r = hn.translate(hn.scale(r, k), c * k)
+        mg = self.G * k
+        if edit:
+            edit(sorted((x for x in r if x["visit_id"] == vid), key=lambda x: x["seq"]), mg)
+        return ai.prepare(r, check_capture_clock=False, max_intra_visit_gap_s=mg)
+
+    def refused(self, k, c, edit, code):
+        with self.assertRaises(ai.VisitIntegrityError) as cm:
+            self.case(k, c, edit)
+        self.assertTrue(any(p.startswith("V3") and code in p for p in cm.exception.problems), (k, c, code))
+
+    def test_valid_visits_pass_at_every_scale_and_offset(self):
+        for k in self.SCALES:
+            for c in (0.0, 5e5, -5e5, -3e9):
+                self.assertEqual(len(self.case(k, c).visits), len({x["visit_id"] for x in self.base()[0]}))
+
+    def test_negative_duration_overlap_and_gap_are_refused_at_every_scale_and_offset(self):
+        def neg(ms, mg): ms[1]["t_end"] = ms[1]["t_start"] - 0.01 * mg
+        def over(ms, mg):
+            d = 0.01 * mg
+            ms[1]["t_start"] -= d
+        def gap(ms, mg):
+            d = 0.01 * mg
+            for m in ms[1:]:
+                m["t_start"] += d
+                m["t_end"] += d
+            ms[1]["t_start"] += mg
+            ms[1]["t_end"] += mg
+        for k in self.SCALES:
+            for c in (0.0, 7e5, -7e5):
+                self.refused(k, c, neg, "negative_duration")
+                self.refused(k, c, over, "overlap")
+                self.refused(k, c, gap, "gap_too_large")
+
+    def test_boundaries_around_the_permitted_gap(self):
+        def at(frac):
+            def edit(ms, mg):
+                d = mg * frac
+                for m in ms[1:]:
+                    m["t_start"] += d
+                    m["t_end"] += d
+            return edit
+        # the base visit's moments touch, so the gap is 0 and edit(frac) makes it frac * max_gap
+        for k in self.SCALES:
+            for c in (0.0, 4e5, -4e5):
+                self.case(k, c, at(1.0))                                     # exactly the limit: allowed
+                self.case(k, c, at(1.0 + 0.5 * ai.TOL_REL))                   # inside the slack: allowed
+                self.refused(k, c, at(1.0 + 2 * ai.TOL_REL), "gap_too_large")  # just past the slack: refused
+                self.case(k, c, at(-0.5 * ai.TOL_REL))                        # tiny overlap inside the slack: allowed
+                self.refused(k, c, at(-2 * ai.TOL_REL), "overlap")
+
+    def test_the_old_fixed_millisecond_tolerance_is_not_used(self):
+        def over(ms, mg): ms[1]["t_start"] -= 0.01 * mg                       # 0.01 * 1e-9 * 300 s is far below 1 ms
+        self.refused(1e-9, 0.0, over, "overlap")
+        with self.assertRaises(ValueError):
+            ai.prepare([], max_intra_visit_gap_s=0)
+        with self.assertRaises(ValueError):
+            ai.prepare([], max_intra_visit_gap_s=float("inf"))
+
+
 if __name__ == "__main__":
     unittest.main()

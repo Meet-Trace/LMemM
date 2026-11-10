@@ -19,7 +19,14 @@ Visit checks:
         (the Moment layer copies them from the visit's first moment)
     V2  each id is <visit_id>.<seq>; seq values are unique integers forming one contiguous range. The range may
         start above 0 (retention drops the oldest moments) and may end early (partial forget drops the newest).
-    V3  t_start <= t_end, moments do not overlap, and no gap inside the visit exceeds max_intra_visit_gap_s
+    V3  t_start <= t_end, moments do not overlap, and no gap inside the visit exceeds max_intra_visit_gap_s.
+        Float slack is tol = TOL_REL * max_intra_visit_gap_s (TOL_REL = 1e-6), and nothing else: a negative duration
+        is t_end - t_start < -tol, an overlap is t_start(next) - t_end(prev) < -tol, a gap is t_start(next) - t_end(prev)
+        > max_intra_visit_gap_s + tol. Each test compares a DIFFERENCE of two timestamps with tol, so a translation
+        (t -> t + c) cancels exactly; and tol is proportional to a time-valued parameter, so under t -> k t with
+        max_intra_visit_gap_s -> k max_intra_visit_gap_s every difference and tol both scale by k and every
+        comparison keeps its outcome for any k > 0. No absolute floor, no dependence on the size of a timestamp.
+        The slack is about a millionth of the permitted gap (300 s -> 0.3 ms), far below any real overlap or gap.
     V4  visit-id coherence. A visit id (<prefix><second>-<n>) is written once, when the visit is created, from the
         capture clock (moments.py: f"{prefix}{int(t)}-{n}", t = the visit's first frame = its first moment's t_start),
         and is never rewritten, so it is an immutable label. Two parts:
@@ -53,7 +60,7 @@ EXIT_INPUT_INTEGRITY = 3
 SCHEMAS = (1,)
 RETENTION_HOURS = 48.0
 MAX_INTRA_VISIT_GAP_S = 300.0       # above the capture layer's 90 s visit gap; a time parameter (scaled with the others)
-TOL = 1e-3                          # seconds of float slack when comparing timestamps
+TOL_REL = 1e-6                      # float slack as a FRACTION of max_intra_visit_gap_s (see V3 in the module docstring)
 MAX_REPORTED = 20
 
 RECORD_KEYS = frozenset(moments.Moment.__dataclass_fields__) | {"dwell_s"}
@@ -224,14 +231,16 @@ def _visit_problems(vid, recs, max_gap):
     elif seqs and seqs != list(range(seqs[0], seqs[0] + len(seqs))):
         holes = sorted(set(range(seqs[0], seqs[-1] + 1)) - set(seqs))
         out.append(f"V2 {vid} seq_hole missing={holes[:10]}")
-    # V3
+    # V3 (differences only, tolerance proportional to the time parameter; see the module docstring)
+    tol = TOL_REL * max_gap
     for a, b in zip(by_seq, by_seq[1:]):
-        if b["t_start"] < a["t_end"] - TOL:
+        gap = b["t_start"] - a["t_end"]
+        if gap < -tol:
             out.append(f"V3 {vid} overlap moments={a['id']},{b['id']}")
-        elif b["t_start"] - a["t_end"] > max_gap + TOL:
+        elif gap > max_gap + tol:
             out.append(f"V3 {vid} gap_too_large moments={a['id']},{b['id']} limit_s={max_gap:g}")
     for r in by_seq:
-        if r["t_end"] < r["t_start"] - TOL:
+        if r["t_end"] - r["t_start"] < -tol:
             out.append(f"V3 {vid} negative_duration moment={r['id']}")
     # V5
     sibs = {json.dumps((r.get("context") or {}).get("same_item_before"), sort_keys=True) for r in by_seq}
@@ -312,6 +321,8 @@ def prepare(records, retention_hours=RETENTION_HOURS, max_intra_visit_gap_s=MAX_
             check_capture_clock=True):
     """Raw record dicts -> Prepared, or an ActivityInputError (exit code 3). Pure: no I/O, no clock.
     check_capture_clock=False skips only the ABSOLUTE part of V4, for data a test has re-timed (see V4 above)."""
+    if not (isinstance(max_intra_visit_gap_s, (int, float)) and 0 < max_intra_visit_gap_s < float("inf")):
+        raise ValueError("max_intra_visit_gap_s must be a positive finite number")      # the V3 tolerance is relative to it
     report = report if report is not None else new_report()
     report["records_read"] += len(records)
     problems = []

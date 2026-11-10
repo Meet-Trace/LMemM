@@ -1423,13 +1423,15 @@ class MainWindow:
         h = kit.put_text(doc, empty["line"], x, y + 112, min(w, 460), 14, 400, kit.mute())
         return y + 112 + h
 
-    def _thing(self, doc, t, x, y, w, notes=False, select=False):
+    def _thing(self, doc, t, x, y, w, notes=False, select=False, compact=False):
         """A thing: its title, where it is, when. With notes: the open ones underneath. While selecting,
         a tap ticks it instead of opening it. Returns the new y."""
         call = (lambda i=t["id"]: self.pick_thing(i)) if select else (lambda i=t["id"]: self.press("thing", i))
         box = _Tap.alloc().initWithFrame_callback_(NSMakeRect(x, y, w, 10), call)
         if not notes:
             box.fill = self._krow("main", "t" + t["id"], call, box)
+        if compact:
+            return self._thing_line(doc, box, t, x, y, w, select)
         lead = 0
         if select:
             on = t["id"] in self.sel
@@ -1452,6 +1454,30 @@ class MainWindow:
                 self._label(box, f"+{t['more_notes']} more", tx, h, w - tx, size=12, weight=400)
                 h += 20
             h += 6
+        box.setFrame_(NSMakeRect(x, y, w, h))
+        doc.addSubview_(box)
+        return y + h
+
+    def _thing_line(self, doc, box, t, x, y, w, select):
+        """The timeline row: one 36 pt line, small source icon, title, quiet source text, open notes, time."""
+        h, lead = 36, 0
+        if select:
+            on = t["id"] in self.sel
+            kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if on else ("circle", "circle"), kit.ink() if on else kit.mute(), 0, 7, 22)
+            lead = 30
+        self._app_icon(box, t["app"], lead + 6, 8, 20, t.get("kind", ""), t.get("url"))
+        tx = lead + 36
+        right = w - 10
+        if t["ago"]:
+            kit.put_text(box, t["ago"], right - 70, 0, 70, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 78
+        if t["open"]:
+            kit.put_text(box, f"{t['open']} open", right - 56, 0, 56, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 64
+        sub_w = min(max(int((right - tx) * 0.34), 0), 220) if t["sub"] else 0
+        if sub_w:
+            kit.put_text(box, t["sub"], right - sub_w, 0, sub_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+        kit.put_text(box, t["title"], tx, 0, max(right - sub_w - 12 - tx, 40), 13, 500, wrap=False, height=h, middle=True)
         box.setFrame_(NSMakeRect(x, y, w, h))
         doc.addSubview_(box)
         return y + h
@@ -1740,15 +1766,16 @@ class MainWindow:
             sub.removeFromSuperview()
         x, w = self.col_x, self.main_w
         y = self._crumbs(host, page["crumbs"], x, 26)
-        self._project_icon(host, page["hue"], x, y - 2, 40)
+        self._project_icon(host, page["hue"], x, y - 2, 28)
         if page["archived"]:
             kit.button(host, "Bring back", x + w - 110, y - 4, 110, 32, lambda: self.project_action("restore", pid=page["pid"]),
                        kind="outline", size=13, weight=600)
         else:
             self._project_actions(host, x + w, y - 4, page["pid"])
-        kit.put_text(host, page["title"], x + 54, y, w - 54 - 170, 26, 700, wrap=False, height=32)
-        self._label(host, page["meta"], x + 54, y + 33, w - 54, size=13, weight=400)
-        y += 58
+        title_w = min(kit.text_width(page["title"], 18, 700), w - 38 - 170)
+        kit.put_text(host, page["title"], x + 38, y - 1, title_w + 4, 18, 700, wrap=False, height=28)
+        self._label(host, page["meta"], x + 38 + title_w + 14, y + 2, max(w - 38 - title_w - 14 - 170, 60), size=12, weight=400)
+        y += 40
         if self.memory_snapshot:
             tx=x;in_settings=bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
             for tab in self.memory_snapshot['tabs']:
@@ -1761,44 +1788,64 @@ class MainWindow:
                     bw=kit.chip_width('Back to Memory','chevron.left');kit.chip(host,'Back to Memory','chevron.left',sx-bw-8,y,False,lambda:self._memory_action('close_settings'))
             y+=44
             if self.memory_snapshot['tab'] in {'Memory','Resume'} or page.get('empty'):return y
-        if page["pick_up"]:
-            self._label(host, "PICK UP WHERE YOU LEFT OFF", x, y, w)
-            y += 22
-            gap = 12
-            cw = (w - gap * 2) / 3
-            for i, t in enumerate(page["pick_up"]):
-                self._mini_card(host, t, x + i * (cw + gap), y, cw, 88)
-            y += 88 + 18
-        else:                                                                 # nothing to pick up: one quiet line, not a banner
+        y = self._status(host, page, x, y, w)
+        y = self._toolbar(host, page, x, y, w)
+        return y
+
+    def _status(self, host, page, x, y, w):
+        """Where you left off, in one quiet strip above the history. With open notes it is a row of small links
+        (the notes show on hover); with none it is a single muted line."""
+        if not page["pick_up"]:
             caught = page["caught_up"]
-            kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 2, 16, kit.mute())
-            kit.put_text(host, caught["title"], x + 24, y, 110, 13, 600, wrap=False, height=20, middle=True)
-            kit.put_text(host, caught["line"], x + 24 + kit.text_width(caught["title"], 13, 600) + 10, y,
-                         max(w - 24 - kit.text_width(caught["title"], 13, 600) - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
-            y += 20 + 16
-        if page["subs"]:                                                      # destinations: tiles with an arrow, unlike the filter chips below
-            self._label(host, f"SUB-PROJECTS · {len(page['subs']) + page['subs_more']}", x, y, w)
-            y += 22
-            y = self._sub_chips(host, page, x, y, w) + 16
-        rule = kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y, w, 1))
-        host.addSubview_(rule)
-        y += 14
-        kit.put_text(host, "Things", x, y, w, 17, 700, wrap=False, height=24)
-        kit.put_text(host, str(page["total"]), x + kit.text_width("Things", 17, 700) + 8, y + 2, 80, 13, 500, kit.mute(), wrap=False, height=20)
+            kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 3, 14, kit.mute())
+            tw = kit.text_width(caught["title"], 12, 600)
+            kit.put_text(host, caught["title"], x + 20, y, tw + 6, 12, 600, kit.mute(), wrap=False, height=20, middle=True)
+            kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+            return y + 28
+        self._label(host, "PICK UP", x, y + 2, 60, size=11)
+        gap = 8
+        cx = x + 68
+        cw = (w - 68 - gap * (len(page["pick_up"]) - 1)) / len(page["pick_up"])
+        for t in page["pick_up"]:
+            tap = self._tap(host, cx, y, cw, 26, (lambda i=t["id"]: self.press("thing", i)), fill=True)
+            tap.setToolTip_("\n".join("○  " + n for n in t.get("notes", [])[:3]) or t["title"])
+            self._app_icon(tap, t["app"], 6, 4, 18, t.get("kind", ""), t.get("url"))
+            tail = f"  {t['open']}" if t["open"] else ""
+            kit.put_text(tap, t["title"] + tail, 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
+            cx += cw + gap
+        return y + 38
+
+    def _toolbar(self, host, page, x, y, w):
+        """One slim line over the history: its name and count, the filters as quiet text, and Select. The
+        sub-projects are in the sidebar tree, and "With sub-projects" is here."""
+        kit.put_text(host, "Things", x, y, w, 14, 700, wrap=False, height=24, middle=True)
+        cx = x + kit.text_width("Things", 14, 700) + 8
+        kit.put_text(host, str(page["total"]), cx, y, 60, 12, 400, kit.mute(), wrap=False, height=24, middle=True)
+        cx += kit.text_width(str(page["total"]), 12, 400) + 16
+        scope = []
+        if page["deep"]["show"]:
+            scope = [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
+                     ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))]
+        apps = []
+        if len(page["filters"]) > 1:
+            apps = [("All apps", self.nav["app"] is None, lambda: self.press("app", None))]
+            apps += [(f["app"], self.nav["app"] == f["app"], (lambda a=f["app"]: self.press("app", a))) for f in page["filters"]]
+        right = x + w
         if self.sel is None and page["total"]:
-            self._link(host, "Select", x + w - kit.text_width("Select", 13, 500) - 12, y - 4, self.start_select)
-        y += 32
+            right -= self._link(host, "Select", right - kit.text_width("Select", 12, 500) - 12, y - 1, self.start_select, size=12)
+        left, row = cx, 0
+        for group in (scope, apps):
+            for label, on, call in group:
+                width = kit.text_width(label, 12, 500) + 16
+                if left + width > right and left > x:
+                    left, row = x, row + 1
+                tap = self._tap(host, left, y + row * 28, width, 24, call, fill=on)
+                kit.put_text(tap, label, 8, 0, width - 16, 12, 600 if on else 500, None if on else kit.mute(), wrap=False, height=24, middle=True)
+                left += width + 2
+            left += 10
+        y += 28 * (row + 1) + 4
         if self.sel is not None:
             y += self._select_bar(host, page, x, y, w) + 10
-        chips = []
-        if page["deep"]["show"]:
-            chips += [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
-                      ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))]
-        if len(page["filters"]) > 1:
-            chips += [("All apps", self.nav["app"] is None, lambda: self.press("app", None))]
-            chips += [(f["app"], self.nav["app"] == f["app"], (lambda a=f["app"]: self.press("app", a))) for f in page["filters"]]
-        if chips:
-            y += self._chips(host, x, y, chips, w) + 10
         return y
 
     def _select_bar(self, parent, page, x, y, w):
@@ -1833,45 +1880,24 @@ class MainWindow:
             kit.put_text(tap, "○  " + text + tail, 12, 44 + i * 18, w - 24, 12, 400, kit.mute(), wrap=False, height=18)
         return tap
 
-    def _sub_chips(self, parent, page, x, y, w):
-        """Sub-projects as small chips, wrapping onto more rows only when they must. Returns the new y."""
-        cx = x
-        for sub in page["subs"]:
-            width = min(kit.text_width(sub["name"], 13, 500) + 66, w)
-            if cx + width > x + w:
-                cx, y = x, y + 38
-            tap = self._tap(parent, cx, y, width, 32, (lambda i=sub["id"]: self.press("go", i)), fill=True)
-            self._project_icon(tap, sub["hue"], 6, 5, 22)
-            kit.put_text(tap, sub["name"], 34, 0, width - 54, 13, 500, wrap=False, height=32, middle=True)
-            kit.glyph(tap, ("chevron.right",), width - 22, 9, 14, kit.mute())
-            cx += width + 8
-        if page["subs_more"]:
-            label = f"+{page['subs_more']} more"
-            width = kit.text_width(label, 13, 500) + 24
-            if cx + width > x + w:
-                cx, y = x, y + 38
-            tap = self._tap(parent, cx, y, width, 32, lambda: self.press("more_subs"))
-            kit.put_text(tap, label, 12, 0, width - 24, 13, 500, kit.mute(), wrap=False, height=32, middle=True)
-        return y + 32
-
     def _things(self, doc, page, x, y, w):
         """The scrolling list: things grouped by when, newest first."""
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
         for group in page["groups"]:
             n = len(group["things"])
-            kit.put_text(doc, group["title"], x + 18, y, 200, 13, 600, wrap=False, height=20)
-            kit.put_text(doc, f"{n} thing{'s' * (n != 1)}", x + 18 + kit.text_width(group["title"], 13, 600) + 8, y, 120, 12, 400,
-                         kit.mute(), wrap=False, height=20)
+            kit.put_text(doc, group["title"], x + 18, y, 200, 12, 600, kit.mute(), wrap=False, height=20)
+            kit.put_text(doc, f"{n}", x + 18 + kit.text_width(group["title"], 12, 600) + 8, y, 60, 12, 400,
+                         kit.faint(0.4), wrap=False, height=20)
             dot = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 1, y + 6, 8, 8), kit.mute(), None, 4)
             doc.addSubview_(dot)
-            top = y + 24
+            top = y + 22
             y = top
             for t in group["things"]:
-                y = self._thing(doc, t, x + 18, y, w - 18, select=self.sel is not None)
+                y = self._thing(doc, t, x + 14, y, w - 14, select=self.sel is not None, compact=True)
             rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 4, top - 6, 1, y - top + 6))
             doc.addSubview_(rail)
-            y += 14
+            y += 12
         if not page["groups"]:
             self._label(doc, "Nothing matches this filter.", x, y + 8, w, size=13, weight=400)
             y += 34

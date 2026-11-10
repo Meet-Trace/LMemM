@@ -34,6 +34,7 @@ import config
 import project_reasoner_assign as assign
 import project_reasoner_graph as graph
 import projects
+import understand
 import suggestions
 
 LOOKBACK_DAYS = 14
@@ -55,7 +56,11 @@ def recent(items, visits, now, days=LOOKBACK_DAYS):
     timeline = [v for v in visits if v["from"] >= since and v["item"] in items]
     timeline = [v for v in timeline if items[v["item"]].get("app") not in OWN_APPS]
     used = dict.fromkeys(v["item"] for v in timeline)
-    return {i: {k: v for k, v in items[i].items() if k not in SKIP_FIELDS} for i in used}, timeline
+    out = {i: {k: v for k, v in items[i].items() if k not in SKIP_FIELDS} for i in used}
+    for thing in out.values():                    # older things saved before capture named every window
+        if not thing.get("title"):
+            thing["title"] = understand.place_name(thing)
+    return out, timeline
 
 
 def _filed(reg, item):

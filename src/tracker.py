@@ -1084,18 +1084,17 @@ class Tracker:
                     continue
                 sig = ax.read(pid, name)
                 key = ax.key(name, sig)
-                page = (sig["doc"], sig["title"]) if sig and not key and sig["doc"] and name in config.BROWSERS else None
+                is_browser = name in config.BROWSERS
+                page = (sig["doc"], sig["title"]) if sig and sig["doc"] and is_browser else None
                 if (pid, key, page) == last:
                     continue
                 last = (pid, key, page)
                 with self.lock:
-                    if key:
-                        item = identity.find_place(self.items, key, sig["label"])
-                        self.ax_now = {"pid": pid, "key": key, "item": item} if item else None
-                    elif page:
-                        st = identity.page_state(name, *page)      # the same identity a capture would give it
-                        self.ax_now = ({"pid": pid, "key": None, "item": identity.find_item(self.items, st)}
-                                       if st else None)
+                    item, decided = identity.ax_item(self.items, name, sig, key, is_browser)
+                    if item:
+                        self.ax_now = {"pid": pid, "key": key, "item": item}
+                    elif decided:
+                        self.ax_now = {"pid": pid, "key": None, "item": None}   # a page you have no notes on
                     else:
                         self.ax_now = None
                 self.last_widget_refresh = 0.0

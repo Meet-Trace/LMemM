@@ -66,6 +66,20 @@ def is_empty_where_typed(item, res):
     return len(inside) <= 1
 
 
+def _same_ref(item, st, ref):
+    """Match exact refs, plus legacy terminal titles now normalized to their folder.
+    This is a read-only compatibility lookup: retained refs and item IDs stay intact.
+    """
+    refs = item.get("refs", [item.get("ref")])
+    if ref in refs:
+        return True
+    if st.get("kind") != "terminal" or not st.get("target"):
+        return False
+    prefix = f"{st['app']}|terminal|"
+    return any(isinstance(old, str) and old.startswith(prefix)
+               and understand.terminal_folder(old[len(prefix):]) == st["target"] for old in refs)
+
+
 def resolve_item(items, st, cur, res, trigger, scrolled):
     """-> (item id, ref). `cur` is the open timeline event (or None). May re-key the
     current item in place when its place got a new name without you navigating."""
@@ -74,7 +88,7 @@ def resolve_item(items, st, cur, res, trigger, scrolled):
                  if o["text"] and o["kind"] not in understand.CHROME]
     cur_item = items.get(cur["item"]) if cur else None
 
-    instances = [i for i in items.values() if ref in i.get("refs", [i.get("ref")])]
+    instances = [i for i in items.values() if _same_ref(i, st, ref)]
     if st.get("stable_identity"):
         # Reuse existing IDs, including legacy items, without merging history.
         if instances:
@@ -156,8 +170,11 @@ def find_item(items, st):
         if fuzzy:
             return fuzzy
     ref = understand.ref(st)
-    seen = [i for i in items.values() if ref in i.get("refs", [i.get("ref")])]
-    return max(seen, key=lambda i: i["last_seen"])["id"] if seen else None
+    seen = [i for i in items.values() if _same_ref(i, st, ref)]
+    # Several items can share a ref (a fresh one starts when typed text vanishes). The one
+    # holding open notes wins, so a newer empty twin never hides a note from the pill.
+    prefer_notes = st.get("stable_identity") or st.get("kind") == "web_page"
+    return max(seen, key=lambda i: (bool(prefer_notes) and open_notes(i) > 0, i["last_seen"]))["id"] if seen else None
 
 
 def places(item):
@@ -197,3 +214,21 @@ def page_state(app, url, title):
     names = {app, "Brave", "Google Chrome", "Microsoft Edge", "Arc", "Safari"}
     tab = re.sub(r"\s[-–—]\s(?:%s)(?:\s.*)?$" % "|".join(map(re.escape, names)), "", title or "")
     return quick_state({"app": app, "bundle_id": "", "window": title, "url": url, "site": site, "tab_title": tab})
+
+
+def ax_item(items, app, sig, key, is_browser):
+    """-> (item id or None, decided). Which item the app's own Accessibility reading names.
+    A focused text field gives a place signature, but on a web page that signature is often
+    one never seen before (a search box, a comment form); the page's URL must still be
+    tried, or the page's notes vanish whenever a field has focus. `decided` is False when
+    nothing here names a place, so the caller falls back to the screen read."""
+    if not sig:
+        return None, False
+    found = find_place(items, key, sig["label"]) if key else None
+    if found:
+        return found, True
+    if is_browser and sig["doc"]:
+        st = page_state(app, sig["doc"], sig["title"])
+        if st:
+            return find_item(items, st), True
+    return None, False

@@ -267,7 +267,7 @@ def run(items, timeline, model=None):
             for k, prior in ents[p].items():
                 te[k] = max(te.get(k, 0), prior)
         cands = reg.candidates(te)
-        scored = sorted(((reg.score(te, c), c) for c in cands), key=lambda x: -x[0][0])
+        scored = sorted(((reg.score(te, c), c) for c in sorted(cands)), key=lambda x: (-x[0][0], x[1]))
         best = scored[0] if scored else ((0.0, []), None)
         second = scored[1][0][0] if len(scored) > 1 else 0.0
         (s, why), proj = best
@@ -300,7 +300,7 @@ def run(items, timeline, model=None):
     # names and paths
     def label(proj):
         c = reg.names.get(proj) or Counter()
-        top = [k for k, _ in c.most_common(3)]
+        top = [k for k, _ in sorted(c.items(), key=lambda x: (-x[1], x[0]))[:3]]
         return (top[0] if top else proj).title()
     labels = {p: label(p) for p in set(task_project.values())}
     assigned, projects = defaultdict(set), {}
@@ -316,7 +316,7 @@ def run(items, timeline, model=None):
         groups[proj]["tasks"] += 1
         groups[proj]["places"].update(tasks[t_idx])
     log.append({"step": "projects", "projects": {p: {"label": labels[p], "tasks": g["tasks"], "places": sorted(g["places"]),
-                                                     "names": [k for k, _ in reg.names[p].most_common(5)]}
+                                                     "names": [k for k, _ in sorted(reg.names[p].items(), key=lambda x: (-x[1], x[0]))[:5]]}
                                                  for p, g in groups.items()}})
     log.append({"step": "calls", "decision": f"{ask.calls} model calls, {len(labels)} projects, {len(tasks)} tasks"})
     return {i: sorted(v) for i, v in assigned.items()}, projects, log

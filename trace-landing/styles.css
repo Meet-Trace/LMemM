@@ -175,3 +175,11 @@ h1 em,h2 em{letter-spacing:-.025em}
 .photo-band-img::before{content:'';position:absolute;inset:-4%;background:url(assets/photography/team.jpg) center 62%/cover no-repeat;filter:sepia(.4) saturate(1.1) hue-rotate(-8deg) contrast(1.04) brightness(.82) blur(4px)}
 .photo-band-img::after{background:linear-gradient(#6b422630,#6b422630),linear-gradient(90deg,#1a110e66 0,transparent 40%),linear-gradient(0deg,#1a110e88,transparent 40%)}
 .photo-band-img .grain{opacity:.6}
+/* Less purple in the hero; darker left side of the middle photo so the headline stays readable. */
+.hero-photo::after{background:linear-gradient(125deg,#c9535c 0%,#6a5aa8 50%,#3a64d6 100%);opacity:.13}
+:root[data-theme=light] .hero-photo::after,:root[data-theme=dark] .hero-photo::after{opacity:.13}
+.photo-band-img{inset:0 0 0 12%;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 30%);mask-image:linear-gradient(90deg,transparent 0,#000 30%)}
+.photo-band-img::before{filter:sepia(.4) saturate(1.05) hue-rotate(-8deg) contrast(1.04) brightness(.62) blur(4px)}
+.photo-band-img::after{background:linear-gradient(#6b422630,#6b422630),linear-gradient(90deg,#1a110ef2 0,#1a110ecc 45%,#1a110e33 75%),linear-gradient(0deg,#1a110e88,transparent 40%)}
+.photo-band-copy h2,.photo-band-copy p{text-shadow:0 1px 18px #1a110eb3}
+.photo-band-copy h2 em{color:#a9c1ff}

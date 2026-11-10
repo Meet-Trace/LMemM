@@ -1190,10 +1190,12 @@ class Tracker:
         try:
             model = screen_summary.narrator()
             if model is None:
+                line(now_hms(), "", f"summary skipped: Ollama is not running or has no {config.FINDER_NARRATOR}")
                 return
             with self.lock:
                 ids = screen_summary.pending(self.items, batch or config.SUMMARY_BATCH)
                 work = {i: copy.deepcopy(self.items[i]) for i in ids}
+            line(now_hms(), "", f"summarising {len(work)} thing{'s' * (len(work) != 1)}")
             for i, item in work.items():
                 if self.paused != "idle" and not now:
                     break                           # you are back: stop, the rest waits

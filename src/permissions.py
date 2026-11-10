@@ -41,8 +41,8 @@ def screen_allowed_here():
 def screen_allowed_fresh():
     """Would a brand-new process be allowed? True with screen_allowed_here() False means the
     switch is on but LMemM must restart."""
-    from semantic_memory.runtime_environment import worker_argv
     try:
+        from semantic_memory.runtime_environment import worker_argv
         out = subprocess.run(worker_argv('permission-probe'), capture_output=True, text=True, timeout=5)
         return out.returncode == 0 and out.stdout.strip() == "1"
     except (OSError, ValueError, subprocess.SubprocessError):
@@ -86,6 +86,7 @@ class MacSystem:
     def __init__(self):
         self._facts = {}
         self._stop = threading.Event()
+        self._wake = threading.Event()
         self._thread = None
         self._voice_busy = False
 
@@ -98,6 +99,12 @@ class MacSystem:
 
     def stop(self):
         self._stop.set()
+        self._wake.set()
+
+    def request_refresh(self):
+        """Wake the existing worker; never request or grant a permission."""
+        self._facts = {**self._facts, "checking": True}
+        self._wake.set()
 
     def facts(self):
         return dict(self._facts)
@@ -105,20 +112,36 @@ class MacSystem:
     def _loop(self):
         last_voice = 0.0
         while not self._stop.is_set():
-            facts = dict(self._facts)
+            self._wake.clear()
+            check_voice = not self._voice_busy and time.time() - last_voice > 2.0
+            self._read_facts(check_voice)
+            if check_voice:
+                last_voice = time.time()
+            self._wake.wait(1.0)
+
+    def _read_facts(self, check_voice=False):
+        facts = dict(self._facts)
+        errors = {}
+        # A failed screen probe must not prevent the independent AX check.
+        for key, probe in (("screen", screen_allowed_here), ("ax", accessibility_trusted)):
             try:
-                facts["screen"] = screen_allowed_here()
-                facts["screen_fresh"] = facts["screen"] or screen_allowed_fresh()
-                facts["ax"] = accessibility_trusted()
-            except Exception:
-                pass
-            if not self._voice_busy and time.time() - last_voice > 2.0:
+                facts[key] = probe()
+            except Exception as error:
+                facts[key] = None
+                errors[key] = type(error).__name__
+        try:
+            facts["screen_fresh"] = facts.get("screen") or screen_allowed_fresh()
+        except Exception as error:
+            facts["screen_fresh"] = None
+            errors["screen_fresh"] = type(error).__name__
+        if check_voice:
+            try:
                 answer = voice_helper("--status", timeout=10)
                 if answer:
                     facts["mic"], facts["speech"] = answer.get("mic"), answer.get("speech")
-                last_voice = time.time()
-            self._facts = facts
-            self._stop.wait(1.0)
+            except Exception as error:
+                errors["voice"] = type(error).__name__
+        self._facts = {**facts, "errors": errors, "checking": False}
 
     # -- doing things
 

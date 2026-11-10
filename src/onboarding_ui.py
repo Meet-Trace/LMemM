@@ -344,6 +344,14 @@ class SetupWindow:
                 rule = kit._KitRule.alloc().initWithFrame_(NSMakeRect(0, y, CW, 1))
                 body.addSubview_(rule)
             y = self._permission(body, row, view, y + (0 if i == 0 else 1))
+        y += 8
+        kit.button(body, "Checking…" if view["checking"] else "Refresh status", 0, y, 142, 30,
+                   lambda: self._do(self.setup.press, "refresh"), kind="ghost", size=13, weight=600)
+        if view["can_retry_restart"]:
+            kit.button(body, "Restart LMemM", CW - 142, y, 142, 30,
+                       lambda: self._do(self.setup.press, "retry_restart"), kind="ghost", size=13, weight=600)
+        y += 38
+        y += kit.put_text(body, view["permission_help"], 0, y, CW, 12, 400, kit.mute(), CENTER) + 8
         return y
 
     def _permission(self, body, row, view, y):

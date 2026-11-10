@@ -318,6 +318,13 @@ class Setup:
         """A row's button. Only the action the row currently offers does anything."""
         if self.completed or (self.step != "access" and action != "restart"):
             return False
+        if action == "refresh":
+            return self._attempt(self.system.request_refresh, "Couldn’t check permissions. Restart LMemM and try again.")
+        if action == "retry_restart":
+            if self.step != "access" or self.perm("screen") == GRANTED:
+                return False
+            self._commit()
+            return self._attempt(self.system.relaunch, "Couldn’t restart LMemM. Quit it and open it again.")
         if action == "restart":
             if self.step not in ("access", "try", "done") or self.perm("screen") != RESTART:
                 return False
@@ -382,6 +389,10 @@ class Setup:
         elif step == "access":
             v.update(title="Let LMemM see and hear.", trust=TRUST, rows=self._rows(),
                      can_limit_apps=True, watch_apps=list(state["watch_apps"]),
+                     checking=bool(self.facts.get("checking")),
+                     can_retry_restart=self.perm("screen") != GRANTED,
+                     permission_help=("Couldn’t read every permission. Refresh to try again." if self.facts.get("errors") else
+                                      "Already enabled in System Settings? Refresh, then restart if needed."),
                      primary=self._btn("Continue", "next", quiet=continue_style(state, self.facts) == "quiet"))
         elif step == "try":
             done = state["rehearsed"]

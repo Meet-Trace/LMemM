@@ -22,6 +22,13 @@ The original checkout's experimental grouping changes were intentionally not car
 - A fresh-context reviewer found two note-identity issues; both were reproduced and fixed. Follow-up review found no remaining blocker in this batch and independently passed 22 focused tests.
 - `build_app.sh --standalone` succeeded. Strict ad hoc signature verification and the packaged diagnostics worker passed. A copied bundle also passed signature verification and diagnostics outside the checkout under a temporary path containing spaces. All packaged Python source modules were checked against the worktree. This is a local beta artifact, not a notarized public release.
 
+## Permission recovery update (Nov 10)
+
+- Onboarding now offers **Refresh status**, with visible checking feedback, and **Restart LMemM** when screen access is unavailable. Neither control grants permissions or marks them on optimistically.
+- Permission reads are independent: a failed screen check cannot suppress the Accessibility result. Probe errors get a recovery hint instead of silently stopping all checks.
+- 1,059 Python tests pass in temporary data, including three permission refresh regressions; the standalone build, strict signature verification and bundled diagnostics pass.
+- Live Mac check: System Settings lists LMemM enabled for Screen Recording and Accessibility, but the running beta reports both unavailable even after restart and refresh. The UI refresh itself was verified through Checking → completed. No switches were changed automatically. The user must renew the LMemM grants (off/on, then Quit & Reopen). If that fails, remove the stale LMemM entry and add the exact current worktree `dist/LMemM.app` via the macOS picker. An older ad hoc build identity is suspected, not yet proven. Do not claim capture acceptance until the app detects the grants.
+
 ## Run and test
 
 A local standalone artifact is in this worktree's `dist/LMemM.app`. It contains the code instead of pointing at the development checkout. Quit an existing LMemM instance before opening the beta so hotkeys/permissions and the running version are unambiguous. No existing app was stopped or replaced automatically.

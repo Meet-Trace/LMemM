@@ -1,7 +1,10 @@
-"""Bounded local evidence from visible OCR text, without inferred decisions."""
+"""Bounded local evidence from visible screen text (the app's own text where the trail read it, else OCR), without inferred decisions."""
 
 import hashlib
 import re
+
+import config
+import observation
 
 MAX_TEXT = 3000
 MAX_EXCERPTS = 12
@@ -41,27 +44,26 @@ def pick_window(windows):
     return next((w for w in pool if w.get("kCGWindowName")), pool[0] if pool else None)
 
 
-def extract_content(res, meta):
+def extract_content(res, meta, ax=None, ocr=None):
     """Keep readable lines fully inside the foreground window, excluding UI chrome.
+
+    `ocr`: the same screen as an Observation, if the caller already built one.
+    `ax`: the accessibility trail's Observation of this same screen, if it read one (observation.py). Where
+    it saw the same line as OCR, its exact text is kept and the OCR original is stored as a variant.
 
     Older frames have no window region. Do not attribute their entire display
     to the foreground app; they still support the existing activity rules.
     """
-    region = meta.get("window_region")
-    if not region:
+    if not meta.get("window_region"):
         return None
-    width, height = res["image_size"]["w"], res["image_size"]["h"]
-    x, y, w, h = [region[0] * width, region[1] * height,
-                   region[2] * width, region[3] * height]
-    lines, seen = [], set()
+    ocr = ocr or observation.from_ocr(res, meta, 0.0)
+    merged = observation.merge([ocr, ax] if ax is not None else [ocr])
+    lines, seen, kept = [], set(), []
     remaining = MAX_TEXT
-    for obj in res["objects"]:
-        if obj["kind"] not in CONTENT_KINDS or obj.get("conf", 0) < 0.5:
+    for m in merged:
+        if m.source == "ocr" and not (m.in_window and m.kind in CONTENT_KINDS and m.conf >= 0.5):
             continue
-        bx, by, bw, bh = obj["box"]
-        if bx < x or by < y or bx + bw > x + w or by + bh > y + h:
-            continue
-        text = re.sub(r"\s+", " ", obj.get("text") or "").strip()
+        text = re.sub(r"\s+", " ", m.text or "").strip()
         if len(text) < 12 or len(re.findall(r"\w+", text)) < 3 or text in seen:
             continue
         seen.add(text)
@@ -69,15 +71,42 @@ def extract_content(res, meta):
         if not text:
             break
         lines.append(text)
+        kept.append(m)
         remaining -= len(text) + 1
         if remaining <= 0:
             break
     if not lines:
         return None
-    return {"text": "\n".join(lines),
-            "decision_quotes": [line for line in lines if DECISION.search(line) and "?" not in line][:5],
-            "observed_at": meta["iso"],
-            "source": {"app": meta.get("app"), "window": meta.get("window"), "url": meta.get("url")}}
+    out = {"text": "\n".join(lines),
+           "decision_quotes": [line for line in lines if DECISION.search(line) and "?" not in line][:5],
+           "observed_at": meta["iso"],
+           "source": {"app": meta.get("app"), "window": meta.get("window"), "url": meta.get("url")},
+           "provenance": observation.counts(kept)}
+    variants = [v for m in kept for v in m.variants][:config.MAX_VARIANTS]
+    if variants:
+        out["variants"] = variants
+    return out
+
+
+def screen_content(log, res, meta, now, fresh=True, eval_path=None):
+    """extract_content for a screen both readers may have seen: share our OCR observation in `log`, find the trail's
+    read of the same place, and build the excerpt from the two. `eval_path`: also append before/after text there."""
+    ocr = observation.from_ocr(res, meta, now, meta.get("image"))
+    if fresh:
+        log.add(ocr)
+    ax = log.match(ocr)
+    content = extract_content(res, meta, ax, ocr)
+    if eval_path:
+        before = extract_content(res, meta, None, ocr)
+        report = observation.merge_report([ocr, ax])[1] if ax else {"gate": "no_trail_read"}
+        observation.append_eval(eval_path, {
+            "t": meta["iso"], "app": meta.get("app"), "bundle_id": meta.get("bundle_id"),
+            "window": meta.get("window"), "url": meta.get("url"), "ocr_lines": len(ocr.lines),
+            "ax_lines": len(ax.lines) if ax else 0, "ax_near": len(log.near(ocr)), "matched": ax is not None, "gate": report["gate"],
+            "lines_matched": report.get("matched", 0),
+            "before": before and before["text"], "after": content and content["text"],
+            "provenance": content and content.get("provenance"), "variants": content and content.get("variants")})
+    return content
 
 
 def remember_content(item, capture):
@@ -101,6 +130,7 @@ def remember_content(item, capture):
             return changed
     excerpts.append({"id": digest, "text": capture["text"], "source": capture["source"],
                      "first_seen": capture["observed_at"], "last_seen": capture["observed_at"],
-                     "decision_quotes": capture["decision_quotes"]})
+                     "decision_quotes": capture["decision_quotes"],
+                     **{k: capture[k] for k in ("provenance", "variants") if capture.get(k)}})
     del excerpts[:-MAX_EXCERPTS]
     return True

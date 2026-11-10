@@ -274,6 +274,7 @@ def vision(front_info, snap):
     lines.sort(key=lambda l: (round(l["box"][1] / 8), l["box"][0]))
     out = trail_ax.Snapshot(title=snap.title, url=snap.url)
     out.texts = [" ".join(l["text"].split())[:trail_ax.MAX_TEXT] for l in lines][:trail_ax.MAX_TEXTS]
+    out.confs = [l.get("conf", 0.0) for l in lines][:trail_ax.MAX_TEXTS]
     return out
 
 

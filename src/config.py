@@ -76,6 +76,18 @@ TRAIL_IDLE = 60                 # no input for this long -> idle event, reads sl
 TRAIL_VISION = True             # fall back to a screenshot read when an app exposes too little text
 TRAIL_VISION_EVERY = 20         # seconds: least time between screenshot reads of one place
 
+# ---------------------------------------------------------------- evidence (observation.py)
+
+OBSERVATION_MERGE = True    # False = stored screen text is the screenshot's OCR alone, as before the shared record
+OBS_MAX_AGE = 8.0           # seconds: a trail (accessibility) read this close to a screenshot read describes the same screen
+OBS_MATCH = 0.82            # similarity (0..1) above which an OCR line and an accessibility line are the same line
+OBS_LOG_SIZE = 64           # observations kept in memory for the two readers to meet (never written to disk)
+OBS_RETENTION = 120.0       # seconds: observations older than this (before the newest) are dropped from that memory
+OBS_MIN_AGREE = 2           # an app read is used only if at least this many of the OCR's lines (fewer if it has fewer) match it...
+OBS_MIN_SHARE = 0.5         # ...and at least this share of them
+MAX_VARIANTS = 20           # OCR originals kept on one stored excerpt when accessibility text replaced them
+EVIDENCE_LOG = False        # opt-in: write per-frame before/after text to <memory_dir>/evidence_eval.jsonl (scripts/eval_evidence.py)
+
 # ---------------------------------------------------------------- memory
 
 KEEP_TEXT = 15          # newest lines kept per activity category on an item

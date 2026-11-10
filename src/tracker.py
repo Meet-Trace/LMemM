@@ -46,6 +46,7 @@ import menubar
 import window as main_window
 import window_model
 import notes
+import observation
 import permissions
 import onboarding
 import resolver
@@ -59,7 +60,7 @@ import understand
 import widget
 from input_events import Aggregator
 from input_store import InputStore, private_write
-from memory_content import extract_content, remember_content, visible_window_region
+from memory_content import extract_content, screen_content, remember_content, visible_window_region
 
 
 CHATTY = {"chat", "chat_list", "ai_conversation"}    # text can arrive here with no input from you
@@ -139,6 +140,7 @@ class Tracker:
         self.last_retention_sweep = 0.0
         self.panel = dictation.NotePanel()
         self.show_widget = show_widget
+        self.observations = observation.LOG    # where the trail's reads and our OCR meet (observation.py)
         self.use_trail = trail               # the accessibility event trail (trail_mac.py) runs inside this process
         self.trail = None
         self.widget = None                   # the on-screen pill (widget.py), made in run()
@@ -590,6 +592,7 @@ class Tracker:
         meta = {
             "ts": ts, "iso": datetime.now().isoformat(timespec="seconds"),
             "app": f["app"], "bundle_id": f["bundle_id"], "window": f["window"],
+            "pid": f["pid"], "win_id": f["win_id"],
             "url": url, "site": site, "tab_title": tab_title,
             "screen": {"w": int(size.width), "h": int(size.height)}, "display": display,
             "image": ts + ".jpg",       # the thumbnail's name, if this frame ends up kept
@@ -1337,7 +1340,7 @@ class Tracker:
                 res = self.read(meta_path, meta, frame, last, change, pinned)
                 st = understand.describe(res, meta)
             self.interval_cap = (config.BACKOFF_CAP_CHAT if st["kind"] in CHATTY else config.BACKOFF_CAP)
-            content = extract_content(res, meta)
+            content = self.screen_content(res, meta, now, fresh=res is not (last or {}).get("res"))
 
             # OCR ran outside the memory lock so note saves never wait for Vision
             with self.lock:
@@ -1346,6 +1349,14 @@ class Tracker:
             if frame is not None:
                 frame.release()
             self.timed("handle", started)
+
+    def screen_content(self, res, meta, now, fresh=True):
+        """The stored text of this screen (memory_content.screen_content): trail text where it read this
+        screen just now, OCR for the rest. `fresh`: OCR just ran, so this is a new observation to share."""
+        if not config.OBSERVATION_MERGE:
+            return extract_content(res, meta)
+        path = os.path.join(config.paths().memory_dir, "evidence_eval.jsonl") if config.EVIDENCE_LOG else None
+        return screen_content(self.observations, res, meta, now, fresh, path)
 
     def read(self, meta_path, meta, frame, last, change, pinned):
         """OCR a changed screen. Fast OCR (~9x cheaper) for a later frame of the same window;
@@ -1717,6 +1728,7 @@ class Tracker:
         say("\nstopping…")
         if self.trail:
             self.trail.stop()
+        self.observations.clear()
         self.q.put(None)
         self.thread.join(timeout=60)
         with self.lock:

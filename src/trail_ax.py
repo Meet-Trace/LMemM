@@ -50,6 +50,7 @@ class Snapshot:
     selected: list = field(default_factory=list)   # [[texts of one selected row], ...]
     tabs: list = field(default_factory=list)       # titles of selected tabs
     texts: list = field(default_factory=list)      # visible text in reading order
+    confs: list = field(default_factory=list)      # OCR reads only: confidence of each text, same order
     nodes: int = 0
     ms: float = 0.0
     truncated: bool = False

@@ -25,7 +25,8 @@ Normal tracker: one process, two threads, plain files. The experimental pilot is
 | `understand.py` | objects + URL/window → app, action, target, details (per-app rules) | no |
 | `activity.py` | two frames of one thing → changed regions, scroll, activity category | no |
 | `identity.py` | which memory item a screen is: same thing vs. new thing | no |
-| `memory_content.py` | bounded excerpts + unverified decision quotes | no |
+| `observation.py` | one record both readers write (Observation) + conservative merge of the app's text with OCR + the in-memory log they meet in ([ADR 0001](adr/0001-unified-observation.md)) | no |
+| `memory_content.py` | bounded excerpts + unverified decision quotes, built from the merged lines | no |
 | `notes.py` | notes: record/attach, ids, done-state, resurfacing rule, project view | no |
 | `store.py` | load/save `.index.json`, readable `memory.json` / `pending.json`, sessions | no |
 | `context.py` | distills memory into a clean export for an AI: notes + real content, no operational detail | no |

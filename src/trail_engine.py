@@ -11,8 +11,10 @@ read is limited to once per TRAIL_TEXT_EVERY seconds per place.
 """
 
 import re
+import time
 
 import config
+import observation
 import trail_place
 
 CHAT_KINDS = {"chat", "ai_chat"}
@@ -162,10 +164,12 @@ class Bursts:
 
 
 class Engine:
-    def __init__(self, store, front, reader, vision=None, gate=None, clock=None, paused=lambda: False):
+    def __init__(self, store, front, reader, vision=None, gate=None, clock=None, paused=lambda: False, observations=None):
         self.store, self.front, self.reader, self.vision = store, front, reader, vision
+        self.observations = observation.LOG if observations is None else observations   # where the screenshot tracker finds our read
         self.gate = gate or Gate()
         self.clock = clock
+        self.wall = time.time               # observations carry wall-clock time, so both readers share one clock
         self.paused = paused
         self.tracker = trail_place.PlaceTracker(config.TRAIL_SETTLE_MS)
         self.bursts = Bursts()
@@ -261,7 +265,7 @@ class Engine:
     # ---- text
 
     def read_text(self, front, cur, snap, now):
-        source, lines = "ax", list(snap.texts)
+        source, lines, shot = "ax", list(snap.texts), None
         if config.TRAIL_VISION and self.vision and snap.thin() and \
                 now - self.vision_at.get(cur["key"], -1e9) >= config.TRAIL_VISION_EVERY:
             self.vision_at[cur["key"]] = now
@@ -273,7 +277,15 @@ class Engine:
                 source, lines = "ocr", list(shot.texts)
                 if shot.headings and not snap.headings:
                     snap.headings = shot.headings
+        confs = list(getattr(shot, "confs", None) or []) if source == "ocr" and shot is not None else None
+        if confs is not None and len(confs) == len(lines):
+            keep = [i for i, l in enumerate(lines) if l and not SECRET.search(l)]
+            confs = [confs[i] for i in keep]
+        else:
+            confs = None
         lines = redact(lines)
+        obs = (self.observations.add(observation.from_trail(front, snap, lines, source, self.wall(), confs))
+               if config.OBSERVATION_MERGE else None)
         seen = self.seen.setdefault(cur["key"], set())
         added = [l for l in lines if l not in seen][:MAX_ADDED]
         removed = len(seen - set(lines)) if seen else 0
@@ -282,7 +294,8 @@ class Engine:
         seen.clear()
         seen.update(lines)
         if added or removed:
-            self.emit("text", place=cur["key"], source=source, added=added, removed=removed, total=len(lines))
+            extra = {"observation": obs.id} if obs else {}
+            self.emit("text", place=cur["key"], source=source, added=added, removed=removed, total=len(lines), **extra)
 
     # ---- input from the event tap
 

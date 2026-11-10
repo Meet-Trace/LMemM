@@ -47,7 +47,7 @@ BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
-MIN_MAIN, MAX_MAIN = 560, 980                          # the page's reading column: it grows with the window, up to this
+MIN_MAIN, MAX_MAIN, MAX_WIDE = 560, 980, 1280                          # the page's reading column: it grows with the window, up to this
 TOP = 32                                               # below the title bar
 TONES = {"red": "red", "grey": None, "calm": None}      # the banner box's tone (red is only for what is off)
 
@@ -262,6 +262,7 @@ class MainWindow:
         self.app_icons = {}
         self.app_paths = None
         self.W, self.H = W, H                                      # the content's size now; _measure() keeps them true
+        self.wide = False
         self.main_w, self.col_x = MIN_MAIN, PAD                    # the page's column
         self.stamp, self.page_cache = None, None                   # what the last draw was for (so a resize does not recompute pages)
         style = 1 | 2 | 4 | 8 | (1 << 15)                          # titled, closable, minimise, resize, content under the title bar
@@ -364,7 +365,7 @@ class MainWindow:
         size = self.root.frame().size
         self.W, self.H = max(MIN_W, size.width), max(MIN_H, size.height)
         room = self.W - SIDE_W - 2 * PAD
-        self.main_w = max(MIN_MAIN, min(MAX_MAIN, room))
+        self.main_w = max(MIN_MAIN, min(MAX_WIDE if self.wide else MAX_MAIN, room))      # the history gets a wider column than the reading pages
         self.col_x = PAD + max(0, (room - self.main_w) / 2)
 
     def _layout(self):
@@ -710,6 +711,10 @@ class MainWindow:
         top = self._banner(self.banner and self.banner["banner"])
         main = page["main"]
         split = main["kind"] == "project" and (not main.get("empty") or self.memory_snapshot is not None)      # a project: its top stays put, Things scrolls
+        wide = split and (self.memory_snapshot is None or self.memory_snapshot["tab"] == "Overview")
+        if wide != self.wide:
+            self.wide = wide
+            self._measure()
         head = self._head(main) if split else self._no_head()
         thing = main["kind"] == "thing"
         self.item_here = main.get("item") if thing else None
@@ -1475,18 +1480,19 @@ class MainWindow:
             kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if on else ("circle", "circle"), kit.ink() if on else kit.mute(), 0, 7, 22)
             lead = 30
         self._app_icon(box, t["app"], lead + 6, 8, 20, t.get("kind", ""), t.get("url"))
-        tx = lead + 36
-        right = w - 10
+        tx = lead + 38
+        ago_w, open_w = 84, 64                                          # fixed right-hand columns, so the metadata lines up row to row
+        src_w = min(260, max(int((w - tx) * 0.30), 0))
+        ago_x = w - 12 - ago_w
+        open_x = ago_x - open_w
+        src_x = open_x - 12 - src_w
         if t["ago"]:
-            kit.put_text(box, t["ago"], right - 70, 0, 70, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
-            right -= 78
+            kit.put_text(box, t["ago"], ago_x, 0, ago_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
         if t["open"]:
-            kit.put_text(box, f"{t['open']} open", right - 56, 0, 56, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=h, middle=True)
-            right -= 64
-        sub_w = min(max(int((right - tx) * 0.34), 0), 220) if t["sub"] else 0
-        if sub_w:
-            kit.put_text(box, t["sub"], right - sub_w, 0, sub_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
-        kit.put_text(box, t["title"], tx, 0, max(right - sub_w - 12 - tx, 40), 13, 500, wrap=False, height=h, middle=True)
+            kit.put_text(box, f"{t['open']} open", open_x, 0, open_w, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=h, middle=True)
+        if t["sub"]:
+            kit.put_text(box, t["sub"], src_x, 0, src_w, 12, 400, kit.mute(), wrap=False, height=h, middle=True)
+        kit.put_text(box, t["title"], tx, 0, max(src_x - 16 - tx, 40), 13, 500, wrap=False, height=h, middle=True)
         box.setFrame_(NSMakeRect(x, y, w, h))
         doc.addSubview_(box)
         return y + h
@@ -1923,18 +1929,21 @@ class MainWindow:
             y = self._suggested(doc, page["suggested"], x, y, w)
         for group in page["groups"]:
             n = len(group["things"])
-            kit.put_text(doc, group["title"], x + 18, y, 200, 12, 600, kit.mute(), wrap=False, height=20)
-            kit.put_text(doc, f"{n}", x + 18 + kit.text_width(group["title"], 12, 600) + 8, y, 60, 12, 400,
-                         kit.faint(0.4), wrap=False, height=20)
+            tw = kit.text_width(group["title"], 13, 700)
+            kit.put_text(doc, group["title"], x + 18, y, tw + 6, 13, 700, wrap=False, height=20)
+            label = f"{n} thing{'s' * (n != 1)}"
+            kit.put_text(doc, label, x + 18 + tw + 10, y, 100, 12, 400, kit.mute(), wrap=False, height=20)
+            line_x = x + 18 + tw + 10 + kit.text_width(label, 12, 400) + 14
+            doc.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(line_x, y + 10, max(x + w - line_x, 0), 1)))
             dot = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 1, y + 6, 8, 8), kit.mute(), None, 4)
             doc.addSubview_(dot)
-            top = y + 22
+            top = y + 24
             y = top
             for t in group["things"]:
                 y = self._thing(doc, t, x + 14, y, w - 14, select=self.sel is not None, compact=True)
             rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 4, top - 6, 1, y - top + 6))
             doc.addSubview_(rail)
-            y += 12
+            y += 20
         if not page["groups"]:
             self._label(doc, "Nothing matches this filter.", x, y + 8, w, size=13, weight=400)
             y += 34

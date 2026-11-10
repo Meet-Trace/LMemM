@@ -35,6 +35,8 @@ from widget import _Fields, _Flipped, _Ring, _Tap
 
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
+RADIUS_PAGE, RADIUS_PANEL, RADIUS_FIELD = 20, 14, 12                # one family of corners for the thing page
+BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
@@ -122,14 +124,6 @@ class _SideBackdrop(_Flipped):
         NSBezierPath.fillRect_(NSMakeRect(self.bounds().size.width - 1, 0, 1, self.bounds().size.height))
 
 
-class _Bar(_Flipped):
-    """A thin accent bar beside a quoted decision."""
-
-    def drawRect_(self, rect):
-        kit.accent_text().setFill()
-        NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(self.bounds(), 1.5, 1.5).fill()
-
-
 def _scroll(parent):
     scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
     scroll.setDrawsBackground_(False)
@@ -211,15 +205,19 @@ class MainWindow:
         self.root.addSubview_(self.search)
         self.side_scroll = _scroll(self.root)
         self.main_scroll = _scroll(self.root)
+        self.keep_focus, self.note_surface = False, None
+        self.composing = False                                         # there are words in the note field that are not saved yet
         self.note_typing = _Fields.alloc().initWithChange_submit_cancel_(
-            lambda text: None, self._submit_note, lambda: self.note_field.setStringValue_(""))
-        self.note_field = NSTextField.alloc().initWithFrame_(NSMakeRect(SIDE_W + PAD, H - 52, self.main_w, 30))
-        self.note_field.setPlaceholderString_("Add a note to this, then press Return")
-        self.note_field.setBezeled_(True)
-        self.note_field.setBezelStyle_(1)
+            self._note_typed, self._submit_note, self._cancel_note)
+        self.note_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 200, 22))   # drawn inside the thing page (_composer)
+        self.note_field.setPlaceholderString_("Add a note, then press Return")
+        self.note_field.setBordered_(False)
+        self.note_field.setBezeled_(False)
+        self.note_field.setDrawsBackground_(False)
+        self.note_field.setFocusRingType_(1)                           # none: the surface around it shows focus
+        self.note_field.setFont_(kit.font(14, 400))
         self.note_field.setDelegate_(self.note_typing)
         self.note_field.setHidden_(True)
-        self.root.addSubview_(self.note_field)
         self.toast_host = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
         self.toast_host.setHidden_(True)
         self.root.addSubview_(self.toast_host)
@@ -260,7 +258,6 @@ class MainWindow:
     def _layout(self):
         """Put the parts that do not scroll where the window's size says."""
         self.backdrop.setFrame_(NSMakeRect(0, 0, SIDE_W, self.H))
-        self.note_field.setFrame_(NSMakeRect(SIDE_W + self.col_x, self.H - 52, self.main_w, 30))
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         self.overlay.setFrame_(NSMakeRect(0, 0, self.W, self.H))
 
@@ -464,11 +461,29 @@ class MainWindow:
         _reg, items = self.data()
         return sum(len(notes.open_notes(i)) for i in items.values())
 
+    def _note_typed(self, text):
+        """The surface around the field takes the blue edge while it holds words. No redraw of the page: that would
+        interrupt an input method mid-word."""
+        self.composing = bool((text or "").strip())
+        self._note_edge()
+
+    def _note_edge(self):
+        surface = getattr(self, "note_surface", None)
+        if surface is not None:
+            surface.edge = kit.accent_text() if self.composing else kit.warm("edge")
+            surface.setNeedsDisplay_(True)
+
+    def _cancel_note(self):
+        self.note_field.setStringValue_("")
+        self.composing = False
+        self._note_edge()
+
     def _submit_note(self, text):
         text = " ".join((text or "").split())
         if text and self.item_here:
             self.on_add_note(self.item_here, text)
             self.note_field.setStringValue_("")
+            self.composing, self.keep_focus = False, True              # the cursor stays, ready for the next note
             self.render()
 
     def _cancel_search(self):
@@ -506,7 +521,7 @@ class MainWindow:
         thing = main["kind"] == "thing"
         self.item_here = main.get("item") if thing else None
         self.note_field.setHidden_(not thing)
-        bar = 62 if thing else 0                                   # the note field sits under the page
+        bar = 0                                                    # the note field is part of the page
         self._toast(now, bar)
         self.search.setFrame_(NSMakeRect(16, TOP + 10, SIDE_W - 32, 28))
         self.side_scroll.setFrame_(NSMakeRect(0, TOP + 52, SIDE_W, self.H - TOP - 52 - 48))
@@ -1197,7 +1212,7 @@ class MainWindow:
         if kind == "project":
             self._project_actions(doc, x + w, 28, page["pid"])
         if kind == "thing":
-            self._thing_buttons(doc, x + w, 28, page["item"])
+            self._thing_buttons(doc, x + w, 18, page["item"])
         build = {"home": self._home, "project": self._project, "needs": self._needs, "search": self._search,
                  "thing": self._thing_page, "archived": self._archived, "settings": self._settings}[kind]
         return build(doc, page, x, y + 6, w)
@@ -1670,45 +1685,52 @@ class MainWindow:
         return y + inner + 24
 
     def _thing_page(self, doc, page, x, y, w):
-        """One thing as a retained moment: a hero (who and what you were doing, with the screenshot as its anchor),
-        your notes on a surface of their own, and the quiet facts beside them."""
-        y = self._hero(doc, page, x, y, w)
+        """One workspace: the hero (who, what you were doing, the screenshot) on the page's surface, and under it one
+        inset panel holding your notes with their composer, and the quiet facts. One surface, one panel."""
+        workspace = kit.surface(doc, x, y, w, 10, "surface", radius=RADIUS_PAGE)
+        top = self._hero(doc, page, x, y, w)
+        margin = 12
+        px, pw, pad = x + margin, w - 2 * margin, 20
+        panel = kit.surface(doc, px, top, pw, 10, "raised", edge=False, radius=RADIUS_PANEL)
+        inner = pw - 2 * pad
         wide = w >= 640
-        nw = int(w * 0.6) if wide else w
-        notes_bottom = self._notes_surface(doc, page, x, y + 22, nw)
+        nw = int(inner * 0.6) if wide else inner
+        notes_bottom = self._notes(doc, page, px + pad, top + pad, nw)
         if wide:
-            facts_bottom = self._facts(doc, page, x + nw + 32, y + 28, w - nw - 32)
+            facts_bottom = self._facts(doc, page, px + pad + nw + 36, top + pad + 2, inner - nw - 36)
         else:
-            facts_bottom = self._facts(doc, page, x, notes_bottom + 26, w)
-        return max(notes_bottom, facts_bottom) + 16
+            facts_bottom = self._facts(doc, page, px + pad, notes_bottom + 24, inner)
+        bottom = max(notes_bottom, facts_bottom) + pad
+        panel.setFrame_(NSMakeRect(px, top, pw, bottom - top))
+        workspace.setFrame_(NSMakeRect(x, y, w, bottom + margin - y))
+        return bottom + margin
 
     def _hero(self, doc, page, x, y, w):
-        """The top surface. Left: where it was, a short headline, what you did, what Trace read, Reopen.
-        Right: the screenshot with depth and its caption (or the app's own icon when none was kept)."""
-        pad, gap = 28, 36
+        """The top of the workspace. Left: where it was, a short headline, the summary, Reopen. Right: the screenshot
+        and its caption (or the app's own icon when none was kept). Returns where the panel below begins."""
+        pad, gap = 32, 40
         inner = w - 2 * pad
         shot = page["shot"] and NSImage.alloc().initWithContentsOfFile_(page["shot"])
         wide = w >= 640
         tw = int(inner * 0.42) if (shot and wide) else inner
         sw = min(inner - tw - gap, 560) if (shot and wide) else min(inner, 560)
-        base = kit.surface(doc, x, y, w, 10, "surface")
         px, top = x + pad, y + pad
         self._app_icon(doc, page["app"], px, top - 2, 26, page.get("thing_kind", ""), page.get("url"))
         main = next((p["name"] for p in page["places"] if p["main"]), "")
         where = " · ".join(b for b in (page.get("meta"), "in " + main if main else "") if b)
         kit.put_text(doc, where, px + 36, top + 3, tw - 36, 12, 400, kit.warm("mute"), wrap=False, height=18)
-        cy = top + 44
+        cy = top + 46
         cy += kit.put_text(doc, page["headline"], px, cy, tw, 24, 600, kit.warm("ink")) + 10
         if page["ai_summary"]:                                                # written by the model from the window and your notes: labelled
             cy += kit.put_text(doc, page["ai_summary"], px, cy, tw, 14, 400, kit.warm("ink")) + 6
             kit.put_text(doc, "Summary by Trace", px, cy, tw, 11, 500, kit.accent_text(), wrap=False, height=16)
-            cy += 28
+            cy += 26
         elif page["observed"]:                                                # no AI line yet: only stored facts
-            cy += kit.put_text(doc, page["observed"], px, cy, tw, 14, 400, kit.warm("ink")) + 12
-        if page["reopen"]:
-            kit.button(doc, "Reopen", px, cy + 4, 120, 36, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
-            self._link(doc, "Copy link", px + 130, cy + 10, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13)
-            cy += 48
+            cy += kit.put_text(doc, page["observed"], px, cy, tw, 14, 400, kit.warm("ink")) + 14
+        if page["reopen"]:                                                    # the one dominant action, right under what you were doing
+            kit.button(doc, "Reopen", px, cy + 6, 116, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
+            self._link(doc, "Copy link", px + 128, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13)
+            cy += BUTTON_H + 12
         bottom = cy
         if shot is not None and wide:
             bottom = max(bottom, self._moment(doc, page, shot, px + tw + gap, top, sw))
@@ -1717,58 +1739,55 @@ class MainWindow:
         elif wide:                                                            # no screenshot kept: the app's own icon, large, as the anchor
             self._app_icon(doc, page["app"], x + w - pad - 96, top, 96, page.get("thing_kind", ""), page.get("url"))
             bottom = max(bottom, top + 96)
-        height = bottom - y + pad
-        base.setFrame_(NSMakeRect(x, y, w, height))
-        return y + height
+        return bottom + 24
 
     def _moment(self, doc, page, image, x, y, w):
-        """The screenshot LMemM kept, as a retained moment: soft depth, a thin edge, a caption and a way to see it full size."""
+        """The screenshot LMemM kept: a thin edge, a caption, and Full size set right after the caption."""
         size = image.size()
         h = min(w * size.height / max(size.width, 1), 340)
         w = h * size.width / max(size.height, 1)
-        lift = _Flipped.alloc().initWithFrame_(NSMakeRect(x, y, w, h))
-        lift.setWantsLayer_(True)
-        shadow = lift.layer()
-        shadow.setShadowOpacity_(0.45)
-        shadow.setShadowRadius_(22)
-        shadow.setShadowOffset_((0, 0))
-        doc.addSubview_(lift)
-        holder = NSImageView.alloc().initWithFrame_(NSMakeRect(0, 0, w, h))
+        holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, w, h))
         holder.setImage_(image)
         holder.setImageScaling_(3)
         holder.setWantsLayer_(True)
-        holder.layer().setCornerRadius_(12)
+        holder.layer().setCornerRadius_(RADIUS_PANEL)
         holder.layer().setMasksToBounds_(True)
-        lift.addSubview_(holder)
-        lift.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(0, 0, w, h), None, kit.warm("edge"), 12))
+        doc.addSubview_(holder)
+        doc.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, w, h), None, kit.warm("edge"), RADIUS_PANEL))
         tap = self._tap(doc, x, y, w, h, (lambda p=page["shot"]: self.open_file(p)))
         tap.ax_label = "Screenshot of " + page["title"] + ". Opens full size."
-        kit.put_text(doc, "As it looked, " + page["shot_when"].lower() + ".", x, y + h + 12, w - 80, 12, 400, kit.warm("mute"), wrap=False, height=16)
-        self._link(doc, "Full size", x + w - 64, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12)
+        caption = "As it looked, " + page["shot_when"].lower() + "."
+        reach = kit.text_width(caption, 12, 400) + 2
+        kit.put_text(doc, caption, x, y + h + 12, reach, 12, 400, kit.warm("mute"), wrap=False, height=16)
+        self._link(doc, "Full size", x + reach + 2, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12, color=kit.accent_text())
         return y + h + 32
 
-    def _notes_surface(self, doc, page, x, y, w):
-        """Your notes: one raised surface, a tick, the words and the time on each line, and a plain way to add another."""
-        pad = 20
-        box = kit.surface(doc, x, y, w, 10, "raised", radius=16)
-        iw = w - 2 * pad
+    def _notes(self, doc, page, x, y, w):
+        """Your notes, then the one place to write another: the composer sits at the end of the list, in this panel."""
         count = page["open_count"]
-        ny = y + 18
-        kit.put_text(doc, "Your notes", x + pad, ny, iw - 70, 13, 600, kit.warm("ink"), wrap=False, height=20)
-        kit.put_text(doc, f"{count} open" if count else "all done", x + pad + iw - 70, ny + 1, 70, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18)
-        ny += 30
+        kit.put_text(doc, "Your notes", x, y, w - 70, 13, 600, kit.warm("ink"), wrap=False, height=20)
+        kit.put_text(doc, f"{count} open" if count else "all done", x + w - 70, y + 1, 70, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18)
+        y += 30
         for n in page["open"] + page["done"]:
-            ny = self._note_row(doc, n, x + pad, ny, iw)
+            y = self._note_row(doc, n, x, y, w)
         if not page["open"] and not page["done"]:
-            kit.put_text(doc, "Nothing written yet.", x + pad, ny, iw, 13, 400, kit.warm("mute"), wrap=False, height=20)
-            ny += 28
-        self._link(doc, "+ Add a note", x + pad - 6, ny, self._focus_note, size=13, color=kit.accent_text())
-        ny += 30
-        box.setFrame_(NSMakeRect(x, y, w, ny + 8 - y))
-        return ny + 8
+            kit.put_text(doc, "Nothing written yet.", x, y, w, 13, 400, kit.warm("mute"), wrap=False, height=20)
+            y += 28
+        return self._composer(doc, x, y + 6, w)
 
-    def _focus_note(self):
-        self.window.makeFirstResponder_(self.note_field)
+    def _composer(self, doc, x, y, w):
+        """The note field, drawn into the page: an inset that brightens its edge while you are writing. Return saves;
+        Esc clears. It is the only way to add a note, so there is one interaction. Returns its bottom edge."""
+        field = self.note_surface = kit.surface(doc, x, y, w, FIELD_H, "inset", radius=RADIUS_FIELD)
+        self._note_edge()
+        self.note_field.setFrame_(NSMakeRect(x + 14, y + (FIELD_H - 20) / 2, w - 28, 20))
+        self.note_field.setTextColor_(kit.warm("ink"))
+        self.note_field.setHidden_(False)
+        doc.addSubview_(self.note_field)                              # moves it here from the last page it was on
+        if self.composing or getattr(self, "keep_focus", False):
+            self.window.makeFirstResponder_(self.note_field)          # a redraw must not take the cursor away mid-sentence
+            self.keep_focus = False
+        return y + FIELD_H
 
     def _note_row(self, doc, n, x, y, w):
         """One note: a tick (a tap flips it), the words, when. A finished one is grey and crossed out."""

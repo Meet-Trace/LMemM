@@ -35,15 +35,19 @@ class PaletteContrast(unittest.TestCase):
     def test_the_warm_surfaces_keep_text_readable_in_both_modes(self):
         for mode in (0, 1):
             ink, mute, accent = p.WARM["ink"][mode], p.WARM["mute"][mode], (p.ACCENT_TEXT_ON_DARK, p.ACCENT_TEXT_ON_LIGHT)[mode]
-            for ground in ("canvas", "surface", "raised"):
+            for ground in ("canvas", "surface", "raised", "inset"):
                 self.assertGreaterEqual(p.contrast(ink, p.WARM[ground][mode]), 7.0, (mode, ground))
                 self.assertGreaterEqual(p.contrast(mute, p.WARM[ground][mode]), 4.5, (mode, ground))
+            for ground in ("surface", "raised", "inset"):                       # blue words are only set on these
                 self.assertGreaterEqual(p.contrast(accent, p.WARM[ground][mode]), 4.5, (mode, ground))
 
-    def test_each_warm_surface_is_a_step_from_the_one_under_it(self):
+    def test_the_dark_surfaces_step_up_from_the_background(self):
         dark = [p.luminance(p.WARM[k][0]) for k in ("canvas", "surface", "raised")]
         self.assertEqual(dark, sorted(dark))
         self.assertGreaterEqual(p.contrast(p.WARM["surface"][0], p.WARM["canvas"][0]), 1.1)
+        self.assertLess(p.luminance(p.WARM["inset"][0]), p.luminance(p.WARM["raised"][0]))     # the note field sits back
+        r, g, b = p.WARM["surface"][0]
+        self.assertGreater(r, b)                                                              # warm, not navy
 
     def test_contrast_is_symmetric_and_bounded(self):
         self.assertAlmostEqual(p.contrast((0, 0, 0), (1, 1, 1)), 21.0, places=1)

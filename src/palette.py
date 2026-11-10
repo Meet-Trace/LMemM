@@ -21,15 +21,17 @@ ORANGE_STATUS_ON_LIGHT = (0.75, 0.30, 0.02)
 RED_TEXT_ON_LIGHT = (0.80, 0.15, 0.12)
 TOAST_LIGHT, TOAST_DARK = 0.12, 0.22                   # the toast's grey in each mode (the dark page is 0.133)
 
-# The thing page's surfaces: (dark mode, light mode). Near-black with a periwinkle undertone, to sit with the blue
-# accent; each surface one step lighter than the one under it. In light mode, a cool paper. Text stays a soft
-# off-white. The window's other pages keep the system colours.
-WARM = {"canvas": ((0.066, 0.072, 0.105), (0.957, 0.963, 0.988)),
-        "surface": ((0.102, 0.112, 0.160), (0.986, 0.989, 1.0)),
-        "raised": ((0.142, 0.156, 0.218), (1.0, 1.0, 1.0)),
-        "edge": ((0.225, 0.245, 0.335), (0.855, 0.870, 0.930)),
-        "ink": ((0.945, 0.940, 0.930), (0.110, 0.120, 0.150)),
-        "mute": ((0.690, 0.700, 0.760), (0.370, 0.390, 0.460))}
+# The thing page's surfaces: (dark mode, light mode). Warm charcoal with a little brown, the way Trace's own site is
+# warm: the app's background is the darkest step, the page's workspace one step up, the panel inside it another,
+# and the note field sits back down in an inset. Edges are one quiet step from the surface they bound. In light mode,
+# warm paper. Text is a soft off-white. The window's other pages keep the system colours.
+WARM = {"canvas": ((0.078, 0.070, 0.064), (0.945, 0.930, 0.905)),
+        "surface": ((0.124, 0.111, 0.099), (0.992, 0.987, 0.974)),
+        "raised": ((0.152, 0.137, 0.123), (0.976, 0.967, 0.946)),
+        "inset": ((0.092, 0.083, 0.075), (0.996, 0.992, 0.984)),
+        "edge": ((0.205, 0.187, 0.170), (0.870, 0.850, 0.815)),
+        "ink": ((0.945, 0.925, 0.895), (0.130, 0.120, 0.105)),
+        "mute": ((0.700, 0.665, 0.625), (0.390, 0.370, 0.335))}
 
 ACCENT = (0.17, 0.40, 0.92)                    # buttons: white text on this
 ACCENT_TEXT_ON_LIGHT = ACCENT                  # blue words on the light card

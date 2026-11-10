@@ -132,7 +132,7 @@ if(document.querySelector('#proof-image')){const nextCapture=new Image();nextCap
   const r=track.getBoundingClientRect(),span=r.height-innerHeight,p=span>0?Math.min(1,Math.max(0,-r.top/span)):0;
   let next=Math.min(3,Math.floor(p*4));
   if(current>=0&&Math.abs(next-current)===1&&Math.abs(p-Math.max(next,current)/4)<.012)next=current;
-  if(next!==current){current=next;stage.dataset.step=String(next);until=now+1150;steps.forEach((step,i)=>{step.classList.toggle('active',i===next);step.setAttribute('aria-hidden',String(i!==next));});rail.forEach((dot,i)=>dot.classList.toggle('on',i===next));}
+  if(next!==current){current=next;stage.dataset.step=String(next);until=now+1150;steps.forEach((step,i)=>{step.classList.toggle('active',i===next);step.removeAttribute('aria-hidden');});rail.forEach((dot,i)=>dot.classList.toggle('on',i===next));}
   draw(now);if(now<until)frameId=requestAnimationFrame(frame);
  }
  function request(){if(!frameId)frameId=requestAnimationFrame(frame);}

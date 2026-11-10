@@ -80,6 +80,14 @@ def _local_minute():
         return backdrop.minute_of(time.localtime())
 
 
+class _Rail(_Flipped):
+    """The thin vertical line that ties a session's Things together on the Overview timeline."""
+
+    def drawRect_(self, rect):
+        kit.faint(0.14).setFill()
+        NSBezierPath.fillRect_(NSMakeRect(0, 0, 1, self.bounds().size.height))
+
+
 class _MainWindow(NSWindow):
     def canBecomeKeyWindow(self):
         return True
@@ -1740,7 +1748,7 @@ class MainWindow:
             self._project_actions(host, x + w, y - 4, page["pid"])
         kit.put_text(host, page["title"], x + 54, y, w - 54 - 170, 26, 700, wrap=False, height=32)
         self._label(host, page["meta"], x + 54, y + 33, w - 54, size=13, weight=400)
-        y += 62
+        y += 58
         if self.memory_snapshot:
             tx=x;in_settings=bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
             for tab in self.memory_snapshot['tabs']:
@@ -1751,32 +1759,35 @@ class MainWindow:
                 kit.chip(host,'Settings','gearshape',sx,y,in_settings,lambda:self._memory_action('open_settings'))
                 if in_settings:                                        # the way back sits right beside it
                     bw=kit.chip_width('Back to Memory','chevron.left');kit.chip(host,'Back to Memory','chevron.left',sx-bw-8,y,False,lambda:self._memory_action('close_settings'))
-            y+=48
+            y+=44
             if self.memory_snapshot['tab'] in {'Memory','Resume'} or page.get('empty'):return y
-        self._label(host, "PICK UP WHERE YOU LEFT OFF", x, y, w)
-        y += 22
         if page["pick_up"]:
+            self._label(host, "PICK UP WHERE YOU LEFT OFF", x, y, w)
+            y += 22
             gap = 12
             cw = (w - gap * 2) / 3
             for i, t in enumerate(page["pick_up"]):
                 self._mini_card(host, t, x + i * (cw + gap), y, cw, 88)
             y += 88 + 18
-        else:
+        else:                                                                 # nothing to pick up: one quiet line, not a banner
             caught = page["caught_up"]
-            tap = self._tap(host, x, y, w, 52, None, fill=True)
-            kit.tile(tap, ("checkmark.circle.fill", "checkmark.circle"), kit.mute(), 12, 11, 30)
-            kit.put_text(tap, caught["title"], 52, 8, w - 64, 14, 600, wrap=False, height=20)
-            kit.put_text(tap, caught["line"], 52, 28, w - 64, 12, 400, kit.mute(), wrap=False, height=16)
-            y += 52 + 18
-        if page["subs"]:
+            kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 2, 16, kit.mute())
+            kit.put_text(host, caught["title"], x + 24, y, 110, 13, 600, wrap=False, height=20, middle=True)
+            kit.put_text(host, caught["line"], x + 24 + kit.text_width(caught["title"], 13, 600) + 10, y,
+                         max(w - 24 - kit.text_width(caught["title"], 13, 600) - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+            y += 20 + 16
+        if page["subs"]:                                                      # destinations: tiles with an arrow, unlike the filter chips below
             self._label(host, f"SUB-PROJECTS · {len(page['subs']) + page['subs_more']}", x, y, w)
             y += 22
-            y = self._sub_chips(host, page, x, y, w) + 8
-        total = f"Things · {page['total']}"
-        kit.put_text(host, total, x, y, w, 15, 700, wrap=False, height=22)
+            y = self._sub_chips(host, page, x, y, w) + 16
+        rule = kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y, w, 1))
+        host.addSubview_(rule)
+        y += 14
+        kit.put_text(host, "Things", x, y, w, 17, 700, wrap=False, height=24)
+        kit.put_text(host, str(page["total"]), x + kit.text_width("Things", 17, 700) + 8, y + 2, 80, 13, 500, kit.mute(), wrap=False, height=20)
         if self.sel is None and page["total"]:
             self._link(host, "Select", x + w - kit.text_width("Select", 13, 500) - 12, y - 4, self.start_select)
-        y += 30
+        y += 32
         if self.sel is not None:
             y += self._select_bar(host, page, x, y, w) + 10
         chips = []
@@ -1826,12 +1837,13 @@ class MainWindow:
         """Sub-projects as small chips, wrapping onto more rows only when they must. Returns the new y."""
         cx = x
         for sub in page["subs"]:
-            width = min(kit.text_width(sub["name"], 13, 500) + 52, w)
+            width = min(kit.text_width(sub["name"], 13, 500) + 66, w)
             if cx + width > x + w:
                 cx, y = x, y + 38
             tap = self._tap(parent, cx, y, width, 32, (lambda i=sub["id"]: self.press("go", i)), fill=True)
             self._project_icon(tap, sub["hue"], 6, 5, 22)
-            kit.put_text(tap, sub["name"], 34, 0, width - 40, 13, 500, wrap=False, height=32, middle=True)
+            kit.put_text(tap, sub["name"], 34, 0, width - 54, 13, 500, wrap=False, height=32, middle=True)
+            kit.glyph(tap, ("chevron.right",), width - 22, 9, 14, kit.mute())
             cx += width + 8
         if page["subs_more"]:
             label = f"+{page['subs_more']} more"
@@ -1847,11 +1859,19 @@ class MainWindow:
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
         for group in page["groups"]:
-            self._label(doc, group["title"].upper(), x, y + 4, w)
-            y += 28
+            n = len(group["things"])
+            kit.put_text(doc, group["title"], x + 18, y, 200, 13, 600, wrap=False, height=20)
+            kit.put_text(doc, f"{n} thing{'s' * (n != 1)}", x + 18 + kit.text_width(group["title"], 13, 600) + 8, y, 120, 12, 400,
+                         kit.mute(), wrap=False, height=20)
+            dot = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 1, y + 6, 8, 8), kit.mute(), None, 4)
+            doc.addSubview_(dot)
+            top = y + 24
+            y = top
             for t in group["things"]:
-                y = self._thing(doc, t, x, y, w, select=self.sel is not None)
-            y += 6
+                y = self._thing(doc, t, x + 18, y, w - 18, select=self.sel is not None)
+            rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 4, top - 6, 1, y - top + 6))
+            doc.addSubview_(rail)
+            y += 14
         if not page["groups"]:
             self._label(doc, "Nothing matches this filter.", x, y + 8, w, size=13, weight=400)
             y += 34

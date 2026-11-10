@@ -47,7 +47,7 @@ class PlanTests(unittest.TestCase):
             self.assertTrue(all(0 <= v <= 1 for v in b["base"]), b["key"])
             self.assertTrue(0 < b["grain"] <= 0.12, b["key"])
             for x, y, r, color, strength in b["lights"]:
-                self.assertTrue(0 <= x <= 1 and 0 <= y <= 1 and 0 < r <= 1 and 0 < strength <= 1.0, b["key"])
+                self.assertTrue(0 <= x <= 1 and 0 <= y <= 1 and 0 < r <= 1 and 0 < strength <= 0.5, b["key"])
                 self.assertTrue(all(0 <= v <= 1 for v in color))
             self.assertLess(max(b["base"]), 0.2, "the ground stays graphite-dark")
 

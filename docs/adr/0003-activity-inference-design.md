@@ -1,0 +1,24 @@
+# ADR 0003: Deterministic activity inference, design and PR 2A (Step 2, PR 2)
+
+Status: proposed. The full design (revisions 1 to 5, sections 1 to 14) is the Claude Doc "Step 2 PR 2: Deterministic Activity Inference - Design". This ADR records what is decided and what PR 2A builds. PR 2A contains **no inference**: no scoring, no assignment, no grouping, no model call, no live integration, no change to the tracker, the Moment schema, `memory.json`, the project finder or `MOMENT_LOG`.
+
+## What PR 2 will be (decided)
+- **Offline batch replay only.** `infer(moment_records, params) -> result`, a pure function of the persisted Moments (at most 48 h). Output goes only to a folder the user names; nothing is written to the data directory. No online engine, provisional assignments, revision history or finalisation lag. No typed, pasted or clipboard text is read or stored. No model, no CPU judge.
+- **The visit is the assignable unit.** Every visit carries an `internal_shift` flag (reported, lowers confidence, never splits).
+- **States.** `assigned`, `tentative`, `ambiguous`, `unassigned`, each with a reason. Only `assigned` has an activity id and enters the predictions; the others are scored as singletons. A seed is `assigned` with reason `seed`; coverage is reported with and without singleton activities.
+- **Activity ids** are a hash of the earliest final member's visit id. No counters; no promise across different replay windows.
+- **Evidence.** Same branch is soft context; PR/issue identity, document identity and version lineage are separate rules. Version lineage cannot assign alone and needs content corroboration. A shared artifact is a candidate link, not a verdict. Specificity is computed from observable features only, never from assignments.
+- **Passes.** Pass 1 creates conservative anchors (cannot-links checked first, two independent evidence sources, no time or neighbour context); Pass 2 adds time and neighbour context from earlier assignments only; Pass 3 merges. Assignments are only added, never withdrawn, and no activity may contain a cannot-linked pair.
+- **Time.** No feature uses absolute time. Translating all timestamps changes nothing; scaling all timestamps and all time parameters together changes nothing; changing timestamps alone may change membership. Every seconds-valued parameter is declared.
+- **Status** (`candidate`, `active`, `paused`, `dormant`) is reporting only and never influences assignment.
+- **Token classes** (for the later content similarity) are mutually exclusive and hub takes precedence: hub if `df > 0.2 N`, single if `df == 1`, rare if `2 <= df <= max(3, ceil(0.05 N))`, else common, with `df` the number of distinct visits and `N` the number of eligible visits.
+
+## What PR 2A builds
+- `src/activity_input.py`: reads a folder of moment JSONL read-only; drops identical duplicates; fails on the same id with different content, on unsupported schema, on fields outside the Moment schema (so nothing typed can enter), and on visit-integrity violations V1 to V5 (constant fields, id and seq structure, timestamps and gaps, visit-id second, context chain). Any such failure writes no output and exits with code 3; messages carry only visit ids, check codes, field names and moment ids, never screen content. Half-written lines are skipped and counted (`strict` fails instead). Canonical order is `(t_start, seq, visit_id, id)`.
+- `src/activity_contract.py`: the result contract, the activity id function, `ReplayParams` with declared time parameters, `validate_result`.
+- `src/activity_abstention.py`: coverage with and without singletons, precision on assigned visits, recall over eligible visits, the four state rates with reasons, mixed-gold visits (counted apart, never given a label, excluded from primary scores), `internal_shift` against moment-level gold with boundary agreement, a visit-level ceiling, and baselines compared on the same visits only. A visit is pure when its labelled moments share a label, mixed-gold when they do not (a noise moment beside an activity counts as mixed).
+- `tests/activity_fixtures.py`: a seeded generator of valid Moment records with gold, for the scenarios in the design, with a noise model that never changes ids, times or visits.
+- `tests/activity_harness.py` and `tests/activity_stubs.py`: invariant checks (determinism, order and duplicate invariance, translation, joint scaling, status independence, forget consistency, no typed text, ids, totality, cannot-links, app-name invariance, a directional helper), run against structural stand-ins that pass and against deliberately broken ones that must be caught.
+
+## Limits
+Synthetic fixtures test logic, not truth. Rare and hub cutoffs, thresholds and weights are placeholders until the fixtures and later real labels calibrate them. The visit-integrity checks cannot detect a collision between two unrelated visits with identical item, sequence and times.

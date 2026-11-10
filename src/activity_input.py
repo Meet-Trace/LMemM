@@ -30,6 +30,9 @@ Visit checks:
         Numerical limitation: the relative tolerance accounts for floating-point rounding only while timestamp
         magnitudes stay small relative to max_intra_visit_gap_s (roughly below 4e9 * max_intra_visit_gap_s); beyond this
         range, floating-point precision may cause valid boundary cases to be rejected.
+        This is a floating-point representation limit, not a flaw in the scale-invariance argument above, which is exact
+        for real numbers. It is documented, not fixed by enlarging the tolerance: a larger slack would risk accepting
+        genuine overlaps and excess gaps.
     V4  visit-id coherence. A visit id (<prefix><second>-<n>) is written once, when the visit is created, from the
         capture clock (moments.py: f"{prefix}{int(t)}-{n}", t = the visit's first frame = its first moment's t_start),
         and is never rewritten, so it is an immutable label. Two parts:

@@ -54,6 +54,16 @@ def clean_url(url):
     return ((domain or "") + path) or None, domain
 
 
+def scrub(context, gone_ids, gone_visits):
+    """Remove from one moment's context every pointer to a forgotten moment or visit. Works on stored records too."""
+    if context.get("prev_moment_id") in gone_ids:
+        context["prev_moment_id"] = None
+        context["gap_s"] = None
+    sib = context.get("same_item_before")
+    if sib and sib.get("visit_id") in gone_visits:
+        context["same_item_before"] = None
+
+
 def _norm(line):
     return re.sub(r"\s+", " ", line or "").strip()
 
@@ -145,6 +155,7 @@ class MomentBuffer:
         self._seen_terms = set()
         self._seen_idents = set()
         self._seen_hash = None
+        self._pending = (set(), set())
         self._last_t = None
         self._visit_n = 0
         self._visit_start = None
@@ -176,16 +187,23 @@ class MomentBuffer:
             else:
                 cat_changed = category and category != o.interaction.get("category") \
                     and t - o.t_start >= self.min_category_s
-                changed = (dg["text_hash"] and dg["text_hash"] != self._seen_hash
-                           and (len(terms - self._seen_terms) >= self.new_terms
-                                or bool(idents - self._seen_idents)))
+                # A text change is material only when the new words PERSIST into a second frame: OCR noise
+                # (a fast pass misreading the same screen) does not repeat, a real change does.
+                new_t, new_i = terms - self._seen_terms, idents - self._seen_idents
+                differs = bool(dg["text_hash"]) and dg["text_hash"] != self._seen_hash
+                kept_t, kept_i = new_t & self._pending[0], new_i & self._pending[1]
+                changed = differs and (len(kept_t) >= self.new_terms or bool(kept_i))
+                self._pending = (new_t - kept_t, new_i - kept_i) if differs and not changed else (set(), set())
                 too_long = t - o.t_start >= self.max_moment_s
                 if cat_changed or changed or too_long:
                     o.t_end = t                  # the time up to this frame belongs to the moment it was spent in
                     closed.append(self._close(o))
-                    self._next(o, t, category, ages, dg, obs_id, provenance, trigger, pinned, too_long and not (cat_changed or changed))
+                    # only a real text change brings this frame's digest; a flip of category or the length cap
+                    # keeps the digest already established (a single fast-OCR frame must not replace it)
+                    self._next(o, t, category, ages, dg if changed else None, obs_id, provenance, trigger, pinned,
+                               too_long and not (cat_changed or changed))
                 else:
-                    self._extend(o, t, category, dt, dg)
+                    self._extend(o, t, category, dt, dg, kept_t, kept_i, settled=not self._pending[0] and not self._pending[1])
             self._last_t = t
             self._trim(t)
         return closed
@@ -202,28 +220,44 @@ class MomentBuffer:
     def forget(self, since=None, app=None):
         """Drop what matches from memory, the OPEN moment included, WITHOUT writing it: a forgotten open moment
         must not come back on the next frame or at shutdown. `since`: moments that ended at or after it (None =
-        all); `app`: name or bundle id (None = any). The next frame starts a new visit. Returns how many were dropped."""
+        all); `app`: name or bundle id (None = any). Nothing left may point at what was forgotten: links to a
+        forgotten moment or visit are scrubbed from the survivors and from the visit memory. The next frame starts
+        a new visit. Returns how many were dropped."""
         def hit(m):
             return (since is None or m.t_end >= since) and (app is None or app in (m.app, m.bundle_id))
         with self.lock:
-            n = 0
+            gone = [m for m in self.recent if hit(m)]
             if self.open is not None and hit(self.open):
+                gone.append(self.open)
                 self.open = None
                 self._seen_terms, self._seen_idents, self._seen_hash = set(), set(), None
-                n += 1
-            keep = [m for m in self.recent if not hit(m)]
-            n += len(self.recent) - len(keep)
+                self._pending = (set(), set())
+            gone_ids = {m.id for m in gone}
+            keep = [m for m in self.recent if m.id not in gone_ids]
             self.recent.clear()
             self.recent.extend(keep)
-            # nothing may point at a forgotten visit
-            gone = {k for k, v in self._last_visit.items()
-                    if (since is None or v["ended_at"] >= since) and (app is None or app in (v.get("app"), v.get("bundle_id")))}
-            for k in gone:
+            alive = {m.visit_id for m in keep} | ({self.open.visit_id} if self.open else set())
+            gone_visits = {m.visit_id for m in gone} - alive
+            for m in self.recent:
+                scrub(m.context, gone_ids, gone_visits)
+            if self.open:
+                scrub(self.open.context, gone_ids, gone_visits)
+            for k in [k for k, v in self._last_visit.items() if v["visit_id"] in gone_visits]:
                 del self._last_visit[k]
-            if self._prev_id is not None and not any(m.id == self._prev_id for m in self.recent):
-                self._prev_id = self.recent[-1].id if self.recent else None
-                self._prev_end = self.recent[-1].t_end if self.recent else None
-            return n
+            if self._prev_id in gone_ids:
+                last = self.recent[-1] if self.recent else None
+                self._prev_id, self._prev_end = (last.id, last.t_end) if last else (None, None)
+            return len(gone)
+
+    def interrupt(self):
+        """The tracker stopped looking (pause, idle, lock, sleep): close the open moment at its last frame, with no
+        time credited for the stop, and make the next frame start a new visit. Returns the closed moments."""
+        with self.lock:
+            out = self.close()
+            self._last_t = None
+            self._seen_terms, self._seen_idents, self._seen_hash = set(), set(), None
+            self._pending = (set(), set())
+            return out
 
     def idle_flush(self, now):
         """No frame for longer than `visit_gap`: the visit is over; close its moment."""
@@ -275,34 +309,40 @@ class MomentBuffer:
         m = Moment(id=f"{o.visit_id}.{seq}", visit_id=o.visit_id, seq=seq, t_start=t, t_end=t,
                    item_id=o.item_id, app=o.app, bundle_id=o.bundle_id, window=o.window, url=o.url,
                    domain=o.domain, kind=o.kind, target=o.target, ref=o.ref, obs_id=obs_id,
-                   provenance=dict(provenance or {}), continued=continued,
-                   interaction=self._interaction(category, ages), digest=self._digest(dg))
+                   provenance=dict(provenance or {}) if dg is not None else dict(o.provenance), continued=continued,
+                   interaction=self._interaction(category, ages),
+                   digest=self._digest(dg) if dg is not None else dict(o.digest, lines=list(o.digest.get("lines") or [])))
         m.context = {"prev_moment_id": o.id, "gap_s": 0.0, "same_item_before": o.context.get("same_item_before"),
                      "trigger": trigger, "pinned": bool(pinned)}
-        self._begin(m, dg)
+        if dg is not None:
+            self._begin(m, dg)
+        else:
+            self.open = m                       # same text as before: the seen sets stay as they are
         self._touch(o, t)
 
     def _begin(self, m, dg):
         self.open = m
+        self._pending = (set(), set())
         self._seen_terms = set(dg["terms"])
         self._seen_idents = set(dg["identifiers"])
         self._seen_hash = dg["text_hash"]
 
-    def _extend(self, o, t, category, dt, dg):
+    def _extend(self, o, t, category, dt, dg, kept_t, kept_i, settled):
+        """Another frame of the same moment. Words are added to the digest only once they persisted into a second
+        frame (`kept_*`), so a one-frame OCR misread never enters it."""
         o.t_end = t
         o.n_frames += 1
         secs = o.interaction.setdefault("seconds", {})
         cat = category or o.interaction.get("category")
         if cat and dt:
             secs[cat] = round(secs.get(cat, 0) + dt, 1)
-        new_terms = [w for w in dg["terms"] if w not in self._seen_terms]
-        new_idents = [w for w in dg["identifiers"] if w not in self._seen_idents]
         d = o.digest
-        d["terms"] = (d["terms"] + new_terms)[:12]
-        d["identifiers"] = (d["identifiers"] + new_idents)[:8]
-        self._seen_terms |= set(dg["terms"])
-        self._seen_idents |= set(dg["identifiers"])
-        self._seen_hash = dg["text_hash"] or self._seen_hash
+        d["terms"] = (d["terms"] + sorted(kept_t - set(d["terms"])))[:12]
+        d["identifiers"] = (d["identifiers"] + sorted(kept_i - set(d["identifiers"])))[:8]
+        self._seen_terms |= kept_t
+        self._seen_idents |= kept_i
+        if settled:
+            self._seen_hash = dg["text_hash"] or self._seen_hash
         self._touch(o, t)
 
     def _touch(self, o, t):

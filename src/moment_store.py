@@ -10,6 +10,7 @@ import threading
 import time
 
 import config
+from moments import scrub as moments_scrub
 
 DIR_MODE, FILE_MODE = 0o700, 0o600
 
@@ -68,19 +69,34 @@ class MomentStore:
         return dropped
 
     def forget(self, minutes=None, app=None, now=None):
-        """Delete the last `minutes` of moments (None = everything), optionally only one app (name or bundle id)."""
+        """Delete the last `minutes` of moments (None = everything), optionally only one app (name or bundle id).
+        Pointers from surviving records to what was deleted are scrubbed too."""
         now = now or time.time()
         since = now - minutes * 60 if minutes is not None else None
-        dropped = 0
+        dropped, gone_ids, gone_visits, files = 0, set(), set(), {}
         with self.lock:
             for name in self._files():
                 path = os.path.join(self.dir, name)
                 recs = list(self._records(path))
-                keep = [r for r in recs
-                        if not ((since is None or r.get("t_end", 0) >= since)
-                                and (app is None or app in (r.get("app"), r.get("bundle_id"))))]
-                if len(keep) != len(recs):
-                    dropped += len(recs) - len(keep)
+                keep = []
+                for r in recs:
+                    if ((since is None or r.get("t_end", 0) >= since) and (app is None or app in (r.get("app"), r.get("bundle_id")))):
+                        gone_ids.add(r.get("id"))
+                        gone_visits.add(r.get("visit_id"))
+                        dropped += 1
+                    else:
+                        keep.append(r)
+                files[path] = (recs, keep)
+            alive = {r.get("visit_id") for _, keep in files.values() for r in keep}
+            gone_visits -= alive
+            for path, (recs, keep) in files.items():
+                touched = len(keep) != len(recs)
+                for r in keep:
+                    ctx = r.get("context") or {}
+                    before = json.dumps(ctx, sort_keys=True)
+                    moments_scrub(ctx, gone_ids, gone_visits)
+                    touched = touched or json.dumps(ctx, sort_keys=True) != before
+                if touched:
                     self._rewrite(path, keep)
         return dropped
 
@@ -150,6 +166,13 @@ class Recorder:
             mem = self.buffer.forget(since, app)
             disk = self.store.forget(minutes, app, now)
         return mem, disk
+
+    def interrupt(self):
+        """The tracker is not looking (pause, idle, lock): close the open moment so it is on disk and not stretched."""
+        try:
+            self.buffer.interrupt()
+        except Exception as e:
+            print(f"moments: {e!r}")
 
     def sweep(self, now=None):
         try:

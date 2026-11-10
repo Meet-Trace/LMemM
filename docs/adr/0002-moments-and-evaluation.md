@@ -7,7 +7,7 @@ One record per stretch of a visit in which nothing material changed (`src/moment
 
 ## Visits and buffer rules
 - New visit when the item changes (any duration) or more than 90 s pass with no frame.
-- Inside a visit a frame extends the open moment. A new moment starts on a category change (after 10 s in the moment), a material text change (3 or more new terms or any new identifier, with a different text hash), or after 300 s.
+- Inside a visit a frame extends the open moment. A new moment starts on a category change (after 10 s in the moment), a material text change (3 or more new terms or any new identifier, with a different text hash, and only when the new words persist into a second frame, so OCR noise cannot start a moment or enter a digest), or after 300 s.
 - Separate visits are never merged, even with identical content. A return is a new visit linked by `same_item_before`.
 - In memory: 30 minutes, 400 moments. On disk: `memory/moments/<day>.jsonl`, owner-only, 48 h retention sweep, partial forget by time or app, and `forget.delete_all` already removes the folder. Off by default (`MOMENT_LOG`); the tracker hook is read-only and swallows errors.
 
@@ -20,8 +20,11 @@ One record per stretch of a visit in which nothing material changed (`src/moment
 - Calibration (ECE) is implemented for later PRs. Objective accuracy, boundary error and evidence reconstruction need inference output and arrive with it.
 Baselines (structure only): each visit, each item, sittings (300 s), each app, whole session, and an absorb-short-visits rule marked reference only.
 
+## Pause and idle
+When the tracker is paused, idle, or locked it calls `interrupt()`: the open moment is closed at its last frame (and written), no time is credited for the stop, and the next frame starts a new visit. A category flip or the length cap keeps the digest already established.
+
 ## Forget
-Partial forget (`Recorder.forget`) clears memory first, the open moment included and without writing it, then disk, under the buffer's lock. The next frame starts a new visit with no link to anything forgotten. `forget.delete_all` is unchanged.
+Partial forget (`Recorder.forget`) clears memory first, the open moment included and without writing it, then disk, under the buffer's lock. Links from surviving moments (memory and disk) to a forgotten moment or visit are scrubbed, and visit memory is pruned by visit id. The next frame starts a new visit with no link to anything forgotten. `forget.delete_all` is unchanged.
 
 ## Constraints carried forward
 Activities feed the existing project finder in Step 3 and do not duplicate it. Completion is user-set only. `uncertain` is a flag, not a status. Contiguity is a candidate signal that needs supporting evidence. Reuse the existing CPU judge and narrator before any larger model.

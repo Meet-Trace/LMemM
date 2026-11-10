@@ -525,6 +525,8 @@ class Tracker:
             with self.lock:
                 self.save(force=True)
         self.sample_resources(now)
+        if self.moments and (self.paused or self.manual_paused or any(self.flags.values())):
+            self.moments.interrupt()         # not looking: the open moment ends at its last frame (no time credited)
         if (config.FIND_PROJECTS and self.paused == "idle" and not self.finder_busy
                 and now - self.last_finder >= config.FIND_EVERY):
             self.last_finder, self.finder_busy = now, True

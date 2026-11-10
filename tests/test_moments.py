@@ -65,7 +65,9 @@ class BufferTests(unittest.TestCase):
     def test_material_text_change_starts_a_moment_in_the_same_visit(self):
         b = MomentBuffer()
         feed(b, T0, "doc")
-        closed = feed(b, T0 + 5, "doc", text=DOC + "\nCompetitor benchmark shows subscription churn near eight percent")
+        new = DOC + "\nCompetitor benchmark shows subscription churn near eight percent"
+        self.assertEqual(feed(b, T0 + 5, "doc", text=new), [])         # first sight: could be OCR noise
+        closed = feed(b, T0 + 10, "doc", text=new)                      # it persisted: a real change
         self.assertEqual(len(closed), 1)
         b.close()
         a, c = list(b.recent)
@@ -76,7 +78,39 @@ class BufferTests(unittest.TestCase):
     def test_new_identifier_is_material(self):
         b = MomentBuffer()
         feed(b, T0, "doc")
-        self.assertEqual(len(feed(b, T0 + 5, "doc", text=DOC + "\nsee budget_v2.xlsx")), 1)
+        text = DOC + "\nsee budget_v2.xlsx"
+        feed(b, T0 + 5, "doc", text=text)
+        self.assertEqual(len(feed(b, T0 + 10, "doc", text=text)), 1)
+
+    def test_ocr_noise_that_does_not_repeat_is_not_a_change(self):
+        b = MomentBuffer()
+        feed(b, T0, "doc")
+        for i, junk in enumerate(["thonltorin9 llghthouse inspectthn", "IogiStits qwertyuiop zxcvbnmasd", "FooBarBaz nonsense gibberish"]):
+            self.assertEqual(feed(b, T0 + 5 * (i + 1), "doc", text=DOC + "\n" + junk + f" IogiStits{i}"), [])
+        b.close()
+        self.assertEqual(len(b.recent), 1)
+
+    def test_category_flip_keeps_the_established_digest(self):
+        b = MomentBuffer(min_category_s=10)
+        feed(b, T0, "doc", cat="reading")
+        feed(b, T0 + 12, "doc", cat="focus", text=DOC + "\nthonltorin9 llghthouse inspectthn IogiStits")   # one garbled frame
+        first, second = b.recent[0], b.open
+        self.assertEqual(second.digest["terms"], first.digest["terms"])
+        self.assertEqual(second.digest["identifiers"], first.digest["identifiers"])
+        self.assertNotIn("IogiStits", json.dumps(second.to_dict()))
+
+    def test_interrupt_closes_without_credit_and_starts_a_new_visit(self):
+        b = MomentBuffer(visit_gap=90)
+        feed(b, T0, "doc")
+        feed(b, T0 + 20, "doc")
+        [m] = b.interrupt()
+        self.assertEqual(m.dwell_s, 20)
+        feed(b, T0 + 50, "doc")                                # only 30 s later: still a new visit after a pause
+        b.close()
+        a, c = list(b.recent)
+        self.assertNotEqual(a.visit_id, c.visit_id)
+        self.assertEqual(c.context["same_item_before"]["visit_id"], a.visit_id)
+        self.assertEqual(a.dwell_s, 20)                         # the 30 s while not looking were not credited to it
 
     def test_category_change_needs_time_in_the_moment(self):
         b = MomentBuffer(min_category_s=10)
@@ -287,6 +321,44 @@ class PartialForgetTests(unittest.TestCase):
         self.rec.close()
         self.assertEqual([r["item_id"] for r in self.store.read()], ["a"])
         self.assertEqual(self.store.read()[0]["t_start"], T0)
+
+    def test_next_visit_does_not_point_at_a_forgotten_one(self):
+        # the live failure: B's visit ended after _last_visit's ended_at, so a time test kept the pointer
+        self.frame(T0, "b", "Mail", OTHER)
+        self.frame(T0 + 5, "b", "Mail", OTHER)
+        self.frame(T0 + 8, "a", "Docs", DOC)
+        self.rec.forget(minutes=(T0 + 10 - (T0 + 6)) / 60, now=T0 + 10)          # forgets what ended at or after T0+6
+        self.frame(T0 + 12, "b", "Mail", OTHER)
+        self.rec.close()
+        last = self.store.read()[-1]
+        self.assertEqual(last["item_id"], "b")
+        self.assertIsNone(last["context"]["same_item_before"])
+
+    def test_survivors_do_not_point_at_a_forgotten_moment(self):
+        self.frame(T0 + 1000, "a", "Docs", DOC)
+        self.frame(T0 + 1010, "b", "Mail", OTHER)
+        self.frame(T0 + 1020, "a", "Docs", DOC)
+        self.frame(T0 + 1030, "c", "Web", "Gardening notes about tomatoes and compost heaps")
+        self.rec.forget(app="Mail", now=T0 + 1040)
+        self.rec.close()
+        recs = self.store.read()
+        ids = {r["id"] for r in recs} | {m.id for m in self.buf.recent}
+        for r in recs:
+            self.assertIn(r["context"]["prev_moment_id"], ids | {None})
+        for m in self.buf.recent:
+            self.assertIn(m.context["prev_moment_id"], ids | {None})
+        a2 = [r for r in recs if r["item_id"] == "a"][-1]
+        self.assertIsNone(a2["context"]["prev_moment_id"])
+        self.assertIsNone(a2["context"]["gap_s"])
+
+    def test_pause_does_not_stretch_a_moment(self):
+        self.frame(T0, "a", "Docs", DOC)
+        self.frame(T0 + 20, "a", "Docs", DOC)
+        self.rec.interrupt()                                   # what the tracker does while paused
+        self.assertEqual([r["t_end"] - r["t_start"] for r in self.store.read()], [20])   # on disk already
+        self.frame(T0 + 60, "b", "Mail", OTHER)
+        self.rec.close()
+        self.assertEqual(self.store.read()[0]["t_end"], T0 + 20)
 
     def test_delete_all_still_works_after_recording(self):
         data = os.path.join(self.tmp.name, "a", "b", "data")

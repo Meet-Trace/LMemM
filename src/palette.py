@@ -21,9 +21,35 @@ ORANGE_STATUS_ON_LIGHT = (0.75, 0.30, 0.02)
 RED_TEXT_ON_LIGHT = (0.80, 0.15, 0.12)
 TOAST_LIGHT, TOAST_DARK = 0.12, 0.22                   # the toast's grey in each mode (the dark page is 0.133)
 
-ACCENT = (0.17, 0.40, 0.92)                    # buttons: white text on this
+# The main window's colours: a neutral graphite, soft off-white text with a touch of warmth, and Trace's periwinkle as
+# the one accent. Not brown, not navy. The window is drawn in the dark appearance (config.WINDOW_APPEARANCE).
+# canvas = the page behind everything; sidebar = a step darker; surface = a grouped panel; inset = a field sitting in
+# a surface; edge = the one hairline colour. Two treatments of the same layout (config.PAGE_THEME):
+#   a  graphite with tonal layering
+#   b  deeper graphite, higher contrast, and a faint blue light behind the screenshot (window.py draws the light)
+THEMES = {
+    "a": {"canvas": (0.098, 0.102, 0.118), "sidebar": (0.082, 0.086, 0.102), "surface": (0.141, 0.145, 0.165),
+          "inset": (0.110, 0.114, 0.129), "edge": (0.204, 0.208, 0.231),
+          "ink": (0.945, 0.933, 0.910), "mute": (0.647, 0.651, 0.686)},
+    "b": {"canvas": (0.078, 0.082, 0.098), "sidebar": (0.063, 0.067, 0.078), "surface": (0.118, 0.122, 0.141),
+          "inset": (0.090, 0.094, 0.110), "edge": (0.176, 0.180, 0.204),
+          "ink": (0.945, 0.933, 0.910), "mute": (0.647, 0.651, 0.686)},
+}
+GLOW = {"a": 0.0, "b": 0.11, "header": 0.05, "tone": 0.035}   # opacity of the light: behind the screenshot, behind the header, and the top-lit tone
+WARM = dict(THEMES["b"])                          # the colours in use; use() swaps them
+
+
+def use(theme):
+    """Switch the window to a treatment ("a" or "b"). Unknown names keep the current one."""
+    if theme in THEMES:
+        WARM.clear()
+        WARM.update(THEMES[theme])
+    return dict(WARM)
+
+
+ACCENT = (0.208, 0.388, 0.914)                 # #3563E9 buttons: white text on this
 ACCENT_TEXT_ON_LIGHT = ACCENT                  # blue words on the light card
-ACCENT_TEXT_ON_DARK = (0.40, 0.60, 1.0)        # blue words on the dark card (a lighter blue)
+ACCENT_TEXT_ON_DARK = (0.467, 0.600, 1.0)      # #7799FF blue words on the dark card (a lighter blue)
 
 
 def _lin(c):

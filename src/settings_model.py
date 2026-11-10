@@ -24,13 +24,14 @@ thing that changes a setting.
 import copy
 
 import apps
+import backdrop
 import onboarding
 
 SECTIONS = ("you", "apps", "access", "privacy", "general", "data")
 TITLES = {"you": "You", "apps": "Apps", "access": "Access", "privacy": "Privacy", "general": "General", "data": "Data"}
 KEEP_CHOICES = (1, 3, 7, 30)
 KEEP_DEFAULT = 7
-ACTIONS = ("set_name", "toggle_role", "watch_add", "watch_remove", "watch_all", "skip_add", "skip_remove", "keep_days")
+ACTIONS = ("set_name", "toggle_role", "watch_add", "watch_remove", "watch_all", "skip_add", "skip_remove", "keep_days", "backdrop")
 
 ALWAYS_PRIVATE = ("Password managers", "Banks, payments and sign-in pages", "Private and incognito windows", "Password fields")
 KEEP_WORDS = {1: "1 day", 3: "3 days", 7: "7 days", 30: "30 days"}
@@ -100,6 +101,14 @@ def apply(user, action, value=None):
             raise ValueError("Pick 1, 3, 7 or 30 days.")
         new["screenshot_days"] = value
         return {"user": new, "message": f"Screenshots are kept {KEEP_WORDS[value]}"}
+    if action == "backdrop":
+        if value != backdrop.AUTO and value not in backdrop.KEYS:
+            raise ValueError("Pick Automatic, Dawn, Day, Evening or Night.")
+        if value == backdrop.AUTO:
+            new.pop("backdrop", None)
+            return {"user": new, "message": "Background follows the time of day"}
+        new["backdrop"] = value
+        return {"user": new, "message": f"Background stays {backdrop.entry(value)['label'].lower()}"}
     raise ValueError("That is not a setting.")
 
 
@@ -144,6 +153,8 @@ def view(user, section, facts=None, data=None, hotkey="⌃⌥N"):
         page["general"] = {"keep": [{"days": d, "label": KEEP_WORDS[d], "on": d == days} for d in KEEP_CHOICES],
                            "keep_line": f"Each thing keeps one small picture for {KEEP_WORDS[days]}. Then the picture goes; "
                                         "the words, activity and your notes stay.",
+                           "backdrop": {"rows": backdrop.choices(user.get("backdrop")),
+                                        "line": "Follows your clock by default and changes slowly. Pick one to keep it."},
                            "hotkey": hotkey,
                            "memory":{"title":"Project Memory","line":"Enable a workspace and manage local search, pause, and agent connections from its Memory tab."}}
     else:

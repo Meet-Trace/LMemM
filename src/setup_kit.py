@@ -62,6 +62,11 @@ def status_text(kind):
         return system()
 
 
+def warm(token):
+    """A colour of the main window's warm-light scheme (palette.WARM)."""
+    return NSColor.colorWithRed_green_blue_alpha_(*palette.WARM[token], 1.0)
+
+
 def ink():
     return NSColor.labelColor()
 
@@ -133,14 +138,23 @@ def font(size, weight=400):
     return _fonts[key]
 
 
-def _attributed(text, size, weight, color, align, wrap):
+# Three type roles. Display: the one heading that names the page (tight, heavy). Body: what you read
+# (comfortable leading). Meta: when, where, how long (small, quiet, a little open).
+DISPLAY = {"size": 30, "weight": 700, "track": -0.032, "lead": 1.06}
+BODY = {"size": 14, "weight": 400, "track": 0.0, "lead": 1.42}
+META = {"size": 12, "weight": 400, "track": 0.012, "lead": 1.3}
+
+
+def _attributed(text, size, weight, color, align, wrap, track=None, lead=None):
     style = NSMutableParagraphStyle.alloc().init()
     style.setAlignment_(align)
     style.setLineBreakMode_(0 if wrap else 4)
-    style.setLineHeightMultiple_(1.18 if wrap else 1.0)
+    style.setLineHeightMultiple_((lead or 1.18) if wrap else 1.0)
     attrs = {NSFontAttributeName: font(size, weight), NSForegroundColorAttributeName: color,
              NSParagraphStyleAttributeName: style}
-    if size >= 24:                                   # large type reads too loose: tighten it as it grows
+    if track is not None:                            # tracking in em, set by the caller (a role)
+        attrs[NSKernAttributeName] = track * size
+    elif size >= 24:                                 # large type reads too loose: tighten it as it grows
         attrs[NSKernAttributeName] = -0.02 * size
     return NSAttributedString.alloc().initWithString_attributes_(text, attrs)
 
@@ -150,9 +164,9 @@ def text_width(text, size, weight=400):
         text, {NSFontAttributeName: font(size, weight)}).size().width
 
 
-def text_height(text, size, weight, width, wrap=True):
+def text_height(text, size, weight, width, wrap=True, track=None, lead=None):
     """The height this text needs at this width (one line when it does not wrap)."""
-    shown = _attributed(text, size, weight, ink(), LEFT, wrap)
+    shown = _attributed(text, size, weight, ink(), LEFT, wrap, track, lead)
     rect = shown.boundingRectWithSize_options_(NSMakeSize(width, 100000), 1)
     return float(int(rect.size.height) + 1)
 
@@ -166,11 +180,12 @@ class _KitText(_Flipped):
         self.text, self.size, self.weight, self.color = text, size, weight, color
         self.align, self.wrap, self.middle = align, wrap, middle
         self.attributed = None                       # set to draw mixed weights (a bold lead-in)
+        self.track = self.lead = None
         return self
 
     def drawRect_(self, rect):
         bounds = self.bounds()
-        shown = self.attributed if self.attributed is not None else _attributed(self.text, self.size, self.weight, self.color, self.align, self.wrap)
+        shown = self.attributed if self.attributed is not None else _attributed(self.text, self.size, self.weight, self.color, self.align, self.wrap, self.track, self.lead)
         height = shown.boundingRectWithSize_options_(NSMakeSize(bounds.size.width, 100000), 1).size.height
         y = (bounds.size.height - height) / 2 if self.middle else 0
         shown.drawWithRect_options_(NSMakeRect(0, y, bounds.size.width, height + 2), 1)
@@ -202,15 +217,16 @@ class _KitText(_Flipped):
         self.setNeedsDisplay_(True)
 
 
-def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False):
-    """Add text to `parent`; returns the height it takes."""
-    h = height if height is not None else text_height(text, size, weight, w, wrap)
+def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False, tip=True, track=None, lead=None):
+    """Add text to `parent`; returns the height it takes. `track` (em) and `lead` (line height) come from a type role."""
+    h = height if height is not None else text_height(text, size, weight, w, wrap, track, lead)
     view = _KitText.alloc().initWithText_size_weight_color_align_wrap_middle_(
         text, size, weight, color or ink(), align, wrap, middle)
+    view.track, view.lead = track, lead
     view.setFrame_(NSMakeRect(x, y, w, h))
     parent.addSubview_(view)
     try:
-        if not wrap and text and text_width(text, size, weight) > w + 1 and not parent.toolTip():
+        if tip and not wrap and text and text_width(text, size, weight) > w + 1 and not parent.toolTip():
             parent.setToolTip_(text)                 # a cut-off name can still be read (the text view itself takes no mouse)
     except Exception:
         pass
@@ -463,10 +479,84 @@ class _KitColorTile(_Flipped):
         NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(self.bounds(), self.size * 0.28, self.size * 0.28).fill()
 
 
+def line(parent, symbols, x, y, size=18, color=None):
+    """One family of line icons for navigation and actions: an outline SF Symbol at a fixed light weight,
+    centred in a size x size box, no fill. `symbols` is a name or a list to try in order. Returns the view
+    (None when this macOS has none of them)."""
+    name = first_symbol(symbols if isinstance(symbols, (list, tuple)) else [symbols])
+    image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(name, None) if name else None
+    if image is None:
+        return None
+    try:
+        from AppKit import NSImageSymbolConfiguration
+        image = image.imageWithSymbolConfiguration_(
+            NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(size * 0.82, -0.1, 1))   # light-regular, medium scale
+    except Exception:
+        pass
+    holder = NSImageView.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
+    holder.setImage_(image)
+    holder.setImageScaling_(3)
+    holder.setContentTintColor_(color or mute())
+    parent.addSubview_(holder)
+    return holder
+
+
+def display(parent, text, x, y, w, color=None, size=None):
+    """The page's one display heading (role: display)."""
+    r = dict(DISPLAY)
+    if size:
+        r["size"] = size
+    return put_text(parent, text, x, y, w, r["size"], r["weight"], color, track=r["track"], lead=r["lead"])
+
+
+def meta(parent, text, x, y, w, color=None, **kw):
+    """Small, quiet facts: when, where, how long (role: metadata)."""
+    return put_text(parent, text, x, y, w, META["size"], META["weight"], color or mute(), track=META["track"], lead=META["lead"], **kw)
+
+
+def body(parent, text, x, y, w, color=None):
+    """What you read: descriptions and summaries (role: body)."""
+    return put_text(parent, text, x, y, w, BODY["size"], BODY["weight"], color, track=BODY["track"], lead=BODY["lead"])
+
+
 def tile(parent, symbol, color, x, y, size=28):
     """A coloured icon square at (x, y). `symbol` is an SF Symbol name or a list to try in order."""
     view = _KitColorTile.alloc().initWithColor_symbol_size_(color, symbol, size)
     view.setFrame_(NSMakeRect(x, y, size, size))
+    parent.addSubview_(view)
+    return view
+
+
+class _KitSurface(_Flipped):
+    """A rounded warm surface, optionally with a thin edge. It paints itself and lets clicks through to what is on it."""
+
+    def initWithFrame_fill_edge_radius_(self, frame, fill, edge, radius):
+        self = objc.super(_KitSurface, self).initWithFrame_(frame)
+        self.fill, self.edge, self.radius = fill, edge, radius
+        return self
+
+    def drawRect_(self, rect):
+        box = self.bounds()
+        shape = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+            NSMakeRect(0.5, 0.5, box.size.width - 1, box.size.height - 1), self.radius, self.radius)
+        if self.fill is not None:
+            self.fill.setFill()
+            shape.fill()
+        if self.edge is not None:
+            self.edge.setStroke()
+            shape.setLineWidth_(1)
+            shape.stroke()
+
+    def hitTest_(self, point):
+        return None if self.fill is None else objc.super(_KitSurface, self).hitTest_(point)
+
+
+def surface(parent, x, y, w, h, token="surface", edge=True, radius=18, alpha=None):
+    """A warm rounded surface at (x, y); anything added to `parent` afterwards sits on it. `alpha` lets the
+    background show through a little (a tinted veil, no blur); its edge is then a faint light line."""
+    fill = warm(token) if alpha is None else warm(token).colorWithAlphaComponent_(alpha)
+    line_color = (warm("edge") if alpha is None else NSColor.whiteColor().colorWithAlphaComponent_(0.10)) if edge else None
+    view = _KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, w, h), fill, line_color, radius)
     parent.addSubview_(view)
     return view
 

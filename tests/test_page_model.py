@@ -264,6 +264,33 @@ class ThingPageTests(unittest.TestCase):
         self.assertTrue(page["places"][0]["main"])
         self.assertIn(("Visits", "0"), page["stats"])
 
+    def test_the_page_leads_with_what_you_were_doing_and_shows_the_address_once(self):
+        reg, items, ids = world()
+        items["d"].update(doing="Searching domains", state={"url": "https://x.test/a", "page": "Garden"}, last_seen=NOW.isoformat(),
+                          summary={"title": "Checking free .com names", "summary": "You were checking free .com names.", "of": "x", "model": "m", "v": 2})
+        page = pm.view(reg, items, pm.press(reg, pm.new_state(), "thing", "d", items), NOW)["main"]
+        self.assertEqual((page["headline"], page["ai_summary"], page["reopen"]), ("Checking free .com names", "You were checking free .com names.", "https://x.test/a"))
+        self.assertEqual(page["address"], "https://x.test/a")
+        self.assertTrue(page["observed"].startswith("You were on x.test."))
+        self.assertIn("You left yourself two reminders.", page["observed"])               # built from stored facts only
+        self.assertNotIn("https://x.test/a", [v for _, v in page["latest"]])        # not repeated in the facts
+        self.assertIn(("Page", "Garden"), page["latest"])
+
+    def test_without_an_ai_line_the_stored_label_leads_and_nothing_is_invented(self):
+        reg, items, ids = world()
+        items["d"]["doing"] = "Editing Garden plan"
+        page = pm.view(reg, items, pm.press(reg, pm.new_state(), "thing", "d", items), NOW)["main"]
+        self.assertEqual((page["headline"], page["ai_summary"], page["shot"]), ("Editing Garden plan", None, None))
+
+    def test_a_kept_screenshot_is_offered_only_when_the_file_exists(self):
+        import tempfile, os
+        reg, items, ids = world()
+        items["d"]["screenshot"] = "t.jpg"
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(pm.thing_page(reg, items["d"], NOW, shots_dir=d)["shot"])
+            open(os.path.join(d, "t.jpg"), "wb").close()
+            self.assertEqual(pm.thing_page(reg, items["d"], NOW, shots_dir=d)["shot"], os.path.join(d, "t.jpg"))
+
     def test_finished_notes_are_listed_apart(self):
         reg, items, ids = world()
         n = items["d"]["notes"][0]

@@ -39,6 +39,7 @@ from widget import _Fields, _Flipped, _Ring, _Tap
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
 RADIUS_PANEL, RADIUS_FIELD = 14, 10
+CARD_ALPHA = 0.60                                       # the cards let the background show through a little (a tint, never a blur)
 DETAIL_ICONS = {"Last seen": ("waveform.path.ecg", "waveform"), "First seen": ("calendar",), "Time spent": ("clock",),
                 "Visits": ("chart.bar", "chart.bar.fill"), "Address": ("link",)}                # one family of corners for the thing page
 BUTTON_H, FIELD_H = 34, 40
@@ -120,23 +121,20 @@ class _WindowMenuTarget(NSObject):
 
 
 class _SideBackdrop(_Flipped):
-    """The sidebar: a rounded dark panel set a little in from the window's edge, with a hairline round it.
-    A veil over the background (no blur), so the room shows faintly through."""
+    """The sidebar: a dark veil over the background, edge to edge (nothing of the window shows round it), and a
+    hairline on its right. No blur: the room shows faintly through."""
 
     def drawRect_(self, rect):
         box = self.bounds()
-        panel = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-            NSMakeRect(4.5, 6.5, box.size.width - 9, box.size.height - 13), 16, 16)
         if config.WINDOW_APPEARANCE != "system":
             kit.warm("sidebar").colorWithAlphaComponent_(0.80).setFill()
-            panel.fill()
-            kit.warm("edge").setStroke()
+            NSBezierPath.fillRect_(box)
+            kit.warm("edge").setFill()
         else:
             kit.faint(0.035).setFill()
-            panel.fill()
-            kit.faint(0.09).setStroke()
-        panel.setLineWidth_(1)
-        panel.stroke()
+            NSBezierPath.fillRect_(box)
+            kit.faint(0.09).setFill()
+        NSBezierPath.fillRect_(NSMakeRect(box.size.width - 1, 0, 1, box.size.height))
 
 
 _grain_tiles = {}
@@ -1848,17 +1846,17 @@ class MainWindow:
         notes in the one white surface that groups them, and the quiet facts beside it on the page."""
         self.shot_at = None
         pad = 24
-        hero_card = kit.surface(doc, x, y, w, 10, "surface", radius=RADIUS_PANEL + 2)          # the one big box: what it was
+        hero_card = kit.surface(doc, x, y, w, 10, "surface", radius=RADIUS_PANEL + 2, alpha=CARD_ALPHA)          # the one big box: what it was
         hero_bottom = self._hero(doc, page, x + pad + 4, y + pad, w - 2 * pad - 8) - 28
         hero_card.setFrame_(NSMakeRect(x, y, w, hero_bottom + pad - y))
         top = hero_bottom + pad + 16
         wide = w >= 640
         gap = 16
         nw = int(w * 0.57) if wide else w
-        notes_card = kit.surface(doc, x, top, nw, 10, "surface", radius=RADIUS_PANEL)
+        notes_card = kit.surface(doc, x, top, nw, 10, "surface", radius=RADIUS_PANEL, alpha=CARD_ALPHA)
         notes_bottom = self._notes(doc, page, x + pad, top + pad - 2, nw - 2 * pad) + pad - 2
         if wide:
-            facts_card = kit.surface(doc, x + nw + gap, top, w - nw - gap, 10, "surface", radius=RADIUS_PANEL)
+            facts_card = kit.surface(doc, x + nw + gap, top, w - nw - gap, 10, "surface", radius=RADIUS_PANEL, alpha=CARD_ALPHA)
             facts_bottom = self._facts(doc, page, x + nw + gap + pad, top + pad - 2, w - nw - gap - 2 * pad) + pad - 2
             bottom = max(notes_bottom, facts_bottom)                                          # the two cards end together
             notes_card.setFrame_(NSMakeRect(x, top, nw, bottom - top))
@@ -1866,7 +1864,7 @@ class MainWindow:
             return bottom + 16
         notes_card.setFrame_(NSMakeRect(x, top, nw, notes_bottom - top))
         facts_top = notes_bottom + gap
-        facts_card = kit.surface(doc, x, facts_top, w, 10, "surface", radius=RADIUS_PANEL)
+        facts_card = kit.surface(doc, x, facts_top, w, 10, "surface", radius=RADIUS_PANEL, alpha=CARD_ALPHA)
         facts_bottom = self._facts(doc, page, x + pad, facts_top + pad - 2, w - 2 * pad) + pad - 2
         facts_card.setFrame_(NSMakeRect(x, facts_top, w, facts_bottom - facts_top))
         return facts_bottom + 16

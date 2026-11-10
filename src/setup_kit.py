@@ -551,9 +551,12 @@ class _KitSurface(_Flipped):
         return None if self.fill is None else objc.super(_KitSurface, self).hitTest_(point)
 
 
-def surface(parent, x, y, w, h, token="surface", edge=True, radius=18):
-    """A warm rounded surface at (x, y); anything added to `parent` afterwards sits on it."""
-    view = _KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, w, h), warm(token), warm("edge") if edge else None, radius)
+def surface(parent, x, y, w, h, token="surface", edge=True, radius=18, alpha=None):
+    """A warm rounded surface at (x, y); anything added to `parent` afterwards sits on it. `alpha` lets the
+    background show through a little (a tinted veil, no blur); its edge is then a faint light line."""
+    fill = warm(token) if alpha is None else warm(token).colorWithAlphaComponent_(alpha)
+    line_color = (warm("edge") if alpha is None else NSColor.whiteColor().colorWithAlphaComponent_(0.10)) if edge else None
+    view = _KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, w, h), fill, line_color, radius)
     parent.addSubview_(view)
     return view
 

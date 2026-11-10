@@ -43,6 +43,7 @@ import identity
 import input_monitor as input_hooks
 import macos
 import menu_model
+import moment_store
 import menubar
 import window as main_window
 import window_model
@@ -142,6 +143,7 @@ class Tracker:
         self.last_retention_sweep = 0.0
         self.panel = dictation.NotePanel()
         self.show_widget = show_widget
+        self.moments = moment_store.Recorder() if config.MOMENT_LOG else None   # shadow digest of each visit (moments.py)
         self.observations = observation.LOG    # where the trail's reads and our OCR meet (observation.py)
         self.use_trail = trail               # the accessibility event trail (trail_mac.py) runs inside this process
         self.trail = None
@@ -536,6 +538,8 @@ class Tracker:
             with self.lock:
                 if retention.expire_screenshots(self.items):
                     self.save(force=True)
+            if self.moments:
+                self.moments.sweep(now)
 
     # ------------------------------------------------------------ capture
 
@@ -1498,6 +1502,8 @@ class Tracker:
             if meta.get("input_context_id"):
                 self.input_store.link_capture(meta["ts"], meta["input_context_id"],
                                               meta["capture_start_offset_ns"], meta["capture_end_offset_ns"], item_id)
+        if self.moments:
+            self.moments.frame(now, item_id, meta, st, ref, act, dt, content, pinned)
         notes.attach_pending(self.items, self.frame_item, self.notes)
         if frame_used:
             self.keep_thumbnail(meta, frame)
@@ -1771,6 +1777,8 @@ class Tracker:
             self.trail.stop()
         self.q.put(None)
         self.thread.join(timeout=60)
+        if self.moments:
+            self.moments.close()                       # after the worker drained: the open moment is the last one
         self.observations.clear()                      # after the worker has drained its queue: it still reads the trail's evidence
         with self.lock:
             if self.dirty:

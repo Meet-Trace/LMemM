@@ -947,7 +947,7 @@ class MainWindow:
                     ("Archive", "archivebox", lambda: (self.close_dialog(), self.project_action("archive", pid=d["pid"]))),
                     ("Delete…", "trash", lambda: self.open_ask("delete", d["pid"]))):
                 row = self._tap(card, 12, y, cw - 24, 40, call)
-                kit.line(row, (symbol, "circle"), 11, 11, 18, kit.ink())
+                kit.glyph(row, (symbol, "circle"), 11, 11, 18, kit.ink())
                 kit.put_text(row, label, 46, 0, cw - 24 - 60, 14, 500, wrap=False, height=40, middle=True)
                 y += 42
             y += 12
@@ -976,7 +976,7 @@ class MainWindow:
             rows.append(("Forget this…", "trash", lambda: self.open_thing_forget(d["ids"])))
             for label, symbol, call in rows:
                 row = self._tap(card, 12, y, cw - 24, 40, call)
-                kit.line(row, (symbol, "circle"), 11, 11, 18, kit.ink())
+                kit.glyph(row, (symbol, "circle"), 11, 11, 18, kit.ink())
                 kit.put_text(row, label, 46, 0, cw - 24 - 60, 14, 500, wrap=False, height=40, middle=True)
                 y += 42
             y += 12
@@ -1209,7 +1209,7 @@ class MainWindow:
                 kit.put_text(caret, "▾" if row["expanded"] else "▸", 0, 0, 22, 11, 600, kit.mute(), align=kit.CENTER,
                              wrap=False, height=28, middle=True)
             if row.get("folder"):
-                kit.line(tap, ("archivebox", "tray"), x + 18, 6, 16, kit.mute())
+                kit.glyph(tap, ("archivebox", "tray"), x + 18, 6, 16, kit.mute())
             else:
                 self._project_icon(tap, row["hue"], x + 16, 4, 20)
             kit.put_text(tap, row["name"], x + 42, 0, SIDE_W - 16 - x - 42 - 40, 13, 500,
@@ -1344,7 +1344,7 @@ class MainWindow:
             self._project_icon(doc, page["hue"], x, y - 2, 40)
             tx = x + 54
         elif kind in ("home", "needs", "archived", "settings"):
-            kit.line(doc, {"home": ("square.stack.3d.up", "folder"), "needs": ("bell", "bell.badge"),
+            kit.glyph(doc, {"home": ("square.stack.3d.up", "folder"), "needs": ("bell", "bell.badge"),
                            "archived": ("archivebox", "tray"), "settings": ("gearshape", "gear")}[kind], x + 4, y + 2, 28, kit.ink())
             tx = x + 54
         if kind == "thing":                                       # the identity lives in the page's hero, below
@@ -1673,10 +1673,10 @@ class MainWindow:
             sub.removeFromSuperview()
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         tap = self._tap(self.side_foot, 8, 8, SIDE_W - 16 - 40, 34, lambda: self.open_name("new"))
-        kit.line(tap, ("plus.circle", "plus"), 9, 8, 18, kit.ink())
+        kit.glyph(tap, ("plus.circle", "plus"), 9, 8, 18, kit.ink())
         kit.put_text(tap, "New project", 40, 0, 110, 13, 500, wrap=False, height=34, middle=True)
         gear = self._tap(self.side_foot, SIDE_W - 8 - 34, 8, 34, 34, lambda: self.open_settings(), fill=self.nav["view"] == "settings")
-        kit.line(gear, ("gearshape", "gear"), 8, 8, 18, kit.mute())
+        kit.glyph(gear, ("gearshape", "gear"), 8, 8, 18, kit.mute())
 
     def _archived(self, doc, page, x, y, w):
         if page["empty"]:
@@ -1892,8 +1892,8 @@ class MainWindow:
             cy += kit.body(doc, page["observed"], px, cy, tw, kit.warm("ink")) + 14
         if page["reopen"]:                                                    # the one dominant action, right under what you were doing
             kit.button(doc, "      Reopen", px, cy + 6, 128, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
-            kit.line(doc, ("play", "arrow.up.right.square"), px + 16, cy + 6 + (BUTTON_H - 14) / 2, 14, NSColor.whiteColor())
-            kit.line(doc, ("link",), px + 148, cy + 6 + (BUTTON_H - 16) / 2, 16, kit.warm("mute"))
+            kit.glyph(doc, ("play", "arrow.up.right.square"), px + 16, cy + 6 + (BUTTON_H - 14) / 2, 14, NSColor.whiteColor())
+            kit.glyph(doc, ("link",), px + 148, cy + 6 + (BUTTON_H - 16) / 2, 16, kit.warm("mute"))
             self._link(doc, "Copy link", px + 168, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13,
                        tip="Copy original link")
             cy += BUTTON_H + 12
@@ -1932,14 +1932,14 @@ class MainWindow:
         caption = "As it looked, " + page["shot_when"].lower() + "."
         kit.meta(doc, caption, x, y + h + 12, max(w - 110, 40), kit.warm("mute"), wrap=False, height=16, tip=False)
         width = kit.text_width("Full size", 12, 500) + 12
-        kit.line(doc, ("arrow.up.left.and.arrow.down.right", "arrow.up.left.and.arrow.down.right.circle"), x + w - width - 18, y + h + 12, 13, kit.accent_text())
+        kit.glyph(doc, ("arrow.up.left.and.arrow.down.right", "arrow.up.left.and.arrow.down.right.circle"), x + w - width - 18, y + h + 12, 13, kit.accent_text())
         self._link(doc, "Full size", x + w - width, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12, color=kit.accent_text())
         return y + h + 32
 
     def _notes(self, doc, page, x, y, w):
         """Your notes, then the one place to write another: the composer sits at the end of the list, in this panel."""
         count = page["open_count"]
-        kit.line(doc, ("waveform", "list.bullet"), x, y + 1, 18, kit.warm("ink"))
+        kit.glyph(doc, ("waveform", "list.bullet"), x, y + 1, 18, kit.warm("ink"))
         kit.put_text(doc, "Your notes", x + 28, y, w - 98, 15, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
         kit.put_text(doc, f"{count} open" if count else "all done", x + w - 70, y + 1, 70, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18, tip=False)
         y += 36
@@ -1983,7 +1983,7 @@ class MainWindow:
 
     def _facts(self, doc, page, x, y, w):
         """The quiet part, always in view but small: when, how long, the address, the captured text and where it is kept."""
-        kit.line(doc, ("info.circle",), x, y + 1, 18, kit.warm("ink"))
+        kit.glyph(doc, ("info.circle",), x, y + 1, 18, kit.warm("ink"))
         kit.put_text(doc, "Details", x + 28, y, w - 28, 15, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
         y += 36
         rows = list(page["details"])
@@ -1991,7 +1991,7 @@ class MainWindow:
             rows.append(("Address", page["address"]))
         rows += list(page["latest"])
         for k, v in rows:
-            kit.line(doc, DETAIL_ICONS.get(k, ("circle",)), x, y, 15, kit.warm("mute"))
+            kit.glyph(doc, DETAIL_ICONS.get(k, ("circle",)), x, y, 15, kit.warm("mute"))
             kit.meta(doc, k, x + 28, y, 84, kit.warm("mute"), height=18, tip=False)   # wraps like the value so both lines share a baseline
             h = max(kit.meta(doc, v, x + 118, y, w - 118, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
             if k == "Address":                                        # the full address on hover of this row only, never over the buttons
@@ -2002,7 +2002,7 @@ class MainWindow:
         screen = page["screen"]
         if screen:                                                # the raw captured text is one tap away, never on the page
             y += 8
-            kit.line(doc, ("doc.text",), x, y + 5, 15, kit.accent_text())
+            kit.glyph(doc, ("doc.text",), x, y + 5, 15, kit.accent_text())
             self._link(doc, "View captured text" + (f" · {screen['count']} versions" if screen["count"] > 1 else ""),
                        x + 22, y, (lambda e=screen: self.open_viewer(e)), size=12, color=kit.accent_text())
             y += 28

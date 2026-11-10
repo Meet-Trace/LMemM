@@ -47,7 +47,9 @@ BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
-MIN_MAIN, MAX_MAIN, MAX_WIDE = 560, 980, 1280                          # the page's reading column: it grows with the window, up to this
+MIN_MAIN, MAX_MAIN, MAX_WIDE = 560, 980, 1280 
+TIMELINE_W = 880                                        # the history never runs wider than this, so a row stays easy to read across
+                         # the page's reading column: it grows with the window, up to this
 TOP = 32                                               # below the title bar
 TONES = {"red": "red", "grey": None, "calm": None}      # the banner box's tone (red is only for what is off)
 
@@ -1481,17 +1483,18 @@ class MainWindow:
             lead = 30
         self._app_icon(box, t["app"], lead + 6, 8, 20, t.get("kind", ""), t.get("url"))
         tx = lead + 38
-        ago_w, open_w = 84, 64                                          # fixed right-hand columns, so the metadata lines up row to row
-        src_w = min(260, max(int((w - tx) * 0.30), 0))
-        ago_x = w - 12 - ago_w
-        open_x = ago_x - open_w
-        src_x = open_x - 12 - src_w
+        right = w - 12                                                  # source, open count and time sit together at the right edge
         if t["ago"]:
-            kit.put_text(box, t["ago"], ago_x, 0, ago_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+            kit.put_text(box, t["ago"], right - 76, 0, 76, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 84
         if t["open"]:
-            kit.put_text(box, f"{t['open']} open", open_x, 0, open_w, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=h, middle=True)
-        if t["sub"]:
-            kit.put_text(box, t["sub"], src_x, 0, src_w, 12, 400, kit.mute(), wrap=False, height=h, middle=True)
+            label = f"{t['open']} open"
+            kit.put_text(box, label, right - 64, 0, 64, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 72
+        src_w = min(190, max(int((right - tx) * 0.35), 0)) if t["sub"] else 0
+        if src_w:
+            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+        src_x = right - src_w
         kit.put_text(box, t["title"], tx, 0, max(src_x - 16 - tx, 40), 13, 500, wrap=False, height=h, middle=True)
         box.setFrame_(NSMakeRect(x, y, w, h))
         doc.addSubview_(box)
@@ -1927,14 +1930,13 @@ class MainWindow:
         """The scrolling list: things grouped by when, newest first."""
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
+        w = min(w, TIMELINE_W)
         for group in page["groups"]:
             n = len(group["things"])
             tw = kit.text_width(group["title"], 13, 700)
             kit.put_text(doc, group["title"], x + 18, y, tw + 6, 13, 700, wrap=False, height=20)
             label = f"{n} thing{'s' * (n != 1)}"
             kit.put_text(doc, label, x + 18 + tw + 10, y, 100, 12, 400, kit.mute(), wrap=False, height=20)
-            line_x = x + 18 + tw + 10 + kit.text_width(label, 12, 400) + 14
-            doc.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(line_x, y + 10, max(x + w - line_x, 0), 1)))
             dot = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 1, y + 6, 8, 8), kit.mute(), None, 4)
             doc.addSubview_(dot)
             top = y + 24

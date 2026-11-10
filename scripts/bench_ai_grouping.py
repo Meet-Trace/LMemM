@@ -128,6 +128,8 @@ def main(argv=None):
     p.add_argument("--embed", default=None, help="Ollama embedding model for the finder variant's retrieval")
     p.add_argument("--candidates", type=int, default=5, help="projects a task is judged against (finder)")
     p.add_argument("--margin", type=float, default=0.0, help="log-odds a join must clear (finder)")
+    p.add_argument("--bias-pair", type=float, default=0.0, help="shift of the judge's pair answers (see ai.run bias)")
+    p.add_argument("--bias-project", type=float, default=0.0, help="shift of the judge's project answers (see ai.run bias)")
     p.add_argument("--variants", default="ai,ai-unread")
     p.add_argument("--rules", default=",".join(ai.RULES))
     p.add_argument("--blind", action="store_true", help="also run on name-blind copies of each day")
@@ -186,6 +188,8 @@ def main(argv=None):
             for v in variants:
                 opts = dict(VARIANTS[v])
                 unread = opts.pop("unread", False)
+                if args.bias_pair or args.bias_project:
+                    opts["bias"] = {"pair": args.bias_pair, "project": args.bias_project}
                 if work_judge is not None and opts.get("worth"):
                     opts["work_judge"] = work_judge
                 if opts.pop("retrieve", False):

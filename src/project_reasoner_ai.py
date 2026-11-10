@@ -299,7 +299,7 @@ def day_sittings(timeline, ids, all_pairs=False):
 
 def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pairs=False, gate_rule=None,
         seeds=(), library=None, retrieve=None, margin=0.0, abstain_shared=False, confirm=None,
-        use_description=True, worth=False, work_judge=None, say_steps=False, links=False):
+        use_description=True, worth=False, work_judge=None, say_steps=False, links=False, bias=None):
     """Group the things in `items`. `judge(instruct, query, doc)` returns log-odds yes vs no; `narrator(system,
     user, max_tokens)` writes a sentence, or None to let the judge read raw windows only.
     `gate_rule` is the rule for the general-place step when it should differ from `rule`.
@@ -320,7 +320,17 @@ def run(items, timeline, judge, narrator=None, rule="raw", specific=True, all_pa
     With `links` (beta), windows tied by an exact fact (exact_links: versions of one file in one folder, the same git
     branch of one repository) start as one task when they share a sitting, and the judge of a task is told its links
     in plain words. A link never files anything: which project a task belongs to is still the model's answer.
+    With `bias` ({"pair": x, "project": y}) the grouping judge's answers to those two questions are shifted by x
+    and y before anything is decided: a judge taught on many look-alikes says no more often than the one the
+    margin was set for, and calibrate_judge.py reads the shift off held-out lessons. The general-place and the
+    work questions are never shifted, and the cached answers are the judge's own (a bias costs no model calls).
     Returns (assigned {id: [project]}, projects {project: summary}, log)."""
+    shift = {INSTRUCT_PAIR: float((bias or {}).get("pair", 0.0)), INSTRUCT_PROJECT: float((bias or {}).get("project", 0.0))}
+    if any(shift.values()):
+        answer = judge
+
+        def judge(instruct, query, doc):              # noqa: F811 -- the same judge, answers shifted per question
+            return answer(instruct, query, doc) + shift.get(instruct, 0.0)
     if rule not in RULES or (gate_rule or rule) not in RULES:
         raise ValueError(f"Rule must be one of {', '.join(RULES)}.")
     calibrated = rule == "calibrated"

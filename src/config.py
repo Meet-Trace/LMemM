@@ -27,6 +27,7 @@ FINDER_EMBED = "embeddinggemma"        # finds the few projects worth asking abo
 FINDER_THREADS = 2                     # CPU threads asked of Ollama (the judges and the embedder obey; the narrator's engine does not)
 FINDER_CALLS = 300                     # new model calls per look at most; the next look carries on
 FINDER_MARGIN = 0.0                    # log-odds a join or merge must clear (0 = the model's own yes)
+FINDER_JUDGE_BIAS = {}                 # shift of the grouping judge's pair / project answers, e.g. {"pair": 0.7, "project": 0.5}; {} = none (calibrate_judge.py)
 FINDER_CONFIRM = "mean"                # a join also needs a second opinion on the windows read as they are
                                        # (the narrator's sentences left out): "mean", "best" or "" for none
 FINDER_DESCRIBE = True                 # the narrator describes each project for the judge. False leaves that out,

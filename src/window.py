@@ -7,6 +7,7 @@ project tree) and the page. The search field is built once and never rebuilt, so
 interrupted by a redraw; the two scrolling areas keep their place when the data underneath changes.
 """
 
+import os
 import sys
 import time
 import traceback
@@ -17,6 +18,7 @@ from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, 
                     NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
 import apps
+import backdrop
 import config
 import favicons
 import icon_images
@@ -120,7 +122,7 @@ class _SideBackdrop(_Flipped):
 
     def drawRect_(self, rect):
         if config.WINDOW_APPEARANCE != "system":
-            kit.warm("sidebar").setFill()
+            kit.warm("sidebar").colorWithAlphaComponent_(0.78).setFill()       # a veil, not glass: the background shows faintly through
             NSBezierPath.fillRect_(self.bounds())
             kit.warm("edge").setFill()
         else:
@@ -138,27 +140,61 @@ def _light_field(centre, radius, alpha):
         .drawFromCenter_radius_toCenter_radius_options_(NSMakePoint(*centre), 0, NSMakePoint(*centre), radius, 0)
 
 
+class _Backdrop(_Flipped):
+    """The picture behind the whole window (sidebar and page): one or two of the time-of-day backgrounds, each
+    shown at its weight (backdrop.plan). The pictures are drawn once per change, never animated here, and they
+    carry their own film grain. Passes clicks through."""
+
+    def initWithFrame_(self, frame):
+        self = objc.super(_Backdrop, self).initWithFrame_(frame)
+        self.mix = {}
+        self.images = {}
+        return self
+
+    def drawRect_(self, rect):
+        box = self.bounds()
+        kit.warm("canvas").setFill()
+        NSBezierPath.fillRect_(box)
+        for key, weight in self.mix.items():
+            if weight <= 0.004:
+                continue
+            if key not in self.images:
+                where = backdrop.path(key, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+                self.images[key] = NSImage.alloc().initWithContentsOfFile_(where) if where and os.path.exists(where) else None
+            image = self.images[key]
+            if image is None:
+                continue
+            size = image.size()
+            scale = max(box.size.width / max(size.width, 1), box.size.height / max(size.height, 1))
+            sw, sh = box.size.width / scale, box.size.height / scale
+            fade = weight * (1.0 - backdrop.entry(key)["veil"])
+            image.drawInRect_fromRect_operation_fraction_respectFlipped_hints_(
+                box, NSMakeRect((size.width - sw) / 2, (size.height - sh) / 2, sw, sh), 2, fade, True, None)
+
+    def hitTest_(self, point):
+        return None
+
+
+def _light_field(centre, radius, alpha):
+    """A soft periwinkle radial fade (a plain function: PyObjC would read a 3-argument method on a view as a selector)."""
+    from AppKit import NSGradient
+    light = kit.accent_text().colorWithAlphaComponent_(alpha)
+    NSGradient.alloc().initWithColors_([light, light.colorWithAlphaComponent_(alpha * 0.35), light.colorWithAlphaComponent_(0.0)]) \
+        .drawFromCenter_radius_toCenter_radius_options_(NSMakePoint(*centre), 0, NSMakePoint(*centre), radius, 0)
+
+
 class _Atmosphere(_Flipped):
-    """The light behind the page, three quiet layers and no edges: a slow top-lit tone from the canvas into the
-    graphite below, a wide periwinkle haze behind the header, and a smaller field around the screenshot.
-    Drawn behind everything; passes clicks through; never sits over text as a blur."""
+    """A small light around the screenshot, on top of the background. No edge, no blur, clicks pass through."""
 
     def initWithFrame_(self, frame):
         self = objc.super(_Atmosphere, self).initWithFrame_(frame)
-        self.header = None                           # (cx, cy, radius) behind the heading
+        self.header = None
         self.shot = None                             # (cx, cy, radius) around the screenshot
         return self
 
     def drawRect_(self, rect):
-        from AppKit import NSGradient
-        box = self.bounds()
-        top = kit.accent_text().colorWithAlphaComponent_(palette.GLOW["tone"])
-        NSGradient.alloc().initWithStartingColor_endingColor_(top, top.colorWithAlphaComponent_(0.0)) \
-            .drawInRect_angle_(NSMakeRect(0, 0, box.size.width, min(box.size.height, 360)), 90)      # flipped: 90 = downward
-        if self.header:
-            _light_field(self.header[:2], self.header[2], palette.GLOW["header"])
         if self.shot:
-            _light_field(self.shot[:2], self.shot[2], palette.GLOW[config.PAGE_THEME])
+            _light_field(self.shot[:2], self.shot[2], palette.GLOW[config.PAGE_THEME] * 0.7)
 
     def hitTest_(self, point):
         return None
@@ -235,6 +271,9 @@ class MainWindow:
         self.window.on_key = self.key
         self.root = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))
         self.window.setContentView_(self.root)
+        self.wall = _Backdrop.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))      # the time-of-day picture, behind everything
+        self.root.addSubview_(self.wall)
+        self.wall_tween = self.wall_clock = None
         self.backdrop = _SideBackdrop.alloc().initWithFrame_(NSMakeRect(0, 0, SIDE_W, H))
         self.root.addSubview_(self.backdrop)
         self.banner_host = _Flipped.alloc().initWithFrame_(NSMakeRect(SIDE_W, TOP, W - SIDE_W, 0))
@@ -290,6 +329,8 @@ class MainWindow:
         self._install_menu()
         self._measure()
         self._layout()
+        self._sync_wall(animate=False)
+        self._start_wall_clock()
 
     # ------------------------------------------------------------ size, menu bar, Dock
 
@@ -305,8 +346,51 @@ class MainWindow:
     def _layout(self):
         """Put the parts that do not scroll where the window's size says."""
         self.backdrop.setFrame_(NSMakeRect(0, 0, SIDE_W, self.H))
+        self.wall.setFrame_(NSMakeRect(0, 0, self.W, self.H))
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         self.overlay.setFrame_(NSMakeRect(0, 0, self.W, self.H))
+
+    # ------------------------------------------------------------ the time-of-day background
+
+    def _wall_target(self):
+        return backdrop.plan(backdrop.minute_of(time.localtime()), config.BACKDROP)
+
+    def _sync_wall(self, animate=True):
+        """Show what the clock (or the chosen background) says. Time itself only ever nudges the weights by a
+        little; a manual change cross-fades over about a second (reduced motion: it just changes)."""
+        target = self._wall_target()
+        now = dict(self.wall.mix)
+        keys = set(now) | set(target)
+        if all(abs(now.get(k, 0) - target.get(k, 0)) < 0.004 for k in keys):
+            return
+        big = max(abs(now.get(k, 0) - target.get(k, 0)) for k in keys) > 0.2
+        if not animate or not big or not now or motion.reduced():
+            self.wall.mix = dict(target)
+            self.wall.setNeedsDisplay_(True)
+            return
+        from Foundation import NSTimer
+        if self.wall_tween is not None:
+            self.wall_tween.invalidate()
+        began, start, span = time.time(), now, 0.9
+
+        def step(timer):
+            t = min(1.0, (time.time() - began) / span)
+            t = t * t * (3 - 2 * t)
+            self.wall.mix = {k: start.get(k, 0) * (1 - t) + target.get(k, 0) * t for k in keys}
+            self.wall.setNeedsDisplay_(True)
+            if t >= 1.0:
+                timer.invalidate()
+                self.wall_tween = None
+        self.wall_tween = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(1 / 30, True, step)
+
+    def _start_wall_clock(self):
+        """Look at the clock once a minute (nothing else runs for the background)."""
+        try:
+            from Foundation import NSTimer
+            self.wall_clock = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(60.0, True, lambda timer: self._sync_wall())
+            self.wall_clock.setTolerance_(10.0)
+        except Exception:
+            self.wall_clock = None
 
     def _resized(self):
         """The window was dragged, zoomed or made full screen: lay it out again and redraw (the pages stay computed)."""
@@ -686,6 +770,7 @@ class MainWindow:
 
     def render_now(self):
         self.shown = None
+        self._sync_wall()
         self.render()
 
     def undo_project(self):
@@ -1536,6 +1621,15 @@ class MainWindow:
             x2 += width + 8
         y += 44
         y += kit.put_text(doc, general["keep_line"], x, y, w, 12, 400, kit.mute()) + 24
+        y = self._section(doc, "Background", x, y, w)
+        x2 = x
+        for k in general["backdrop"]["rows"]:
+            width = kit.text_width(k["label"], 13, 500) + 30
+            kit.button(doc, k["label"], x2, y, width, 32, (lambda key=k["key"]: self.setting("backdrop", key)),
+                       kind="primary" if k["on"] else "quiet", size=13, weight=500)
+            x2 += width + 8
+        y += 44
+        y += kit.put_text(doc, general["backdrop"]["line"], x, y, w, 12, 400, kit.mute()) + 24
         y = self._row(doc, x, y, w, "Add a note", "Press this anywhere to write or dictate a note.",
                       lambda row, rw: kit.put_text(row, general["hotkey"], rw - 116, 0, 100, 15, 600, align=RIGHT, wrap=False, height=60, middle=True))
         if self.memory_view:
@@ -1740,7 +1834,6 @@ class MainWindow:
         top = self._hero(doc, page, x, y, w)
         if air is not None:
             air.setFrame_(NSMakeRect(0, 0, max(doc.frame().size.width, x + w), top + 360))
-            air.header = (x + w * 0.22, y + 90, 360)
             if self.shot_at:
                 air.shot = (self.shot_at[0] + self.shot_at[2] / 2, self.shot_at[1] + self.shot_at[3] / 2, 420)
         wide = w >= 640

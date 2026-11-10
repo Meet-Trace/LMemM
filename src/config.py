@@ -18,6 +18,7 @@ MIN_GAP = 2.0           # never two captures closer than this (pinned excepted)
 POLL = 0.5              # seconds between window/tab title checks
 WINDOW_APPEARANCE = "dark"   # the main window is drawn graphite (sidebar and pages alike), whatever the Mac's appearance: "dark", "light" or "system"
 PAGE_THEME = "b"        # palette.THEMES: "a" graphite with tonal layers, "b" deeper graphite with a faint light behind the screenshot
+BACKDROP = "auto"      # the picture behind the window: "auto" follows the clock (backdrop.py), or one of its keys (Settings > General)
 FIND_PROJECTS = True    # notice projects in what you did and suggest them (project_finder.py); never files anything
 FIND_EVERY = 30 * 60    # seconds between looks, taken only while you are idle
 SUMMARIZE = True        # write a short AI summary of what was on screen and what you were trying to do (screen_summary.py)

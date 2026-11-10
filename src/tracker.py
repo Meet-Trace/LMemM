@@ -36,6 +36,7 @@ from AppKit import NSEvent
 
 import activity
 import apps
+import backdrop
 import config
 import dictation
 import identity
@@ -115,6 +116,7 @@ class Tracker:
         self.watch_apps = apps.clean(user.get("watch_apps"))     # empty: every app (apps.py)
         config.set_skip_apps(e["id"] for e in apps.clean(user.get("skip_apps")))    # Settings > Privacy
         config.SCREENSHOT_DAYS = settings_model.keep_days(user)                     # Settings > General
+        config.BACKDROP = backdrop.clean(user.get("backdrop"))                      # Settings > General
         self.screen_ok, self.screen_checked = True, 0.0
         self.cur_place = None                # (app, window) of the newest timeline event
         self.pill_place = None               # (app, window) the pill last refreshed for
@@ -715,6 +717,7 @@ class Tracker:
             self.trail.set_watch(self.watch_apps)
         config.set_skip_apps(e["id"] for e in apps.clean(user.get("skip_apps")))
         config.SCREENSHOT_DAYS = settings_model.keep_days(user)
+        config.BACKDROP = backdrop.clean(user.get("backdrop"))
         self.last_retention_sweep = 0.0                  # sweep soon, so a shorter keep time shows its effect
 
     def settings_view(self, section):

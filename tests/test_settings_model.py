@@ -180,6 +180,20 @@ class WiringTests(unittest.TestCase):
         self.assertIn("config.set_skip_apps(", fns["__init__"])
 
 
+class BackdropSetting(unittest.TestCase):
+    def test_pin_and_return_to_automatic(self):
+        pinned = sm.apply({}, "backdrop", "night")["user"]
+        self.assertEqual(pinned["backdrop"], "night")
+        self.assertEqual([r["key"] for r in sm.view(pinned, "general")["general"]["backdrop"]["rows"] if r["on"]], ["night"])
+        auto = sm.apply(pinned, "backdrop", "auto")["user"]
+        self.assertNotIn("backdrop", auto)
+
+    def test_nonsense_changes_nothing(self):
+        with self.assertRaises(ValueError):
+            sm.apply({}, "backdrop", "neon")
+
+
+
 if __name__ == "__main__":
     unittest.main()
 

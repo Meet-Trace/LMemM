@@ -49,7 +49,9 @@ def front():
     app = macos.NSWorkspace.sharedWorkspace().frontmostApplication()
     if app is None or app.processIdentifier() == os.getpid():
         return None                         # never inspect our own UI from a worker
-    return {"app": app.localizedName(), "bundle_id": app.bundleIdentifier(), "pid": app.processIdentifier()}
+    info = {"app": app.localizedName(), "bundle_id": app.bundleIdentifier(), "pid": app.processIdentifier()}
+    info["privacy_blocked"] = bool(macos.privacy_reason(info))
+    return info
 
 
 AX_SYMBOLS = ("AXIsProcessTrusted", "AXUIElementCreateApplication", "AXUIElementCreateSystemWide", "AXUIElementSetMessagingTimeout",
@@ -96,6 +98,8 @@ class AXReader:
         return time.monotonic() - self.enabled_at.get(pid, -1e9) < seconds
 
     def read(self, front, full):
+        if front.get("privacy_blocked") or macos.privacy_reason(front):
+            return None
         if front["pid"] == os.getpid():
             return None                     # own-process AX can invoke AppKit off the main thread
         if not self.trusted():
@@ -108,14 +112,11 @@ class AXReader:
         snap = trail_ax.collect(trail_ax.LiveNode(win), trail_ax.LiveNode(focus) if focus is not None else None,
                                 max_nodes=500 if full else 0, max_ms=config.TRAIL_FULL_MS)
         if not snap.url and front["bundle_id"] in BROWSER_IDS:           # the address is on the web area, not the window
-            key = (front["pid"], snap.title)
-            if key not in self.url_cache:
-                found = trail_ax.collect(trail_ax.LiveNode(win), None, max_nodes=150, max_ms=25)
-                self.url_cache[key] = found.url
-                if len(self.url_cache) > 64:
-                    self.url_cache.pop(next(iter(self.url_cache)))
-            snap.url = self.url_cache[key]
-        return snap
+            # Never cache browser URLs: a rejected private read must leave no
+            # reusable evidence under a title shared with a later public page.
+            found = trail_ax.collect(trail_ax.LiveNode(win), None, max_nodes=150, max_ms=25)
+            snap.url = found.url
+        return None if macos.privacy_reason(front) else snap
 
     def restore(self):
         """Switch back every accessibility flag we turned on."""
@@ -177,6 +178,15 @@ class Tap:
     def __init__(self, queue):
         self.queue, self.tap, self.source, self.state = queue, None, None, "off"
 
+    def enqueue(self, kind, now, point, extra, context):
+        # Browser event mode cannot be verified atomically inside the event tap.
+        # Do not queue browser input at all, even for apparently public windows.
+        if not context or context.get("app") in config.BROWSERS or context.get("bundle_id") in macos.BROWSER_IDS:
+            return
+        if macos.privacy_reason(context):
+            return
+        self.queue.append((kind, now, point, extra, context["pid"]))
+
     def start(self):
         import Quartz as q
         trail_ax.warm(q, QUARTZ_SYMBOLS)
@@ -191,6 +201,10 @@ class Tap:
                 if kind in (q.kCGEventTapDisabledByTimeout, q.kCGEventTapDisabledByUserInput):
                     q.CGEventTapEnable(self.tap, True)
                     return event
+                app = macos.NSWorkspace.sharedWorkspace().frontmostApplication()
+                if app is None:
+                    return event
+                context = {"app": app.localizedName(), "bundle_id": app.bundleIdentifier(), "pid": app.processIdentifier()}
                 now = time.monotonic()
                 if kind == q.kCGEventKeyDown:
                     flags = int(q.CGEventGetFlags(event))
@@ -199,14 +213,14 @@ class Tap:
                         name = SHORTCUT_KEYS.get(int(code))
                         if name:
                             mods = "+".join(m for m, f in (("ctrl", CTRL), ("opt", OPT), ("shift", SHIFT), ("cmd", CMD)) if flags & f)
-                            self.queue.append(("shortcut", now, None, mods + "+" + name))
+                            self.enqueue("key", now, None, None, context)
                     else:
-                        self.queue.append(("key", now, None, None))         # a count; the key itself is not read
+                        self.enqueue("key", now, None, None, context)         # a count; the key itself is not read
                 elif kind == q.kCGEventScrollWheel:
-                    self.queue.append(("scroll", now, None, None))
+                    self.enqueue("scroll", now, None, None, context)
                 else:
                     p = q.CGEventGetLocation(event)
-                    self.queue.append(("click", now, (p.x, p.y), "right" if kind == q.kCGEventRightMouseDown else "left"))
+                    self.enqueue("click", now, None, "right" if kind == q.kCGEventRightMouseDown else "left", context)
             except Exception:
                 pass
             return event
@@ -234,27 +248,11 @@ class Tap:
 
 
 def click_target(reader, x, y):
-    """What was clicked: its role and, for buttons/links/tabs/rows, its name. Never a text field's contents."""
-    if front() is None:
-        return None, None                   # own window/menu: no background AX hit-testing
-    AS = reader.AS
-    err, el = AS.AXUIElementCopyElementAtPosition(AS.AXUIElementCreateSystemWide(), x, y, None)
-    if err != 0 or el is None:
-        return None, None
-    role = None
-    for hop in range(5):                 # an unlabeled group/static text: the nearest labeled parent names it
-        node = trail_ax.LiveNode(el).attrs()
-        if hop == 0:
-            role = node.get("AXRole")
-        if node.get("AXSubrole") == "AXSecureTextField" or node.get("AXRole") in trail_ax.TEXT_FIELDS:
-            return role, None
-        label = node.get("AXTitle") or node.get("AXDescription") or (node.get("AXValue") if hop == 0 else None)
-        if isinstance(label, str) and label.strip():
-            return role, " ".join(label.split())[:80]
-        err, el = AS.AXUIElementCopyAttributeValue(el, "AXParent", None)
-        if err != 0 or el is None:
-            break
-    return role, None
+    """No background hit-testing: a Command-click need not activate its window.
+
+    Keep aggregate activity only; never read a label from an unverified target.
+    """
+    return None, None
 
 
 def vision(front_info, snap):
@@ -263,14 +261,19 @@ def vision(front_info, snap):
         return None
     import resolver
     f = macos.front()
-    display, _frame = macos.display_for(f["bounds"] if f else None)
-    frame = macos.grab(display)
+    if not f or f.get("pid") != front_info.get("pid") or macos.privacy_reason(f):
+        return None
+    display, _frame = macos.display_for(f["bounds"])
+    frame = macos.grab(display, window_id=f.get("win_id"))
     if frame is None:
         return None
     try:
         lines, _rects, _ = resolver.run_vision(frame.cg, frame.width, frame.height, True)
     finally:
         frame.release()
+    after = macos.front()
+    if not after or after.get("win_id") != f.get("win_id") or macos.privacy_reason(after):
+        return None
     lines.sort(key=lambda l: (round(l["box"][1] / 8), l["box"][0]))
     out = trail_ax.Snapshot(title=snap.title, url=snap.url)
     out.texts = [" ".join(l["text"].split())[:trail_ax.MAX_TEXT] for l in lines][:trail_ax.MAX_TEXTS]
@@ -382,10 +385,24 @@ class Trail:
             print("trail: " + msg + (f" (x{n})" if n > 1 else ""))
 
     def drain(self, now):
+        info = front()
+        context = (info["pid"], info["bundle_id"]) if info else None
+        reason = self.engine.gate.app(info)
+        if self.paused() or reason or context != getattr(self, "_drain_context", None):
+            self.queue.clear()
+            self.engine.bursts.cur.clear()
+            self._drain_context = context
+            return
+        current = self.engine.tracker.current
+        if not current or current.get("bundle_id") != info["bundle_id"]:
+            self.queue.clear()
+            return
         while self.queue:
-            kind, t, point, extra = self.queue.popleft()
+            kind, t, point, extra, pid = self.queue.popleft()
+            if pid != info["pid"]:
+                continue
             if kind == "click":
-                role, label = click_target(self.reader, *point)
+                role, label = None, None
                 self.engine.on_input("click", t, button=extra, role=role, target=label)
                 self.poke("selection")                      # a click often changes the chat or tab
             elif kind == "shortcut":

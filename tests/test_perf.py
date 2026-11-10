@@ -51,15 +51,16 @@ class FrameTests(unittest.TestCase):
             frame = macos._frame_from_cg(self.synthetic_cg(600, 300))
         self.assertEqual((frame.width, frame.height), (300, 150))
 
-    @unittest.skipUnless(macos.screen_recording_allowed(request=False), "needs Screen Recording permission")
-    def test_grab_the_real_screen_in_memory_and_fast(self):
-        import time
-        macos.grab(1)                                                      # warm-up
-        started = time.perf_counter()
-        frame = macos.grab(1)
-        self.assertLess(time.perf_counter() - started, 0.5)
+    def test_isolated_window_capture_uses_only_requested_window(self):
+        import Quartz
+        image = self.synthetic_cg(400, 200)
+        with patch.object(Quartz, "CGWindowListCreateImage", return_value=image) as capture:
+            frame = macos.grab(1, window_id=42)
+        capture.assert_called_once_with(Quartz.CGRectNull, Quartz.kCGWindowListOptionIncludingWindow, 42,
+                                        Quartz.kCGWindowImageNominalResolution | Quartz.kCGWindowImageBoundsIgnoreFraming)
         self.assertIsNotNone(frame)
-        self.assertLessEqual(max(frame.width, frame.height), config.MAX_PX)
+        self.assertEqual((frame.width, frame.height), (400, 200))
+        frame.release()
 
 
 class Base(unittest.TestCase):

@@ -40,7 +40,7 @@ class MemoryPipelineTests(unittest.TestCase):
                 stack.enter_context(patch.object(macos, "pointer_on", return_value=None))
                 screens = stack.enter_context(patch.object(macos, "NSScreen"))
                 screens.screens.return_value = [SimpleNamespace(frame=lambda: screen)]
-                stack.enter_context(patch.object(macos, "grab", side_effect=lambda display: fake_frame()))
+                stack.enter_context(patch.object(macos, "grab", side_effect=lambda display, *, window_id: fake_frame()))
                 capture = tracker.Tracker()
                 self.assertIsNone(capture.capture("note", pinned=True))
                 self.assertTrue(capture.q.empty())
@@ -63,13 +63,14 @@ class MemoryPipelineTests(unittest.TestCase):
             stack.enter_context(patch.object(macos, "pointer_on", return_value={"x": 300, "y": 200}))
             screens = stack.enter_context(patch.object(macos, "NSScreen"))
             screens.screens.return_value = [SimpleNamespace(frame=lambda: screen)]
-            stack.enter_context(patch.object(macos, "grab", side_effect=lambda display: fake_frame()))
+            stack.enter_context(patch.object(macos, "grab", side_effect=lambda display, *, window_id: fake_frame()))
             capture = tracker.Tracker()
             capture.capture("timer")
             path, meta, _, _ = capture.q.get_nowait()
-            self.assertEqual(meta["window_region"], [0.2, 0.1, 0.6, 0.8])
+            self.assertEqual(meta["window_region"], [0.0, 0.0, 1.0, 1.0])
+            self.assertEqual(meta["capture_scope"], "window")
             self.assertEqual(meta["inputs"]["key"], 50)
-            self.assertEqual(meta["pointer"], {"x": 300, "y": 200})
+            self.assertIsNone(meta["pointer"])
             # the frame waits in memory; nothing is written unless it ends up kept
             self.assertIn(meta["ts"], capture.frames)
             self.assertEqual(list(Path(directory).glob("*.jpg")) + list(Path(directory).glob("*.json")), [])

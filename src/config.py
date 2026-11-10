@@ -55,7 +55,7 @@ RESURFACE_COOLDOWN = 600  # seconds: remind about an item's pending edits at mos
 
 # ---------------------------------------------------------------- privacy: never captured
 
-BROWSERS = {"Google Chrome", "Google Chrome Canary", "Brave Browser", "Microsoft Edge", "Arc", "Safari"}
+BROWSERS = {"Google Chrome", "Google Chrome Canary", "Brave Browser", "Microsoft Edge", "Arc", "Safari", "Chromium", "Firefox", "Firefox Developer Edition", "Opera", "Vivaldi", "Orion"}
 CHROMIUM = BROWSERS - {"Safari"}
 SKIP_APPS = {
     "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop",

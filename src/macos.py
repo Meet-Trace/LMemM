@@ -93,23 +93,59 @@ _SCRIPTS = {}
 
 
 def browser_info(app):
-    """(URL, tab title, private?) of the front tab, or (None, None, False)."""
+    """URL/title plus verified privacy: False public, True private, None unknown.
+
+    Unknown is never permission to capture. Safari's scripting interface does not
+    supply a verified window mode, so it remains excluded until supported safely.
+    """
     if app not in config.BROWSERS:
         return None, None, False
-    if app not in _SCRIPTS:
-        if app == "Safari":
-            src = 'tell application "Safari" to get {URL, name} of front document'
-        else:
+    if app == "Safari":
+        return None, None, None
+    try:
+        if app not in _SCRIPTS:
             src = (f'tell application "{app}" to get {{URL, title}} of active tab of front window'
-                   f' & {{mode of front window}}')
-        _SCRIPTS[app] = Foundation.NSAppleScript.alloc().initWithSource_(src)
-    res, _err = _SCRIPTS[app].executeAndReturnError_(None)
-    if res is None:
-        return None, None, False
-    vals = [res.descriptorAtIndex_(i).stringValue() for i in range(1, res.numberOfItems() + 1)]
-    url, title = vals[0], vals[1] if len(vals) > 1 else None
-    private = len(vals) > 2 and vals[2] == "incognito"
-    return url, title, private
+                   f' & (mode of every window)')
+            _SCRIPTS[app] = Foundation.NSAppleScript.alloc().initWithSource_(src)
+        res, err = _SCRIPTS[app].executeAndReturnError_(None)
+        if res is None or err or res.numberOfItems() < 3:
+            return None, None, None
+        vals = [res.descriptorAtIndex_(i).stringValue() for i in range(1, res.numberOfItems() + 1)]
+        modes = [str(mode or "").lower() for mode in vals[2:]]
+        if any(mode in {"incognito", "private", "inprivate"} for mode in modes):
+            return None, None, True
+        if not modes or any(mode != "normal" for mode in modes):
+            return None, None, None
+        return vals[0], vals[1], False
+    except Exception:
+        return None, None, None
+
+
+BROWSER_IDS = {"com.google.Chrome", "com.google.Chrome.canary", "com.brave.Browser",
+               "com.microsoft.edgemac", "company.thebrowser.Browser", "org.chromium.Chromium",
+               "com.apple.Safari", "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition",
+               "com.operasoftware.Opera", "com.vivaldi.Vivaldi", "com.kagi.kagimacOS"}
+
+
+def privacy_reason(front, browser=None):
+    """Shared gate before pixels, AX text, quick identification or event retention."""
+    if not front:
+        return "unidentified window"
+    if front.get("bundle_id") in config.SKIP_APPS:
+        return "excluded app"
+    if config.SKIP_TITLES.search(front.get("window") or ""):
+        return "private or sensitive window"
+    is_browser = front.get("app") in config.BROWSERS or front.get("bundle_id") in BROWSER_IDS
+    if not is_browser:
+        return None
+    if front.get("app") not in config.BROWSERS:
+        return "browser privacy unverified"
+    url, title, private = browser if browser is not None else browser_info(front["app"])
+    if private is not False:
+        return "private window" if private is True else "browser privacy unverified"
+    if config.SKIP_TITLES.search(title or "") or config.SKIP_SITES.search(url or ""):
+        return "private or sensitive page"
+    return None
 
 
 def display_for(bounds):
@@ -183,15 +219,14 @@ def _frame_from_cg(cg):
     return Frame(Quartz.CGBitmapContextCreateImage(ctx), buf, w, h)
 
 
-def grab(display):
-    """The display as an in-memory Frame (~25 ms), or None if the OS won't give it to us.
-    Uses the screen-image API at nominal (1x) resolution, so no resize step is needed."""
+def grab(display, window_id=None):
+    """Capture only the identified window, never other windows on its display."""
+    if not window_id:
+        return None
     try:
         import Quartz
-        b = display_bounds(display)
         cg = Quartz.CGWindowListCreateImage(
-            Quartz.CGRectMake(b["X"], b["Y"], b["Width"], b["Height"]),
-            Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID,
+            Quartz.CGRectNull, Quartz.kCGWindowListOptionIncludingWindow, window_id,
             Quartz.kCGWindowImageNominalResolution | Quartz.kCGWindowImageBoundsIgnoreFraming)
         return _frame_from_cg(cg) if cg is not None else None
     except Exception:
@@ -201,28 +236,32 @@ def grab(display):
 STRIP_MIN = 360         # points: a browser's tabs, address and bookmarks bars take ~160 before the page starts
 
 
-def grab_strip(bounds, height):
-    """The top of a window as a CGImage (~5 ms), or None; at least STRIP_MIN points so the
-    page's own header (a chat's name) is in it even under a browser's toolbars. Not clipped to the
-    window's height: front() can pick a short helper window of the app (a 159 pt toolbar strip). For the quick
-    "which chat is open?" read, where the whole screen would be wasted work."""
+def grab_strip(bounds, height, window_id=None):
+    """An isolated window's top strip; never sample the desktop behind it."""
+    if not window_id:
+        return None
     try:
         import Quartz
-        rect = Quartz.CGRectMake(bounds["X"], bounds["Y"], bounds["Width"], max(height, STRIP_MIN))
-        return Quartz.CGWindowListCreateImage(
-            rect, Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID,
+        image = Quartz.CGWindowListCreateImage(
+            Quartz.CGRectNull, Quartz.kCGWindowListOptionIncludingWindow, window_id,
             Quartz.kCGWindowImageNominalResolution | Quartz.kCGWindowImageBoundsIgnoreFraming)
+        if image is None:
+            return None
+        return Quartz.CGImageCreateWithImageInRect(image, Quartz.CGRectMake(
+            0, 0, Quartz.CGImageGetWidth(image), min(Quartz.CGImageGetHeight(image), max(height, STRIP_MIN))))
     except Exception:
         return None
 
 
-def grab_with_screencapture(display):
+def grab_with_screencapture(display, window_id=None):
     """Fallback if the in-process API is unavailable: the old subprocess route, still
     returned as an in-memory Frame (the temp file is deleted at once)."""
+    if not window_id:
+        return None
     import Quartz
     path = os.path.join(tempfile.mkdtemp(prefix="lmemm-"), "frame.png")
     try:
-        subprocess.run(["screencapture", "-x", "-o", "-t", "png", "-D", str(display), path], check=False)
+        subprocess.run(["screencapture", "-x", "-o", "-t", "png", "-l", str(window_id), path], check=False)
         if not os.path.exists(path):
             return None
         source = Quartz.CGImageSourceCreateWithURL(Foundation.NSURL.fileURLWithPath_(path), None)

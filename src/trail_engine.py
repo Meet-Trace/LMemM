@@ -110,6 +110,8 @@ class Gate:
 
     def app(self, front):
         """Reason to skip this app, or None. Checked first, before any accessibility call."""
+        if front and front.get("privacy_blocked"):
+            return "private_or_unverified_browser"
         if not front or not front.get("bundle_id"):
             return "unidentified_app"
         if front["bundle_id"] in self.skip_apps:
@@ -288,7 +290,7 @@ class Engine:
 
     def on_input(self, kind, now, **fields):
         """kind: key | scroll | click | shortcut. Keys are counted, never recorded."""
-        if self.paused() or self.gap in {"secure_field", "excluded_app", "private_or_sensitive_window", "excluded_site"}:
+        if self.paused() or self.gap in {"secure_field", "excluded_app", "private_or_sensitive_window", "private_or_unverified_browser", "excluded_site"}:
             return
         key = self.current_key()
         if key is None:

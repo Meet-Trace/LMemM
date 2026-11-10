@@ -8,6 +8,7 @@ control's contents, only its name; the text you type is never touched.
 """
 
 import os
+import macos
 import time
 
 import ApplicationServices as AS
@@ -28,6 +29,8 @@ def read(pid, app):
     # Own-process AX calls enter AppKit synchronously on this worker thread.
     if pid == os.getpid():
         return None
+    if macos.privacy_reason({"app": app}):
+        return None
     if not AS.AXIsProcessTrusted():
         return None
     el = AS.AXUIElementCreateApplication(pid)
@@ -45,6 +48,8 @@ def read(pid, app):
             if value and str(value).strip():
                 label = str(value).strip()[:160]
                 break
+    if macos.privacy_reason({"app": app}):
+        return None
     if not doc and not label:
         return None
     return {"doc": doc.split("#")[0], "label": label, "title": title}

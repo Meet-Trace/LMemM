@@ -542,11 +542,7 @@ class Tracker:
         site = re.sub(r"^https?://", "", url or "").split("/")[0] or None
         title = tab_title or f["window"]
 
-        skip = ("password manager" if f["bundle_id"] in config.BUILTIN_SKIP_APPS
-                else "an app you never remember" if f["bundle_id"] in config.SKIP_APPS
-                else "private window" if private or config.SKIP_TITLES.search(title or "")
-                else "sensitive site" if url and config.SKIP_SITES.search(url)
-                else None)
+        skip = macos.privacy_reason(f, (url, tab_title, private))
         self.skipped_place = (f["app"], f["window"]) if skip else None     # the pill wears a lock here
         self.skip_kind = "private" if skip else None
         if skip:
@@ -557,14 +553,14 @@ class Tracker:
 
         display, frame = macos.display_for(f["bounds"])
         size = frame.size
-        inputs, pointer = macos.input_ages(), macos.pointer_on(frame)
+        inputs = macos.input_ages()
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         data_dir = config.paths().data_dir
         if ts in self.frames or os.path.exists(os.path.join(data_dir, ts + ".jpg")):
             return None                  # two captures in one second
         capture_start_ns = time.monotonic_ns()
         started = time.perf_counter()
-        shot = macos.grab(display) or macos.grab_with_screencapture(display)   # in memory: no files
+        shot = macos.grab(display, window_id=f.get("win_id")) or macos.grab_with_screencapture(display, window_id=f.get("win_id"))   # in memory: no files
         self.timed("capture", started)
         capture_end_ns = time.monotonic_ns()
         if shot is None:
@@ -577,26 +573,26 @@ class Tracker:
             shot.release()
             self.trigger("app_switch" if after["pid"] != f["pid"] else "window_change")
             return None
-        if trigger == "note":
-            if after is None or any(after.get(key) != f.get(key) for key in ("app", "bundle_id", "window", "bounds")):
-                shot.release()
-                self.trigger("window_change")
-                return None
-            # a tab can switch without changing the containing window's id/title
-            if macos.browser_info(f["app"]) != (url, tab_title, private):
-                shot.release()
-                self.trigger("tab_change")
-                return None
+        if after is None or any(after.get(key) != f.get(key) for key in ("pid", "win_id", "app", "bundle_id", "window", "bounds")):
+            shot.release()
+            self.trigger("window_change")
+            return None
+        # Every capture must revalidate: a private tab can replace a public tab mid-grab.
+        if macos.browser_info(f["app"]) != (url, tab_title, private) or macos.privacy_reason(after, (url, tab_title, private)):
+            shot.release()
+            self.trigger("tab_change")
+            return None
         meta = {
             "ts": ts, "iso": datetime.now().isoformat(timespec="seconds"),
             "app": f["app"], "bundle_id": f["bundle_id"], "window": f["window"],
             "url": url, "site": site, "tab_title": tab_title,
-            "screen": {"w": int(size.width), "h": int(size.height)}, "display": display,
+            "screen": {"w": shot.width, "h": shot.height}, "display": display,
             "image": ts + ".jpg",       # the thumbnail's name, if this frame ends up kept
             "trigger": trigger, "pinned": pinned, "session": self.session,
             "place": ax.key(f["app"], ax.read(f["pid"], f["app"])),
-            "inputs": inputs, "pointer": pointer,
-            "window_region": visible_window_region(f["bounds"], macos.display_bounds(display)),
+            "inputs": inputs, "pointer": None,
+            "window_region": [0.0, 0.0, 1.0, 1.0],
+            "capture_scope": "window", "browser_private": False if f["app"] in config.BROWSERS else None,
             "capture_start_offset_ns": capture_start_ns - self.origin_ns,
             "capture_end_offset_ns": capture_end_ns - self.origin_ns,
         }
@@ -976,6 +972,14 @@ class Tracker:
                 self.set_now((f["app"], f["window"]), None)
             self.last_widget_refresh = 0.0
             return
+        if macos.privacy_reason(f):
+            self.ocr_apps.pop(f["app"], None)
+            self.quick_seq += 1
+            with self.lock:
+                self.ax_now = None
+                self.set_now((f["app"], None), None)
+            self.last_widget_refresh = 0.0
+            return
         url, tab_title, _private = macos.browser_info(f["app"])
         meta = {"app": f["app"], "bundle_id": f["bundle_id"], "window": f["window"], "url": url,
                 "site": re.sub(r"^https?://", "", url or "").split("/")[0] or None, "tab_title": tab_title,
@@ -1026,13 +1030,15 @@ class Tracker:
                 meta = dict(self.ocr_apps.get(app) or {})
                 if not f or f["app"] != app or not meta or not f["bounds"]:
                     continue
-                cg = macos.grab_strip(f["bounds"], 240)
+                if macos.privacy_reason(f):
+                    continue
+                cg = macos.grab_strip(f["bounds"], 240, window_id=f.get("win_id"))
                 if cg is None:
                     continue
                 import Quartz
                 res = resolver.resolve_image(meta, cg, Quartz.CGImageGetWidth(cg), Quartz.CGImageGetHeight(cg), fast=True)
                 st = identity.quick_state(meta, res)
-                if seq != self.quick_seq:
+                if macos.privacy_reason(macos.front()) or seq != self.quick_seq:
                     continue
                 with self.lock:
                     # the rules for a full capture read the header by its position; on a cropped
@@ -1072,6 +1078,10 @@ class Tracker:
                 if app is None:
                     continue
                 pid, name = app.processIdentifier(), app.localizedName()
+                if getattr(self, "manual_paused", False) or macos.privacy_reason({"app": name, "bundle_id": app.bundleIdentifier()}):
+                    with self.lock:
+                        self.ax_now = {"pid": pid, "key": None, "item": None}
+                    continue
                 named = self.trail_state(app.bundleIdentifier(), name) if apps.watched(self.watch_apps, app.bundleIdentifier()) else None
                 if named is not None:               # the event trail read the chat's exact name from the app
                     if (pid, named["target"]) != last:

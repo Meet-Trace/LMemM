@@ -32,7 +32,7 @@ class PageNoteTests(unittest.TestCase):
             return app
         workspace = SimpleNamespace(sharedWorkspace=lambda: SimpleNamespace(frontmostApplication=front))
         sig = {'doc': 'https://example.com/b', 'title': 'Shared title', 'label': 'Search'}
-        with patch.object(tracker.macos, 'NSWorkspace', workspace), patch.object(tracker.ax, 'read', return_value=sig), patch.object(tracker.time, 'sleep'):
+        with patch.object(tracker.macos, 'NSWorkspace', workspace), patch.object(tracker.ax, 'read', return_value=sig), patch.object(tracker.time, 'sleep'), patch.object(tracker.macos, 'browser_info', return_value=('https://example.com/b', 'Shared title', False)):
             instance.ax_loop()
         self.assertIsNotNone(instance.ax_now)
         self.assertIsNone(instance.ax_now['item'])

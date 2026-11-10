@@ -1,12 +1,16 @@
 """LMemM - the living ambient canvas: the supplied artwork behind the window, with light that very slowly moves.
 
-One layer-backed view, only Core Animation underneath (no per-frame drawing, no timers of its own):
+Layer-backed views and Core Animation, nothing drawn per frame:
 
-    picture layer   one per period; the supplied picture, cropped (not stretched) to the window around its lit region
-    light layers    a few faint soft glows on the picture; each drifts and swells on its own 30-90 s cycle
+    picture view    one per period; draws the supplied picture once (cropped, not stretched, around its lit
+                    region) under a graphite wash, and again only when the window is resized
+    glow views      a few faint soft lights on the picture; each drifts and swells on its own 30-90 s cycle
                     (opacity and transform animations the compositor runs; the app does nothing per frame)
-    grain layer     a static, pre-made noise tile on top, the same for every period
+    grain view      a static, pre-made noise tile on top, the same for every period
     cross-fade      a period change fades the new picture in over the old one (never an empty frame)
+
+No Core Graphics objects are handed to Core Animation (an earlier version set a CGImage as a layer's contents and
+crashed inside PyObjC's bridge); images are NSImages drawn by AppKit.
 
 Pure decisions (files, crop, light data) are in ambient_model.py; which period is showing is backdrop.py; the
 window calls show(). The animations stop when the window is hidden, minimised or covered and when the Mac's
@@ -18,18 +22,19 @@ import sys
 import traceback
 
 import objc
-from AppKit import NSColor, NSGradient, NSImage, NSMakeRect, NSView, NSWorkspace
-from Foundation import NSData, NSNotificationCenter, NSNull, NSURL
+from AppKit import NSBezierPath, NSColor, NSGradient, NSImage, NSMakeRect, NSNumber, NSView, NSWorkspace
+from Foundation import NSData, NSNotificationCenter
 
 import ambient_model as model
 import config
 import grain
 import motion
 
-MAX_PIXELS = 3200                  # the long side the pictures are decoded at: sharp on a Retina window, a third of the memory of 5K
 _blobs = {}
-_NONE = NSNull.null()          # a layer action of NSNull means: do not animate this property
 _grain_colors = {}
+SOURCE_OVER = 2                # NSCompositingOperationSourceOver
+WINDOW_BELOW = -1
+WIDTH_HEIGHT_SIZABLE = 2 | 16  # NSViewWidthSizable | NSViewHeightSizable
 
 
 def grain_color(opacity):
@@ -43,33 +48,25 @@ def grain_color(opacity):
     return _grain_colors[key]
 
 
-def _decode(path):
-    """The picture at `path` as a decoded CGImage (ImageIO reads WebP on macOS 11+), or None."""
-    from Quartz import (CGImageSourceCreateThumbnailAtIndex, CGImageSourceCreateWithURL, kCGImageSourceCreateThumbnailFromImageAlways,
-                        kCGImageSourceCreateThumbnailWithTransform, kCGImageSourceShouldCacheImmediately, kCGImageSourceThumbnailMaxPixelSize)
-    source = CGImageSourceCreateWithURL(NSURL.fileURLWithPath_(path), None)
-    if source is None:
-        return None
-    return CGImageSourceCreateThumbnailAtIndex(source, 0, {
-        kCGImageSourceCreateThumbnailFromImageAlways: True, kCGImageSourceCreateThumbnailWithTransform: True,
-        kCGImageSourceShouldCacheImmediately: True, kCGImageSourceThumbnailMaxPixelSize: MAX_PIXELS})
-
-
 def _blob(color):
-    """A soft radial glow of one colour (opaque at the centre, clear at the edge) as a small CGImage, made once."""
+    """A soft radial glow of one colour (opaque at the centre, clear at the edge) as an NSImage, made once."""
     if color not in _blobs:
         size = 256
         image = NSImage.alloc().initWithSize_((size, size))
         image.lockFocus()
         centre = (size / 2, size / 2)
         r, g, b = color
-        clear = NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 0.0)
         NSGradient.alloc().initWithColors_([NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 1.0),
-                                            NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 0.3), clear]) \
+                                            NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 0.3),
+                                            NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 0.0)]) \
             .drawFromCenter_radius_toCenter_radius_options_(centre, 0, centre, size / 2, 0)
         image.unlockFocus()
-        _blobs[color] = image.CGImageForProposedRect_context_hints_(None, None, None)
+        _blobs[color] = image
     return _blobs[color]
+
+
+def _number(value):
+    return NSNumber.numberWithDouble_(float(value))
 
 
 def _ease():
@@ -77,12 +74,51 @@ def _ease():
     return CAMediaTimingFunction.functionWithName_(kCAMediaTimingFunctionEaseInEaseOut)
 
 
-class _Host(NSView):
-    """The layer-backed view itself; kept to the bare minimum (PyObjC checks every method name on an NSView
-    subclass against Objective-C selector rules), all the work is in AmbientCanvas below. Clicks pass through."""
+class _Passive(NSView):
+    """Base of the views below: clicks pass through, and nothing else is exposed to Objective-C."""
 
     def hitTest_(self, point):
         return None
+
+
+class _Picture(_Passive):
+    """One period's artwork under its graphite wash. Draws once; only a resize draws it again."""
+
+    def drawRect_(self, rect):
+        try:
+            image = getattr(self, "image", None)
+            box = self.bounds()
+            if image is None:
+                return
+            iw, ih = image.size()
+            x, y, w, h = model.crop(box.size.width, box.size.height, iw, ih, self.focus)
+            image.drawInRect_fromRect_operation_fraction_(box, NSMakeRect(x * iw, (1.0 - y - h) * ih, w * iw, h * ih), SOURCE_OVER, 1.0)
+            if self.scrim > 0:
+                NSColor.blackColor().colorWithAlphaComponent_(self.scrim).setFill()
+                NSBezierPath.fillRect_(box)
+        except Exception:
+            traceback.print_exc()
+
+
+class _Glow(_Passive):
+    def drawRect_(self, rect):
+        try:
+            _blob(self.color).drawInRect_fromRect_operation_fraction_(self.bounds(), NSMakeRect(0, 0, 0, 0), SOURCE_OVER, 1.0)
+        except Exception:
+            traceback.print_exc()
+
+
+class _Grain(_Passive):
+    def drawRect_(self, rect):
+        try:
+            grain_color(config.AMBIENT_GRAIN).setFill()
+            NSBezierPath.fillRect_(self.bounds())
+        except Exception:
+            traceback.print_exc()
+
+
+class _Host(_Passive):
+    """The view that goes into the window; tells its owner when it is resized."""
 
     def setFrameSize_(self, size):
         objc.super(_Host, self).setFrameSize_(size)
@@ -95,14 +131,11 @@ class AmbientCanvas:
     """The background behind the whole window; `.view` is what goes into the window. See the module note."""
 
     def __init__(self, frame):
-        from Quartz import CALayer
         self.view = _Host.alloc().initWithFrame_(frame)
-        self.view.setWantsLayer_(True)
         self.view.owner = None
-        self.layers = {}                 # period -> its picture layer
-        self.sizes = {}                  # period -> (pixel width, pixel height)
+        self.view.setWantsLayer_(True)
+        self.pictures = {}               # period -> its picture view (glows are its subviews)
         self.current = None
-        self.top = 0                     # z-order counter: a newly shown picture goes above the rest
         self.visible = True
         self.watching = []
         self.missing = model.missing()
@@ -110,21 +143,14 @@ class AmbientCanvas:
         if not self.usable:
             print("ambient: artwork not in place, keeping the code-drawn background; missing: "
                   + ", ".join(p + ".webp" for p in self.missing) + " in " + model.art_dir(), file=sys.stderr)
-        self.grain_layer = None
+        self.grain = None
         if self.usable and config.AMBIENT_GRAIN > 0:
-            self.grain_layer = CALayer.layer()
-            self.grain_layer.setBackgroundColor_(grain_color(config.AMBIENT_GRAIN).CGColor())
-            self.grain_layer.setZPosition_(1e6)
-            self.grain_layer.setActions_({"bounds": _NONE, "position": _NONE, "contents": _NONE})   # never animate a resize
-            self.view.layer().addSublayer_(self.grain_layer)
+            self.grain = _Grain.alloc().initWithFrame_(frame)
+            self.grain.setAutoresizingMask_(WIDTH_HEIGHT_SIZABLE)
+            self.grain.setWantsLayer_(True)
+            self.view.addSubview_(self.grain)
         self.view.setHidden_(True)       # shown once a picture has loaded
         self.view.owner = self
-
-    def relayout(self):
-        try:
-            self._relayout()
-        except Exception:
-            traceback.print_exc()
 
     # ------------------------------------------------------------ showing a period
 
@@ -135,121 +161,101 @@ class AmbientCanvas:
             return False
         if key == self.current:
             return True
-        try:
-            layer = self._layer_for(key)
-        except Exception:
-            traceback.print_exc()
+        picture = self._picture_for(key)
+        if picture is None:
             return False
-        if layer is None:
-            return False
-        from Quartz import CATransaction
         self.view.setHidden_(False)
-        self.top += 1
         self._motion(self.current, False)
         first = self.current is None
         self.current = key
-        CATransaction.begin()
-        CATransaction.setDisableActions_(True)
-        layer.setZPosition_(self.top)
-        layer.setOpacity_(0.0)
-        CATransaction.commit()
-        fade = (seconds if seconds is not None else config.AMBIENT_FADE_SECONDS)
+        self._to_top(picture)
+        fade = seconds if seconds is not None else config.AMBIENT_FADE_SECONDS
         if first or not animate or motion.reduced() or fade <= 0:
-            self._settle(layer, instant=True)
+            self._settle(picture)
         else:
-            CATransaction.begin()
-            CATransaction.setAnimationDuration_(fade)
-            CATransaction.setAnimationTimingFunction_(_ease())
-            CATransaction.setCompletionBlock_(lambda: self._settle(layer))
+            from Quartz import CABasicAnimation, CATransaction
+            layer = picture.layer()
             layer.setOpacity_(1.0)
+            fading = CABasicAnimation.animationWithKeyPath_("opacity")
+            fading.setFromValue_(_number(0.0))
+            fading.setToValue_(_number(1.0))
+            fading.setDuration_(fade)
+            fading.setTimingFunction_(_ease())
+            CATransaction.begin()
+            CATransaction.setCompletionBlock_(lambda: self._settle(picture))
+            layer.addAnimation_forKey_(fading, "fade")
             CATransaction.commit()
         self._motion(key, True)
         return True
 
-    def _settle(self, layer, instant=False):
-        """`layer` is fully in: the pictures under it can go (their pixels are freed)."""
-        from Quartz import CATransaction
-        CATransaction.begin()
-        CATransaction.setDisableActions_(True)
-        if instant:
-            layer.setOpacity_(1.0)
-        for key, other in list(self.layers.items()):
-            if other is not layer and other.zPosition() < layer.zPosition():
-                other.removeAllAnimations()
-                other.setOpacity_(0.0)
-                other.setContents_(None)
-                for sub in list(other.sublayers() or ()):
-                    sub.removeAllAnimations()
-        CATransaction.commit()
+    def _to_top(self, picture):
+        """Above every other picture, below the grain."""
+        if picture.superview() is not None:
+            picture.removeFromSuperview()
+        if self.grain is not None:
+            self.view.addSubview_positioned_relativeTo_(picture, WINDOW_BELOW, self.grain)
+        else:
+            self.view.addSubview_(picture)
 
-    def _layer_for(self, key):
-        """The picture layer for a period, made (and its picture decoded) when it is first needed or after it was freed."""
-        from Quartz import CALayer, CATransaction
-        layer = self.layers.get(key)
-        if layer is not None and layer.contents() is not None:
-            return layer
-        image = _decode(model.art_path(key))
+    def _settle(self, picture):
+        """`picture` is fully in: the pictures under it can go (their pixels are freed)."""
+        if picture.superview() is None:
+            return
+        order = list(self.view.subviews())
+        for key, other in list(self.pictures.items()):
+            if other is not picture and other in order and order.index(other) < order.index(picture):
+                other.layer().removeAllAnimations()
+                other.removeFromSuperview()
+                other.image = None
+                del self.pictures[key]
+
+    def _picture_for(self, key):
+        picture = self.pictures.get(key)
+        if picture is not None and picture.image is not None:
+            return picture
+        image = NSImage.alloc().initWithContentsOfFile_(model.art_path(key))
         if image is None:
             return None
-        from Quartz import CGImageGetHeight, CGImageGetWidth
-        self.sizes[key] = (CGImageGetWidth(image), CGImageGetHeight(image))
-        CATransaction.begin()
-        CATransaction.setDisableActions_(True)
-        if layer is None:
-            layer = CALayer.layer()
-            layer.setMasksToBounds_(True)
-            layer.setOpacity_(0.0)
-            layer.setActions_({"bounds": _NONE, "position": _NONE, "contents": _NONE, "contentsRect": _NONE})
-            self.view.layer().insertSublayer_below_(layer, self.grain_layer) if self.grain_layer is not None else self.view.layer().addSublayer_(layer)
-            scrim = CALayer.layer()                                 # always the first sublayer; the glows follow it
-            scrim.setBackgroundColor_(NSColor.blackColor().colorWithAlphaComponent_(model.SCRIM[key]).CGColor())
-            scrim.setActions_({"bounds": _NONE, "position": _NONE})
-            layer.addSublayer_(scrim)
-            for spec in model.LIGHTS[key]:
-                glow = CALayer.layer()
-                glow.setContents_(_blob(spec[3]))
-                glow.setOpacity_(spec[4])
-                glow.setActions_({"bounds": _NONE, "position": _NONE, "opacity": _NONE, "transform": _NONE})
-                layer.addSublayer_(glow)
-            self.layers[key] = layer
-        layer.setContents_(image)
+        picture = _Picture.alloc().initWithFrame_(self.view.bounds())
+        picture.image, picture.focus, picture.scrim = image, model.FOCUS[key], model.SCRIM[key]
+        picture.setAutoresizingMask_(WIDTH_HEIGHT_SIZABLE)
+        picture.setWantsLayer_(True)
+        picture.glows = []
+        for fx, fy, size, color, strength, _dx, _dy, _p, _q in model.LIGHTS[key]:
+            glow = _Glow.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
+            glow.color = color
+            glow.setWantsLayer_(True)
+            glow.layer().setOpacity_(strength)
+            picture.addSubview_(glow)
+            picture.glows.append(glow)
+        self.pictures[key] = picture
         self._place(key)
-        CATransaction.commit()
-        return layer
+        return picture
 
     # ------------------------------------------------------------ geometry (on every resize)
 
     def _place(self, key):
-        """Size one period's layers to the window: crop the picture around its lit region, set each glow's box."""
-        layer = self.layers.get(key)
-        if layer is None:
+        """Set each glow's box for the window's size (the picture itself follows by autoresizing)."""
+        picture = self.pictures.get(key)
+        if picture is None:
             return
         box = self.view.bounds()
         w, h = box.size.width, box.size.height
-        layer.setFrame_(NSMakeRect(0, 0, w, h))
-        iw, ih = self.sizes.get(key, (0, 0))
-        x, y, cw, ch = model.crop(w, h, iw, ih, model.FOCUS[key])
-        layer.setContentsRect_(((x, 1.0 - y - ch), (cw, ch)))             # contentsRect's origin is bottom-left
         longer = max(w, h)
-        layer.sublayers()[0].setFrame_(NSMakeRect(0, 0, w, h))
-        for glow, (fx, fy, size, _color, _strength, _dx, _dy, _p, _q) in zip(list(layer.sublayers())[1:], model.LIGHTS[key]):
+        for glow, spec in zip(picture.glows, model.LIGHTS[key]):
+            fx, fy, size = spec[0], spec[1], spec[2]
             side = size * longer
-            glow.setBounds_(NSMakeRect(0, 0, side, side))
-            glow.setPosition_((fx * w, (1.0 - fy) * h))
+            glow.setFrame_(NSMakeRect(fx * w - side / 2, (1.0 - fy) * h - side / 2, side, side))
 
-    def _relayout(self):
-        from Quartz import CATransaction
-        CATransaction.begin()
-        CATransaction.setDisableActions_(True)
-        box = self.view.bounds()
-        if self.grain_layer is not None:
-            self.grain_layer.setFrame_(NSMakeRect(0, 0, box.size.width, box.size.height))
-        for key, layer in self.layers.items():
-            if layer.contents() is not None:
+    def relayout(self):
+        try:
+            for key in list(self.pictures):
                 self._place(key)
-        CATransaction.commit()
-        if self.current:
-            self._motion(self.current, True)                             # the drift distances follow the new size
+                self.pictures[key].setNeedsDisplay_(True)           # the crop follows the window's shape
+            if self.current:
+                self._motion(self.current, True)                    # the drift distances follow the new size
+        except Exception:
+            traceback.print_exc()
 
     # ------------------------------------------------------------ slow movement
 
@@ -258,31 +264,32 @@ class AmbientCanvas:
 
     def _motion(self, key, on):
         """Start (or stop) the drift and swell of one period's lights. Only the showing period ever moves."""
-        layer = self.layers.get(key) if key else None
-        if layer is None:
+        picture = self.pictures.get(key) if key else None
+        if picture is None:
             return
-        glows = list(layer.sublayers() or ())[1:]                        # [0] is the still scrim
-        for glow in glows:
-            glow.removeAllAnimations()
+        for glow in picture.glows:
+            glow.layer().removeAllAnimations()
         if not (on and self._running()):
             return
         from Quartz import CABasicAnimation
         box = self.view.bounds()
         longer = max(box.size.width, box.size.height)
-        for glow, (_fx, _fy, _size, _color, strength, dx, dy, phase_a, phase_b) in zip(glows, model.LIGHTS[key]):
+        for glow, spec in zip(picture.glows, model.LIGHTS[key]):
+            strength, dx, dy, phase_a, phase_b = spec[4], spec[5], spec[6], spec[7], spec[8]
+            layer = glow.layer()
             for path, distance, phase in (("transform.translation.x", dx * longer, phase_a), ("transform.translation.y", dy * longer, phase_b)):
                 move = CABasicAnimation.animationWithKeyPath_(path)       # x and y on different cycles: the path never quite repeats
-                move.setFromValue_(-distance / 2)
-                move.setToValue_(distance / 2)
+                move.setFromValue_(_number(-distance / 2))
+                move.setToValue_(_number(distance / 2))
                 move.setDuration_(model.seconds_between(config.AMBIENT_MOVE_SECONDS, phase))
                 self._loop(move)
-                glow.addAnimation_forKey_(move, path)
+                layer.addAnimation_forKey_(move, path)
             swell = CABasicAnimation.animationWithKeyPath_("opacity")
-            swell.setFromValue_(strength * (1.0 - model.PULSE_DEPTH))
-            swell.setToValue_(strength)
+            swell.setFromValue_(_number(strength * (1.0 - model.PULSE_DEPTH)))
+            swell.setToValue_(_number(strength))
             swell.setDuration_(model.seconds_between(config.AMBIENT_PULSE_SECONDS, phase_b))
             self._loop(swell)
-            glow.addAnimation_forKey_(swell, "swell")
+            layer.addAnimation_forKey_(swell, "swell")
 
     @staticmethod
     def _loop(animation):

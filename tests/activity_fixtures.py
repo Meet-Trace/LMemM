@@ -281,9 +281,9 @@ def pairs(ids):
 
 # ---------------------------------------------------------------- scenarios
 
-def continuous_multiapp(seed=1, noise=0.0, rounds=3):
+def continuous_multiapp(seed=1, noise=0.0, rounds=3, t0=T0):
     """1 and 8. Paper -> chat -> editor -> terminal, repeated: one activity across four apps."""
-    b = Builder(seed, noise)
+    b = Builder(seed, noise, t0)
     paper = chrome("reading_page", "arxiv.org/abs/2601.00123", "Attention scaling study", "https://arxiv.org/abs/2601.00123")
     chat = Item("ChatGPT", "com.openai.chat", "chat", "c/42", "ChatGPT")
     editor, term = code("attention_layer.py", "paper-impl"), terminal("pytest attention_layer.py")

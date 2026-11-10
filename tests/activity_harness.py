@@ -1,9 +1,16 @@
 """Invariant harness for activity inference (Step 2, PR 2A). TEST-ONLY, and independent of any inference.
 
-An inference is any callable `infer(records, params) -> result` obeying the contract in src/activity_contract.py. The
-checks below take such a callable and return a list of violations ([] means the invariant holds), so the same harness
-runs against stand-ins today and against the real inference in PR 2C, unchanged. Negative tests (test_activity_harness)
+An inference is any callable `infer(prepared, params) -> result` obeying the contract in src/activity_contract.py. It
+receives INPUT THAT HAS ALREADY BEEN VALIDATED (activity_input.Prepared): validation happens once, at load. The checks
+below take such a callable and return a list of violations ([] means the invariant holds), so the same harness runs
+against stand-ins today and against the real inference in PR 2C, unchanged. Negative tests (test_activity_harness)
 prove each check can fail.
+
+Re-timed input. Translation and scaling change timestamps but, by design, never visit ids (an id is an immutable label
+written at capture time, and activity ids are hashes of it). Original records are therefore validated with every rule,
+including the capture-clock part of V4; re-timed records are validated with every rule EXCEPT that part
+(check_capture_clock=False), because their timestamps no longer match the capture clock on purpose. All other
+integrity rules, including the relative part of V4, still apply to them.
 
 Checks: determinism, record/file order and duplicate invariance, translation, joint scaling, status independence,
 forget consistency, no typed text / no fields outside the Moment schema, totality and ids, cannot-links, app-name
@@ -18,6 +25,16 @@ import re
 import activity_contract as ac
 import activity_input as ai
 import moments
+
+def prepared_for(records, params, capture_clock=True):
+    """Validate records (time-valued limits come from params) and return Prepared."""
+    return ai.prepare(records, max_intra_visit_gap_s=params.max_intra_visit_gap_s, check_capture_clock=capture_clock)
+
+
+def run(infer, records, params, capture_clock=True):
+    """records in, result out, through the public entry point (validation happens inside, once)."""
+    return ac.replay(infer, records, params, check_capture_clock=capture_clock)
+
 
 # ---------------------------------------------------------------- record transforms (all pure: inputs untouched)
 
@@ -44,12 +61,12 @@ def _shift_times(rec, f, g=None):
 
 
 def translate(records, c):
-    """Add c seconds to every timestamp. Durations, ids and counts are unchanged."""
+    """Add c seconds (positive or negative) to every timestamp. Durations, ids and counts are unchanged."""
     return [_shift_times(r, lambda t: t + c, lambda d: d) for r in records]
 
 
 def scale(records, k):
-    """Multiply every timestamp and duration by k. Use k >= 1: a visit id embeds a whole second (V4)."""
+    """Multiply every timestamp and duration by k (any k > 0). Visit ids are left as they are."""
     return [_shift_times(r, lambda t: t * k, lambda d: d * k) for r in records]
 
 
@@ -129,7 +146,7 @@ def _starts(records):
 
 def check_contract(infer, records, params):
     """Totality, states, reasons, activity ids, predictions only for assigned visits."""
-    res = infer(records, params)
+    res = run(infer, records, params)
     out = ac.validate_result(res, _starts(records))
     moments_of = {}
     for r in records:
@@ -142,38 +159,39 @@ def check_contract(infer, records, params):
 
 
 def check_determinism(infer, records, params):
-    a, b = infer(records, params), infer(copy.deepcopy(records), params)
+    a, b = run(infer, records, params), run(infer, copy.deepcopy(records), params)
     return [] if same_outcome(a, b) else ["two runs on identical input differ"]
 
 
 def check_order_and_duplicates(infer, records, params, seeds=(1, 2)):
-    base = infer(records, params)
+    base = run(infer, records, params)
     out = []
     for s in seeds:
-        if not same_outcome(base, infer(shuffled(records, s), params)):
+        if not same_outcome(base, run(infer, shuffled(records, s), params)):
             out.append(f"record order changes the outcome (seed {s})")
-        if not same_outcome(base, infer(with_duplicates(records, s), params)):
+        if not same_outcome(base, run(infer, with_duplicates(records, s), params)):
             out.append(f"identical duplicate records change the outcome (seed {s})")
     return out
 
 
-def check_translation(infer, records, params, offsets=(1234.5, 4 * 3600.0 + 1.5)):
-    base = infer(records, params)
+def check_translation(infer, records, params, offsets=(1234.5, 4 * 3600.0 + 1.5, -86400.0 * 400)):
+    """Offsets of either sign, applied to already-validated data (see the module docstring)."""
+    base = run(infer, records, params)
     return [f"translating all timestamps by {c} changes the outcome" for c in offsets
-            if not same_outcome(base, infer(translate(records, c), params))]
+            if not same_outcome(base, run(infer, translate(records, c), params, capture_clock=False))]
 
 
-def check_joint_scaling(infer, records, params, factors=(2, 8)):
+def check_joint_scaling(infer, records, params, factors=(0.5, 2, 8)):
     """Timestamps and every time parameter scaled together change nothing."""
-    base = infer(records, params)
+    base = run(infer, records, params)
     return [f"scaling timestamps and time parameters by {k} changes the outcome" for k in factors
-            if not same_outcome(base, infer(scale(records, k), params.scaled(k)))]
+            if not same_outcome(base, run(infer, scale(records, k), params.scaled(k), capture_clock=False))]
 
 
 def check_status_independence(infer, records, params):
     """Reporting horizons may change reporting, never an assignment, a state, a reason or an id."""
-    base = infer(records, params)
-    other = infer(records, params.with_reporting(status_active_s=params.status_active_s * 7, status_paused_s=params.status_paused_s * 0.01))
+    base = run(infer, records, params)
+    other = run(infer, records, params.with_reporting(status_active_s=params.status_active_s * 7, status_paused_s=params.status_paused_s * 0.01))
 
     def core(res):
         return {"visits": [{k: r.get(k) for k in ("visit_id", "state", "activity_id", "reason")} for r in canonical_result(res)["visits"]],
@@ -182,8 +200,8 @@ def check_status_independence(infer, records, params):
 
 
 def check_app_rename(infer, records, params, seed=5):
-    base = infer(records, params)
-    return [] if same_outcome(base, infer(rename_apps(records, seed), params)) else ["renaming apps changes the outcome"]
+    base = run(infer, records, params)
+    return [] if same_outcome(base, run(infer, rename_apps(records, seed), params)) else ["renaming apps changes the outcome"]
 
 
 def _tokens(rec):
@@ -194,7 +212,7 @@ def _tokens(rec):
 def check_forget(infer, records, params, visit_ids):
     """After removing visits (and scrubbing pointers), nothing about them appears in the output."""
     kept, gone_ids = remove_visits(records, visit_ids)
-    out_text = json.dumps(infer(kept, params), sort_keys=True)
+    out_text = json.dumps(run(infer, kept, params), sort_keys=True)
     out = []
     for g in sorted(gone_ids) + sorted(visit_ids):
         if g in out_text:
@@ -217,10 +235,10 @@ def check_no_typed_text(infer, records, params):
     """Inputs have no field outside the Moment schema, and the output names none either."""
     out = []
     try:
-        ai.prepare(records)
+        prepared = prepared_for(records, params)
     except ai.ActivityInputError as e:
         return [f"input rejected: {e.problems[:3]}"]
-    res = infer(records, params)
+    res = infer(prepared, params)
     text = json.dumps(res)
     for bad in ("typed", "pasted", "clipboard", "keystrokes"):
         if f'"{bad}' in text:
@@ -230,16 +248,19 @@ def check_no_typed_text(infer, records, params):
 
 def check_ids(infer, records, params):
     """Activity ids are the hash of the earliest member, whatever the order, duplicates or timestamp translation."""
-    res = infer(records, params)
+    res = run(infer, records, params)
     starts = _starts(records)
     out = []
     for a in res["activities"]:
         if a["id"] != ac.activity_id(ac.earliest_member(starts, a["members"])):
             out.append(f"{a['id']} is not the hash of its earliest member")
     base = {a["id"]: sorted(a["members"]) for a in res["activities"]}
-    for name, rec in (("shuffled", shuffled(records, 3)), ("translated", translate(records, 777.0)),
-                      ("duplicated", with_duplicates(records, 4))):
-        other = {a["id"]: sorted(a["members"]) for a in infer(rec, params)["activities"]}
+    for name, rec, clock in (("shuffled", shuffled(records, 3), True), ("translated by +777 s", translate(records, 777.0), False),
+                             ("translated by -9e6 s", translate(records, -9.0e6), False),
+                             ("scaled by 2 (with its parameters)", scale(records, 2), False),
+                             ("duplicated", with_duplicates(records, 4), True)):
+        p2 = params.scaled(2) if name.startswith("scaled") else params
+        other = {a["id"]: sorted(a["members"]) for a in run(infer, rec, p2, capture_clock=clock)["activities"]}
         if other != base:
             out.append(f"activity ids or members change when the input is {name}")
     return out
@@ -247,13 +268,13 @@ def check_ids(infer, records, params):
 
 def check_cannot_links(infer, records, params, pairs_):
     """No activity contains a cannot-linked pair of visits."""
-    part = ac.partition(infer(records, params))
+    part = ac.partition(run(infer, records, params))
     return [f"cannot-linked visits {a} and {b} share an activity" for a, b in pairs_ if any(a in g and b in g for g in part)]
 
 
 def check_must_pairs(infer, records, params, merge=(), not_merge=()):
     """For fixtures a real inference should satisfy; stand-ins are not expected to."""
-    part = ac.partition(infer(records, params))
+    part = ac.partition(run(infer, records, params))
     together = lambda a, b: any(a in g and b in g for g in part)
     return ([f"{a} and {b} should be together" for a, b in merge if not together(a, b)]
             + [f"{a} and {b} should be apart" for a, b in not_merge if together(a, b)])
@@ -261,7 +282,7 @@ def check_must_pairs(infer, records, params, merge=(), not_merge=()):
 
 def outcome_series(infer, make_records, params, values, observe):
     """Directional helper for one time parameter: run `make_records(v)` for each v and collect observe(result)."""
-    return [observe(infer(make_records(v), params)) for v in values]
+    return [observe(run(infer, make_records(v), params)) for v in values]
 
 
 def check_directional(series, expected):

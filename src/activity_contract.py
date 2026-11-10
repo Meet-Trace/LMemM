@@ -10,6 +10,9 @@ contract can be tested against trivial stand-ins first.
               `assigned` visits appear in predictions; the other three are scored as singletons (13.7).
     activity id   "act-" + hash(earliest FINAL member visit_id), earliest by (t_start, visit_id) (13.1)
 
+Interface. The inference is `infer(prepared, params) -> result`, where `prepared` is activity_input.Prepared (records
+validated, de-duplicated and canonically ordered). `replay(infer, records, params)` is the records-in entry point.
+
 Parameters. Every parameter in seconds is declared in ASSIGNMENT_TIME or REPORTING_TIME. `ReplayParams.scaled(k)`
 multiplies all of them, which is what the joint-scaling invariant needs, and `undeclared_time_params()` is the
 check that no seconds-valued field was added without being declared (13.2).
@@ -35,6 +38,16 @@ def activity_id(earliest_visit_id):
 def earliest_member(starts, members):
     """The member with the smallest (t_start, visit_id). `starts` maps visit_id -> t_start."""
     return min(members, key=lambda v: (starts[v], v))
+
+
+# ---------------------------------------------------------------- the interface
+
+def replay(infer, records, params, **prepare_kw):
+    """The public entry: moment records in, result out. `infer(prepared, params)` is the inference proper and receives
+    input that activity_input.prepare has already validated, ordered and de-duplicated (design 14.9)."""
+    import activity_input
+    prepared = activity_input.prepare(records, max_intra_visit_gap_s=params.max_intra_visit_gap_s, **prepare_kw)
+    return infer(prepared, params)
 
 
 # ---------------------------------------------------------------- parameters

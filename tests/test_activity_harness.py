@@ -34,14 +34,15 @@ class EveryBadStubIsCaught(unittest.TestCase):
         self.assertTrue(hn.check_joint_scaling(st.hardcoded_gap_infer, recs, P))
 
     def test_time_of_day_breaks_translation(self):
-        base = hn.translate(fx.continuous_multiapp().records, 3.9 * 3600 - 2)       # starts just before noon UTC
+        base = fx.continuous_multiapp(t0=fx.T0 + 4 * 3600 - 150).records           # starts 11:57:30 UTC, crosses noon
         self.assertEqual(hn.check_translation(st.sittings_infer, base, P), [])
         self.assertTrue(hn.check_translation(st.time_of_day_infer, base, P))
 
-    def test_record_order_breaks_order_invariance(self):
+    def test_duplicate_sensitivity_breaks_duplicate_invariance(self):
         recs = fx.two_in_one_app().records
         self.assertEqual(hn.check_order_and_duplicates(st.sittings_infer, recs, P), [])
-        self.assertTrue(hn.check_order_and_duplicates(st.order_dependent_infer, recs, P))
+        bad = hn.check_order_and_duplicates(st.duplicate_leak_infer, recs, P)
+        self.assertTrue(any("duplicate" in b for b in bad))
 
     def test_counter_ids_break_the_id_rules(self):
         recs = fx.two_in_one_app().records
@@ -56,7 +57,7 @@ class EveryBadStubIsCaught(unittest.TestCase):
     def test_leaking_between_runs_breaks_forget(self):
         f = fx.two_in_one_app()
         st._MEMORY.clear()
-        st.leaky_infer(f.records, P)                                   # an earlier run saw everything
+        hn.run(st.leaky_infer, f.records, P)                           # an earlier run saw everything
         gone = f.visit_ids()[:2]
         self.assertEqual(hn.check_forget(st.sittings_infer, f.records, P, gone), [])
         self.assertTrue(hn.check_forget(st.leaky_infer, f.records, P, gone))
@@ -84,9 +85,8 @@ class EveryBadStubIsCaught(unittest.TestCase):
         self.assertEqual(hn.check_determinism(st.sittings_infer, recs, P), [])
 
     def test_app_names_matter_to_a_stub_that_uses_them(self):
-        def uses_app(records, params):
-            import activity_input as ai
-            p = ai.prepare(records)
+        def uses_app(prepared, params):
+            p = prepared
             by = {}
             for v in p.visits:
                 by.setdefault(v.moments[0]["app"] == "Google Chrome", []).append(v.visit_id)
@@ -121,9 +121,10 @@ class TransformTests(unittest.TestCase):
         import activity_input as ai
         recs = fx.continuous_multiapp().records
         snap = [dict(r) for r in recs]
-        for out in (hn.translate(recs, 100.0), hn.scale(recs, 4), hn.rename_apps(recs, 1), hn.shuffled(recs, 1),
-                    hn.with_duplicates(recs, 1)):
+        for out in (hn.rename_apps(recs, 1), hn.shuffled(recs, 1), hn.with_duplicates(recs, 1)):
             ai.prepare(out)
+        for out in (hn.translate(recs, 100.0), hn.translate(recs, -5.0e6), hn.scale(recs, 4), hn.scale(recs, 0.5)):
+            ai.prepare(out, check_capture_clock=False)
         self.assertEqual([dict(r) for r in recs], snap)
 
     def test_scale_multiplies_durations_and_translate_does_not(self):

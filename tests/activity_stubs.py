@@ -5,7 +5,6 @@ result contract; the bad ones each break exactly one invariant on purpose, so th
 """
 
 import activity_contract as ac
-import activity_input as ai
 
 _MEMORY = []          # shared state used by the leaky stub
 _CALLS = []           # and by the hidden-state stub
@@ -42,22 +41,22 @@ def _sittings(visits, gap):
     return groups
 
 
-def sittings_infer(records, params):
-    p = ai.prepare(records)
+def sittings_infer(prepared, params):
+    p = prepared
     return _build(p, _sittings(p.visits, params.t_resume_s))
 
 
-def item_infer(records, params):
-    p = ai.prepare(records)
+def item_infer(prepared, params):
+    p = prepared
     by = {}
     for v in p.visits:
         by.setdefault(v.item_id, []).append(v.visit_id)
     return _build(p, [by[k] for k in sorted(by)])
 
 
-def abstaining_infer(records, params):
+def abstaining_infer(prepared, params):
     """Sittings, but glances abstain and visits whose first and last moment share no word are flagged internal_shift."""
-    p = ai.prepare(records)
+    p = prepared
     glance = {v.visit_id for v in p.visits if v.dwell_s < params.glance_dwell_s}
     flags = {}
     for v in p.visits:
@@ -72,31 +71,31 @@ def abstaining_infer(records, params):
 
 # ---------------------------------------------------------------- deliberately broken
 
-def hardcoded_gap_infer(records, params):
+def hardcoded_gap_infer(prepared, params):
     """Breaks joint scaling: the sitting gap is a constant, not a parameter."""
-    p = ai.prepare(records)
+    p = prepared
     return _build(p, _sittings(p.visits, 900.0))
 
 
-def time_of_day_infer(records, params):
+def time_of_day_infer(prepared, params):
     """Breaks translation: depends on the time of day."""
-    p = ai.prepare(records)
+    p = prepared
     am = [v.visit_id for v in p.visits if int(v.t_start) % 86400 < 43200]
     pm = [v.visit_id for v in p.visits if int(v.t_start) % 86400 >= 43200]
     return _build(p, [g for g in (am, pm) if g])
 
 
-def order_dependent_infer(records, params):
-    """Breaks order invariance: the first record decides which visit gets its own group."""
-    p = ai.prepare(list(records))
-    first = records[0]["visit_id"]
-    rest = [v.visit_id for v in p.visits if v.visit_id != first]
-    return _build(p, [[first]] + ([rest] if rest else []))
+def duplicate_leak_infer(prepared, params):
+    """Breaks duplicate invariance: the number of duplicate records dropped at load changes the grouping."""
+    p = prepared
+    if p.report["duplicates_dropped"]:
+        return _build(p, [[v.visit_id] for v in p.visits])
+    return _build(p, _sittings(p.visits, params.t_resume_s))
 
 
-def counter_id_infer(records, params):
+def counter_id_infer(prepared, params):
     """Breaks id rules: ids come from a counter, not the earliest member."""
-    p = ai.prepare(records)
+    p = prepared
     res = _build(p, [[v.visit_id] for v in p.visits])
     ids = {}
     for i, a in enumerate(res["activities"]):
@@ -107,46 +106,46 @@ def counter_id_infer(records, params):
     return res
 
 
-def status_leak_infer(records, params):
+def status_leak_infer(prepared, params):
     """Breaks status independence: a reporting horizon sets the sitting gap."""
-    p = ai.prepare(records)
+    p = prepared
     return _build(p, _sittings(p.visits, params.status_active_s))
 
 
-def leaky_infer(records, params):
+def leaky_infer(prepared, params):
     """Breaks forgetting: remembers earlier inputs between runs and mentions them."""
-    p = ai.prepare(records)
+    p = prepared
     res = _build(p, _sittings(p.visits, params.t_resume_s))
     _MEMORY.extend(v.visit_id for v in p.visits)
     res["relations"] = {"seen_before": sorted(set(_MEMORY))}
     return res
 
 
-def typed_infer(records, params):
+def typed_infer(prepared, params):
     """Breaks the no-typed-text rule: the output carries a typed field."""
-    p = ai.prepare(records)
+    p = prepared
     res = _build(p, _sittings(p.visits, params.t_resume_s))
     res["visits"][0]["typed_text"] = "x"
     return res
 
 
-def partial_infer(records, params):
+def partial_infer(prepared, params):
     """Breaks totality: drops the last visit from the output."""
-    res = sittings_infer(records, params)
+    res = sittings_infer(prepared, params)
     res["visits"] = res["visits"][:-1]
     return res
 
 
-def tentative_leak_infer(records, params):
+def tentative_leak_infer(prepared, params):
     """Breaks 'only assigned is predicted': a tentative visit still carries an activity id."""
-    res = sittings_infer(records, params)
+    res = sittings_infer(prepared, params)
     res["visits"][0].update(state=ac.TENTATIVE, reason="artifact_only")
     return res
 
 
-def hidden_state_infer(records, params):
+def hidden_state_infer(prepared, params):
     """Keeps a call counter: the same input gives different answers on successive calls (breaks determinism)."""
-    p = ai.prepare(records)
+    p = prepared
     _CALLS.append(1)
     if len(_CALLS) % 2:
         return _build(p, _sittings(p.visits, params.t_resume_s))

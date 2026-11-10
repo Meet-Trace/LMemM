@@ -112,6 +112,117 @@ class LoadTests(unittest.TestCase):
         self.assertNotIn("v1-1.0", [x["id"] for x in p.records])
 
 
+def retimed_ids(records, newid):
+    """Rename one visit id everywhere it appears (id, visit_id, same_item_before, prev_moment_id)."""
+    out = json.loads(json.dumps(records).replace(newid[0], newid[1]))
+    return out
+
+
+class VisitIdClockTests(unittest.TestCase):
+    """V4: an id is an immutable label written at capture time; it is checked against its own history, never against
+    time that a test has moved on purpose."""
+
+    def setUp(self):
+        self.recs = recs("continuous_multiapp")
+
+    def test_capture_data_passes_with_full_checks(self):
+        ai.prepare(self.recs)
+
+    def test_translated_and_scaled_data_is_valid_without_the_capture_clock_part(self):
+        for out in (hn.translate(self.recs, 1234.5), hn.translate(self.recs, -9.0e6), hn.scale(self.recs, 8), hn.scale(self.recs, 0.5)):
+            p = ai.prepare(out, check_capture_clock=False, max_intra_visit_gap_s=2400)
+            self.assertEqual(len(p.visits), 12)
+            self.assertEqual([v.visit_id for v in p.visits], [v.visit_id for v in ai.prepare(self.recs).visits])   # ids untouched
+
+    def test_the_same_translated_data_is_refused_by_the_capture_clock_part(self):
+        with self.assertRaises(ai.VisitIntegrityError) as cm:
+            ai.prepare(hn.translate(self.recs, 1234.5))
+        self.assertTrue(all(p.startswith("V4") for p in cm.exception.problems))
+
+    def test_relative_rules_still_apply_to_retimed_data(self):
+        moved = hn.translate(self.recs, 5000.0)
+        ids = [r["visit_id"] for r in moved if r["seq"] == 0]
+        a, b = ids[0], ids[1]
+        swapped = json.loads(json.dumps(moved).replace(a, "TMPA").replace(b, a).replace("TMPA", b))
+        with self.assertRaises(ai.VisitIntegrityError) as cm:
+            ai.prepare(swapped, check_capture_clock=False)
+        self.assertTrue(any("id_order_conflicts_with_start_order" in p for p in cm.exception.problems))
+        zero = json.loads(json.dumps(moved).replace(a, a.rsplit("-", 1)[0] + "-0"))
+        with self.assertRaises(ai.VisitIntegrityError) as cm:
+            ai.prepare(zero, check_capture_clock=False)
+        self.assertTrue(any("counter_below_one" in p for p in cm.exception.problems))
+
+    def test_malformed_ids_are_refused_in_every_mode(self):
+        first = self.recs[0]["visit_id"]
+        bad = json.loads(json.dumps(self.recs).replace(first, "not-a-visit"))
+        for mode in (True, False):
+            with self.assertRaises(ai.VisitIntegrityError) as cm:
+                ai.prepare(bad, check_capture_clock=mode)
+            self.assertTrue(any("id_format" in p for p in cm.exception.problems))
+
+    def test_absolute_part_equality_for_complete_visits_and_bound_for_truncated_ones(self):
+        r = recs("internal_shift")
+        vid = r[0]["visit_id"]
+        sec = int(vid[1:].split("-")[0])
+        early = json.loads(json.dumps(r).replace(vid, f"v{sec - 5}-{vid.rsplit('-', 1)[1]}"))
+        with self.assertRaises(ai.VisitIntegrityError) as cm:                  # complete visit: an earlier second is also wrong
+            ai.prepare(early)
+        self.assertTrue(any("id_second_differs_from_first_moment" in p for p in cm.exception.problems))
+        ai.prepare(early, check_capture_clock=False)                            # the relative rules alone accept it
+        cut = [x for x in early if not x["id"].endswith(".0") or x["visit_id"] != f"v{sec - 5}-{vid.rsplit('-', 1)[1]}"]
+        ai.prepare(cut)                                                         # first moment dropped: second <= int(t_start) holds
+        late = json.loads(json.dumps(cut).replace(f"v{sec - 5}-", f"v{sec + 900}-"))
+        with self.assertRaises(ai.VisitIntegrityError) as cm:
+            ai.prepare(late)
+        self.assertTrue(any("id_second_after_first_remaining_moment" in p for p in cm.exception.problems))
+
+    def test_relative_v4_limitations(self):
+        """What the relative check does not catch, stated as a test so the guarantee is explicit."""
+        b = fx.Builder(3)
+        item = fx.code("a.py")
+        v1 = b.visit(item, b.part("budget", 0.3), {"x"}, gap=0.0)
+        v2 = b.visit(fx.code("b.py"), b.part("budget", 0.3), {"x"}, gap=0.2)
+        v3 = b.visit(fx.code("c.py"), b.part("budget", 0.3), {"x"}, gap=2.0)       # a later second
+        records = b.records
+        self.assertEqual(v1.split("-")[0], v2.split("-")[0])                         # v1 and v2 start in the same second
+        self.assertNotEqual(v2.split("-")[0], v3.split("-")[0])
+        ai.prepare(records)
+        # 1. counters swapped between two visits that start in the same second: accepted, in both modes
+        swapped = json.loads(json.dumps(records).replace(v1, "TMP").replace(v2, v1).replace("TMP", v2))
+        for mode in (True, False):
+            ai.prepare(swapped, check_capture_clock=mode)
+        # 2. ids all shifted together by a constant: the relative check accepts, the absolute check refuses
+        shifted = json.loads(json.dumps(records).replace(v1.split("-")[0], "v" + str(int(v1.split("-")[0][1:]) + 40)))
+        shifted = json.loads(json.dumps(shifted).replace(v2.split("-")[0], "v" + str(int(v2.split("-")[0][1:]) + 40)))
+        shifted = json.loads(json.dumps(shifted).replace(v3.split("-")[0], "v" + str(int(v3.split("-")[0][1:]) + 40)))
+        ai.prepare(shifted, check_capture_clock=False)
+        with self.assertRaises(ai.VisitIntegrityError):
+            ai.prepare(shifted)
+        # 3. ids exchanged across seconds ARE caught by the relative check alone
+        across = json.loads(json.dumps(records).replace(v1, "TMP").replace(v3, v1).replace("TMP", v3))
+        with self.assertRaises(ai.VisitIntegrityError) as cm:
+            ai.prepare(across, check_capture_clock=False)
+        self.assertTrue(any("id_order_conflicts_with_start_order" in p for p in cm.exception.problems))
+        # 4. a visit whose first moment was dropped takes no part in the relative comparison
+        r = recs("internal_shift")
+        vid = r[0]["visit_id"]
+        cut = [x for x in r if x["id"] != vid + ".0"]
+        wrong = json.loads(json.dumps(cut).replace(vid, "v1-" + vid.rsplit("-", 1)[1]))
+        ai.prepare(wrong, check_capture_clock=False)                                  # accepted when the absolute part is off
+        # the absolute check is the primary protection when the first moment is present
+        with self.assertRaises(ai.VisitIntegrityError):
+            ai.prepare(json.loads(json.dumps(records).replace(v3, "v" + str(int(v3.split("-")[0][1:]) - 3) + "-" + v3.split("-")[1])))
+
+    def test_activity_ids_and_member_mappings_survive_retiming(self):
+        import activity_contract as ac
+        import activity_stubs as st
+        P = ac.ReplayParams()
+        base = hn.run(st.sittings_infer, self.recs, P)
+        for out, params in ((hn.translate(self.recs, 777.0), P), (hn.translate(self.recs, -9.0e6), P), (hn.scale(self.recs, 2), P.scaled(2))):
+            other = hn.run(st.sittings_infer, out, params, capture_clock=False)
+            self.assertEqual({a["id"]: a["members"] for a in other["activities"]}, {a["id"]: a["members"] for a in base["activities"]})
+
+
 class VisitIntegrityTests(unittest.TestCase):
     def two_moment_visit(self):
         r = copy.deepcopy(fx.internal_shift().records)

@@ -6,6 +6,27 @@ import activity_fixtures as fx
 import activity_input as ai
 
 
+class ReplayEntryTests(unittest.TestCase):
+    def test_records_in_prepared_to_inference_and_validation_runs_once_first(self):
+        import activity_stubs as st
+        recs = fx.two_in_one_app().records
+        res = ac.replay(st.sittings_infer, recs, ac.ReplayParams())
+        self.assertEqual(ac.validate_result(res, {v.visit_id: v.t_start for v in ai.prepare(recs).visits}), [])
+        seen = []
+        ac.replay(lambda prepared, params: seen.append(type(prepared).__name__) or {"visits": [], "activities": []}, recs, ac.ReplayParams())
+        self.assertEqual(seen, ["Prepared"])
+        bad = [dict(r) for r in recs]
+        bad[0]["id"] = "broken"
+        with self.assertRaises(ai.ActivityInputError):
+            ac.replay(st.sittings_infer, bad, ac.ReplayParams())                  # the inference is never reached
+
+    def test_the_absolute_check_stays_on_by_default(self):
+        import activity_harness as hn
+        import activity_stubs as st
+        with self.assertRaises(ai.VisitIntegrityError):
+            ac.replay(st.sittings_infer, hn.translate(fx.two_in_one_app().records, 99.0), ac.ReplayParams())
+
+
 class IdTests(unittest.TestCase):
     def test_id_is_a_hash_of_the_earliest_member_only(self):
         starts = {"v1-1": 10.0, "v2-2": 5.0, "v3-3": 7.0}

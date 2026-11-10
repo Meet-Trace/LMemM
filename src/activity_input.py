@@ -20,7 +20,23 @@ Visit checks:
     V2  each id is <visit_id>.<seq>; seq values are unique integers forming one contiguous range. The range may
         start above 0 (retention drops the oldest moments) and may end early (partial forget drops the newest).
     V3  t_start <= t_end, moments do not overlap, and no gap inside the visit exceeds max_intra_visit_gap_s
-    V4  the whole second in a visit id (<prefix><second>-<n>) is not later than the earliest remaining moment
+    V4  visit-id coherence. A visit id (<prefix><second>-<n>) is written once, when the visit is created, from the
+        capture clock (moments.py: f"{prefix}{int(t)}-{n}", t = the visit's first frame = its first moment's t_start),
+        and is never rewritten, so it is an immutable label. Two parts:
+        ABSOLUTE, the primary check, ON BY DEFAULT (check_capture_clock=True): a visit that still has its first
+        moment has int(t_start) == its embedded second; a visit whose oldest moments were dropped has an embedded
+        second no later than int(t_start) of its first remaining moment. This validates data as the capture clock
+        wrote it. It is switched off only for records a test has deliberately re-timed (the invariant harness).
+        RELATIVE, always on, unchanged by translating or scaling time. What it guarantees, and nothing more:
+          - the id has the form <prefix><second>-<n> and n >= 1;
+          - among visits that still have their first moment and share a prefix, if one starts strictly later (beyond
+            1 ms) than another, its embedded second is not smaller.
+        What it does NOT guarantee. It does not detect: counter suffixes swapped between visits that start in the same
+        second; ids exchanged between visits whose seconds are equal or whose order stays consistent; ids that were
+        all shifted together; foreign ids whose seconds happen to fit; anything about visits whose first moment was
+        dropped (they take no part in the relative comparison); or a duplicate counter across tracker restarts
+        (that shows up as a conflicting id or as V1). With the absolute check off, a relabelling that keeps the
+        start order is accepted. test_relative_v4_limitations pins these limits.
     V5  for seq > 0, prev_moment_id is the previous moment's id when that moment is present, and
         same_item_before is identical across the visit and never points at the visit itself
 """
@@ -128,7 +144,7 @@ def parse_lines(lines, source="", strict=False, report=None):
 
 def new_report():
     return {"files": 0, "records_read": 0, "malformed_lines": 0, "duplicates_dropped": 0, "outside_window": 0,
-            "records": 0, "visits": 0, "truncated_visits": [], "nonstandard_visit_ids": 0}
+            "records": 0, "visits": 0, "truncated_visits": []}
 
 
 def read_folder(directory, strict=False, report=None):
@@ -216,10 +232,6 @@ def _visit_problems(vid, recs, max_gap):
     for r in by_seq:
         if r["t_end"] < r["t_start"] - TOL:
             out.append(f"V3 {vid} negative_duration moment={r['id']}")
-    # V4
-    m = VISIT_ID_RE.match(vid)
-    if m and by_seq and int(m.group("second")) > int(min(r["t_start"] for r in by_seq)) + 1:
-        out.append(f"V4 {vid} id_second_after_first_moment moment={by_seq[0]['id']}")
     # V5
     sibs = {json.dumps((r.get("context") or {}).get("same_item_before"), sort_keys=True) for r in by_seq}
     if len(sibs) > 1:
@@ -232,6 +244,35 @@ def _visit_problems(vid, recs, max_gap):
         sib = ctx.get("same_item_before")
         if isinstance(sib, dict) and sib.get("visit_id") == vid:
             out.append(f"V5 {vid} same_item_before_points_at_itself moment={r['id']}")
+    return out
+
+
+def _clock_problems(groups, absolute):
+    """V4 across visits. Relative part always; absolute part only when `absolute` (see the module docstring)."""
+    out, rows = [], {}
+    for vid, ms in groups.items():
+        m = VISIT_ID_RE.match(vid)
+        if not m:
+            out.append(f"V4 {vid} id_format")            # moments.py cannot produce an id without <second>-<counter>
+            continue
+        second, n = int(m.group("second")), int(m.group("n"))
+        first = min(ms, key=lambda r: r["seq"])
+        complete = first["seq"] == 0
+        if n < 1:
+            out.append(f"V4 {vid} counter_below_one")
+        if absolute:
+            floor = int(first["t_start"] // 1)
+            if complete and second != floor:
+                out.append(f"V4 {vid} id_second_differs_from_first_moment moment={first['id']}")
+            elif not complete and second > floor:
+                out.append(f"V4 {vid} id_second_after_first_remaining_moment moment={first['id']}")
+        if complete:
+            rows.setdefault(m.group("prefix"), []).append((first["t_start"], second, vid))
+    for prefix, items in sorted(rows.items()):
+        items.sort()
+        for (ta, sa, va), (tb, sb, vb) in zip(items, items[1:]):
+            if sb < sa and tb > ta + TOL:
+                out.append(f"V4 {va},{vb} id_order_conflicts_with_start_order")
     return out
 
 
@@ -266,8 +307,10 @@ class Prepared:
         return next((v for v in self.visits if v.visit_id == visit_id), None)
 
 
-def prepare(records, retention_hours=RETENTION_HOURS, max_intra_visit_gap_s=MAX_INTRA_VISIT_GAP_S, report=None):
-    """Raw record dicts -> Prepared, or an ActivityInputError (exit code 3). Pure: no I/O, no clock."""
+def prepare(records, retention_hours=RETENTION_HOURS, max_intra_visit_gap_s=MAX_INTRA_VISIT_GAP_S, report=None,
+            check_capture_clock=True):
+    """Raw record dicts -> Prepared, or an ActivityInputError (exit code 3). Pure: no I/O, no clock.
+    check_capture_clock=False skips only the ABSOLUTE part of V4, for data a test has re-timed (see V4 above)."""
     report = report if report is not None else new_report()
     report["records_read"] += len(records)
     problems = []
@@ -301,6 +344,7 @@ def prepare(records, retention_hours=RETENTION_HOURS, max_intra_visit_gap_s=MAX_
     bad = []
     for vid in sorted(groups):
         bad += _visit_problems(vid, groups[vid], max_intra_visit_gap_s)
+    bad += _clock_problems(groups, check_capture_clock)
     if bad:
         raise VisitIntegrityError(bad)
 
@@ -310,8 +354,6 @@ def prepare(records, retention_hours=RETENTION_HOURS, max_intra_visit_gap_s=MAX_
         visits.append(Visit(vid, ms, ms[0].get("item_id")))
         if ms[0]["seq"] > 0:
             report["truncated_visits"].append(vid)
-        if not VISIT_ID_RE.match(vid):
-            report["nonstandard_visit_ids"] += 1
     visits.sort(key=lambda v: (v.t_start, v.visit_id))
     report["truncated_visits"].sort()
     report["records"], report["visits"] = len(recs), len(visits)

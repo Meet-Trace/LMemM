@@ -235,6 +235,107 @@ class BufferTests(unittest.TestCase):
         self.assertEqual(len(b.recent), 1)
 
 
+HOUR = 3600.0
+
+
+class VisitMemoryTests(unittest.TestCase):
+    """_last_visit is bounded: it follows the store's 48 h retention and has a hard cap. Controlled timestamps only."""
+
+    def buf(self, **kw):
+        return MomentBuffer(visit_retention_s=48 * HOUR, **kw)
+
+    def test_return_within_retention_keeps_its_link(self):
+        b = self.buf()
+        feed(b, T0, "A")
+        first_visit = b.open.visit_id
+        feed(b, T0 + 30, "B", text=OTHER)
+        feed(b, T0 + 47 * HOUR, "A")
+        b.close()
+        last = list(b.recent)[-1]
+        self.assertEqual(last.item_id, "A")
+        self.assertEqual(last.context["same_item_before"]["visit_id"], first_visit)
+
+    def test_old_item_is_pruned_and_a_return_has_no_stale_link(self):
+        b = self.buf()
+        feed(b, T0, "A")
+        feed(b, T0 + 30, "B", text=OTHER)
+        feed(b, T0 + 49 * HOUR, "C", text="Gardening notes about tomatoes and compost heaps")   # frames keep arriving
+        self.assertNotIn("A", b._last_visit)
+        self.assertNotIn("B", b._last_visit)
+        feed(b, T0 + 49 * HOUR + 40, "A")
+        b.close()
+        a_again = [m for m in b.recent if m.item_id == "A"][-1]
+        self.assertIsNone(a_again.context["same_item_before"])
+        self.assertEqual(b._last_visit["A"]["visits"], 1)               # counted afresh, not 2
+
+    def test_no_stale_link_even_between_prunes(self):
+        b = self.buf()
+        feed(b, T0, "A")
+        feed(b, T0 + 30, "B", text=OTHER)
+        b._next_prune = float("inf")                                    # no sweep has run
+        feed(b, T0 + 49 * HOUR, "A")
+        b.close()
+        self.assertIsNone([m for m in b.recent if m.item_id == "A"][-1].context["same_item_before"])
+
+    def test_pruning_one_item_leaves_the_others_links(self):
+        b = self.buf()
+        feed(b, T0, "old", text="Ancient archive notes about forgotten projects")
+        feed(b, T0 + 40 * HOUR, "fresh", text=OTHER)
+        feed(b, T0 + 40 * HOUR + 30, "mid", text=DOC)
+        feed(b, T0 + 50 * HOUR, "x", text="Gardening notes about tomatoes and compost heaps")
+        self.assertEqual(sorted(b._last_visit), ["fresh", "mid", "x"])   # only "old" aged out
+        feed(b, T0 + 50 * HOUR + 40, "fresh", text=OTHER)
+        b.close()
+        again = [m for m in b.recent if m.item_id == "fresh"][-1]
+        self.assertIsNotNone(again.context["same_item_before"])
+        self.assertEqual(again.context["same_item_before"]["visits_before"], 1)
+
+    def test_pruning_runs_in_maintenance_without_frames(self):
+        b = self.buf()
+        feed(b, T0, "A")
+        feed(b, T0 + 30, "B", text=OTHER)
+        b.interrupt()                                                    # paused: no frames arrive
+        b.idle_flush(T0 + 60 * HOUR)                                     # the retention sweep's call
+        self.assertEqual(b._last_visit, {})
+
+    def test_pruning_follows_the_stores_retention_window(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = moment_store.Recorder(moment_store.MomentStore(os.path.join(d, "m"), retention_hours=10))
+            self.assertEqual(r.buffer.visit_retention_s, 10 * HOUR)
+            feed(r.buffer, T0, "A")
+            feed(r.buffer, T0 + 30, "B", text=OTHER)
+            r.sweep(T0 + 11 * HOUR)
+            self.assertEqual(r.store.read(), [])                         # records gone ...
+            self.assertEqual(r.buffer._last_visit, {})                   # ... and the return links with them
+
+    def test_hard_cap_drops_the_oldest_first(self):
+        b = self.buf(max_visits=5)
+        for i in range(12):
+            feed(b, T0 + i * 100, f"i{i}", text=f"Distinct words number{i} alphabetically unique{i}")
+            b._prune_visits(T0 + i * 100, force=True)
+        self.assertLessEqual(len(b._last_visit), 6)                      # the open item is exempt
+        self.assertIn("i11", b._last_visit)
+        self.assertNotIn("i0", b._last_visit)
+
+    def test_open_visit_is_never_pruned(self):
+        b = self.buf()
+        feed(b, T0, "A")
+        b._prune_visits(T0 + 100 * HOUR, force=True)
+        self.assertIn("A", b._last_visit)
+
+    def test_forget_and_interrupt_still_work_with_pruning(self):
+        b = self.buf()
+        feed(b, T0, "A")
+        feed(b, T0 + 30, "B", text=OTHER)
+        self.assertEqual(b.forget(app=None), 2)
+        self.assertEqual(b._last_visit, {})
+        feed(b, T0 + 60, "A")
+        b.interrupt()
+        feed(b, T0 + 70, "A")
+        b.close()
+        self.assertEqual(list(b.recent)[-1].context["same_item_before"]["visits_before"], 1)
+
+
 class StoreTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

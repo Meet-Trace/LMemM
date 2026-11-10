@@ -145,7 +145,8 @@ class Recorder:
         self.buffer = moments.MomentBuffer(
             sink=self.store.append, visit_gap=config.MOMENT_VISIT_GAP, min_category_s=config.MOMENT_MIN_CATEGORY_S,
             max_moment_s=config.MOMENT_MAX_S, new_terms=config.MOMENT_NEW_TERMS, window_s=config.MOMENT_WINDOW_S,
-            max_moments=config.MOMENT_MAX, keep_lines=config.MOMENT_KEEP_LINES)
+            max_moments=config.MOMENT_MAX, keep_lines=config.MOMENT_KEEP_LINES,
+            visit_retention_s=self.store.retention)           # one retention window for records and for return links
 
     def frame(self, now, item_id, meta, st, ref, act, dt, content, pinned):
         """One resolved frame, read-only: what the tracker already knows about it."""

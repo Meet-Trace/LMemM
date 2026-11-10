@@ -20,6 +20,9 @@ One record per stretch of a visit in which nothing material changed (`src/moment
 - Calibration (ECE) is implemented for later PRs. Objective accuracy, boundary error and evidence reconstruction need inference output and arrive with it.
 Baselines (structure only): each visit, each item, sittings (300 s), each app, whole session, and an absorb-short-visits rule marked reference only.
 
+## Visit memory
+The buffer remembers each item's last visit only to link a return. That memory follows the store's retention window (the recorder passes the store's value, 48 h by default): entries whose last frame is older are pruned on every frame (at most once a minute) and by the retention sweep, and a return is never linked to a visit older than the window, even between prunes. A hard cap of 5,000 items (about 1 MB) guards against a stream of distinct items and drops the longest-unseen first; it only loses a "been here before" link. The open item is never pruned.
+
 ## Text hygiene
 Terms are words only (no digits inside, at most 20 letters). A line holding a long unbroken run that mixes letters and digits, or flips case repeatedly, is dropped whole, because OCR garbles keys so that exact secret patterns stop matching. A text change counts only when at least 60% of the moment's known words are still present: re-reading a static page with a different OCR pass garbles the same pixels the same way every frame, so repetition alone does not prove a change. These are heuristics, checked live on TextEdit only.
 

@@ -31,6 +31,11 @@ import trail_engine
 SCHEMA = 1
 TERM_RE = re.compile(r"[A-Za-z][A-Za-z'’-]{3,19}(?![A-Za-z0-9'’-])")   # words only: no digits inside, at most 20 letters
 LONG_RUN = re.compile(r"[\w-]{20,}")
+# Hard cap on remembered items (one small dict each, about 1 MB in all). The 48 h retention is the real bound; the cap
+# only protects against a pathological stream of distinct items (a crawler-like page that changes URL every frame).
+# When it bites, the items last seen longest ago go first: only their "you were here before" link is lost.
+MAX_VISITS = 5000
+PRUNE_EVERY = 60.0          # seconds between sweeps of the visit memory while frames arrive
 KEEP_OVERLAP = 0.6          # a text change only counts when this share of the moment's known words is still there
 IDENT_RE = re.compile(
     r"(?:[\w.-]+/)+[\w.-]+\.\w{1,6}\b"                 # a path with a file name
@@ -158,10 +163,13 @@ class MomentBuffer:
     (called with each CLOSED moment). The open moment is closed on a visit change, `close()`, or `idle_flush`."""
 
     def __init__(self, sink=None, visit_gap=90.0, min_category_s=10.0, max_moment_s=300.0,
-                 new_terms=3, window_s=1800.0, max_moments=400, keep_lines=True, clock_id=None):
+                 new_terms=3, window_s=1800.0, max_moments=400, keep_lines=True, clock_id=None,
+                 visit_retention_s=48 * 3600.0, max_visits=MAX_VISITS):
         self.sink = sink
         self.visit_gap, self.min_category_s, self.max_moment_s = visit_gap, min_category_s, max_moment_s
         self.new_terms, self.window_s = new_terms, window_s
+        self.visit_retention_s, self.max_visits = visit_retention_s, max_visits   # the store's retention; see _prune_visits
+        self._next_prune = 0.0
         self.keep_lines = keep_lines
         self.recent = deque(maxlen=max_moments)         # closed moments, oldest first
         self.lock = threading.RLock()
@@ -224,6 +232,7 @@ class MomentBuffer:
                     self._extend(o, t, category, dt, dg, kept_t, kept_i, settled=not self._pending[0] and not self._pending[1])
             self._last_t = t
             self._trim(t)
+            self._prune_visits(t)
         return closed
 
     def close(self):
@@ -280,9 +289,11 @@ class MomentBuffer:
     def idle_flush(self, now):
         """No frame for longer than `visit_gap`: the visit is over; close its moment."""
         with self.lock:
+            out = []
             if self.open is not None and self._last_t is not None and now - self._last_t > self.visit_gap:
-                return self.close()
-        return []
+                out = self.close()
+            self._prune_visits(now, force=True)  # also while nothing is arriving (pause, idle): the sweep calls this
+            return out
 
     # ------------------------------------------------------------ views
 
@@ -305,6 +316,8 @@ class MomentBuffer:
         self._visit_n += 1
         visit_id = f"{self._clock_id}{int(t)}-{self._visit_n}"
         before = self._last_visit.get(item_id)
+        if before and t - before["ended_at"] > self.visit_retention_s:
+            before = None                    # expired from the store as well: no link to something that is gone
         same = None
         if before:
             same = {"visit_id": before["visit_id"], "ended_at": before["ended_at"],
@@ -379,6 +392,25 @@ class MomentBuffer:
             except Exception:           # a full disk must never stop the tracker
                 pass
         return m
+
+    def _prune_visits(self, now, force=False):
+        """Forget items last seen longer ago than the store keeps records (same rule as MomentStore.sweep: a visit is
+        kept while its last frame is within the retention window), then enforce the hard cap, oldest first. Runs at most
+        every PRUNE_EVERY seconds unless forced. The visit still open is never pruned."""
+        if not force and now < self._next_prune:
+            return 0
+        self._next_prune = now + PRUNE_EVERY
+        live = self.open.item_id if self.open else None
+        cutoff = now - self.visit_retention_s
+        old = [k for k, v in self._last_visit.items() if v["ended_at"] < cutoff and k != live]
+        for k in old:
+            del self._last_visit[k]
+        extra = len(self._last_visit) - self.max_visits
+        if extra > 0:
+            for k in sorted((k for k in self._last_visit if k != live), key=lambda k: self._last_visit[k]["ended_at"])[:extra]:
+                del self._last_visit[k]
+                old.append(k)
+        return len(old)
 
     def _trim(self, now):
         while self.recent and now - self.recent[0].t_end > self.window_s:

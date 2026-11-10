@@ -20,24 +20,24 @@ FOCUS = {"morning": (0.42, 0.41), "afternoon": (0.36, 0.50), "evening": (0.28, 0
 
 # A graphite wash over each picture so the light text and cards stay readable: opacity of black, 0..1. The
 # morning and evening pictures are pale, so they get the most; night is dark already. A guess to tune by eye.
-SCRIM = {"morning": 0.58, "afternoon": 0.30, "evening": 0.45, "night": 0.0}
+SCRIM = {"morning": 0.62, "afternoon": 0.50, "evening": 0.52, "night": 0.58}
 
 # The light fields: (x, y, size, (r, g, b), strength, drift_x, drift_y, drift_phase, pulse_phase). x, y are the
 # centre as a fraction of the window; size is a fraction of its longer side; strength is the peak opacity of a
-# soft radial glow (kept faint: the artwork already carries the light); drift is how far the field wanders, as a
-# fraction of the longer side; the phases (0..1) keep the fields out of step. Colours stay in the blue-indigo-violet family.
+# soft radial glow, tinted from that picture's own light so it reads as the same light moving; drift is how far the field wanders, as a
+# fraction of the longer side; the phases (0..1) keep the fields out of step. 
 LIGHTS = {
-    "morning": ((0.70, 0.22, 0.60, (0.62, 0.62, 0.90), 0.10, 0.030, 0.012, 0.00, 0.10),
-                (0.20, 0.70, 0.50, (0.40, 0.46, 0.80), 0.07, -0.020, 0.018, 0.45, 0.60)),
-    "afternoon": ((0.58, 0.30, 0.70, (0.48, 0.56, 0.98), 0.12, 0.035, 0.020, 0.20, 0.00),
-                  (0.15, 0.20, 0.55, (0.34, 0.42, 0.86), 0.08, 0.020, -0.015, 0.70, 0.50),
-                  (0.90, 0.85, 0.45, (0.36, 0.40, 0.84), 0.06, -0.025, -0.020, 0.35, 0.25)),
-    "evening": ((0.76, 0.28, 0.58, (0.50, 0.40, 0.88), 0.09, -0.030, 0.015, 0.15, 0.30),
-                (0.22, 0.80, 0.52, (0.34, 0.34, 0.74), 0.06, 0.025, -0.012, 0.60, 0.80)),
-    "night": ((0.66, 0.34, 0.40, (0.58, 0.70, 0.96), 0.045, 0.020, 0.010, 0.05, 0.40),
-              (0.12, 0.78, 0.34, (0.46, 0.44, 0.84), 0.030, -0.015, -0.010, 0.55, 0.90)),
+    "morning": ((0.55, 0.30, 0.70, (0.86, 0.80, 0.98), 0.22, 0.070, 0.030, 0.00, 0.10),
+                (0.15, 0.75, 0.55, (0.70, 0.66, 0.96), 0.16, -0.050, 0.040, 0.45, 0.60)),
+    "afternoon": ((0.40, 0.45, 0.70, (0.95, 0.75, 0.98), 0.20, 0.075, 0.045, 0.20, 0.00),
+                  (0.70, 0.30, 0.55, (0.85, 0.35, 0.40), 0.16, 0.050, -0.040, 0.70, 0.50),
+                  (0.90, 0.85, 0.45, (0.70, 0.30, 0.50), 0.12, -0.055, -0.045, 0.35, 0.25)),
+    "evening": ((0.25, 0.45, 0.70, (0.88, 0.92, 0.92), 0.20, 0.070, 0.035, 0.15, 0.30),
+                (0.65, 0.75, 0.55, (0.60, 0.72, 0.72), 0.14, -0.060, 0.030, 0.60, 0.80)),
+    "night": ((0.20, 0.38, 0.60, (0.98, 0.50, 0.36), 0.20, 0.070, 0.035, 0.05, 0.40),
+              (0.55, 0.60, 0.50, (0.55, 0.15, 0.18), 0.16, -0.055, -0.040, 0.55, 0.90)),
 }
-PULSE_DEPTH = 0.35            # a light swells and settles by this fraction of its strength: gentle, never a flash
+PULSE_DEPTH = 0.6             # a light swells and settles by this fraction of its strength: slow, never a flash
 
 
 def art_dir(root=None):

@@ -58,14 +58,14 @@ class MotionDataTests(unittest.TestCase):
             self.assertTrue(m.LIGHTS[p])
             for x, y, size, color, strength, dx, dy, pa, pb in m.LIGHTS[p]:
                 self.assertTrue(0 <= x <= 1 and 0 <= y <= 1 and 0 < size <= 1)
-                self.assertTrue(0 < strength <= 0.15, "lights stay faint: the artwork carries the light")
-                self.assertTrue(abs(dx) <= 0.05 and abs(dy) <= 0.05, "the drift is small")
+                self.assertTrue(0 < strength <= 0.30, "lights stay faint: the artwork carries the light")
+                self.assertTrue(abs(dx) <= 0.10 and abs(dy) <= 0.10, "the drift is small")
                 self.assertTrue(0 <= pa <= 1 and 0 <= pb <= 1)
-                self.assertTrue(color[2] >= color[0] and color[2] >= color[1], "blue-indigo-violet family")
+                self.assertTrue(all(0 <= c <= 1 for c in color))
 
     def test_scrim_is_a_valid_opacity_for_every_period(self):
         self.assertEqual(set(m.SCRIM), set(m.PERIODS))
-        self.assertTrue(all(0 <= v <= 0.8 for v in m.SCRIM.values()))
+        self.assertTrue(all(0.3 <= v <= 0.8 for v in m.SCRIM.values()))
 
     def test_timings_are_inside_the_asked_ranges(self):
         lo, hi = config.AMBIENT_MOVE_SECONDS

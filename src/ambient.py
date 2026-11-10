@@ -77,15 +77,28 @@ def _ease():
     return CAMediaTimingFunction.functionWithName_(kCAMediaTimingFunctionEaseInEaseOut)
 
 
-class AmbientCanvas(NSView):
-    """The background behind the whole window. Clicks pass through. See the module note."""
+class _Host(NSView):
+    """The layer-backed view itself; kept to the bare minimum (PyObjC checks every method name on an NSView
+    subclass against Objective-C selector rules), all the work is in AmbientCanvas below. Clicks pass through."""
 
-    def initWithFrame_(self, frame):
-        self = objc.super(AmbientCanvas, self).initWithFrame_(frame)
-        if self is None:
-            return None
+    def hitTest_(self, point):
+        return None
+
+    def setFrameSize_(self, size):
+        objc.super(_Host, self).setFrameSize_(size)
+        owner = getattr(self, "owner", None)
+        if owner is not None:
+            owner.relayout()
+
+
+class AmbientCanvas:
+    """The background behind the whole window; `.view` is what goes into the window. See the module note."""
+
+    def __init__(self, frame):
         from Quartz import CALayer
-        self.setWantsLayer_(True)
+        self.view = _Host.alloc().initWithFrame_(frame)
+        self.view.setWantsLayer_(True)
+        self.view.owner = None
         self.layers = {}                 # period -> its picture layer
         self.sizes = {}                  # period -> (pixel width, pixel height)
         self.current = None
@@ -103,15 +116,11 @@ class AmbientCanvas(NSView):
             self.grain_layer.setBackgroundColor_(grain_color(config.AMBIENT_GRAIN).CGColor())
             self.grain_layer.setZPosition_(1e6)
             self.grain_layer.setActions_({"bounds": _NONE, "position": _NONE, "contents": _NONE})   # never animate a resize
-            self.layer().addSublayer_(self.grain_layer)
-        self.setHidden_(True)            # shown once a picture has loaded
-        return self
+            self.view.layer().addSublayer_(self.grain_layer)
+        self.view.setHidden_(True)       # shown once a picture has loaded
+        self.view.owner = self
 
-    def hitTest_(self, point):
-        return None
-
-    def setFrameSize_(self, size):
-        objc.super(AmbientCanvas, self).setFrameSize_(size)
+    def relayout(self):
         try:
             self._relayout()
         except Exception:
@@ -134,7 +143,7 @@ class AmbientCanvas(NSView):
         if layer is None:
             return False
         from Quartz import CATransaction
-        self.setHidden_(False)
+        self.view.setHidden_(False)
         self.top += 1
         self._motion(self.current, False)
         first = self.current is None
@@ -191,7 +200,7 @@ class AmbientCanvas(NSView):
             layer.setMasksToBounds_(True)
             layer.setOpacity_(0.0)
             layer.setActions_({"bounds": _NONE, "position": _NONE, "contents": _NONE, "contentsRect": _NONE})
-            self.layer().insertSublayer_below_(layer, self.grain_layer) if self.grain_layer is not None else self.layer().addSublayer_(layer)
+            self.view.layer().insertSublayer_below_(layer, self.grain_layer) if self.grain_layer is not None else self.view.layer().addSublayer_(layer)
             scrim = CALayer.layer()                                 # always the first sublayer; the glows follow it
             scrim.setBackgroundColor_(NSColor.blackColor().colorWithAlphaComponent_(model.SCRIM[key]).CGColor())
             scrim.setActions_({"bounds": _NONE, "position": _NONE})
@@ -215,7 +224,7 @@ class AmbientCanvas(NSView):
         layer = self.layers.get(key)
         if layer is None:
             return
-        box = self.bounds()
+        box = self.view.bounds()
         w, h = box.size.width, box.size.height
         layer.setFrame_(NSMakeRect(0, 0, w, h))
         iw, ih = self.sizes.get(key, (0, 0))
@@ -232,7 +241,7 @@ class AmbientCanvas(NSView):
         from Quartz import CATransaction
         CATransaction.begin()
         CATransaction.setDisableActions_(True)
-        box = self.bounds()
+        box = self.view.bounds()
         if self.grain_layer is not None:
             self.grain_layer.setFrame_(NSMakeRect(0, 0, box.size.width, box.size.height))
         for key, layer in self.layers.items():
@@ -258,7 +267,7 @@ class AmbientCanvas(NSView):
         if not (on and self._running()):
             return
         from Quartz import CABasicAnimation
-        box = self.bounds()
+        box = self.view.bounds()
         longer = max(box.size.width, box.size.height)
         for glow, (_fx, _fy, _size, _color, strength, dx, dy, phase_a, phase_b) in zip(glows, model.LIGHTS[key]):
             for path, distance, phase in (("transform.translation.x", dx * longer, phase_a), ("transform.translation.y", dy * longer, phase_b)):

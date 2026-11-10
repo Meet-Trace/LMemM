@@ -262,9 +262,12 @@ class MainWindow:
         self.window.setContentView_(self.root)
         self.wall = _Backdrop.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))      # the time-of-day picture, behind everything
         self.root.addSubview_(self.wall)
-        self.ambient = ambient.AmbientCanvas.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))   # the supplied artwork over it, once all four pictures are in
-        self.root.addSubview_(self.ambient)
-        self.ambient.attach(self.window)
+        self.ambient = ambient.AmbientCanvas(NSMakeRect(0, 0, W, H))   # the supplied artwork over it, once all four pictures are in
+        self.root.addSubview_(self.ambient.view)
+        try:
+            self.ambient.attach(self.window)
+        except Exception:
+            traceback.print_exc()
         self.wall_tween = self.wall_clock = self.wall_choice = None
         self.backdrop = _SideBackdrop.alloc().initWithFrame_(NSMakeRect(0, 0, SIDE_W, H))
         self.root.addSubview_(self.backdrop)
@@ -339,7 +342,7 @@ class MainWindow:
         """Put the parts that do not scroll where the window's size says."""
         self.backdrop.setFrame_(NSMakeRect(0, 0, SIDE_W, self.H))
         self.wall.setFrame_(NSMakeRect(0, 0, self.W, self.H))
-        self.ambient.setFrame_(NSMakeRect(0, 0, self.W, self.H))
+        self.ambient.view.setFrame_(NSMakeRect(0, 0, self.W, self.H))
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         self.overlay.setFrame_(NSMakeRect(0, 0, self.W, self.H))
 
@@ -356,7 +359,11 @@ class MainWindow:
             return False
         picked = config.BACKDROP != self.wall_choice
         self.wall_choice = config.BACKDROP
-        shown = self.ambient.show(next(iter(target)), animate=animate, seconds=1.2 if picked else None)
+        try:
+            shown = self.ambient.show(next(iter(target)), animate=animate, seconds=1.2 if picked else None)
+        except Exception:
+            traceback.print_exc()
+            shown = False
         self.wall.setHidden_(shown)
         return shown
 

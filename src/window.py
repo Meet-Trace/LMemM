@@ -80,7 +80,7 @@ def _local_minute():
         return backdrop.minute_of(time.localtime())
 
 
-class _MenuTarget(NSObject):
+class _SourcePick(NSObject):
     """Receives a menu pick and runs the callable kept for that item's tag."""
 
     def pick_(self, sender):
@@ -1869,7 +1869,7 @@ class MainWindow:
 
     def _popup_sources(self, anchor, page):
         menu = NSMenu.alloc().initWithTitle_("")
-        helper = _MenuTarget.alloc().init()
+        helper = _SourcePick.alloc().init()
         helper.calls = {}
         entries = [("All sources", None, self.nav["app"] is None)]
         entries += [(f"{f['app']}  ·  {f['count']}", f["app"], self.nav["app"] == f["app"]) for f in page["filters"]]

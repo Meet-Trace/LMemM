@@ -538,7 +538,7 @@ class WindowWiringTests(unittest.TestCase):
         with open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")) as fh:
             source = fh.read()
         sent = set(re.findall(r'self\.press\("([a-z_]+)"', source))
-        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_subs", "more_side", "needs", "search", "clear", "thing", "back"} <= sent, sent)
+        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_side", "needs", "search", "clear", "thing", "back"} <= sent, sent)
         reg, _items, ids = world()
         for action in sent:
             pm.press(reg, pm.new_state(), action, ids["work"] if action in {"go", "toggle"} else "x")      # none raises

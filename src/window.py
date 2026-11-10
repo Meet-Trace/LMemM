@@ -47,7 +47,9 @@ BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
-MIN_MAIN, MAX_MAIN = 560, 980                          # the page's reading column: it grows with the window, up to this
+MIN_MAIN, MAX_MAIN, MAX_WIDE = 560, 980, 1280 
+TIMELINE_W = 880                                        # the history never runs wider than this, so a row stays easy to read across
+                         # the page's reading column: it grows with the window, up to this
 TOP = 32                                               # below the title bar
 TONES = {"red": "red", "grey": None, "calm": None}      # the banner box's tone (red is only for what is off)
 
@@ -78,6 +80,23 @@ def _local_minute():
         return int(parts.hour()) * 60 + int(parts.minute())
     except Exception:
         return backdrop.minute_of(time.localtime())
+
+
+class _SourcePick(NSObject):
+    """Receives a menu pick and runs the callable kept for that item's tag."""
+
+    def pick_(self, sender):
+        call = self.calls.get(sender.tag())
+        if call:
+            call()
+
+
+class _Rail(_Flipped):
+    """The thin vertical line that ties a session's Things together on the Overview timeline."""
+
+    def drawRect_(self, rect):
+        kit.faint(0.14).setFill()
+        NSBezierPath.fillRect_(NSMakeRect(0, 0, 1, self.bounds().size.height))
 
 
 class _MainWindow(NSWindow):
@@ -245,6 +264,7 @@ class MainWindow:
         self.app_icons = {}
         self.app_paths = None
         self.W, self.H = W, H                                      # the content's size now; _measure() keeps them true
+        self.wide = False
         self.main_w, self.col_x = MIN_MAIN, PAD                    # the page's column
         self.stamp, self.page_cache = None, None                   # what the last draw was for (so a resize does not recompute pages)
         style = 1 | 2 | 4 | 8 | (1 << 15)                          # titled, closable, minimise, resize, content under the title bar
@@ -347,7 +367,7 @@ class MainWindow:
         size = self.root.frame().size
         self.W, self.H = max(MIN_W, size.width), max(MIN_H, size.height)
         room = self.W - SIDE_W - 2 * PAD
-        self.main_w = max(MIN_MAIN, min(MAX_MAIN, room))
+        self.main_w = max(MIN_MAIN, min(MAX_WIDE if self.wide else MAX_MAIN, room))      # the history gets a wider column than the reading pages
         self.col_x = PAD + max(0, (room - self.main_w) / 2)
 
     def _layout(self):
@@ -693,6 +713,10 @@ class MainWindow:
         top = self._banner(self.banner and self.banner["banner"])
         main = page["main"]
         split = main["kind"] == "project" and (not main.get("empty") or self.memory_snapshot is not None)      # a project: its top stays put, Things scrolls
+        wide = split and (self.memory_snapshot is None or self.memory_snapshot["tab"] == "Overview")
+        if wide != self.wide:
+            self.wide = wide
+            self._measure()
         head = self._head(main) if split else self._no_head()
         thing = main["kind"] == "thing"
         self.item_here = main.get("item") if thing else None
@@ -1415,13 +1439,15 @@ class MainWindow:
         h = kit.put_text(doc, empty["line"], x, y + 112, min(w, 460), 14, 400, kit.mute())
         return y + 112 + h
 
-    def _thing(self, doc, t, x, y, w, notes=False, select=False):
+    def _thing(self, doc, t, x, y, w, notes=False, select=False, compact=False):
         """A thing: its title, where it is, when. With notes: the open ones underneath. While selecting,
         a tap ticks it instead of opening it. Returns the new y."""
         call = (lambda i=t["id"]: self.pick_thing(i)) if select else (lambda i=t["id"]: self.press("thing", i))
         box = _Tap.alloc().initWithFrame_callback_(NSMakeRect(x, y, w, 10), call)
         if not notes:
             box.fill = self._krow("main", "t" + t["id"], call, box)
+        if compact:
+            return self._thing_line(doc, box, t, x, y, w, select)
         lead = 0
         if select:
             on = t["id"] in self.sel
@@ -1444,6 +1470,32 @@ class MainWindow:
                 self._label(box, f"+{t['more_notes']} more", tx, h, w - tx, size=12, weight=400)
                 h += 20
             h += 6
+        box.setFrame_(NSMakeRect(x, y, w, h))
+        doc.addSubview_(box)
+        return y + h
+
+    def _thing_line(self, doc, box, t, x, y, w, select):
+        """The timeline row: one 36 pt line, small source icon, title, quiet source text, open notes, time."""
+        h, lead = 36, 0
+        if select:
+            on = t["id"] in self.sel
+            kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if on else ("circle", "circle"), kit.ink() if on else kit.mute(), 0, 7, 22)
+            lead = 30
+        self._app_icon(box, t["app"], lead + 6, 8, 20, t.get("kind", ""), t.get("url"))
+        tx = lead + 38
+        right = w - 12                                                  # source, open count and time sit together at the right edge
+        if t["ago"]:
+            kit.put_text(box, t["ago"], right - 76, 0, 76, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 84
+        if t["open"]:
+            label = f"{t['open']} open"
+            kit.put_text(box, label, right - 64, 0, 64, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 72
+        src_w = min(190, max(int((right - tx) * 0.35), 0)) if t["sub"] else 0
+        if src_w:
+            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+        src_x = right - src_w
+        kit.put_text(box, t["title"], tx, 0, max(src_x - 16 - tx, 40), 13, 500, wrap=False, height=h, middle=True)
         box.setFrame_(NSMakeRect(x, y, w, h))
         doc.addSubview_(box)
         return y + h
@@ -1732,15 +1784,16 @@ class MainWindow:
             sub.removeFromSuperview()
         x, w = self.col_x, self.main_w
         y = self._crumbs(host, page["crumbs"], x, 26)
-        self._project_icon(host, page["hue"], x, y - 2, 40)
+        self._project_icon(host, page["hue"], x, y - 2, 28)
         if page["archived"]:
             kit.button(host, "Bring back", x + w - 110, y - 4, 110, 32, lambda: self.project_action("restore", pid=page["pid"]),
                        kind="outline", size=13, weight=600)
         else:
             self._project_actions(host, x + w, y - 4, page["pid"])
-        kit.put_text(host, page["title"], x + 54, y, w - 54 - 170, 26, 700, wrap=False, height=32)
-        self._label(host, page["meta"], x + 54, y + 33, w - 54, size=13, weight=400)
-        y += 62
+        title_w = min(kit.text_width(page["title"], 18, 700), w - 38 - 170)
+        kit.put_text(host, page["title"], x + 38, y - 1, title_w + 4, 18, 700, wrap=False, height=28)
+        self._label(host, page["meta"], x + 38 + title_w + 14, y + 2, max(w - 38 - title_w - 14 - 170, 60), size=12, weight=400)
+        y += 40
         if self.memory_snapshot:
             tx=x;in_settings=bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
             for tab in self.memory_snapshot['tabs']:
@@ -1751,44 +1804,95 @@ class MainWindow:
                 kit.chip(host,'Settings','gearshape',sx,y,in_settings,lambda:self._memory_action('open_settings'))
                 if in_settings:                                        # the way back sits right beside it
                     bw=kit.chip_width('Back to Memory','chevron.left');kit.chip(host,'Back to Memory','chevron.left',sx-bw-8,y,False,lambda:self._memory_action('close_settings'))
-            y+=48
+            y+=44
             if self.memory_snapshot['tab'] in {'Memory','Resume'} or page.get('empty'):return y
-        self._label(host, "PICK UP WHERE YOU LEFT OFF", x, y, w)
-        y += 22
-        if page["pick_up"]:
-            gap = 12
-            cw = (w - gap * 2) / 3
-            for i, t in enumerate(page["pick_up"]):
-                self._mini_card(host, t, x + i * (cw + gap), y, cw, 88)
-            y += 88 + 18
-        else:
+        y = self._status(host, page, x, y, w)
+        y = self._toolbar(host, page, x, y, w)
+        return y
+
+    def _status(self, host, page, x, y, w):
+        """Where you left off, in one quiet strip above the history. With open notes it is a row of small links
+        (the notes show on hover); with none it is a single muted line."""
+        if not page["pick_up"]:
             caught = page["caught_up"]
-            tap = self._tap(host, x, y, w, 52, None, fill=True)
-            kit.tile(tap, ("checkmark.circle.fill", "checkmark.circle"), kit.mute(), 12, 11, 30)
-            kit.put_text(tap, caught["title"], 52, 8, w - 64, 14, 600, wrap=False, height=20)
-            kit.put_text(tap, caught["line"], 52, 28, w - 64, 12, 400, kit.mute(), wrap=False, height=16)
-            y += 52 + 18
-        if page["subs"]:
-            self._label(host, f"SUB-PROJECTS · {len(page['subs']) + page['subs_more']}", x, y, w)
-            y += 22
-            y = self._sub_chips(host, page, x, y, w) + 8
-        total = f"Things · {page['total']}"
-        kit.put_text(host, total, x, y, w, 15, 700, wrap=False, height=22)
+            kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 3, 14, kit.mute())
+            tw = kit.text_width(caught["title"], 12, 600)
+            kit.put_text(host, caught["title"], x + 20, y, tw + 6, 12, 600, kit.mute(), wrap=False, height=20, middle=True)
+            kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+            return y + 28
+        self._label(host, "PICK UP", x, y + 2, 60, size=11)
+        gap = 8
+        cx = x + 68
+        cw = (w - 68 - gap * (len(page["pick_up"]) - 1)) / len(page["pick_up"])
+        for t in page["pick_up"]:
+            tap = self._tap(host, cx, y, cw, 26, (lambda i=t["id"]: self.press("thing", i)), fill=True)
+            tap.setToolTip_("\n".join("○  " + n for n in t.get("notes", [])[:3]) or t["title"])
+            self._app_icon(tap, t["app"], 6, 4, 18, t.get("kind", ""), t.get("url"))
+            tail = f"  {t['open']}" if t["open"] else ""
+            kit.put_text(tap, t["title"] + tail, 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
+            cx += cw + gap
+        return y + 38
+
+    def _toolbar(self, host, page, x, y, w):
+        """The Things heading on its own line (count and Select beside it), then the controls on a line of their
+        own: where to look (a segmented Only here / With sub-projects) at the left, which source (one menu) at the right."""
+        kit.put_text(host, "Things", x, y, w, 17, 700, wrap=False, height=26, middle=True)
+        cx = x + kit.text_width("Things", 17, 700) + 8
+        kit.put_text(host, str(page["total"]), cx, y + 1, 60, 13, 400, kit.mute(), wrap=False, height=26, middle=True)
         if self.sel is None and page["total"]:
-            self._link(host, "Select", x + w - kit.text_width("Select", 13, 500) - 12, y - 4, self.start_select)
-        y += 30
+            self._link(host, "Select", x + w - kit.text_width("Select", 12, 500) - 12, y + 1, self.start_select, size=12)
+        y += 38
+        if page["deep"]["show"]:
+            self._segmented(host, x, y, [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
+                                         ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))])
+        if len(page["filters"]) > 1 or self.nav["app"] is not None:
+            self._source_menu(host, page, x + w, y)
+        y += 28 + 16
         if self.sel is not None:
             y += self._select_bar(host, page, x, y, w) + 10
-        chips = []
-        if page["deep"]["show"]:
-            chips += [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
-                      ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))]
-        if len(page["filters"]) > 1:
-            chips += [("All apps", self.nav["app"] is None, lambda: self.press("app", None))]
-            chips += [(f["app"], self.nav["app"] == f["app"], (lambda a=f["app"]: self.press("app", a))) for f in page["filters"]]
-        if chips:
-            y += self._chips(host, x, y, chips, w) + 10
         return y
+
+    def _segmented(self, parent, x, y, items):
+        """A compact two-or-more way toggle: a soft track with the chosen segment lifted."""
+        widths = [kit.text_width(label, 12, 500) + 24 for label, _on, _call in items]
+        track = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, sum(widths) + 4, 28), kit.faint(0.07), None, 9)
+        parent.addSubview_(track)
+        sx = x + 2
+        for (label, on, call), width in zip(items, widths):
+            seg = self._tap(parent, sx, y + 2, width, 24, call)
+            if on:
+                seg.tint = kit.faint(0.16)
+            kit.put_text(seg, label, 12, 0, width - 24, 12, 600 if on else 500, None if on else kit.mute(), wrap=False, height=24, middle=True)
+            sx += width
+        return sx + 2 - x
+
+    def _source_menu(self, parent, page, right, y):
+        """One control for the source filter. Closed, it names what is chosen; open, it is a native menu."""
+        chosen = self.nav["app"]
+        label = chosen or "All sources"
+        width = min(kit.text_width(label, 12, 600) + 44, 240)
+        tap = self._tap(parent, right - width, y, width, 28, None, fill=True)
+        kit.put_text(tap, label, 12, 0, width - 36, 12, 600 if chosen else 500, None if chosen else kit.mute(), wrap=False, height=28, middle=True)
+        kit.glyph(tap, ("chevron.down",), width - 22, 8, 12, kit.mute())
+        tap.callback = lambda: self._popup_sources(tap, page)
+
+    def _popup_sources(self, anchor, page):
+        menu = NSMenu.alloc().initWithTitle_("")
+        helper = _SourcePick.alloc().init()
+        helper.calls = {}
+        entries = [("All sources", None, self.nav["app"] is None)]
+        entries += [(f"{f['app']}  ·  {f['count']}", f["app"], self.nav["app"] == f["app"]) for f in page["filters"]]
+        for n, (title, app, on) in enumerate(entries):
+            if n == 1:
+                menu.addItem_(NSMenuItem.separatorItem())
+            item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(title, "pick:", "")
+            item.setTarget_(helper)
+            item.setTag_(n)
+            item.setState_(1 if on else 0)
+            helper.calls[n] = (lambda a=app: self.press("app", a))
+            menu.addItem_(item)
+        self._source_helper = helper                                   # AppKit keeps only a weak reference to a menu's target
+        menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, anchor.bounds().size.height + 4), anchor)
 
     def _select_bar(self, parent, page, x, y, w):
         """While selecting: how many, and what to do with them. Returns the height."""
@@ -1822,36 +1926,26 @@ class MainWindow:
             kit.put_text(tap, "○  " + text + tail, 12, 44 + i * 18, w - 24, 12, 400, kit.mute(), wrap=False, height=18)
         return tap
 
-    def _sub_chips(self, parent, page, x, y, w):
-        """Sub-projects as small chips, wrapping onto more rows only when they must. Returns the new y."""
-        cx = x
-        for sub in page["subs"]:
-            width = min(kit.text_width(sub["name"], 13, 500) + 52, w)
-            if cx + width > x + w:
-                cx, y = x, y + 38
-            tap = self._tap(parent, cx, y, width, 32, (lambda i=sub["id"]: self.press("go", i)), fill=True)
-            self._project_icon(tap, sub["hue"], 6, 5, 22)
-            kit.put_text(tap, sub["name"], 34, 0, width - 40, 13, 500, wrap=False, height=32, middle=True)
-            cx += width + 8
-        if page["subs_more"]:
-            label = f"+{page['subs_more']} more"
-            width = kit.text_width(label, 13, 500) + 24
-            if cx + width > x + w:
-                cx, y = x, y + 38
-            tap = self._tap(parent, cx, y, width, 32, lambda: self.press("more_subs"))
-            kit.put_text(tap, label, 12, 0, width - 24, 13, 500, kit.mute(), wrap=False, height=32, middle=True)
-        return y + 32
-
     def _things(self, doc, page, x, y, w):
         """The scrolling list: things grouped by when, newest first."""
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
+        w = min(w, TIMELINE_W)
         for group in page["groups"]:
-            self._label(doc, group["title"].upper(), x, y + 4, w)
-            y += 28
+            n = len(group["things"])
+            tw = kit.text_width(group["title"], 13, 700)
+            kit.put_text(doc, group["title"], x + 18, y, tw + 6, 13, 700, wrap=False, height=20)
+            label = f"{n} thing{'s' * (n != 1)}"
+            kit.put_text(doc, label, x + 18 + tw + 10, y, 100, 12, 400, kit.mute(), wrap=False, height=20)
+            dot = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 1, y + 6, 8, 8), kit.mute(), None, 4)
+            doc.addSubview_(dot)
+            top = y + 24
+            y = top
             for t in group["things"]:
-                y = self._thing(doc, t, x, y, w, select=self.sel is not None)
-            y += 6
+                y = self._thing(doc, t, x + 14, y, w - 14, select=self.sel is not None, compact=True)
+            rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 4, top - 6, 1, y - top + 6))
+            doc.addSubview_(rail)
+            y += 20
         if not page["groups"]:
             self._label(doc, "Nothing matches this filter.", x, y + 8, w, size=13, weight=400)
             y += 34

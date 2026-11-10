@@ -41,10 +41,27 @@ class PlanTests(unittest.TestCase):
         self.assertEqual([r["key"] for r in rows if r["on"]], ["evening"])
         self.assertEqual([r["key"] for r in backdrop.choices("zzz") if r["on"]], ["auto"])
 
-    def test_every_asset_exists(self):
-        root = os.path.join(os.path.dirname(__file__), "..")
-        for k in backdrop.KEYS:
-            self.assertTrue(os.path.exists(backdrop.path(k, root)), k)
+    def test_every_background_is_complete(self):
+        for b in backdrop.BACKGROUNDS:
+            self.assertEqual(len(b["base"]), 3)
+            self.assertTrue(all(0 <= v <= 1 for v in b["base"]), b["key"])
+            self.assertTrue(0 < b["grain"] <= 0.12, b["key"])
+            for x, y, r, color, strength in b["lights"]:
+                self.assertTrue(0 <= x <= 1 and 0 <= y <= 1 and 0 < r <= 1 and 0 < strength <= 0.5, b["key"])
+                self.assertTrue(all(0 <= v <= 1 for v in color))
+            self.assertLess(max(b["base"]), 0.2, "the ground stays graphite-dark")
+
+
+class GrainTests(unittest.TestCase):
+    def test_tile_is_a_valid_png_of_the_asked_size(self):
+        import struct, zlib
+        import grain
+        png = grain.tile_png(0.05, size=32)
+        self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
+        w, h = struct.unpack(">II", png[16:24])
+        self.assertEqual((w, h), (32, 32))
+        self.assertEqual(png[-12:-8], b"\x00\x00\x00\x00")             # IEND
+        self.assertEqual(grain.tile_png(0.05, size=32), png)           # the same grain every time
 
 
 if __name__ == "__main__":

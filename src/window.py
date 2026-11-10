@@ -38,7 +38,9 @@ from widget import _Fields, _Flipped, _Ring, _Tap
 
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
-RADIUS_PANEL, RADIUS_FIELD = 14, 10                # one family of corners for the thing page
+RADIUS_PANEL, RADIUS_FIELD = 14, 10
+DETAIL_ICONS = {"Last seen": ("waveform.path.ecg", "waveform"), "First seen": ("calendar",), "Time spent": ("clock",),
+                "Visits": ("chart.bar", "chart.bar.fill"), "Address": ("link",)}                # one family of corners for the thing page
 BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
@@ -118,83 +120,80 @@ class _WindowMenuTarget(NSObject):
 
 
 class _SideBackdrop(_Flipped):
-    """The sidebar's soft tint and the hairline between it and the page."""
+    """The sidebar: a rounded dark panel set a little in from the window's edge, with a hairline round it.
+    A veil over the background (no blur), so the room shows faintly through."""
 
     def drawRect_(self, rect):
+        box = self.bounds()
+        panel = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+            NSMakeRect(4.5, 6.5, box.size.width - 9, box.size.height - 13), 16, 16)
         if config.WINDOW_APPEARANCE != "system":
-            kit.warm("sidebar").colorWithAlphaComponent_(0.78).setFill()       # a veil, not glass: the background shows faintly through
-            NSBezierPath.fillRect_(self.bounds())
-            kit.warm("edge").setFill()
+            kit.warm("sidebar").colorWithAlphaComponent_(0.80).setFill()
+            panel.fill()
+            kit.warm("edge").setStroke()
         else:
             kit.faint(0.035).setFill()
-            NSBezierPath.fillRect_(self.bounds())
-            kit.faint(0.09).setFill()
-        NSBezierPath.fillRect_(NSMakeRect(self.bounds().size.width - 1, 0, 1, self.bounds().size.height))
+            panel.fill()
+            kit.faint(0.09).setStroke()
+        panel.setLineWidth_(1)
+        panel.stroke()
 
 
-def _light_field(centre, radius, alpha):
-    """A soft periwinkle radial fade (a plain function: PyObjC would read a 3-argument method on a view as a selector)."""
-    from AppKit import NSGradient
-    light = kit.accent_text().colorWithAlphaComponent_(alpha)
-    NSGradient.alloc().initWithColors_([light, light.colorWithAlphaComponent_(alpha * 0.35), light.colorWithAlphaComponent_(0.0)]) \
-        .drawFromCenter_radius_toCenter_radius_options_(NSMakePoint(*centre), 0, NSMakePoint(*centre), radius, 0)
+_grain_tiles = {}
+
+
+def _grain_color(opacity):
+    """The film-grain tile (grain.py) as a tiling colour; made once per strength and kept."""
+    key = round(opacity, 3)
+    if key not in _grain_tiles:
+        import grain
+        png = grain.tile_png(key)
+        image = NSImage.alloc().initWithData_(NSData.dataWithBytes_length_(png, len(png)))
+        image.setSize_((grain.SIZE / 2, grain.SIZE / 2))                  # drawn at half size: fine on a Retina screen
+        _grain_tiles[key] = NSColor.colorWithPatternImage_(image)
+    return _grain_tiles[key]
 
 
 class _Backdrop(_Flipped):
-    """The picture behind the whole window (sidebar and page): one or two of the time-of-day backgrounds, each
-    shown at its weight (backdrop.plan). The pictures are drawn once per change, never animated here, and they
-    carry their own film grain. Passes clicks through."""
+    """The background behind the whole window (sidebar and page), drawn in code: a dark ground, a few soft
+    radial lights, a faint top light, a vignette and film grain, for each time-of-day background at its weight
+    (backdrop.plan). Redrawn only when the mix changes. Passes clicks through."""
 
     def initWithFrame_(self, frame):
         self = objc.super(_Backdrop, self).initWithFrame_(frame)
         self.mix = {}
-        self.images = {}
         return self
 
     def drawRect_(self, rect):
+        from AppKit import NSGradient
         box = self.bounds()
-        kit.warm("canvas").setFill()
+        w, h = box.size.width, box.size.height
+        weights = {k: v for k, v in self.mix.items() if v > 0.004 and backdrop.entry(k)}
+        if not weights:
+            weights = {"night": 1.0}
+        total = sum(weights.values())
+        base = [sum(backdrop.entry(k)["base"][i] * v for k, v in weights.items()) / total for i in range(3)]
+        NSColor.colorWithSRGBRed_green_blue_alpha_(base[0], base[1], base[2], 1.0).setFill()
         NSBezierPath.fillRect_(box)
-        for key, weight in self.mix.items():
-            if weight <= 0.004:
-                continue
-            if key not in self.images:
-                where = backdrop.path(key, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-                self.images[key] = NSImage.alloc().initWithContentsOfFile_(where) if where and os.path.exists(where) else None
-            image = self.images[key]
-            if image is None:
-                continue
-            size = image.size()
-            scale = max(box.size.width / max(size.width, 1), box.size.height / max(size.height, 1))
-            sw, sh = box.size.width / scale, box.size.height / scale
-            fade = weight * (1.0 - backdrop.entry(key)["veil"])
-            image.drawInRect_fromRect_operation_fraction_respectFlipped_hints_(
-                box, NSMakeRect((size.width - sw) / 2, (size.height - sh) / 2, sw, sh), 2, fade, True, None)
-
-    def hitTest_(self, point):
-        return None
-
-
-def _light_field(centre, radius, alpha):
-    """A soft periwinkle radial fade (a plain function: PyObjC would read a 3-argument method on a view as a selector)."""
-    from AppKit import NSGradient
-    light = kit.accent_text().colorWithAlphaComponent_(alpha)
-    NSGradient.alloc().initWithColors_([light, light.colorWithAlphaComponent_(alpha * 0.35), light.colorWithAlphaComponent_(0.0)]) \
-        .drawFromCenter_radius_toCenter_radius_options_(NSMakePoint(*centre), 0, NSMakePoint(*centre), radius, 0)
-
-
-class _Atmosphere(_Flipped):
-    """A small light around the screenshot, on top of the background. No edge, no blur, clicks pass through."""
-
-    def initWithFrame_(self, frame):
-        self = objc.super(_Atmosphere, self).initWithFrame_(frame)
-        self.header = None
-        self.shot = None                             # (cx, cy, radius) around the screenshot
-        return self
-
-    def drawRect_(self, rect):
-        if self.shot:
-            _light_field(self.shot[:2], self.shot[2], palette.GLOW[config.PAGE_THEME] * 0.7)
+        for key, weight in weights.items():
+            for fx, fy, fr, (r, g, b), strength in backdrop.entry(key)["lights"]:
+                light = NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, strength * weight / total)
+                centre = NSMakePoint(fx * w, fy * h)
+                NSGradient.alloc().initWithColors_([light, light.colorWithAlphaComponent_(light.alphaComponent() * 0.4),
+                                                    light.colorWithAlphaComponent_(0.0)]) \
+                    .drawFromCenter_radius_toCenter_radius_options_(centre, 0, centre, fr * max(w, h), 0)
+        top = NSColor.whiteColor()                                         # a faint light from above, fading out
+        NSGradient.alloc().initWithStartingColor_endingColor_(top.colorWithAlphaComponent_(0.025), top.colorWithAlphaComponent_(0.0)) \
+            .drawInRect_angle_(NSMakeRect(0, 0, w, min(h, 320)), 90)
+        dark = NSColor.blackColor()                                        # a soft vignette: the edges settle into the ground
+        centre = NSMakePoint(w * 0.58, h * 0.36)
+        NSGradient.alloc().initWithColors_atLocations_colorSpace_(
+            [dark.colorWithAlphaComponent_(0.0), dark.colorWithAlphaComponent_(0.0), dark.colorWithAlphaComponent_(0.34)],
+            [0.0, 0.55, 1.0], None) \
+            .drawFromCenter_radius_toCenter_radius_options_(centre, 0, centre, max(w, h) * 0.95, 3)
+        grain = sum(backdrop.entry(k)["grain"] * v for k, v in weights.items()) / total
+        _grain_color(grain).setFill()
+        NSBezierPath.fillRect_(box)
 
     def hitTest_(self, point):
         return None
@@ -1827,27 +1826,29 @@ class MainWindow:
         """The activity sits on the page itself: identity, headline, summary and Reopen beside the screenshot, then your
         notes in the one white surface that groups them, and the quiet facts beside it on the page."""
         self.shot_at = None
-        air = None
-        if palette.GLOW[config.PAGE_THEME] > 0:                       # behind everything else on the page
-            air = _Atmosphere.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
-            doc.addSubview_(air)
-        top = self._hero(doc, page, x, y, w)
-        if air is not None:
-            air.setFrame_(NSMakeRect(0, 0, max(doc.frame().size.width, x + w), top + 360))
-            if self.shot_at:
-                air.shot = (self.shot_at[0] + self.shot_at[2] / 2, self.shot_at[1] + self.shot_at[3] / 2, 420)
+        pad = 24
+        hero_card = kit.surface(doc, x, y, w, 10, "surface", radius=RADIUS_PANEL + 2)          # the one big box: what it was
+        hero_bottom = self._hero(doc, page, x + pad + 4, y + pad, w - 2 * pad - 8) - 28
+        hero_card.setFrame_(NSMakeRect(x, y, w, hero_bottom + pad - y))
+        top = hero_bottom + pad + 16
         wide = w >= 640
-        pad = 20
-        nw = int(w * 0.6) if wide else w
-        card = kit.surface(doc, x, top, nw, 10, "surface", radius=RADIUS_PANEL)
-        notes_bottom = self._notes(doc, page, x + pad, top + pad, nw - 2 * pad)
-        card.setFrame_(NSMakeRect(x, top, nw, notes_bottom + pad - top))
-        notes_bottom += pad
+        gap = 16
+        nw = int(w * 0.57) if wide else w
+        notes_card = kit.surface(doc, x, top, nw, 10, "surface", radius=RADIUS_PANEL)
+        notes_bottom = self._notes(doc, page, x + pad, top + pad - 2, nw - 2 * pad) + pad - 2
         if wide:
-            facts_bottom = self._facts(doc, page, x + nw + 36, top + 6, w - nw - 36)
-        else:
-            facts_bottom = self._facts(doc, page, x, notes_bottom + 24, w)
-        return max(notes_bottom, facts_bottom) + 16
+            facts_card = kit.surface(doc, x + nw + gap, top, w - nw - gap, 10, "surface", radius=RADIUS_PANEL)
+            facts_bottom = self._facts(doc, page, x + nw + gap + pad, top + pad - 2, w - nw - gap - 2 * pad) + pad - 2
+            bottom = max(notes_bottom, facts_bottom)                                          # the two cards end together
+            notes_card.setFrame_(NSMakeRect(x, top, nw, bottom - top))
+            facts_card.setFrame_(NSMakeRect(x + nw + gap, top, w - nw - gap, bottom - top))
+            return bottom + 16
+        notes_card.setFrame_(NSMakeRect(x, top, nw, notes_bottom - top))
+        facts_top = notes_bottom + gap
+        facts_card = kit.surface(doc, x, facts_top, w, 10, "surface", radius=RADIUS_PANEL)
+        facts_bottom = self._facts(doc, page, x + pad, facts_top + pad - 2, w - 2 * pad) + pad - 2
+        facts_card.setFrame_(NSMakeRect(x, facts_top, w, facts_bottom - facts_top))
+        return facts_bottom + 16
 
     def _hero(self, doc, page, x, y, w):
         """The top of the page. Left: where it was, a short headline, the summary, Reopen. Right: the screenshot
@@ -1871,8 +1872,10 @@ class MainWindow:
         elif page["observed"]:                                                # no AI line yet: only stored facts
             cy += kit.body(doc, page["observed"], px, cy, tw, kit.warm("ink")) + 14
         if page["reopen"]:                                                    # the one dominant action, right under what you were doing
-            kit.button(doc, "Reopen", px, cy + 6, 116, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
-            self._link(doc, "Copy link", px + 128, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13,
+            kit.button(doc, "      Reopen", px, cy + 6, 128, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
+            kit.line(doc, ("play", "arrow.up.right.square"), px + 16, cy + 6 + (BUTTON_H - 14) / 2, 14, NSColor.whiteColor())
+            kit.line(doc, ("link",), px + 148, cy + 6 + (BUTTON_H - 16) / 2, 16, kit.warm("mute"))
+            self._link(doc, "Copy link", px + 168, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13,
                        tip="Copy original link")
             cy += BUTTON_H + 12
         bottom = cy
@@ -1908,17 +1911,19 @@ class MainWindow:
         tap = self._tap(doc, x, y, w, h, (lambda p=page["shot"]: self.open_file(p)))
         tap.ax_label = "Screenshot of " + page["title"] + ". Opens full size."
         caption = "As it looked, " + page["shot_when"].lower() + "."
-        reach = kit.text_width(caption, 12, 400) + 6
-        kit.meta(doc, caption, x, y + h + 12, reach, kit.warm("mute"), wrap=False, height=16, tip=False)
-        self._link(doc, "Full size", x + reach + 2, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12, color=kit.accent_text())
+        kit.meta(doc, caption, x, y + h + 12, max(w - 110, 40), kit.warm("mute"), wrap=False, height=16, tip=False)
+        width = kit.text_width("Full size", 12, 500) + 12
+        kit.line(doc, ("arrow.up.left.and.arrow.down.right", "arrow.up.left.and.arrow.down.right.circle"), x + w - width - 18, y + h + 12, 13, kit.accent_text())
+        self._link(doc, "Full size", x + w - width, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12, color=kit.accent_text())
         return y + h + 32
 
     def _notes(self, doc, page, x, y, w):
         """Your notes, then the one place to write another: the composer sits at the end of the list, in this panel."""
         count = page["open_count"]
-        kit.put_text(doc, "Your notes", x, y, w - 70, 13, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
+        kit.line(doc, ("waveform", "list.bullet"), x, y + 1, 18, kit.warm("ink"))
+        kit.put_text(doc, "Your notes", x + 28, y, w - 98, 15, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
         kit.put_text(doc, f"{count} open" if count else "all done", x + w - 70, y + 1, 70, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18, tip=False)
-        y += 30
+        y += 36
         for n in page["open"] + page["done"]:
             y = self._note_row(doc, n, x, y, w)
         if not page["open"] and not page["done"]:
@@ -1959,25 +1964,28 @@ class MainWindow:
 
     def _facts(self, doc, page, x, y, w):
         """The quiet part, always in view but small: when, how long, the address, the captured text and where it is kept."""
-        kit.put_text(doc, "Details", x, y, w, 13, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
-        y += 28
+        kit.line(doc, ("info.circle",), x, y + 1, 18, kit.warm("ink"))
+        kit.put_text(doc, "Details", x + 28, y, w - 28, 15, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
+        y += 36
         rows = list(page["details"])
         if page["address"]:
             rows.append(("Address", page["address"]))
         rows += list(page["latest"])
         for k, v in rows:
-            kit.meta(doc, k, x, y, 96, kit.warm("mute"), height=18, tip=False)   # wraps like the value so both lines share a baseline
-            h = max(kit.meta(doc, v, x + 100, y, w - 100, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
+            kit.line(doc, DETAIL_ICONS.get(k, ("circle",)), x, y, 15, kit.warm("mute"))
+            kit.meta(doc, k, x + 28, y, 84, kit.warm("mute"), height=18, tip=False)   # wraps like the value so both lines share a baseline
+            h = max(kit.meta(doc, v, x + 118, y, w - 118, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
             if k == "Address":                                        # the full address on hover of this row only, never over the buttons
-                hold = _Flipped.alloc().initWithFrame_(NSMakeRect(x + 100, y, w - 100, h))
+                hold = _Flipped.alloc().initWithFrame_(NSMakeRect(x + 118, y, w - 118, h))
                 hold.setToolTip_(v)
                 doc.addSubview_(hold)
-            y += h + 6
+            y += h + 10
         screen = page["screen"]
         if screen:                                                # the raw captured text is one tap away, never on the page
-            y += 4
+            y += 8
+            kit.line(doc, ("doc.text",), x, y + 5, 15, kit.accent_text())
             self._link(doc, "View captured text" + (f" · {screen['count']} versions" if screen["count"] > 1 else ""),
-                       x - 6, y, (lambda e=screen: self.open_viewer(e)), size=12, color=kit.accent_text())
+                       x + 22, y, (lambda e=screen: self.open_viewer(e)), size=12, color=kit.accent_text())
             y += 28
         reg, items = self.data()
         if page["item"] in items:                                 # where it is kept: only what is stored

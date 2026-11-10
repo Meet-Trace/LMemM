@@ -1,31 +1,42 @@
-"""LMemM - the time-aware background: which picture lies behind the window, and how much of each.
+"""LMemM - the time-aware background: which background lies behind the window, and how much of each.
 
 Pure logic, no AppKit (the window draws what this decides). Four backgrounds, one for each part of the
-day, each a graphite-dark picture with its own light and its grain already in it. Time never switches
-them: the picture changes by cross-fading over BLEND_MINUTES around each boundary, so the window is the same
+day, each a graphite-dark gradient with its own light, drawn in code. Time never switches
+them: the light changes by cross-fading over BLEND_MINUTES around each boundary, so the window is the same
 room under slowly different light. A person can pin one instead; "auto" gives the clock back.
 
-Each background is data: file, where it starts, how strongly it is shown (a dimming veil, 0 to 1, over it).
+Each background is data: where it starts, a base colour, a few soft lights and a grain strength.
 """
-
-import os
 
 AUTO = "auto"
 BLEND_MINUTES = 60                 # the cross-fade at each boundary: 30 minutes before to 30 after
 
-# key, label, starts at (hour), file, veil (0 = as drawn, higher = darker), what it is for
+# Every background is data. base: the dark ground (r, g, b, 0..1). lights: soft radial fields as
+# (x, y, radius, (r, g, b), strength), x and y as fractions of the window and radius as a fraction of its
+# longer side. grain: the film grain's strength. They are drawn in code (window.py), so they are sharp at any size.
 BACKGROUNDS = (
-    {"key": "dawn", "label": "Dawn", "start": 5, "file": "01_morning_dawn_amber.png", "veil": 0.0,
-     "feel": "Warm amber, soft dawn"},
-    {"key": "day", "label": "Day", "start": 10, "file": "02_daytime_ambient_indigo.png", "veil": 0.0,
-     "feel": "Neutral indigo, clear and balanced"},
-    {"key": "evening", "label": "Evening", "start": 16, "file": "04_night_warm_copper.png", "veil": 0.0,
-     "feel": "Warm copper, reflective"},
-    {"key": "night", "label": "Night", "start": 20, "file": "03_evening_cinematic_blue.png", "veil": 0.0,
-     "feel": "Deep indigo and violet, calm"},
+    {"key": "dawn", "label": "Dawn", "start": 5, "grain": 0.045,
+     "base": (0.070, 0.066, 0.092), "feel": "Warm amber, soft dawn",
+     "lights": ((0.80, 0.10, 0.62, (0.84, 0.56, 0.36), 0.30),
+                (0.22, 0.80, 0.60, (0.46, 0.34, 0.64), 0.17),
+                (0.05, 0.05, 0.50, (0.30, 0.38, 0.70), 0.10))},
+    {"key": "day", "label": "Day", "start": 10, "grain": 0.040,
+     "base": (0.060, 0.072, 0.130), "feel": "Neutral indigo, clear and balanced",
+     "lights": ((0.60, 0.28, 0.62, (0.34, 0.44, 0.84), 0.30),
+                (0.12, 0.12, 0.55, (0.22, 0.30, 0.62), 0.20),
+                (0.90, 0.95, 0.50, (0.28, 0.34, 0.66), 0.10))},
+    {"key": "evening", "label": "Evening", "start": 16, "grain": 0.045,
+     "base": (0.074, 0.062, 0.066), "feel": "Warm copper, reflective",
+     "lights": ((0.82, 0.12, 0.60, (0.88, 0.46, 0.28), 0.26),
+                (0.20, 0.88, 0.62, (0.62, 0.30, 0.26), 0.14),
+                (0.50, 0.40, 0.55, (0.78, 0.56, 0.40), 0.06))},
+    {"key": "night", "label": "Night", "start": 20, "grain": 0.040,
+     "base": (0.066, 0.062, 0.112), "feel": "Deep indigo and violet, calm",
+     "lights": ((0.70, 0.28, 0.64, (0.46, 0.36, 0.82), 0.28),
+                (0.10, 0.82, 0.60, (0.56, 0.30, 0.48), 0.12),
+                (0.30, 0.00, 0.50, (0.30, 0.42, 0.92), 0.10))},
 )
 KEYS = tuple(b["key"] for b in BACKGROUNDS)
-ASSET_DIR = os.path.join("assets", "app_bg", "trace_cinematic_backgrounds")
 
 
 def clean(choice):
@@ -69,11 +80,6 @@ def minute_of(now_struct):
 
 def entry(key):
     return next((b for b in BACKGROUNDS if b["key"] == key), None)
-
-
-def path(key, root="."):
-    b = entry(key)
-    return os.path.join(root, ASSET_DIR, b["file"]) if b else None
 
 
 def choices(current):

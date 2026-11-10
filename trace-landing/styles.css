@@ -24,7 +24,7 @@ h1 em,h2 em{letter-spacing:-.025em}
 /* Photo layers: every blur, tint and fade is CSS; the source images stay untouched */
 .header{--text:#fbf3ea;--muted:#eadccd;--border:#ffffff4d;--line:#ffffff24}
 .hero{min-height:920px;background:#150f0d;--text:#fbf3ea;--muted:#e8d8c8;--accent:#ffc9a3;--border:#ffffff33;--line:#ffffff22}
-.hero-photo{position:absolute;inset:0 0 0 34%;z-index:0;background:url(assets/web-images/img1.jpeg) center 38%/cover no-repeat;filter:saturate(1.12) contrast(1.06) brightness(.95);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 38%);mask-image:linear-gradient(90deg,transparent 0,#000 38%)}
+.hero-photo{position:absolute;inset:0 0 0 34%;z-index:0;background:url(assets/photography/focus.jpg) center 38%/cover no-repeat;filter:saturate(1.12) contrast(1.06) brightness(.95);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 38%);mask-image:linear-gradient(90deg,transparent 0,#000 38%)}
 .hero-photo::before{content:'';position:absolute;inset:0;-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);-webkit-mask-image:radial-gradient(ellipse 36% 40% at 50% 63%,transparent 40%,#000 100%);mask-image:radial-gradient(ellipse 36% 40% at 50% 63%,transparent 40%,#000 100%)}
 .hero-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#3a1a0d55,transparent 35%,#150f0dcc 100%),radial-gradient(ellipse at 60% 60%,#ff9a5c22,transparent 60%)}
 .hero::after{content:'';position:absolute;left:0;right:0;bottom:0;height:110px;background:linear-gradient(transparent,var(--bg));z-index:2;pointer-events:none}
@@ -34,7 +34,7 @@ h1 em,h2 em{letter-spacing:-.025em}
 .hero .button.secondary,.hero .film-button{color:#fbf3ea}
 .scroll-cue{z-index:3}
 .photo-band{position:relative;min-height:520px;display:flex;align-items:center;overflow:hidden;isolation:isolate;background:#1a110e}
-.photo-band-img{position:absolute;inset:-4%;z-index:-1;background:url(assets/web-images/img2) center 78%/cover no-repeat;filter:sepia(.7) saturate(1.5) hue-rotate(-14deg) contrast(1.05) brightness(.8) blur(2.5px)}
+.photo-band-img{position:absolute;inset:-4%;z-index:-1;background:url(assets/photography/team.jpg) center 78%/cover no-repeat;filter:sepia(.7) saturate(1.5) hue-rotate(-14deg) contrast(1.05) brightness(.8) blur(2.5px)}
 .photo-band-img::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#1a110ee6 0,#2b140a88 45%,#1a110e44),linear-gradient(0deg,#1a110e99,transparent 40%)}
 .photo-band-copy{padding-block:80px;--text:#fbf3ea;--muted:#e8d8c8}
 .photo-band-copy h2{color:#fbf3ea;margin-bottom:18px}
@@ -42,7 +42,7 @@ h1 em,h2 em{letter-spacing:-.025em}
 .photo-band-copy .eyebrow{color:#ffd9bf}
 .photo-band-copy p{color:#e8d8c8;font-size:19px;max-width:420px}
 .closing{background:#150f0d;border-color:transparent;--text:#fbf3ea;--muted:#e8d8c8;--accent:#ffc9a3;--border:#ffffff33;--line:#ffffff22;--alt:#150f0d}
-.closing-photo{position:absolute;inset:0;z-index:0;background:url(assets/web-images/img3.jpeg) center 55%/cover no-repeat;filter:saturate(1.1) brightness(.78) blur(2px);transform:scale(1.06)}
+.closing-photo{position:absolute;inset:0;z-index:0;background:url(assets/photography/evening.jpg) center 55%/cover no-repeat;filter:saturate(1.1) brightness(.78) blur(2px);transform:scale(1.06)}
 .closing-photo::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,#150f0d99 0,#150f0dee 75%),linear-gradient(180deg,var(--bg),transparent 18%)}
 .closing-thread{display:none}
 @media(max-width:760px){.hero-photo{inset:0;opacity:.55;-webkit-mask-image:none;mask-image:none}.photo-band{min-height:420px}}
@@ -99,7 +99,7 @@ h1 em,h2 em{letter-spacing:-.025em}
 @media(max-width:760px),(prefers-reduced-motion:reduce){.story-track{height:auto}.story-sticky{position:static;height:auto;display:block;width:calc(100% - 40px);padding-block:70px 40px}.story-steps{display:block}.step{opacity:1;transform:none;filter:none;margin-bottom:42px;transition:none}.step h3{font-size:36px}.step p{font-size:16px}.story-rail{display:none}.story-stage{height:240px}.story-stage .frag,.story-stage .threads{display:none}.story-stage .core{width:min(280px,90%)}.core>div{transition:none}.core-b,.core-c{width:100%;margin-left:0}}
 .step h3 em{display:block;white-space:nowrap}
 /* Band photo: img4, pushed right so the speaker sits clear of the text */
-.photo-band-img{inset:0 0 0 20%;background-image:url(assets/web-images/img4.jpeg);background-position:center 40%;filter:sepia(.25) saturate(1.15) hue-rotate(-6deg) contrast(1.05) brightness(.82);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 34%);mask-image:linear-gradient(90deg,transparent 0,#000 34%)}
+.photo-band-img{inset:0 0 0 20%;background-image:url(assets/photography/team.jpg);background-position:center 40%;filter:sepia(.25) saturate(1.15) hue-rotate(-6deg) contrast(1.05) brightness(.82);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 34%);mask-image:linear-gradient(90deg,transparent 0,#000 34%)}
 .photo-band-img::after{background:linear-gradient(90deg,#1a110e66 0,transparent 40%),linear-gradient(0deg,#1a110e88,transparent 40%)}
 
 /* Film grain: one reusable layer on top of every photo. Tune it here; the photos are never edited. */
@@ -161,3 +161,25 @@ h1 em,h2 em{letter-spacing:-.025em}
 :root[data-theme] .header.over-hero{--nav-bg:rgb(20 16 15 / .44);--nav-ink:#fff9f2;--nav-muted:#eee4d9;--nav-line:rgb(255 255 255 / .14);--nav-control:rgb(255 255 255 / .12)}
 .header.over-hero .brand,.header.over-hero nav a,.header.over-hero .text-button{text-shadow:0 1px 3px #00000050}
 @media(prefers-reduced-motion:reduce){:root[data-theme] .header{transition:none}}
+
+/* Commercial-use-cleared photography; sources in IMAGE-LICENSES.md. */
+.hero-photo{background-position:58% 48%}
+.photo-band-img{background-position:center 44%}
+.closing-photo{background-position:center 50%}
+/* Hero: soft reddish-blue gradient over the photo (grain layer stays on top). */
+.hero-photo::after{background:linear-gradient(125deg,#d9505f 0%,#8a45b0 50%,#3a64d6 100%);mix-blend-mode:color;opacity:.26}
+:root[data-theme=light] .hero-photo::after,:root[data-theme=dark] .hero-photo::after{opacity:.26}
+:root[data-theme=light] .hero-photo,:root[data-theme=dark] .hero-photo{filter:saturate(1.02) contrast(1.04) brightness(.88)}
+/* Middle photo: the picture is blurred on its own layer so the grain on top stays sharp; slight brown tint. */
+.photo-band-img{background:none;filter:none;inset:0 0 0 20%}
+.photo-band-img::before{content:'';position:absolute;inset:-4%;background:url(assets/photography/team.jpg) center 62%/cover no-repeat;filter:sepia(.4) saturate(1.1) hue-rotate(-8deg) contrast(1.04) brightness(.82) blur(4px)}
+.photo-band-img::after{background:linear-gradient(#6b422630,#6b422630),linear-gradient(90deg,#1a110e66 0,transparent 40%),linear-gradient(0deg,#1a110e88,transparent 40%)}
+.photo-band-img .grain{opacity:.6}
+/* Less purple in the hero; darker left side of the middle photo so the headline stays readable. */
+.hero-photo::after{background:linear-gradient(125deg,#c9535c 0%,#6a5aa8 50%,#3a64d6 100%);opacity:.13}
+:root[data-theme=light] .hero-photo::after,:root[data-theme=dark] .hero-photo::after{opacity:.13}
+.photo-band-img{inset:0 0 0 12%;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 30%);mask-image:linear-gradient(90deg,transparent 0,#000 30%)}
+.photo-band-img::before{filter:sepia(.4) saturate(1.05) hue-rotate(-8deg) contrast(1.04) brightness(.62) blur(4px)}
+.photo-band-img::after{background:linear-gradient(#6b422630,#6b422630),linear-gradient(90deg,#1a110ef2 0,#1a110ecc 45%,#1a110e33 75%),linear-gradient(0deg,#1a110e88,transparent 40%)}
+.photo-band-copy h2,.photo-band-copy p{text-shadow:0 1px 18px #1a110eb3}
+.photo-band-copy h2 em{color:#a9c1ff}

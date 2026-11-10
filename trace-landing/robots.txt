@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://hey-trace.app/sitemap.xml

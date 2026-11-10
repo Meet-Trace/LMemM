@@ -42,11 +42,14 @@ def earliest_member(starts, members):
 
 # ---------------------------------------------------------------- the interface
 
-def replay(infer, records, params, **prepare_kw):
-    """The public entry: moment records in, result out. `infer(prepared, params)` is the inference proper and receives
-    input that activity_input.prepare has already validated, ordered and de-duplicated (design 14.9)."""
+def replay(infer, records, params):
+    """The public entry: moment records in, result out. Always strict: the records are validated with every integrity
+    rule, including the absolute part of V4, and there is no way to relax that through this function. `infer(prepared,
+    params)` is the inference proper and receives input that activity_input.prepare has already validated, ordered and
+    de-duplicated (design 14.9). Only the invariant harness, which prepares deliberately re-timed copies itself and
+    calls `infer(prepared, params)` directly, ever skips the absolute part of V4."""
     import activity_input
-    prepared = activity_input.prepare(records, max_intra_visit_gap_s=params.max_intra_visit_gap_s, **prepare_kw)
+    prepared = activity_input.prepare(records, max_intra_visit_gap_s=params.max_intra_visit_gap_s)
     return infer(prepared, params)
 
 

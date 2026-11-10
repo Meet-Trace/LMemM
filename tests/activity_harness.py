@@ -32,8 +32,11 @@ def prepared_for(records, params, capture_clock=True):
 
 
 def run(infer, records, params, capture_clock=True):
-    """records in, result out, through the public entry point (validation happens inside, once)."""
-    return ac.replay(infer, records, params, check_capture_clock=capture_clock)
+    """Original records go through the public, strict `replay`. Deliberately re-timed copies (capture_clock=False) are
+    prepared here, with only the absolute part of V4 off, and handed to `infer(prepared, params)` directly."""
+    if capture_clock:
+        return ac.replay(infer, records, params)
+    return infer(prepared_for(records, params, capture_clock=False), params)
 
 
 # ---------------------------------------------------------------- record transforms (all pure: inputs untouched)

@@ -139,6 +139,22 @@ class VisitIdClockTests(unittest.TestCase):
             ai.prepare(hn.translate(self.recs, 1234.5))
         self.assertTrue(all(p.startswith("V4") for p in cm.exception.problems))
 
+    def test_relative_check_has_no_tolerance_and_survives_tiny_scaling(self):
+        for k in (1e-3, 1e-6, 1e-9):
+            moved = hn.scale(self.recs, k)
+            p = ai.prepare(moved, check_capture_clock=False, max_intra_visit_gap_s=300.0 * k)
+            self.assertEqual(len(p.visits), 12)                                   # valid data is accepted at any scale
+            starts = {}
+            for r in moved:
+                if r["seq"] == 0:
+                    starts[r["visit_id"]] = r["t_start"]
+            order = sorted(starts, key=lambda v: starts[v])
+            a, b = order[0], order[-1]
+            swapped = json.loads(json.dumps(moved).replace(a, "TMPA").replace(b, a).replace("TMPA", b))
+            with self.assertRaises(ai.VisitIntegrityError) as cm:                 # a 1 ms tolerance would have missed this
+                ai.prepare(swapped, check_capture_clock=False, max_intra_visit_gap_s=300.0 * k)
+            self.assertTrue(any("id_order_conflicts_with_start_order" in q for q in cm.exception.problems), k)
+
     def test_relative_rules_still_apply_to_retimed_data(self):
         moved = hn.translate(self.recs, 5000.0)
         ids = [r["visit_id"] for r in moved if r["seq"] == 0]

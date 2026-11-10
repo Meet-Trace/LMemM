@@ -29,8 +29,9 @@ Visit checks:
         wrote it. It is switched off only for records a test has deliberately re-timed (the invariant harness).
         RELATIVE, always on, unchanged by translating or scaling time. What it guarantees, and nothing more:
           - the id has the form <prefix><second>-<n> and n >= 1;
-          - among visits that still have their first moment and share a prefix, if one starts strictly later (beyond
-            1 ms) than another, its embedded second is not smaller.
+          - among visits that still have their first moment and share a prefix, if one starts strictly later than
+            another, its embedded second is not smaller. The comparison is strict and uses no tolerance, so it
+            holds under every positive scaling of time.
         What it does NOT guarantee. It does not detect: counter suffixes swapped between visits that start in the same
         second; ids exchanged between visits whose seconds are equal or whose order stays consistent; ids that were
         all shifted together; foreign ids whose seconds happen to fit; anything about visits whose first moment was
@@ -271,7 +272,7 @@ def _clock_problems(groups, absolute):
     for prefix, items in sorted(rows.items()):
         items.sort()
         for (ta, sa, va), (tb, sb, vb) in zip(items, items[1:]):
-            if sb < sa and tb > ta + TOL:
+            if sb < sa and tb > ta:                  # strict, no tolerance: genuine data cannot produce it (tb < sb + 1 <= sa <= ta)
                 out.append(f"V4 {va},{vb} id_order_conflicts_with_start_order")
     return out
 

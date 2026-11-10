@@ -1,4 +1,5 @@
 """The result contract: activity ids, the parameter registry, result validation. No inference."""
+import inspect
 import unittest
 
 import activity_contract as ac
@@ -25,6 +26,18 @@ class ReplayEntryTests(unittest.TestCase):
         import activity_stubs as st
         with self.assertRaises(ai.VisitIntegrityError):
             ac.replay(st.sittings_infer, hn.translate(fx.two_in_one_app().records, 99.0), ac.ReplayParams())
+
+    def test_the_public_entry_has_no_way_to_bypass_the_absolute_check(self):
+        import activity_harness as hn
+        import activity_stubs as st
+        self.assertEqual(list(inspect.signature(ac.replay).parameters), ["infer", "records", "params"])
+        moved = hn.translate(fx.two_in_one_app().records, 99.0)
+        for kw in ({"check_capture_clock": False}, {"capture_clock": False}):
+            with self.assertRaises(TypeError):
+                ac.replay(st.sittings_infer, moved, ac.ReplayParams(), **kw)
+        with self.assertRaises(ai.VisitIntegrityError) as cm:
+            ac.replay(st.sittings_infer, moved, ac.ReplayParams())
+        self.assertTrue(any(p.startswith("V4") for p in cm.exception.problems))
 
 
 class IdTests(unittest.TestCase):

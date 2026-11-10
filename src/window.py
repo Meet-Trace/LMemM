@@ -1184,13 +1184,14 @@ class MainWindow:
             kit.tile(doc, {"home": ("square.stack.3d.up.fill", "folder.fill"), "needs": ("bell.badge.fill", "bell.fill"),
                            "archived": ("archivebox.fill", "tray.fill"), "settings": ("gearshape.fill", "gear")}[kind], kit.ink(), x, y - 2, 40)
             tx = x + 54
-        if kind == "thing":                                       # a quiet identity line: the page's voice is the headline below
+        if kind == "thing":                                       # a compact identity: what it is, where, and how long ago
             reach = w - (tx - x) - 170
-            if page["identity"]:
-                kit.put_text(doc, page["identity"], tx, y - 2, reach, 14, 600, wrap=False, height=20)
-            if page.get("meta"):
-                self._label(doc, page["meta"], tx, y + (18 if page["identity"] else 6), reach, size=12, weight=400)
-            y += 48
+            kit.put_text(doc, page["title"], tx, y - 4, reach, 18, 600, wrap=False, height=24)
+            main = next((p["name"] for p in page["places"] if p["main"]), "")
+            meta = " · ".join(b for b in (page.get("meta"), "in " + main if main else "") if b)
+            if meta:
+                self._label(doc, meta, tx, y + 20, reach, size=12, weight=400)
+            y += 54
         else:
             kit.put_text(doc, page["title"], tx, y, w - (tx - x) - (170 if kind == "project" else 0), 26, 700, wrap=False, height=34)
             y += 36
@@ -1675,107 +1676,96 @@ class MainWindow:
         return y + inner + 24
 
     def _thing_page(self, doc, page, x, y, w):
-        """One thing, in the order you remember it: what you were doing, what Trace read as your aim, your
-        own note, what was on screen, and the way back. Dates, counts and the address are one tap away."""
+        """One thing in a glance: what you were doing and your notes on the left, the moment as it looked on
+        the right. Captured text, the address, dates and counts are behind Details."""
         wide = w >= 640
-        lw = int(w * 0.58) if (wide and page["shot"]) else w                  # text column; the preview takes the rest
+        gap = 36
+        lw = int(w * 0.42) if (wide and page["shot"]) else w                   # text column; the screenshot takes the rest
         top = y
-        y += kit.put_text(doc, page["headline"], x, y, lw, 26, 400, wrap=True, serif=True) + 14
-        if page["intent"]:                                                    # the AI's reading, labelled, never mixed with your note
-            self._label(doc, "TRACE'S READING", x, y, lw, size=11, weight=600, color=kit.accent_text())
-            y += 20
-            y += kit.put_text(doc, page["intent"], x, y, lw, 15, 400) + 18
+        y += kit.put_text(doc, page["headline"], x, y, lw, 15, 400) + 6
+        if page["intent"]:                                                     # the AI's reading, labelled, apart from your notes
+            y += kit.put_text(doc, "Trace's reading: " + page["intent"], x, y, lw, 13, 400, kit.mute()) + 6
+        y += 10
         if page["reopen"]:
-            kit.button(doc, "Reopen", x, y, 128, 38, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=14, weight=600)
-            self._link(doc, "Copy link", x + 140, y + 6, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13)
-            y += 38
-        y += 28
-        left = y
+            kit.button(doc, "Reopen", x, y, 112, 34, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
+            self._link(doc, "Copy link", x + 120, y + 4, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13)
+            y += 34
+        y += 26
         y = self._note_block(doc, page, x, y, lw)
-        if page["screen"]:
-            y = self._evidence(doc, page["screen"], x, y + 8, lw)
-        shot_bottom = left
+        bottom = y
         if page["shot"]:
             if wide:
-                shot_bottom = self._preview(doc, page, x + lw + 32, top, w - lw - 32)
+                bottom = max(bottom, self._preview(doc, page, x + lw + gap, top, w - lw - gap))
             else:
-                shot_bottom = self._preview(doc, page, x, y + 12, w)
-                y = shot_bottom if not wide else y
-        y = max(y, shot_bottom if wide else y) + 22
-        return self._details(doc, page, x, y, w)
+                bottom = self._preview(doc, page, x, y + 14, w)
+        return self._details(doc, page, x, bottom + 24, w)
 
     def _note_block(self, doc, page, x, y, w):
-        """Your notes, large and set apart by a thin blue bar; ticking one still works; finished ones sit below, quiet."""
-        self._label(doc, "YOUR NOTE" + ("S" if page["open_count"] > 1 else ""), x, y, w, size=11, weight=600)
-        y += 22
+        """Your notes as one quiet list: tick, words, when. Finished ones sit below in grey. Typing a new one is the field at the bottom."""
+        count = page["open_count"]
+        kit.put_text(doc, "Your notes" + (f" · {count}" if count else ""), x, y, w, 13, 600, wrap=False, height=20)
+        self._link(doc, "+ Add", x + w - 56, y - 4, self._focus_note, size=12, color=kit.accent_text())
+        y += 28
         for n in page["open"]:
-            start = y
-            row = self._tap(doc, x + 14, y, w - 14, 10, None)
-            inner = self._note_text(row, w - 14, n)
-            row.setFrame_(NSMakeRect(x + 14, y, w - 14, inner + 8))
-            doc.addSubview_(_Bar.alloc().initWithFrame_(NSMakeRect(x, start + 2, 3, max(inner - 2, 18))))
-            y += inner + 20
+            y = self._note_row(doc, n, x, y, w)
         if not page["open"]:
-            self._label(doc, "All caught up." if page["done"] else "No notes yet. Add one below.", x, y, w, size=13, weight=400)
-            y += 28
-        if page["done"]:
-            y += 4
-            for n in page["done"]:
-                row = self._tap(doc, x, y, w, 28, (lambda i=n["id"]: self.tick_note(i, False)))
-                row.ax_label = "Reopen: " + n["text"]
-                kit.put_text(row, "✓", 0, 0, 20, 13, 600, kit.mute(), wrap=False, height=28, middle=True)
-                kit.put_text(row, n["text"], 26, 0, w - 26 - 70, 13, 400, kit.mute(), wrap=False, height=28, middle=True)
-                kit.put_text(row, "Reopen", w - 64, 0, 64, 12, 500, kit.accent_text(), align=RIGHT, wrap=False, height=28, middle=True)
-                y += 28
-            y += 6
-        return y
+            kit.put_text(doc, "All caught up." if page["done"] else "No notes yet.", x, y, w, 13, 400, kit.mute(), wrap=False, height=20)
+            y += 26
+        for n in page["done"]:
+            y = self._note_row(doc, n, x, y, w)
+        return y + 4
 
-    def _note_text(self, row, w, n):
-        """One open note: a tick, the words in the serif, and when. Returns the height."""
-        tick = self._tap(row, 0, 0, 34, 34, (lambda i=n["id"], d=n["done"]: self.tick_note(i, not d)))
-        tick.checked, tick.ax_label = bool(n["done"]), n["text"]
+    def _focus_note(self):
+        self.window.makeFirstResponder_(self.note_field)
+
+    def _note_row(self, doc, n, x, y, w):
+        """One note: a tick (a tap flips it), the words, when. A finished one is grey and crossed out."""
+        words = w - 34 - 70
+        h = max(kit.text_height(n["text"], 14, 400, words), 20)
+        row = self._tap(doc, x, y, w, h + 14, (lambda i=n["id"], d=n["done"]: self.tick_note(i, not d)))
+        row.checked, row.ax_label = bool(n["done"]), n["text"]
         ring = _Ring.alloc().initWithChecked_(n["done"])
         ring.blue = True
-        ring.setFrame_(NSMakeRect(6, 6, 17, 17))
-        tick.addSubview_(ring)
-        h = kit.put_text(row, n["text"], 36, 2, w - 36, 19, 400, wrap=True, serif=True)
-        kit.put_text(row, n["when"], 36, 4 + h, w - 36, 12, 400, kit.mute(), wrap=False, height=16)
-        return h + 22
-
-    def _evidence(self, doc, e, x, y, w):
-        """What was on screen: a few lines of the newest capture, then the viewer for all of it. The address is not repeated."""
-        self._label(doc, "ON SCREEN", x, y, w, size=11, weight=600)
-        y += 22
-        for quote in e["decisions"]:
-            h = kit.put_text(doc, "“" + quote + "”", x + 14, y, w - 14, 13, 600, kit.accent_text())
-            doc.addSubview_(_Bar.alloc().initWithFrame_(NSMakeRect(x, y + 2, 3, max(h - 4, 14))))
-            y += h + 10
-        for text in e["versions"][0]["lines"][:3]:
-            y += kit.put_text(doc, text, x, y, w, 13, 400, kit.mute(), wrap=False, height=18) + 2
-        label = "View all text" + (f" · {e['count']} versions" if e["count"] > 1 else "")
-        self._link(doc, label, x - 6, y + 4, (lambda: self.open_viewer(e)), size=12)
-        return y + 34
+        ring.setFrame_(NSMakeRect(4, 7, 17, 17))
+        row.addSubview_(ring)
+        if n["done"]:
+            self._struck(row, n["text"], 34, 6, words, 14)
+        else:
+            kit.put_text(row, n["text"], 34, 6, words, 14, 400)
+        kit.put_text(row, n["when"], w - 68, 8, 68, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=18)
+        return y + h + 14
 
     def _preview(self, doc, page, x, y, w):
-        """The screenshot LMemM kept, when there is one: tap to reopen. Returns its bottom edge."""
+        """The screenshot LMemM kept: the page's visual anchor, in a thin frame, with a quiet caption and a way to
+        see it full size. Returns its bottom edge."""
         image = NSImage.alloc().initWithContentsOfFile_(page["shot"])
         if image is None:
             return y
         size = image.size()
-        w = min(w, 420)
-        h = min(w * size.height / max(size.width, 1), 300)
+        w = min(w, 560)
+        h = min(w * size.height / max(size.width, 1), 360)
         w = h * size.width / max(size.height, 1)
-        tap = self._tap(doc, x, y, w, h, (lambda u=page["reopen"]: self.open_url(u)) if page["reopen"] else (lambda: None))
-        tap.ax_label = "Screenshot of " + page["headline"]
+        frame = self._tap(doc, x, y, w, h, (lambda p=page["shot"]: self.open_file(p)))
+        frame.ax_label = "Screenshot of " + page["title"] + ". Opens full size."
         holder = NSImageView.alloc().initWithFrame_(NSMakeRect(0, 0, w, h))
         holder.setImage_(image)
         holder.setImageScaling_(3)
         holder.setWantsLayer_(True)
-        holder.layer().setCornerRadius_(12)
+        holder.layer().setCornerRadius_(10)
         holder.layer().setMasksToBounds_(True)
-        tap.addSubview_(holder)
-        kit.put_text(doc, "As it looked, " + page["shot_when"].lower(), x, y + h + 6, w, 12, 400, kit.mute(), wrap=False, height=16)
-        return y + h + 28
+        holder.layer().setBorderWidth_(1)
+        holder.layer().setBorderColor_(kit.faint(0.14).CGColor())
+        frame.addSubview_(holder)
+        kit.put_text(doc, "As it looked, " + page["shot_when"].lower() + ".", x, y + h + 8, w - 90, 12, 400, kit.mute(), wrap=False, height=16)
+        self._link(doc, "Full size", x + w - 70, y + h + 4, (lambda p=page["shot"]: self.open_file(p)), size=12)
+        return y + h + 30
+
+    def open_file(self, path):
+        """A kept screenshot in the default viewer (Preview)."""
+        from Foundation import NSURL
+        if not NSWorkspace.sharedWorkspace().openURL_(NSURL.fileURLWithPath_(path)):
+            self.done = {"message": "Couldn't open that.", "undo": None, "until": time.time() + 4}
+            self.render_now()
 
     def _details(self, doc, page, x, y, w):
         """The quiet part: one line of when and how long, and a Details toggle for the rest (dates, address, where it is kept)."""
@@ -1786,6 +1776,13 @@ class MainWindow:
         y += 48
         if not open_:
             return y
+        screen = page["screen"]
+        if screen:                                                # raw captured text stays here, one tap deeper
+            for quote in screen["decisions"]:
+                y += kit.put_text(doc, "“" + quote + "”", x, y, w, 13, 500, kit.accent_text()) + 8
+            self._link(doc, "View captured text" + (f" · {screen['count']} versions" if screen["count"] > 1 else ""),
+                       x - 6, y - 2, (lambda e=screen: self.open_viewer(e)), size=13)
+            y += 30
         rows = list(page["details"])
         if page["address"]:
             rows.append(("Address", page["address"]))

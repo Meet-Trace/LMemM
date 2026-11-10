@@ -515,7 +515,7 @@ def thing_page(reg, item, now, fading=(), shots_dir=None):
             "latest": state_rows,
             # recognition first: what you were doing (the AI's line, else the stored label), what Trace read as
             # your intent (AI, labelled as such), a screenshot only when one was kept, and one way back
-            "headline": headline, "identity": title_of(item) if headline != title_of(item) else "",
+            "headline": headline,
             "intent": written.get("intent") or None, "shot": shot, "shot_when": ago(item.get("last_seen"), now),
             "reopen": url, "address": url,
             "glance": " · ".join(b for b in (f"Last seen {ago(item.get('last_seen'), now).lower()}" if item.get("last_seen") else "",

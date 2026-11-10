@@ -29,7 +29,9 @@ from urllib.parse import urlsplit
 import trail_engine
 
 SCHEMA = 1
-TERM_RE = re.compile(r"[A-Za-z][A-Za-z0-9'’-]{3,}")
+TERM_RE = re.compile(r"[A-Za-z][A-Za-z'’-]{3,19}(?![A-Za-z0-9'’-])")   # words only: no digits inside, at most 20 letters
+LONG_RUN = re.compile(r"[\w-]{20,}")
+KEEP_OVERLAP = 0.6          # a text change only counts when this share of the moment's known words is still there
 IDENT_RE = re.compile(
     r"(?:[\w.-]+/)+[\w.-]+\.\w{1,6}\b"                 # a path with a file name
     r"|\b[\w-]+\.(?:py|js|ts|tsx|swift|md|txt|csv|xlsx?|docx?|pdf|json|ya?ml|html|css|sql|sh|key|pptx?)\b"
@@ -64,6 +66,18 @@ def scrub(context, gone_ids, gone_visits):
         context["same_item_before"] = None
 
 
+def keylike(line):
+    """A long unbroken run that mixes letters and digits (or flips case again and again) looks like a key or
+    token, however OCR garbled it, so the whole line is dropped. trail_engine.SECRET only catches exact shapes."""
+    for run in LONG_RUN.findall(line or ""):
+        if "_" in run:
+            continue
+        flips = sum(1 for a, b in zip(run, run[1:]) if a.isalpha() and b.isalpha() and a.islower() != b.islower())
+        if any(c.isdigit() for c in run) or flips >= 4:
+            return True
+    return False
+
+
 def _norm(line):
     return re.sub(r"\s+", " ", line or "").strip()
 
@@ -71,7 +85,7 @@ def _norm(line):
 def digest_of(text, keep_lines=True, max_terms=12, max_idents=8, max_lines=3, line_chars=80):
     """A small description of a screen's text. `text`: newline-joined lines or a list of lines."""
     raw = text.split("\n") if isinstance(text, str) else list(text or [])
-    lines = trail_engine.redact([_norm(l) for l in raw])
+    lines = [l for l in trail_engine.redact([_norm(l) for l in raw]) if not keylike(l)]
     joined = "\n".join(lines)
     idents = []
     for m in IDENT_RE.finditer(joined):
@@ -192,7 +206,11 @@ class MomentBuffer:
                 new_t, new_i = terms - self._seen_terms, idents - self._seen_idents
                 differs = bool(dg["text_hash"]) and dg["text_hash"] != self._seen_hash
                 kept_t, kept_i = new_t & self._pending[0], new_i & self._pending[1]
-                changed = differs and (len(kept_t) >= self.new_terms or bool(kept_i))
+                # additions are real only when what was already there is still there: re-reading a static page
+                # (a different OCR pass garbles the same pixels the same way every frame) loses old words too
+                known = self._seen_terms
+                stable = not known or len(terms & known) / len(known) >= KEEP_OVERLAP
+                changed = differs and stable and (len(kept_t) >= self.new_terms or bool(kept_i))
                 self._pending = (new_t - kept_t, new_i - kept_i) if differs and not changed else (set(), set())
                 too_long = t - o.t_start >= self.max_moment_s
                 if cat_changed or changed or too_long:
@@ -339,8 +357,9 @@ class MomentBuffer:
         d = o.digest
         d["terms"] = (d["terms"] + sorted(kept_t - set(d["terms"])))[:12]
         d["identifiers"] = (d["identifiers"] + sorted(kept_i - set(d["identifiers"])))[:8]
-        self._seen_terms |= kept_t
-        self._seen_idents |= kept_i
+        if settled or kept_t or kept_i:
+            self._seen_terms |= kept_t
+            self._seen_idents |= kept_i
         if settled:
             self._seen_hash = dg["text_hash"] or self._seen_hash
         self._touch(o, t)

@@ -35,6 +35,20 @@ class DigestTests(unittest.TestCase):
         self.assertNotIn("hunter2", blob)
         self.assertIn("normal sentence", blob)
 
+    def test_garbled_key_is_dropped_whole(self):
+        d = digest_of("Customer notes about pricing here\napi key sK-ABÇDEFGHIJKLMNOPQRSTUYWX1234 should vanish.\n"
+                      "apl key ih4NfigKF.QJXJKIITIPFSIMllYttA125.4 should vanlgh.")
+        blob = json.dumps(d)
+        for bad in ("ABÇDEF", "defghijklmnopqrstuywx1234", "QJXJKIITIPF", "ih4nfigkf", "vanish", "vanlgh"):
+            self.assertNotIn(bad.lower(), blob.lower())
+        self.assertIn("pricing", blob)
+
+    def test_terms_are_words_not_garbage(self):
+        d = digest_of("Customer onboardin9 takes eleven days today with migration\nqjxjkiitipfsimllytta125 appears alone")
+        self.assertIn("migration", d["terms"])
+        self.assertNotIn("onboardin9", d["terms"])
+        self.assertFalse([t for t in d["terms"] if any(c.isdigit() for c in t) or len(t) > 20])
+
     def test_keep_lines_off(self):
         self.assertEqual(digest_of(DOC, keep_lines=False)["lines"], [])
 
@@ -89,6 +103,19 @@ class BufferTests(unittest.TestCase):
             self.assertEqual(feed(b, T0 + 5 * (i + 1), "doc", text=DOC + "\n" + junk + f" IogiStits{i}"), [])
         b.close()
         self.assertEqual(len(b.recent), 1)
+
+    def test_static_page_read_differently_every_frame_is_not_a_change(self):
+        # a different OCR pass garbles the SAME pixels the same way each frame: it repeats, but old words vanish
+        garbled = ("Wagtall prlcing memo\nTake rate ls flfteen percent on every booklng\n"
+                   "Revlew prlcing_model.xlsx wlth Tara\nSubscrlption churn estlmate around eight percent")
+        b = MomentBuffer()
+        feed(b, T0, "doc")
+        self.assertEqual(feed(b, T0 + 5, "doc", text=garbled), [])
+        self.assertEqual(feed(b, T0 + 10, "doc", text=garbled), [])
+        self.assertEqual(feed(b, T0 + 15, "doc", text=garbled), [])
+        b.close()
+        self.assertEqual(len(b.recent), 1)
+        self.assertNotIn("wagtall", json.dumps(b.recent[0].to_dict()))
 
     def test_category_flip_keeps_the_established_digest(self):
         b = MomentBuffer(min_category_s=10)

@@ -20,6 +20,9 @@ One record per stretch of a visit in which nothing material changed (`src/moment
 - Calibration (ECE) is implemented for later PRs. Objective accuracy, boundary error and evidence reconstruction need inference output and arrive with it.
 Baselines (structure only): each visit, each item, sittings (300 s), each app, whole session, and an absorb-short-visits rule marked reference only.
 
+## Text hygiene
+Terms are words only (no digits inside, at most 20 letters). A line holding a long unbroken run that mixes letters and digits, or flips case repeatedly, is dropped whole, because OCR garbles keys so that exact secret patterns stop matching. A text change counts only when at least 60% of the moment's known words are still present: re-reading a static page with a different OCR pass garbles the same pixels the same way every frame, so repetition alone does not prove a change. These are heuristics, checked live on TextEdit only.
+
 ## Pause and idle
 When the tracker is paused, idle, or locked it calls `interrupt()`: the open moment is closed at its last frame (and written), no time is credited for the stop, and the next frame starts a new visit. A category flip or the length cap keeps the digest already established.
 

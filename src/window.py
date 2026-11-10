@@ -130,16 +130,33 @@ class _SideBackdrop(_Flipped):
         NSBezierPath.fillRect_(NSMakeRect(self.bounds().size.width - 1, 0, 1, self.bounds().size.height))
 
 
-class _Glow(_Flipped):
-    """A faint blue light behind the screenshot: one radial fade, no edge, nothing else. Passes clicks through."""
+class _Atmosphere(_Flipped):
+    """The light behind the page, three quiet layers and no edges: a slow top-lit tone from the canvas into the
+    graphite below, a wide periwinkle haze behind the header, and a smaller field around the screenshot.
+    Drawn behind everything; passes clicks through; never sits over text as a blur."""
+
+    def initWithFrame_(self, frame):
+        self = objc.super(_Atmosphere, self).initWithFrame_(frame)
+        self.header = None                           # (cx, cy, radius) behind the heading
+        self.shot = None                             # (cx, cy, radius) around the screenshot
+        return self
+
+    def _field(self, centre, radius, alpha):
+        from AppKit import NSGradient
+        light = kit.accent_text().colorWithAlphaComponent_(alpha)
+        NSGradient.alloc().initWithColors_([light, light.colorWithAlphaComponent_(alpha * 0.35), light.colorWithAlphaComponent_(0.0)]) \
+            .drawFromCenter_radius_toCenter_radius_options_(NSMakePoint(*centre), 0, NSMakePoint(*centre), radius, 0)
 
     def drawRect_(self, rect):
         from AppKit import NSGradient
         box = self.bounds()
-        centre = NSMakePoint(box.size.width / 2, box.size.height / 2)
-        light = kit.accent_text().colorWithAlphaComponent_(palette.GLOW[config.PAGE_THEME])
-        NSGradient.alloc().initWithStartingColor_endingColor_(light, light.colorWithAlphaComponent_(0.0)) \
-            .drawFromCenter_radius_toCenter_radius_options_(centre, 0, centre, box.size.width / 2, 0)
+        top = kit.accent_text().colorWithAlphaComponent_(palette.GLOW["tone"])
+        NSGradient.alloc().initWithStartingColor_endingColor_(top, top.colorWithAlphaComponent_(0.0)) \
+            .drawInRect_angle_(NSMakeRect(0, 0, box.size.width, min(box.size.height, 360)), 90)      # flipped: 90 = downward
+        if self.header:
+            self._field(self.header[:2], self.header[2], palette.GLOW["header"])
+        if self.shot:
+            self._field(self.shot[:2], self.shot[2], palette.GLOW[config.PAGE_THEME])
 
     def hitTest_(self, point):
         return None
@@ -825,7 +842,7 @@ class MainWindow:
                     ("Archive", "archivebox", lambda: (self.close_dialog(), self.project_action("archive", pid=d["pid"]))),
                     ("Delete…", "trash", lambda: self.open_ask("delete", d["pid"]))):
                 row = self._tap(card, 12, y, cw - 24, 40, call)
-                kit.tile(row, (symbol, "circle"), kit.ink(), 8, 7, 26)
+                kit.line(row, (symbol, "circle"), 11, 11, 18, kit.ink())
                 kit.put_text(row, label, 46, 0, cw - 24 - 60, 14, 500, wrap=False, height=40, middle=True)
                 y += 42
             y += 12
@@ -854,7 +871,7 @@ class MainWindow:
             rows.append(("Forget this…", "trash", lambda: self.open_thing_forget(d["ids"])))
             for label, symbol, call in rows:
                 row = self._tap(card, 12, y, cw - 24, 40, call)
-                kit.tile(row, (symbol, "circle"), kit.ink(), 8, 7, 26)
+                kit.line(row, (symbol, "circle"), 11, 11, 18, kit.ink())
                 kit.put_text(row, label, 46, 0, cw - 24 - 60, 14, 500, wrap=False, height=40, middle=True)
                 y += 42
             y += 12
@@ -966,7 +983,7 @@ class MainWindow:
     # ------------------------------------------------------------ icons
 
     def _project_icon(self, parent, hue, x, y, size=26):
-        kit.tile(parent, "folder.fill", hue_color(hue), x, y, size)
+        kit.tile(parent, ("folder", "folder.fill"), hue_color(hue), x, y, size)
 
     def _app_icon(self, parent, app, x, y, size=30, kind="", url=None):
         """The best real icon there is: the installed app's, else the web page's favicon from the
@@ -1087,7 +1104,7 @@ class MainWindow:
                 kit.put_text(caret, "▾" if row["expanded"] else "▸", 0, 0, 22, 11, 600, kit.mute(), align=kit.CENTER,
                              wrap=False, height=28, middle=True)
             if row.get("folder"):
-                kit.tile(tap, ("archivebox.fill", "tray.fill"), kit.mute(), x + 16, 4, 20)
+                kit.line(tap, ("archivebox", "tray"), x + 18, 6, 16, kit.mute())
             else:
                 self._project_icon(tap, row["hue"], x + 16, 4, 20)
             kit.put_text(tap, row["name"], x + 42, 0, SIDE_W - 16 - x - 42 - 40, 13, 500,
@@ -1222,8 +1239,8 @@ class MainWindow:
             self._project_icon(doc, page["hue"], x, y - 2, 40)
             tx = x + 54
         elif kind in ("home", "needs", "archived", "settings"):
-            kit.tile(doc, {"home": ("square.stack.3d.up.fill", "folder.fill"), "needs": ("bell.badge.fill", "bell.fill"),
-                           "archived": ("archivebox.fill", "tray.fill"), "settings": ("gearshape.fill", "gear")}[kind], kit.ink(), x, y - 2, 40)
+            kit.line(doc, {"home": ("square.stack.3d.up", "folder"), "needs": ("bell", "bell.badge"),
+                           "archived": ("archivebox", "tray"), "settings": ("gearshape", "gear")}[kind], x + 4, y + 2, 28, kit.ink())
             tx = x + 54
         if kind == "thing":                                       # the identity lives in the page's hero, below
             y += 8
@@ -1542,10 +1559,10 @@ class MainWindow:
             sub.removeFromSuperview()
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         tap = self._tap(self.side_foot, 8, 8, SIDE_W - 16 - 40, 34, lambda: self.open_name("new"))
-        kit.tile(tap, ("plus.circle.fill", "plus"), kit.ink(), 6, 5, 24)
+        kit.line(tap, ("plus.circle", "plus"), 9, 8, 18, kit.ink())
         kit.put_text(tap, "New project", 40, 0, 110, 13, 500, wrap=False, height=34, middle=True)
         gear = self._tap(self.side_foot, SIDE_W - 8 - 34, 8, 34, 34, lambda: self.open_settings(), fill=self.nav["view"] == "settings")
-        kit.tile(gear, ("gearshape.fill", "gear"), kit.mute(), 5, 5, 24)
+        kit.line(gear, ("gearshape", "gear"), 8, 8, 18, kit.mute())
 
     def _archived(self, doc, page, x, y, w):
         if page["empty"]:
@@ -1714,14 +1731,16 @@ class MainWindow:
         """The activity sits on the page itself: identity, headline, summary and Reopen beside the screenshot, then your
         notes in the one white surface that groups them, and the quiet facts beside it on the page."""
         self.shot_at = None
-        glow = None
-        if palette.GLOW[config.PAGE_THEME] > 0 and page["shot"]:      # behind everything else on the page
-            glow = _Glow.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
-            doc.addSubview_(glow)
+        air = None
+        if palette.GLOW[config.PAGE_THEME] > 0:                       # behind everything else on the page
+            air = _Atmosphere.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
+            doc.addSubview_(air)
         top = self._hero(doc, page, x, y, w)
-        if glow is not None and self.shot_at:
-            cx, cy, r = self.shot_at[0] + self.shot_at[2] / 2, self.shot_at[1] + self.shot_at[3] / 2, 420
-            glow.setFrame_(NSMakeRect(cx - r, cy - r, 2 * r, 2 * r))
+        if air is not None:
+            air.setFrame_(NSMakeRect(0, 0, max(doc.frame().size.width, x + w), top + 360))
+            air.header = (x + w * 0.22, y + 90, 360)
+            if self.shot_at:
+                air.shot = (self.shot_at[0] + self.shot_at[2] / 2, self.shot_at[1] + self.shot_at[3] / 2, 420)
         wide = w >= 640
         pad = 20
         nw = int(w * 0.6) if wide else w
@@ -1747,15 +1766,15 @@ class MainWindow:
         self._app_icon(doc, page["app"], px, top - 2, 26, page.get("thing_kind", ""), page.get("url"))
         main = next((p["name"] for p in page["places"] if p["main"]), "")
         where = " · ".join(b for b in (page.get("meta"), "in " + main if main else "") if b)
-        kit.put_text(doc, where, px + 36, top + 3, tw - 36, 12, 400, kit.warm("mute"), wrap=False, height=18, tip=False)
+        kit.meta(doc, where, px + 36, top + 3, tw - 36, kit.warm("mute"), wrap=False, height=18, tip=False)
         cy = top + 46
-        cy += kit.put_text(doc, page["headline"], px, cy, tw, 24, 600, kit.warm("ink")) + 10
+        cy += kit.display(doc, page["headline"], px, cy, tw, kit.warm("ink")) + 12
         if page["ai_summary"]:                                                # written by the model from the window and your notes: labelled
-            cy += kit.put_text(doc, page["ai_summary"], px, cy, tw, 14, 400, kit.warm("ink")) + 6
+            cy += kit.body(doc, page["ai_summary"], px, cy, tw, kit.warm("ink")) + 8
             kit.put_text(doc, "Summary by Trace", px, cy, tw, 11, 500, kit.accent_text(), wrap=False, height=16, tip=False)
             cy += 26
         elif page["observed"]:                                                # no AI line yet: only stored facts
-            cy += kit.put_text(doc, page["observed"], px, cy, tw, 14, 400, kit.warm("ink")) + 14
+            cy += kit.body(doc, page["observed"], px, cy, tw, kit.warm("ink")) + 14
         if page["reopen"]:                                                    # the one dominant action, right under what you were doing
             kit.button(doc, "Reopen", px, cy + 6, 116, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
             self._link(doc, "Copy link", px + 128, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13,
@@ -1794,8 +1813,8 @@ class MainWindow:
         tap = self._tap(doc, x, y, w, h, (lambda p=page["shot"]: self.open_file(p)))
         tap.ax_label = "Screenshot of " + page["title"] + ". Opens full size."
         caption = "As it looked, " + page["shot_when"].lower() + "."
-        reach = kit.text_width(caption, 12, 400) + 2
-        kit.put_text(doc, caption, x, y + h + 12, reach, 12, 400, kit.warm("mute"), wrap=False, height=16, tip=False)
+        reach = kit.text_width(caption, 12, 400) + 6
+        kit.meta(doc, caption, x, y + h + 12, reach, kit.warm("mute"), wrap=False, height=16, tip=False)
         self._link(doc, "Full size", x + reach + 2, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12, color=kit.accent_text())
         return y + h + 32
 
@@ -1845,15 +1864,15 @@ class MainWindow:
 
     def _facts(self, doc, page, x, y, w):
         """The quiet part, always in view but small: when, how long, the address, the captured text and where it is kept."""
-        kit.put_text(doc, "Details", x, y, w, 13, 600, kit.warm("mute"), wrap=False, height=20, tip=False)
+        kit.put_text(doc, "Details", x, y, w, 13, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
         y += 28
         rows = list(page["details"])
         if page["address"]:
             rows.append(("Address", page["address"]))
         rows += list(page["latest"])
         for k, v in rows:
-            kit.put_text(doc, k, x, y, 90, 12, 400, kit.warm("mute"), wrap=False, height=18, tip=False)
-            h = max(kit.put_text(doc, v, x + 100, y, w - 100, 12, 400, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
+            kit.meta(doc, k, x, y, 90, kit.warm("mute"), wrap=False, height=18, tip=False)
+            h = max(kit.meta(doc, v, x + 100, y, w - 100, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
             if k == "Address":                                        # the full address on hover of this row only, never over the buttons
                 hold = _Flipped.alloc().initWithFrame_(NSMakeRect(x + 100, y, w - 100, h))
                 hold.setToolTip_(v)
@@ -1868,7 +1887,7 @@ class MainWindow:
         reg, items = self.data()
         if page["item"] in items:                                 # where it is kept: only what is stored
             for text in thing_actions.why(reg, items[page["item"]]):
-                y += kit.put_text(doc, text, x, y, w, 12, 400, kit.warm("mute")) + 6
+                y += kit.meta(doc, text, x, y, w, kit.warm("mute")) + 6
         px = x
         for p in page["places"]:
             label = p["name"] + (" · main" if p["main"] else "")

@@ -35,7 +35,7 @@ THEMES = {
           "inset": (0.090, 0.094, 0.110), "edge": (0.176, 0.180, 0.204),
           "ink": (0.945, 0.933, 0.910), "mute": (0.647, 0.651, 0.686)},
 }
-GLOW = {"a": 0.0, "b": 0.11}                      # opacity of the light behind the screenshot
+GLOW = {"a": 0.0, "b": 0.11, "header": 0.05, "tone": 0.035}   # opacity of the light: behind the screenshot, behind the header, and the top-lit tone
 WARM = dict(THEMES["b"])                          # the colours in use; use() swaps them
 
 

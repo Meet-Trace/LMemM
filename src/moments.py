@@ -383,6 +383,9 @@ class MomentBuffer:
 
     def _close(self, m):
         self._prev_id, self._prev_end = m.id, m.t_end
+        v = self._last_visit.get(m.item_id)
+        if v and v["visit_id"] == m.visit_id:
+            v["ended_at"] = m.t_end          # the retention clock is the persisted t_end, the one MomentStore.sweep uses
         self.recent.append(m)
         if self.open is m:
             self.open = None

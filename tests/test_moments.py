@@ -317,6 +317,64 @@ class VisitMemoryTests(unittest.TestCase):
         self.assertIn("i11", b._last_visit)
         self.assertNotIn("i0", b._last_visit)
 
+    def test_switch_updates_ended_at_to_the_stored_t_end(self):
+        stored = []
+        b = MomentBuffer(sink=lambda m: stored.append(m), visit_gap=90, visit_retention_s=48 * HOUR)
+        feed(b, T0, "A")
+        feed(b, T0 + 20, "A")                                       # last frame of A
+        feed(b, T0 + 50, "B", text=OTHER)                           # switch within the gap: A's t_end becomes the switch time
+        [a] = stored
+        self.assertEqual(a.t_end, T0 + 50)
+        self.assertEqual(b._last_visit["A"]["ended_at"], a.t_end)   # not the previous frame (T0 + 20)
+
+    def test_closing_keeps_pause_idle_shutdown_and_category_behaviour(self):
+        stored = []
+        b = MomentBuffer(sink=lambda m: stored.append(m), visit_gap=90, min_category_s=10, visit_retention_s=48 * HOUR)
+        feed(b, T0, "A", cat="reading")
+        feed(b, T0 + 12, "A", cat="focus")                          # category boundary: closes at the frame time
+        self.assertEqual(stored[0].t_end, T0 + 12)
+        feed(b, T0 + 20, "A", cat="focus")
+        b.interrupt()                                               # pause: ends at its last frame, nothing credited
+        self.assertEqual(stored[1].t_end, T0 + 20)
+        self.assertEqual(b._last_visit["A"]["ended_at"], T0 + 20)
+        feed(b, T0 + 300, "A")
+        feed(b, T0 + 305, "A")
+        b.close()                                                   # shutdown
+        self.assertEqual(stored[2].t_end, T0 + 305)
+        self.assertEqual(b._last_visit["A"]["ended_at"], T0 + 305)
+        feed(b, T0 + 400, "A")
+        feed(b, T0 + 400 + 200, "B", text=OTHER)                    # beyond the gap: the stop is not credited
+        self.assertEqual(stored[3].t_end, T0 + 400)
+        self.assertEqual(b._last_visit["A"]["ended_at"], T0 + 400)
+
+    def test_an_older_visit_id_does_not_overwrite_a_newer_entry(self):
+        b = MomentBuffer(visit_retention_s=48 * HOUR)
+        feed(b, T0, "A")
+        old = b.open
+        feed(b, T0 + 30, "B", text=OTHER)
+        feed(b, T0 + 40, "A")
+        newer = b._last_visit["A"]["ended_at"]
+        b._close(old)                                               # a stale moment of an earlier visit of A
+        self.assertEqual(b._last_visit["A"]["ended_at"], newer)
+
+    def test_return_at_the_exact_retention_boundary_matches_the_store_sweep(self):
+        for delta, kept in ((0, True), (1, False)):                 # now - t_end == retention is kept; one second more is not
+            with self.subTest(delta=delta), tempfile.TemporaryDirectory() as d:
+                r = moment_store.Recorder(moment_store.MomentStore(os.path.join(d, "m"), retention_hours=48))
+                feed(r.buffer, T0, "A")
+                feed(r.buffer, T0 + 20, "A")
+                feed(r.buffer, T0 + 50, "B", text=OTHER)           # A's moment ends at T0 + 50, within the gap
+                a_end = T0 + 50
+                now = a_end + 48 * HOUR + delta
+                r.store.sweep(now)
+                on_disk = [x for x in r.store.read() if x["item_id"] == "A"]
+                self.assertEqual(bool(on_disk), kept)                # the store's verdict ...
+                feed(r.buffer, now, "A")
+                r.close()
+                back = [x for x in r.store.read() if x["item_id"] == "A"][-1]
+                linked = back["context"]["same_item_before"] is not None
+                self.assertEqual(linked, kept)                       # ... is the buffer's verdict
+
     def test_open_visit_is_never_pruned(self):
         b = self.buf()
         feed(b, T0, "A")

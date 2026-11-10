@@ -68,6 +68,18 @@ def hue_color(hue):
     return getattr(NSColor, names[hue % len(names)] + "Color")()
 
 
+def _local_minute():
+    """Minute of the day on the Mac's clock right now. Asks the system each time: Python's own time.localtime() keeps the
+    time zone the process started in, so changing the Mac's time zone would never reach the background."""
+    try:
+        from Foundation import NSCalendar, NSDate, NSTimeZone
+        NSTimeZone.resetSystemTimeZone()
+        parts = NSCalendar.autoupdatingCurrentCalendar().components_fromDate_(32 | 64, NSDate.date())    # hour | minute
+        return int(parts.hour()) * 60 + int(parts.minute())
+    except Exception:
+        return backdrop.minute_of(time.localtime())
+
+
 class _MainWindow(NSWindow):
     def canBecomeKeyWindow(self):
         return True
@@ -349,7 +361,7 @@ class MainWindow:
     # ------------------------------------------------------------ the time-of-day background
 
     def _wall_target(self):
-        return backdrop.plan(backdrop.minute_of(time.localtime()), config.BACKDROP)
+        return backdrop.plan(_local_minute(), config.BACKDROP)
 
     def _sync_ambient(self, target, animate):
         """Show the supplied artwork for the period the clock (or the pinned choice) says, if it is in place. The clock
@@ -418,6 +430,10 @@ class MainWindow:
             from Foundation import NSTimer
             self.wall_clock = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(60.0, True, self._clock_tick)
             self.wall_clock.setTolerance_(10.0)
+            from Foundation import NSNotificationCenter
+            self.wall_watch = [NSNotificationCenter.defaultCenter().addObserverForName_object_queue_usingBlock_(
+                name, None, None, lambda note: self._clock_tick(None))                         # a changed time zone or clock: look now
+                for name in ("NSSystemTimeZoneDidChangeNotification", "NSSystemClockDidChangeNotification")]
         except Exception:
             self.wall_clock = None
 

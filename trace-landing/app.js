@@ -9,13 +9,18 @@ function themeLabel(){
  if(toggle){
   toggle.setAttribute('aria-label',label);
   toggle.title=label;
-  toggle.innerHTML=dark
-   ? '<svg viewBox="0 0 24 24" aria-hidden="true" data-theme-icon="sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg>'
-   : '<svg viewBox="0 0 24 24" aria-hidden="true" data-theme-icon="moon"><path d="M20.8 14A9 9 0 0 1 10 3.2 9 9 0 1 0 20.8 14Z"/></svg>';
+  if(!toggle.querySelector('.theme-icons'))toggle.innerHTML='<span class="theme-icons" aria-hidden="true"><svg class="theme-sun" viewBox="0 0 24 24" data-theme-icon="sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg><svg class="theme-moon" viewBox="0 0 24 24" data-theme-icon="moon"><path d="M20.8 14A9 9 0 0 1 10 3.2 9 9 0 1 0 20.8 14Z"/></svg></span>';
+  toggle.classList.toggle('is-dark',dark);
  }
  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',dark?'#101113':'#f7f6f2');
 }
-themeLabel();toggle?.addEventListener('click',()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';explicitTheme=true;try{localStorage.setItem('trace-theme',root.dataset.theme);}catch{}themeLabel();});
+let themeFadeTimer;
+themeLabel();toggle?.addEventListener('click',()=>{
+ if(!matchMedia('(prefers-reduced-motion: reduce)').matches)root.classList.add('theme-changing');
+ root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';explicitTheme=true;
+ try{localStorage.setItem('trace-theme',root.dataset.theme);}catch{}
+ themeLabel();clearTimeout(themeFadeTimer);themeFadeTimer=setTimeout(()=>root.classList.remove('theme-changing'),320);
+});
 systemTheme.addEventListener('change',e=>{if(!explicitTheme){root.dataset.theme=e.matches?'light':'dark';themeLabel();}});
 for(const form of document.querySelectorAll('.waitlist-form'))form.addEventListener('submit',e=>{e.preventDefault();form.querySelector('[role="status"]').textContent='This preview does not save or send your email. Registration opens soon.';});
 const film=document.querySelector('#film-dialog'),video=document.querySelector('#concept-video');
@@ -66,6 +71,8 @@ const stage=document.querySelector('.stage-shell'),chapters=[...document.querySe
 let ticking=false,lastStage=-1;
 function updateScene(){
  ticking=false;
+ const navHeader=document.querySelector('.header'),navHero=document.querySelector('.hero');
+ if(navHeader&&navHero)navHeader.classList.toggle('over-hero',navHero.getBoundingClientRect().bottom>navHeader.offsetHeight);
  const closing=document.querySelector('.closing');
  const g=motion.matches?1:Math.min(1,Math.max(0,(innerHeight-closing.getBoundingClientRect().top)/(innerHeight*.65)));
  closing.style.setProperty('--gather',g.toFixed(4));
@@ -96,46 +103,63 @@ document.querySelector('.proof-reset')?.addEventListener('click',()=>setProof('d
 // Preload only the one next screenshot to keep the guided action immediate.
 if(document.querySelector('#proof-image')){const nextCapture=new Image();nextCapture.src=proofImages.source;}
 
-// Story: scroll position picks one of four steps (Activity, Context, Memory, Continuity).
+// Keep geometry attached to the actual moving cards, not guessed percentage centers.
 (function(){
- const track=document.querySelector('.story-track'),stageEl=document.querySelector('.story-stage');
- if(!track||!stageEl)return;
- const steps=[...document.querySelectorAll('.story .step')],rail=[...document.querySelectorAll('.story-rail i')];
- const staticMode=matchMedia('(max-width: 760px), (prefers-reduced-motion: reduce)');
- let current=-1,queued=false;
- function apply(){
-  queued=false;
-  if(staticMode.matches){stageEl.dataset.step='3';current=-1;return;}
-  const r=track.getBoundingClientRect(),span=r.height-innerHeight;
-  const p=span>0?Math.min(1,Math.max(0,-r.top/span)):0,i=Math.min(3,Math.floor(p*4));
-  if(i===current)return;current=i;stageEl.dataset.step=String(i);
-  steps.forEach((el,k)=>el.classList.toggle('active',k===i));rail.forEach((el,k)=>el.classList.toggle('on',k===i));
- }
- function request(){if(!queued){queued=true;requestAnimationFrame(apply);}}
- addEventListener('scroll',request,{passive:true});addEventListener('resize',request);staticMode.addEventListener('change',request);request();
-})();
-
-// Story threads: solid curves drawn from each fragment's edge to the project, in real pixel coordinates.
-(function(){
- const stageEl=document.querySelector('.story-stage'),svg=stageEl&&stageEl.querySelector('.threads');
- if(!svg)return;
- const grouped={f1:[24,24],f2:[76,22],f3:[16,52],f4:[84,56],f5:[28,80],f6:[74,82]};
- const ns='http://www.w3.org/2000/svg';
- function draw(){
-  const w=stageEl.clientWidth,h=stageEl.clientHeight;if(!w||!h)return;
-  svg.setAttribute('viewBox','0 0 '+w+' '+h);svg.replaceChildren();
-  const cx=w/2,cy=h/2;let n=0;
-  for(const [key,pos] of Object.entries(grouped)){
-   const el=stageEl.querySelector('.'+key);if(!el)continue;
-   const x=pos[0]/100*w,y=pos[1]/100*h,hw=el.offsetWidth/2+6,hh=el.offsetHeight/2+6,dx=cx-x,dy=cy-y;
-   const t=Math.min(hw/Math.abs(dx||1e-6),hh/Math.abs(dy||1e-6)),sx=x+dx*t,sy=y+dy*t;
-   const vx=cx-sx,vy=cy-sy,len=Math.hypot(vx,vy),nx=-vy/len,ny=vx/len,bend=(n%2?1:-1)*len*.12;n++;
-   const f=v=>v.toFixed(1);
-   const path=document.createElementNS(ns,'path');
-   path.setAttribute('d','M'+f(sx)+' '+f(sy)+'C'+f(sx+vx*.35+nx*bend)+' '+f(sy+vy*.35+ny*bend)+' '+f(sx+vx*.7+nx*bend)+' '+f(sy+vy*.7+ny*bend)+' '+f(cx)+' '+f(cy));
-   svg.append(path);path.style.setProperty('--len',Math.ceil(path.getTotalLength())+2);
-   const dot=document.createElementNS(ns,'circle');dot.setAttribute('cx',f(sx));dot.setAttribute('cy',f(sy));dot.setAttribute('r','3.5');svg.append(dot);
+ const track=document.querySelector('.story-track'),stage=document.querySelector('.story-stage');
+ if(!track||!stage)return;
+ const svg=stage.querySelector('.threads'),steps=[...document.querySelectorAll('.story .step')],rail=[...document.querySelectorAll('.story-rail i')];
+ const staticMode=matchMedia('(max-width: 760px), (prefers-reduced-motion: reduce)'),ns='http://www.w3.org/2000/svg';
+ const links=[...stage.querySelectorAll('.frag')].map((card,index)=>{const path=document.createElementNS(ns,'path'),dot=document.createElementNS(ns,'circle');dot.setAttribute('r','2.1');svg.append(path,dot);return {card,path,dot,index};});
+ let current=-1,frameId=0,until=0,last=performance.now(),connection=0;
+ function draw(now){
+  const r=stage.getBoundingClientRect();if(!r.width||!r.height)return;
+  svg.setAttribute('viewBox',`0 0 ${r.width} ${r.height}`);
+  const core=stage.querySelector('.core-a').getBoundingClientRect(),middle=core.left+core.width/2;
+  const dt=Math.min(50,now-last);last=now;connection+=(Number(current>0)-connection)*Math.min(1,dt/115);
+  for(const {card,path,dot,index} of links){
+   const box=card.getBoundingClientRect(),left=box.left+box.width/2<middle,side=left?1:-1;
+   const sx=(left?box.right:box.left)-r.left+side*5,sy=box.top+box.height/2-r.top;
+   const ex=(left?core.left:core.right)-r.left-side*5,ey=core.top+core.height*((Math.floor(index/2)+1)/4)-r.top;
+   const bend=Math.max(8,Math.abs(ex-sx)*.55);
+   path.setAttribute('d',`M ${sx} ${sy} C ${sx+side*bend} ${sy}, ${ex-side*bend} ${ey}, ${ex} ${ey}`);
+   const length=path.getTotalLength();path.style.strokeDasharray=String(length);path.style.strokeDashoffset=String(length*(1-connection));
+   dot.setAttribute('cx',String(sx));dot.setAttribute('cy',String(sy));
   }
  }
- draw();addEventListener('resize',draw);if(document.fonts)document.fonts.ready.then(draw);
+ function frame(now){
+  frameId=0;
+  if(staticMode.matches){stage.dataset.step='3';current=-1;steps.forEach(step=>step.removeAttribute('aria-hidden'));return;}
+  const r=track.getBoundingClientRect(),span=r.height-innerHeight,p=span>0?Math.min(1,Math.max(0,-r.top/span)):0;
+  let next=Math.min(3,Math.floor(p*4));
+  if(current>=0&&Math.abs(next-current)===1&&Math.abs(p-Math.max(next,current)/4)<.012)next=current;
+  if(next!==current){current=next;stage.dataset.step=String(next);until=now+1150;steps.forEach((step,i)=>{step.classList.toggle('active',i===next);step.setAttribute('aria-hidden',String(i!==next));});rail.forEach((dot,i)=>dot.classList.toggle('on',i===next));}
+  draw(now);if(now<until)frameId=requestAnimationFrame(frame);
+ }
+ function request(){if(!frameId)frameId=requestAnimationFrame(frame);}
+ addEventListener('scroll',request,{passive:true});addEventListener('resize',()=>{until=performance.now()+1100;request();});staticMode.addEventListener('change',request);document.fonts?.ready.then(request);request();
 })();
+
+// Informational controls only. This page never captures or sends user context.
+(function(){
+ const section=document.querySelector('.privacy-experience');if(!section)return;
+ const copies={
+  screen:{title:'Read the moment. Keep the context.',summary:'Trace can capture display frames while an allowed app is active to read visible text. Other visible windows can appear too. These are individual frames, not continuous screen video.',purpose:'Recognize the work you had open, so you can return to it.',retained:'Retained text and some small image previews in local app files.',destination:'Normal capture is processed on your Mac, without sending the frames to a cloud AI.',details:'When an allowed app is active, the beta can capture the display containing it. Other visible windows may appear too. Most full frames are processed in memory; some captures are kept as small image previews. Those previews normally expire after seven days, except for pinned items or items with open notes. Extracted text and notes have separate retention. If you enable the optional input timeline, it can retain full-size frames for up to 24 hours. Current beta files are not encrypted by Trace. You can pause capture, inspect saved items and delete retained data in the app.'},
+  voice:{title:'A voice note, when you open one.',summary:'The microphone is used while the voice-note window is open. It is not an always-on background recorder.',purpose:'Turn a thought you choose to speak into a written note.',retained:'The written note. Speech recognition is on-device, and no audio file is kept.',destination:'The voice-note helper uses on-device speech recognition, without sending audio to a cloud AI.',details:'Voice notes are optional and require macOS microphone and speech permissions. The listening helper runs while the note window is open. It requires on-device recognition rather than falling back to remote speech recognition. The transcript becomes a note you can inspect or delete.'},
+  sharing:{title:'An outside AI is your choice.',summary:'Local capture and memory do not need a cloud AI. Sharing context with an outside assistant is a separate action.',purpose:'Bring relevant saved context into an assistant conversation when you want to.',retained:'Your local memory stays in the app. You can preview the context selected for sharing.',destination:'If you approve outside-AI access or share a context packet, selected text goes to that provider, under its policies.',details:'The current app supports scoped agent access and a context preview. Copying a packet gives you control over where you paste it; connecting an outside assistant is an explicit disclosure choice. This preview uses made-up text and sends nothing. Local storage is not a claim that data already shared with another provider can be recalled from that provider.'}
+ };
+ let selected='screen',paused=false;
+ const status=section.querySelector('#privacy-status'),screen=section.querySelector('.privacy-screen');
+ function show(mode){selected=mode;const copy=copies[mode];for(const key of ['title','summary','purpose','retained','destination','details'])section.querySelector('#privacy-'+key).textContent=copy[key];section.querySelectorAll('[data-privacy]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.privacy===mode)));section.querySelector('.capture-example').hidden=mode!=='screen';section.querySelector('.voice-example').hidden=mode!=='voice';section.querySelector('.sharing-example').hidden=mode!=='sharing';section.querySelector('.app-permissions').hidden=mode!=='screen';section.querySelector('.capture-toolbar').hidden=mode!=='screen';section.querySelector('.capture-details').open=false;status.textContent='';}
+ section.querySelectorAll('[data-privacy]').forEach(button=>button.addEventListener('click',()=>show(button.dataset.privacy)));
+ section.querySelector('#capture-toggle').addEventListener('click',()=>{paused=!paused;screen.classList.toggle('is-paused',paused);section.querySelector('#capture-toggle').textContent=paused?'Resume preview':'Pause preview';section.querySelector('#capture-toggle').setAttribute('aria-pressed',String(paused));section.querySelector('#capture-state').innerHTML=`<i></i> Preview ${paused?'paused':'running'}`;status.textContent=paused?'In the app, pausing stops new capture. Previously saved items remain until you delete them.':'Preview resumed. No real capture is running on this page.';});
+ section.querySelectorAll('[data-preview-app]').forEach(input=>input.addEventListener('change',()=>{const selected=[...section.querySelectorAll('[data-preview-app]:checked')].map(input=>input.dataset.previewApp);section.querySelector('#app-selection-note').textContent=`${selected.length} ${selected.length===1?'app':'apps'} selected in this preview`;section.querySelector('.capture-example').style.opacity=selected.length?'':'.3';status.textContent=selected.length?`Example selection: ${selected.join(', ')}. Your Mac settings are unchanged.`:'No apps selected in the preview. In Trace, excluded apps do not trigger capture.';}));
+ section.querySelector('#packet-toggle').addEventListener('click',()=>{const packet=section.querySelector('#context-packet');packet.hidden=!packet.hidden;section.querySelector('#packet-toggle').setAttribute('aria-expanded',String(!packet.hidden));section.querySelector('#packet-toggle').textContent=packet.hidden?'Preview a context packet':'Close example packet';status.textContent=packet.hidden?'':'This packet contains only the demo note. Nothing was sent.';});
+})();
+
+// A true exit from the pinned story: no scrub through all four stages on the way out.
+document.querySelector('.story-skip')?.addEventListener('click',event=>{
+ const target=document.querySelector('#after-story');if(!target)return;
+ event.preventDefault();const previous=root.style.scrollBehavior;root.style.scrollBehavior='auto';
+ target.scrollIntoView({behavior:'auto',block:'start'});root.style.scrollBehavior=previous;
+ history.replaceState(null,'','#after-story');document.querySelector('#band-title')?.focus({preventScroll:true});
+});

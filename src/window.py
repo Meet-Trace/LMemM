@@ -130,6 +130,14 @@ class _SideBackdrop(_Flipped):
         NSBezierPath.fillRect_(NSMakeRect(self.bounds().size.width - 1, 0, 1, self.bounds().size.height))
 
 
+def _light_field(centre, radius, alpha):
+    """A soft periwinkle radial fade (a plain function: PyObjC would read a 3-argument method on a view as a selector)."""
+    from AppKit import NSGradient
+    light = kit.accent_text().colorWithAlphaComponent_(alpha)
+    NSGradient.alloc().initWithColors_([light, light.colorWithAlphaComponent_(alpha * 0.35), light.colorWithAlphaComponent_(0.0)]) \
+        .drawFromCenter_radius_toCenter_radius_options_(NSMakePoint(*centre), 0, NSMakePoint(*centre), radius, 0)
+
+
 class _Atmosphere(_Flipped):
     """The light behind the page, three quiet layers and no edges: a slow top-lit tone from the canvas into the
     graphite below, a wide periwinkle haze behind the header, and a smaller field around the screenshot.
@@ -141,12 +149,6 @@ class _Atmosphere(_Flipped):
         self.shot = None                             # (cx, cy, radius) around the screenshot
         return self
 
-    def _field(self, centre, radius, alpha):
-        from AppKit import NSGradient
-        light = kit.accent_text().colorWithAlphaComponent_(alpha)
-        NSGradient.alloc().initWithColors_([light, light.colorWithAlphaComponent_(alpha * 0.35), light.colorWithAlphaComponent_(0.0)]) \
-            .drawFromCenter_radius_toCenter_radius_options_(NSMakePoint(*centre), 0, NSMakePoint(*centre), radius, 0)
-
     def drawRect_(self, rect):
         from AppKit import NSGradient
         box = self.bounds()
@@ -154,9 +156,9 @@ class _Atmosphere(_Flipped):
         NSGradient.alloc().initWithStartingColor_endingColor_(top, top.colorWithAlphaComponent_(0.0)) \
             .drawInRect_angle_(NSMakeRect(0, 0, box.size.width, min(box.size.height, 360)), 90)      # flipped: 90 = downward
         if self.header:
-            self._field(self.header[:2], self.header[2], palette.GLOW["header"])
+            _light_field(self.header[:2], self.header[2], palette.GLOW["header"])
         if self.shot:
-            self._field(self.shot[:2], self.shot[2], palette.GLOW[config.PAGE_THEME])
+            _light_field(self.shot[:2], self.shot[2], palette.GLOW[config.PAGE_THEME])
 
     def hitTest_(self, point):
         return None

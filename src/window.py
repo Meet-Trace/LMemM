@@ -17,6 +17,7 @@ from Foundation import NSData, NSObject
 from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView, NSTextView,
                     NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
+import ambient
 import apps
 import backdrop
 import config
@@ -65,6 +66,18 @@ def hue_color(hue):
     names = ("systemBlue", "systemPurple", "systemPink", "systemOrange", "systemTeal", "systemGreen",
              "systemIndigo", "systemBrown")
     return getattr(NSColor, names[hue % len(names)] + "Color")()
+
+
+def _local_minute():
+    """Minute of the day on the Mac's clock right now. Asks the system each time: Python's own time.localtime() keeps the
+    time zone the process started in, so changing the Mac's time zone would never reach the background."""
+    try:
+        from Foundation import NSCalendar, NSDate, NSTimeZone
+        NSTimeZone.resetSystemTimeZone()
+        parts = NSCalendar.autoupdatingCurrentCalendar().components_fromDate_(32 | 64, NSDate.date())    # hour | minute
+        return int(parts.hour()) * 60 + int(parts.minute())
+    except Exception:
+        return backdrop.minute_of(time.localtime())
 
 
 class _MainWindow(NSWindow):
@@ -137,21 +150,6 @@ class _SideBackdrop(_Flipped):
         NSBezierPath.fillRect_(NSMakeRect(box.size.width - 1, 0, 1, box.size.height))
 
 
-_grain_tiles = {}
-
-
-def _grain_color(opacity):
-    """The film-grain tile (grain.py) as a tiling colour; made once per strength and kept."""
-    key = round(opacity, 3)
-    if key not in _grain_tiles:
-        import grain
-        png = grain.tile_png(key)
-        image = NSImage.alloc().initWithData_(NSData.dataWithBytes_length_(png, len(png)))
-        image.setSize_((grain.SIZE / 2, grain.SIZE / 2))                  # drawn at half size: fine on a Retina screen
-        _grain_tiles[key] = NSColor.colorWithPatternImage_(image)
-    return _grain_tiles[key]
-
-
 class _Backdrop(_Flipped):
     """The background behind the whole window (sidebar and page), drawn in code: a dark ground, a few soft
     radial lights, a faint top light, a vignette and film grain, for each time-of-day background at its weight
@@ -196,7 +194,7 @@ class _Backdrop(_Flipped):
         NSGradient.alloc().initWithStartingColor_endingColor_(dark.colorWithAlphaComponent_(0.0), dark.colorWithAlphaComponent_(0.34)) \
             .drawFromCenter_radius_toCenter_radius_options_(centre, max(w, h) * 0.5, centre, max(w, h) * 0.95, 3)
         grain = sum(backdrop.entry(k)["grain"] * v for k, v in weights.items()) / total
-        _grain_color(grain).setFill()
+        ambient.grain_color(grain).setFill()
         NSBezierPath.fillRect_(box)
 
     def hitTest_(self, point):
@@ -276,7 +274,13 @@ class MainWindow:
         self.window.setContentView_(self.root)
         self.wall = _Backdrop.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))      # the time-of-day picture, behind everything
         self.root.addSubview_(self.wall)
-        self.wall_tween = self.wall_clock = None
+        self.ambient = ambient.AmbientCanvas(NSMakeRect(0, 0, W, H))   # the supplied artwork over it, once all four pictures are in
+        self.root.addSubview_(self.ambient.view)
+        try:
+            self.ambient.attach(self.window)
+        except Exception:
+            traceback.print_exc()
+        self.wall_tween = self.wall_clock = self.wall_choice = None
         self.backdrop = _SideBackdrop.alloc().initWithFrame_(NSMakeRect(0, 0, SIDE_W, H))
         self.root.addSubview_(self.backdrop)
         self.banner_host = _Flipped.alloc().initWithFrame_(NSMakeRect(SIDE_W, TOP, W - SIDE_W, 0))
@@ -350,18 +354,37 @@ class MainWindow:
         """Put the parts that do not scroll where the window's size says."""
         self.backdrop.setFrame_(NSMakeRect(0, 0, SIDE_W, self.H))
         self.wall.setFrame_(NSMakeRect(0, 0, self.W, self.H))
+        self.ambient.view.setFrame_(NSMakeRect(0, 0, self.W, self.H))
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         self.overlay.setFrame_(NSMakeRect(0, 0, self.W, self.H))
 
     # ------------------------------------------------------------ the time-of-day background
 
     def _wall_target(self):
-        return backdrop.plan(backdrop.minute_of(time.localtime()), config.BACKDROP)
+        return backdrop.plan(_local_minute(), config.BACKDROP)
+
+    def _sync_ambient(self, target, animate):
+        """Show the supplied artwork for the period the clock (or the pinned choice) says, if it is in place. The clock
+        changes period over config.AMBIENT_FADE_SECONDS; a person's own pick in Settings over about a second.
+        False means there is no artwork: the code-drawn stand-in below takes over."""
+        if not self.ambient.usable:
+            return False
+        picked = config.BACKDROP != self.wall_choice
+        self.wall_choice = config.BACKDROP
+        try:
+            shown = self.ambient.show(next(iter(target)), animate=animate, seconds=1.2 if picked else None)
+        except Exception:
+            traceback.print_exc()
+            shown = False
+        self.wall.setHidden_(shown)
+        return shown
 
     def _sync_wall(self, animate=True):
         """Show what the clock (or the chosen background) says. Time itself only ever nudges the weights by a
         little; a manual change cross-fades over about a second (reduced motion: it just changes)."""
         target = self._wall_target()
+        if self._sync_ambient(target, animate):
+            return
         now = dict(self.wall.mix)
         keys = set(now) | set(target)
         if all(abs(now.get(k, 0) - target.get(k, 0)) < 0.004 for k in keys):
@@ -374,7 +397,7 @@ class MainWindow:
         from Foundation import NSTimer
         if self.wall_tween is not None:
             self.wall_tween.invalidate()
-        began, start, span = time.time(), now, 0.9
+        began, start, span = time.time(), now, 0.9 if big and config.BACKDROP != "auto" else config.AMBIENT_FADE_SECONDS
 
         def step(timer):
             try:
@@ -407,6 +430,10 @@ class MainWindow:
             from Foundation import NSTimer
             self.wall_clock = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(60.0, True, self._clock_tick)
             self.wall_clock.setTolerance_(10.0)
+            from Foundation import NSNotificationCenter
+            self.wall_watch = [NSNotificationCenter.defaultCenter().addObserverForName_object_queue_usingBlock_(
+                name, None, None, lambda note: self._clock_tick(None))                         # a changed time zone or clock: look now
+                for name in ("NSSystemTimeZoneDidChangeNotification", "NSSystemClockDidChangeNotification")]
         except Exception:
             self.wall_clock = None
 

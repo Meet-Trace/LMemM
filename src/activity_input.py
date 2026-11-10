@@ -27,6 +27,9 @@ Visit checks:
         max_intra_visit_gap_s -> k max_intra_visit_gap_s every difference and tol both scale by k and every
         comparison keeps its outcome for any k > 0. No absolute floor, no dependence on the size of a timestamp.
         The slack is about a millionth of the permitted gap (300 s -> 0.3 ms), far below any real overlap or gap.
+        Numerical limitation: the relative tolerance accounts for floating-point rounding only while timestamp
+        magnitudes stay small relative to max_intra_visit_gap_s (roughly below 4e9 * max_intra_visit_gap_s); beyond this
+        range, floating-point precision may cause valid boundary cases to be rejected.
     V4  visit-id coherence. A visit id (<prefix><second>-<n>) is written once, when the visit is created, from the
         capture clock (moments.py: f"{prefix}{int(t)}-{n}", t = the visit's first frame = its first moment's t_start),
         and is never rewritten, so it is an immutable label. Two parts:

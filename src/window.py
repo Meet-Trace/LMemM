@@ -165,6 +165,14 @@ class _Backdrop(_Flipped):
         return self
 
     def drawRect_(self, rect):
+        try:
+            self._paint()
+        except Exception:
+            traceback.print_exc()
+            kit.warm("canvas").setFill()                                   # at worst: the plain graphite ground
+            NSBezierPath.fillRect_(self.bounds())
+
+    def _paint(self):
         from AppKit import NSGradient
         box = self.bounds()
         w, h = box.size.width, box.size.height
@@ -187,10 +195,8 @@ class _Backdrop(_Flipped):
             .drawInRect_angle_(NSMakeRect(0, 0, w, min(h, 320)), 90)
         dark = NSColor.blackColor()                                        # a soft vignette: the edges settle into the ground
         centre = NSMakePoint(w * 0.58, h * 0.36)
-        NSGradient.alloc().initWithColors_atLocations_colorSpace_(
-            [dark.colorWithAlphaComponent_(0.0), dark.colorWithAlphaComponent_(0.0), dark.colorWithAlphaComponent_(0.34)],
-            [0.0, 0.55, 1.0], None) \
-            .drawFromCenter_radius_toCenter_radius_options_(centre, 0, centre, max(w, h) * 0.95, 3)
+        NSGradient.alloc().initWithStartingColor_endingColor_(dark.colorWithAlphaComponent_(0.0), dark.colorWithAlphaComponent_(0.34)) \
+            .drawFromCenter_radius_toCenter_radius_options_(centre, max(w, h) * 0.5, centre, max(w, h) * 0.95, 3)
         grain = sum(backdrop.entry(k)["grain"] * v for k, v in weights.items()) / total
         _grain_color(grain).setFill()
         NSBezierPath.fillRect_(box)
@@ -373,6 +379,16 @@ class MainWindow:
         began, start, span = time.time(), now, 0.9
 
         def step(timer):
+            try:
+                self._wall_step(timer, began, span, start, target, keys)
+            except Exception:
+                traceback.print_exc()
+                timer.invalidate()
+                self.wall_tween = None
+        self.wall_tween = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(1 / 30, True, step)
+
+    def _wall_step(self, timer, began, span, start, target, keys):
+        if True:
             t = min(1.0, (time.time() - began) / span)
             t = t * t * (3 - 2 * t)
             self.wall.mix = {k: start.get(k, 0) * (1 - t) + target.get(k, 0) * t for k in keys}
@@ -380,13 +396,18 @@ class MainWindow:
             if t >= 1.0:
                 timer.invalidate()
                 self.wall_tween = None
-        self.wall_tween = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(1 / 30, True, step)
+
+    def _clock_tick(self, timer):
+        try:
+            self._sync_wall()
+        except Exception:
+            traceback.print_exc()
 
     def _start_wall_clock(self):
         """Look at the clock once a minute (nothing else runs for the background)."""
         try:
             from Foundation import NSTimer
-            self.wall_clock = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(60.0, True, lambda timer: self._sync_wall())
+            self.wall_clock = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(60.0, True, self._clock_tick)
             self.wall_clock.setTolerance_(10.0)
         except Exception:
             self.wall_clock = None

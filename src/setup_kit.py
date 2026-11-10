@@ -207,7 +207,7 @@ class _KitText(_Flipped):
         self.setNeedsDisplay_(True)
 
 
-def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False):
+def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False, tip=True):
     """Add text to `parent`; returns the height it takes."""
     h = height if height is not None else text_height(text, size, weight, w, wrap)
     view = _KitText.alloc().initWithText_size_weight_color_align_wrap_middle_(
@@ -215,7 +215,7 @@ def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT,
     view.setFrame_(NSMakeRect(x, y, w, h))
     parent.addSubview_(view)
     try:
-        if not wrap and text and text_width(text, size, weight) > w + 1 and not parent.toolTip():
+        if tip and not wrap and text and text_width(text, size, weight) > w + 1 and not parent.toolTip():
             parent.setToolTip_(text)                 # a cut-off name can still be read (the text view itself takes no mouse)
     except Exception:
         pass

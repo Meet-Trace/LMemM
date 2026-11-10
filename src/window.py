@@ -119,7 +119,7 @@ class _SideBackdrop(_Flipped):
     """The sidebar's soft tint and the hairline between it and the page."""
 
     def drawRect_(self, rect):
-        if config.WINDOW_LIGHT:
+        if config.WINDOW_APPEARANCE != "system":
             kit.warm("sidebar").setFill()
             NSBezierPath.fillRect_(self.bounds())
             kit.warm("edge").setFill()
@@ -128,6 +128,21 @@ class _SideBackdrop(_Flipped):
             NSBezierPath.fillRect_(self.bounds())
             kit.faint(0.09).setFill()
         NSBezierPath.fillRect_(NSMakeRect(self.bounds().size.width - 1, 0, 1, self.bounds().size.height))
+
+
+class _Glow(_Flipped):
+    """A faint blue light behind the screenshot: one radial fade, no edge, nothing else. Passes clicks through."""
+
+    def drawRect_(self, rect):
+        from AppKit import NSGradient
+        box = self.bounds()
+        centre = NSMakePoint(box.size.width / 2, box.size.height / 2)
+        light = kit.accent_text().colorWithAlphaComponent_(palette.GLOW[config.PAGE_THEME])
+        NSGradient.alloc().initWithStartingColor_endingColor_(light, light.colorWithAlphaComponent_(0.0)) \
+            .drawFromCenter_radius_toCenter_radius_options_(centre, 0, centre, box.size.width / 2, 0)
+
+    def hitTest_(self, point):
+        return None
 
 
 def _scroll(parent):
@@ -185,9 +200,11 @@ class MainWindow:
         self.window.setHidesOnDeactivate_(False)                   # it stays where it is when you go to another app
         self.window.setCollectionBehavior_(1 << 7)                 # the green button makes it full screen
         self.window.setContentMinSize_((MIN_W, MIN_H))
-        if config.WINDOW_LIGHT:                                    # one warm-light application: sidebar and pages together
+        palette.use(config.PAGE_THEME)
+        if config.WINDOW_APPEARANCE in ("dark", "light"):          # one application: sidebar and pages together
             from AppKit import NSAppearance
-            self.window.setAppearance_(NSAppearance.appearanceNamed_("NSAppearanceNameAqua"))
+            self.window.setAppearance_(NSAppearance.appearanceNamed_(
+                "NSAppearanceNameDarkAqua" if config.WINDOW_APPEARANCE == "dark" else "NSAppearanceNameAqua"))
             self.window.setBackgroundColor_(kit.warm("canvas"))
         else:
             self.window.setBackgroundColor_(kit.card_background())
@@ -216,7 +233,7 @@ class MainWindow:
         self.root.addSubview_(self.search)
         self.side_scroll = _scroll(self.root)
         self.main_scroll = _scroll(self.root)
-        self.keep_focus, self.note_surface = False, None
+        self.keep_focus, self.note_surface, self.shot_at = False, None, None
         self.composing = False                                         # there are words in the note field that are not saved yet
         self.note_typing = _Fields.alloc().initWithChange_submit_cancel_(
             self._note_typed, self._submit_note, self._cancel_note)
@@ -1009,10 +1026,12 @@ class MainWindow:
     def _label(self, parent, text, x, y, w, size=12, weight=600, color=None, align=LEFT):
         kit.put_text(parent, text, x, y, w, size, weight, color or kit.mute(), align=align, wrap=False, height=size + 6)
 
-    def _link(self, parent, text, x, y, callback, size=13, color=None):
-        """Quiet clickable text. Returns its width."""
+    def _link(self, parent, text, x, y, callback, size=13, color=None, tip=None):
+        """Quiet clickable text. Returns its width. `tip` is a short hover hint."""
         width = kit.text_width(text, size, 500) + 12
         tap = self._tap(parent, x, y, width, size + 12, callback)
+        if tip:
+            tap.setToolTip_(tip)
         kit.put_text(tap, text, 6, 0, width - 12, size, 500, color or kit.mute(), wrap=False, height=size + 12, middle=True)
         return width
 
@@ -1694,7 +1713,15 @@ class MainWindow:
     def _thing_page(self, doc, page, x, y, w):
         """The activity sits on the page itself: identity, headline, summary and Reopen beside the screenshot, then your
         notes in the one white surface that groups them, and the quiet facts beside it on the page."""
+        self.shot_at = None
+        glow = None
+        if palette.GLOW[config.PAGE_THEME] > 0 and page["shot"]:      # behind everything else on the page
+            glow = _Glow.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
+            doc.addSubview_(glow)
         top = self._hero(doc, page, x, y, w)
+        if glow is not None and self.shot_at:
+            cx, cy, r = self.shot_at[0] + self.shot_at[2] / 2, self.shot_at[1] + self.shot_at[3] / 2, 420
+            glow.setFrame_(NSMakeRect(cx - r, cy - r, 2 * r, 2 * r))
         wide = w >= 640
         pad = 20
         nw = int(w * 0.6) if wide else w
@@ -1720,18 +1747,19 @@ class MainWindow:
         self._app_icon(doc, page["app"], px, top - 2, 26, page.get("thing_kind", ""), page.get("url"))
         main = next((p["name"] for p in page["places"] if p["main"]), "")
         where = " · ".join(b for b in (page.get("meta"), "in " + main if main else "") if b)
-        kit.put_text(doc, where, px + 36, top + 3, tw - 36, 12, 400, kit.warm("mute"), wrap=False, height=18)
+        kit.put_text(doc, where, px + 36, top + 3, tw - 36, 12, 400, kit.warm("mute"), wrap=False, height=18, tip=False)
         cy = top + 46
         cy += kit.put_text(doc, page["headline"], px, cy, tw, 24, 600, kit.warm("ink")) + 10
         if page["ai_summary"]:                                                # written by the model from the window and your notes: labelled
             cy += kit.put_text(doc, page["ai_summary"], px, cy, tw, 14, 400, kit.warm("ink")) + 6
-            kit.put_text(doc, "Summary by Trace", px, cy, tw, 11, 500, kit.accent_text(), wrap=False, height=16)
+            kit.put_text(doc, "Summary by Trace", px, cy, tw, 11, 500, kit.accent_text(), wrap=False, height=16, tip=False)
             cy += 26
         elif page["observed"]:                                                # no AI line yet: only stored facts
             cy += kit.put_text(doc, page["observed"], px, cy, tw, 14, 400, kit.warm("ink")) + 14
         if page["reopen"]:                                                    # the one dominant action, right under what you were doing
             kit.button(doc, "Reopen", px, cy + 6, 116, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
-            self._link(doc, "Copy link", px + 128, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13)
+            self._link(doc, "Copy link", px + 128, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13,
+                       tip="Copy original link")
             cy += BUTTON_H + 12
         bottom = cy
         if shot is not None and wide:
@@ -1748,10 +1776,11 @@ class MainWindow:
         size = image.size()
         h = min(w * size.height / max(size.width, 1), 340)
         w = h * size.width / max(size.height, 1)
-        lift = _Flipped.alloc().initWithFrame_(NSMakeRect(x, y, w, h))            # a faint ambient shadow, nothing more
+        self.shot_at = (x, y, w, h)
+        lift = _Flipped.alloc().initWithFrame_(NSMakeRect(x, y, w, h))            # depth under the screenshot, nothing more
         lift.setWantsLayer_(True)
-        lift.layer().setShadowOpacity_(0.13)
-        lift.layer().setShadowRadius_(16)
+        lift.layer().setShadowOpacity_(0.5 if config.PAGE_THEME == "b" else 0.35)
+        lift.layer().setShadowRadius_(22)
         lift.layer().setShadowOffset_((0, 0))
         doc.addSubview_(lift)
         holder = NSImageView.alloc().initWithFrame_(NSMakeRect(0, 0, w, h))
@@ -1766,20 +1795,20 @@ class MainWindow:
         tap.ax_label = "Screenshot of " + page["title"] + ". Opens full size."
         caption = "As it looked, " + page["shot_when"].lower() + "."
         reach = kit.text_width(caption, 12, 400) + 2
-        kit.put_text(doc, caption, x, y + h + 12, reach, 12, 400, kit.warm("mute"), wrap=False, height=16)
+        kit.put_text(doc, caption, x, y + h + 12, reach, 12, 400, kit.warm("mute"), wrap=False, height=16, tip=False)
         self._link(doc, "Full size", x + reach + 2, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12, color=kit.accent_text())
         return y + h + 32
 
     def _notes(self, doc, page, x, y, w):
         """Your notes, then the one place to write another: the composer sits at the end of the list, in this panel."""
         count = page["open_count"]
-        kit.put_text(doc, "Your notes", x, y, w - 70, 13, 600, kit.warm("ink"), wrap=False, height=20)
-        kit.put_text(doc, f"{count} open" if count else "all done", x + w - 70, y + 1, 70, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18)
+        kit.put_text(doc, "Your notes", x, y, w - 70, 13, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
+        kit.put_text(doc, f"{count} open" if count else "all done", x + w - 70, y + 1, 70, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18, tip=False)
         y += 30
         for n in page["open"] + page["done"]:
             y = self._note_row(doc, n, x, y, w)
         if not page["open"] and not page["done"]:
-            kit.put_text(doc, "Nothing written yet.", x, y, w, 13, 400, kit.warm("mute"), wrap=False, height=20)
+            kit.put_text(doc, "Nothing written yet.", x, y, w, 13, 400, kit.warm("mute"), wrap=False, height=20, tip=False)
             y += 28
         return self._composer(doc, x, y + 6, w)
 
@@ -1811,20 +1840,25 @@ class MainWindow:
             self._struck(row, n["text"], 34, 6, words, 14)
         else:
             kit.put_text(row, n["text"], 34, 6, words, 14, 400, kit.warm("ink"))
-        kit.put_text(row, n["when"], w - 72, 8, 72, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18)
+        kit.put_text(row, n["when"], w - 72, 8, 72, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18, tip=False)
         return y + h + 14
 
     def _facts(self, doc, page, x, y, w):
         """The quiet part, always in view but small: when, how long, the address, the captured text and where it is kept."""
-        kit.put_text(doc, "Details", x, y, w, 13, 600, kit.warm("mute"), wrap=False, height=20)
+        kit.put_text(doc, "Details", x, y, w, 13, 600, kit.warm("mute"), wrap=False, height=20, tip=False)
         y += 28
         rows = list(page["details"])
         if page["address"]:
             rows.append(("Address", page["address"]))
         rows += list(page["latest"])
         for k, v in rows:
-            kit.put_text(doc, k, x, y, 90, 12, 400, kit.warm("mute"), wrap=False, height=18)
-            y += max(kit.put_text(doc, v, x + 100, y, w - 100, 12, 400, kit.warm("ink"), wrap=(k != "Address")), 18) + 6
+            kit.put_text(doc, k, x, y, 90, 12, 400, kit.warm("mute"), wrap=False, height=18, tip=False)
+            h = max(kit.put_text(doc, v, x + 100, y, w - 100, 12, 400, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
+            if k == "Address":                                        # the full address on hover of this row only, never over the buttons
+                hold = _Flipped.alloc().initWithFrame_(NSMakeRect(x + 100, y, w - 100, h))
+                hold.setToolTip_(v)
+                doc.addSubview_(hold)
+            y += h + 6
         screen = page["screen"]
         if screen:                                                # the raw captured text is one tap away, never on the page
             y += 4
@@ -1843,7 +1877,7 @@ class MainWindow:
                 px, y = x, y + 40
             tap = self._tap(doc, px, y, width, 32, (lambda i=p["id"]: self.press("go", i)), fill=True)
             self._project_icon(tap, p["hue"], 6, 5, 22)
-            kit.put_text(tap, label, 34, 0, width - 40, 13, 500, wrap=False, height=32, middle=True)
+            kit.put_text(tap, label, 34, 0, width - 40, 13, 500, wrap=False, height=32, middle=True, tip=False)
             px += width + 8
         return y + (40 if page["places"] else 0)
 

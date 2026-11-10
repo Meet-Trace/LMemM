@@ -25,6 +25,8 @@ AMBIENT_FADE_SECONDS = 14.0          # the cross-fade when a period changes (10-
 AMBIENT_MOVE_SECONDS = (45.0, 90.0)  # one slow drift of a light field, there and back
 AMBIENT_PULSE_SECONDS = (30.0, 60.0) # one slow swell of a light's intensity
 AMBIENT_GRAIN = 0.012                # extra static grain over the artwork (0 = none); the artwork's own grain is kept
+if os.environ.get("LMEMM_AMBIENT_FAST"):                 # a test aid: LMEMM_AMBIENT_FAST=1 makes the light move in seconds, not minutes
+    AMBIENT_MOVE_SECONDS, AMBIENT_PULSE_SECONDS, AMBIENT_FADE_SECONDS = (8.0, 14.0), (6.0, 10.0), 4.0
 AMBIENT_MOTION = True                # False: the artwork stays still (Reduce Motion in System Settings does this too)
 FIND_PROJECTS = True    # notice projects in what you did and suggest them (project_finder.py); never files anything
 FIND_EVERY = 30 * 60    # seconds between looks, taken only while you are idle

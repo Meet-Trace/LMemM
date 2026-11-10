@@ -1,0 +1,387 @@
+[
+ {
+  "id": "failing-build",
+  "theme": "fixing a failing build in a side project",
+  "windows": [
+   {
+    "app": "Terminal",
+    "title": "npm run build — 110×30",
+    "details": {
+     "cwd": "~/code/shopfront"
+    },
+    "lines": [
+     "error TS2322: Type 'string' is not assignable to type 'number'",
+     "src/cart/totals.ts:41:7",
+     "Found 3 errors."
+    ],
+    "did": "Reading the compiler errors from a failing build."
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "totals.ts — shopfront",
+    "details": {
+     "file": "~/code/shopfront/src/cart/totals.ts"
+    },
+    "lines": [
+     "const tax: number = rate.toFixed(2)",
+     "// toFixed returns a string"
+    ],
+    "did": "Fixing a type error in the cart totals code."
+   },
+   {
+    "app": "Safari",
+    "title": "typescript - toFixed returns string, how to keep a number? - Stack Overflow",
+    "details": {
+     "url": "https://stackoverflow.example/q/3481"
+    },
+    "lines": [
+     "Wrap it in Number() or use Math.round(x * 100) / 100"
+    ],
+    "did": "Looking up how to keep a number after rounding."
+   },
+   {
+    "app": "GitHub",
+    "title": "Fix: cart totals rounding by you · Pull Request #58 · shopfront",
+    "details": {
+     "url": "https://github.com/me/shopfront/pull/58"
+    },
+    "lines": [
+     "3 files changed",
+     "All checks have passed"
+    ],
+    "did": "Opening a pull request with the fix and watching its checks."
+   },
+   {
+    "app": "Terminal",
+    "title": "git push — 110×30",
+    "details": {
+     "cwd": "~/code/shopfront"
+    },
+    "lines": [
+     "$ git commit -m 'Fix rounding in cart totals'",
+     "$ git push origin fix-totals",
+     "To github.com:me/shopfront.git"
+    ],
+    "did": "Committing and pushing the fix."
+   }
+  ]
+ },
+ {
+  "id": "home-media-server",
+  "theme": "setting up a home media server for the family",
+  "windows": [
+   {
+    "app": "Terminal",
+    "title": "ssh pi@homebox.local",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "pi@homebox:~ $ sudo apt install jellyfin",
+     "Setting up jellyfin (10.9.7)"
+    ],
+    "did": "Installing a media server on a small home computer over ssh."
+   },
+   {
+    "app": "System Settings",
+    "title": "Network — Ethernet",
+    "details": {},
+    "lines": [
+     "IP address: 192.168.1.40",
+     "Router: 192.168.1.1"
+    ],
+    "did": "Finding the home computer's address on the network."
+   },
+   {
+    "app": "Safari",
+    "title": "Jellyfin — Library setup",
+    "details": {
+     "url": "http://homebox.local:8096/web/index.html"
+    },
+    "lines": [
+     "Add media library",
+     "Content type: Movies",
+     "Folder: /mnt/disk1/movies"
+    ],
+    "did": "Adding the movie folder to the new media server."
+   },
+   {
+    "app": "Finder",
+    "title": "Movies — external drive",
+    "details": {
+     "folder": "/Volumes/Seagate/Movies"
+    },
+    "lines": [
+     "Dune (2021).mkv",
+     "Parasite (2019).mkv",
+     "Spirited Away (2001).mkv"
+    ],
+    "did": "Looking at which films are on the drive to add."
+   },
+   {
+    "app": "Notes",
+    "title": "Homebox setup",
+    "details": {},
+    "lines": [
+     "Static IP: .40",
+     "Jellyfin on 8096",
+     "TODO: share login with parents"
+    ],
+    "did": "Writing down the settings of the new server."
+   }
+  ]
+ },
+ {
+  "id": "new-laptop-move",
+  "theme": "moving everything to a new laptop",
+  "windows": [
+   {
+    "app": "Migration Assistant",
+    "title": "Migration Assistant",
+    "details": {},
+    "lines": [
+     "Transfer from a Mac, Time Machine backup or startup disk",
+     "Applications, Users, Settings"
+    ],
+    "did": "Starting the transfer from the old laptop to the new one."
+   },
+   {
+    "app": "System Settings",
+    "title": "Apple ID — iCloud",
+    "details": {},
+    "lines": [
+     "Sign in with the same Apple ID",
+     "iCloud Drive: On"
+    ],
+    "did": "Signing in to the cloud account on the new laptop."
+   },
+   {
+    "app": "Terminal",
+    "title": "brew bundle — 100×28",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "$ brew bundle --file ~/Brewfile",
+     "Installing node, git, ffmpeg"
+    ],
+    "did": "Reinstalling command line tools from a saved list."
+   },
+   {
+    "app": "Finder",
+    "title": "Old Mac — Documents",
+    "details": {
+     "folder": "/Volumes/Old Mac/Users/me/Documents"
+    },
+    "lines": [
+     "Taxes",
+     "Passport scans",
+     "Projects"
+    ],
+    "did": "Checking that the document folders arrived on the new laptop."
+   },
+   {
+    "app": "Notes",
+    "title": "Checklist: new laptop",
+    "details": {},
+    "lines": [
+     "Wi-Fi printers",
+     "Browser sign-ins",
+     "Return the old charger"
+    ],
+    "did": "Keeping a checklist of what is left to set up."
+   }
+  ]
+ },
+ {
+  "id": "monthly-report-script",
+  "theme": "automating a monthly report with a shell script",
+  "windows": [
+   {
+    "app": "Visual Studio Code",
+    "title": "report.sh — scripts",
+    "details": {
+     "file": "~/scripts/report.sh"
+    },
+    "lines": [
+     "#!/bin/bash",
+     "psql -c \"COPY (SELECT ...) TO 'sales.csv'\"",
+     "mail -s 'Monthly report' team@firm.example < summary.txt"
+    ],
+    "did": "Writing a shell script that exports the month's numbers and mails them."
+   },
+   {
+    "app": "Terminal",
+    "title": "zsh — 100×28",
+    "details": {
+     "cwd": "~/scripts"
+    },
+    "lines": [
+     "$ ./report.sh --dry-run",
+     "Wrote sales.csv (1,204 rows)",
+     "Would send to team@firm.example"
+    ],
+    "did": "Trying the script without sending anything."
+   },
+   {
+    "app": "Safari",
+    "title": "crontab guru — every month on the 1st",
+    "details": {
+     "url": "https://crontab.example/#0_7_1_*_*"
+    },
+    "lines": [
+     "0 7 1 * *",
+     "At 07:00 on day-of-month 1"
+    ],
+    "did": "Working out the schedule for running the script every month."
+   },
+   {
+    "app": "Numbers",
+    "title": "sales.csv",
+    "details": {
+     "file": "~/scripts/sales.csv"
+    },
+    "lines": [
+     "Region | Units | Revenue",
+     "West | 412 | 8.2 L"
+    ],
+    "did": "Checking the exported numbers look right."
+   },
+   {
+    "app": "Terminal",
+    "title": "crontab -e",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "0 7 1 * * /Users/me/scripts/report.sh"
+    ],
+    "did": "Adding the scheduled job."
+   }
+  ]
+ },
+ {
+  "id": "home-network-printer",
+  "theme": "fixing the wireless printer and home network",
+  "windows": [
+   {
+    "app": "System Settings",
+    "title": "Printers & Scanners",
+    "details": {},
+    "lines": [
+     "Brother HL-L2350DW — Offline",
+     "Add Printer…"
+    ],
+    "did": "Seeing that the printer shows as offline."
+   },
+   {
+    "app": "Safari",
+    "title": "Router admin — 192.168.1.1",
+    "details": {
+     "url": "http://192.168.1.1/admin"
+    },
+    "lines": [
+     "DHCP reservations",
+     "Brother HL-L2350DW 192.168.1.58"
+    ],
+    "did": "Giving the printer a fixed address in the router."
+   },
+   {
+    "app": "Terminal",
+    "title": "ping 192.168.1.58 — 100×28",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "64 bytes from 192.168.1.58: icmp_seq=0 ttl=64 time=3.1 ms",
+     "0.0% packet loss"
+    ],
+    "did": "Checking the printer answers at its new address."
+   },
+   {
+    "app": "Safari",
+    "title": "Brother HL-L2350DW driver downloads",
+    "details": {
+     "url": "https://support.brother.example/hl-l2350dw"
+    },
+    "lines": [
+     "macOS 15 — Full driver & software package"
+    ],
+    "did": "Downloading the printer's driver."
+   },
+   {
+    "app": "System Settings",
+    "title": "Printers & Scanners — Add",
+    "details": {},
+    "lines": [
+     "IP address 192.168.1.58",
+     "Protocol: Line Printer Daemon"
+    ],
+    "did": "Adding the printer again by its address."
+   }
+  ]
+ },
+ {
+  "id": "learning-sql-project",
+  "theme": "learning a database tool by building a small tracker with it",
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "SQLite tutorial — create tables",
+    "details": {
+     "url": "https://sqlitetutorial.example/create-table"
+    },
+    "lines": [
+     "CREATE TABLE books (id INTEGER PRIMARY KEY, title TEXT);"
+    ],
+    "did": "Reading how to create a table in a small database."
+   },
+   {
+    "app": "Terminal",
+    "title": "sqlite3 library.db",
+    "details": {
+     "cwd": "~/code/library"
+    },
+    "lines": [
+     "sqlite> .tables",
+     "books  loans  members",
+     "sqlite> SELECT count(*) FROM loans;"
+    ],
+    "did": "Trying queries on the library tracker's database."
+   },
+   {
+    "app": "Visual Studio Code",
+    "title": "schema.sql — library",
+    "details": {
+     "file": "~/code/library/schema.sql"
+    },
+    "lines": [
+     "CREATE TABLE loans (book_id INT, member_id INT, due DATE);",
+     "CREATE INDEX idx_due ON loans(due);"
+    ],
+    "did": "Writing the tables for a small library lending tracker."
+   },
+   {
+    "app": "DB Browser for SQLite",
+    "title": "library.db",
+    "details": {},
+    "lines": [
+     "Table: loans",
+     "142 records"
+    ],
+    "did": "Looking at the tables of the tracker in a visual tool."
+   },
+   {
+    "app": "Notes",
+    "title": "Tracker ideas",
+    "details": {},
+    "lines": [
+     "Overdue list",
+     "Email reminders",
+     "Import from CSV"
+    ],
+    "did": "Writing down what the tracker should do next."
+   }
+  ]
+ }
+]

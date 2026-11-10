@@ -1,0 +1,906 @@
+[
+ {
+  "id": "server-logs",
+  "theme": "reading server logs just to see what is in them",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Terminal",
+    "title": "tail -f ~/.local/state/dbserver/server.log",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "2026-11-02 10:14:07 INFO connection opened",
+     "2026-11-02 10:14:09 INFO connection closed",
+     "level=warn msg=\"slow query\" ms=412"
+    ],
+    "did": "Watching a database server's log scroll by in a terminal."
+   },
+   {
+    "app": "Console",
+    "title": "system.log",
+    "details": {},
+    "lines": [
+     "kernel: Wake reason: EC.SleepTimer",
+     "launchd: Service exited with abnormal code: 1"
+    ],
+    "did": "Scrolling through the system log to see what is there."
+   },
+   {
+    "app": "Terminal",
+    "title": "zsh — 120×32",
+    "details": {
+     "cwd": "/var/log"
+    },
+    "lines": [
+     "$ less /var/log/install.log",
+     "Installer: Package Authoring Error"
+    ],
+    "did": "Reading an old install log in a terminal pager."
+   },
+   {
+    "app": "Activity Monitor",
+    "title": "Activity Monitor — All Processes",
+    "details": {},
+    "lines": [
+     "kernel_task 38.2%",
+     "mds_stores 12.1%",
+     "WindowServer 6.0%"
+    ],
+    "did": "Looking at which processes use the processor."
+   }
+  ]
+ },
+ {
+  "id": "system-settings",
+  "theme": "browsing system settings with no change in mind",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "System Settings",
+    "title": "Privacy & Security",
+    "details": {},
+    "lines": [
+     "Accessibility",
+     "Full Disk Access",
+     "Screen Recording"
+    ],
+    "did": "Opening the privacy settings and looking at the permissions list."
+   },
+   {
+    "app": "System Settings",
+    "title": "Login Items & Extensions",
+    "details": {},
+    "lines": [
+     "Open at Login",
+     "Allow in the Background"
+    ],
+    "did": "Looking at which apps start at login."
+   },
+   {
+    "app": "System Settings",
+    "title": "Battery",
+    "details": {},
+    "lines": [
+     "Low Power Mode",
+     "Battery Health: Normal"
+    ],
+    "did": "Looking at the battery page of the settings."
+   },
+   {
+    "app": "System Settings",
+    "title": "Network",
+    "details": {},
+    "lines": [
+     "Wi-Fi: Connected",
+     "VPN",
+     "Firewall: Off"
+    ],
+    "did": "Looking at the network page of the settings."
+   }
+  ]
+ },
+ {
+  "id": "poking-folders",
+  "theme": "poking around folders in Finder",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Finder",
+    "title": "Library",
+    "details": {
+     "folder": "~/Library"
+    },
+    "lines": [
+     "Application Support",
+     "Caches",
+     "Containers",
+     "Preferences"
+    ],
+    "did": "Opening the hidden Library folder and looking at what is inside."
+   },
+   {
+    "app": "Finder",
+    "title": "Caches",
+    "details": {
+     "folder": "~/Library/Caches"
+    },
+    "lines": [
+     "com.apple.Safari",
+     "com.spotify.client",
+     "Homebrew"
+    ],
+    "did": "Browsing a folder of application caches."
+   },
+   {
+    "app": "Finder",
+    "title": "Application Support",
+    "details": {
+     "folder": "~/Library/Application Support"
+    },
+    "lines": [
+     "Code",
+     "Slack",
+     "Google",
+     "MobileSync"
+    ],
+    "did": "Looking at the folders apps keep their data in."
+   },
+   {
+    "app": "Finder",
+    "title": "Get Info — MobileSync",
+    "details": {
+     "folder": "~/Library/Application Support/MobileSync"
+    },
+    "lines": [
+     "Size: 14.6 GB",
+     "Kind: Folder"
+    ],
+    "did": "Checking how big a backup folder is."
+   }
+  ]
+ },
+ {
+  "id": "config-files",
+  "theme": "looking through app configuration files",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Terminal",
+    "title": "cat ~/.zshrc",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "export PATH=\"$HOME/bin:$PATH\"",
+     "alias ll='ls -la'",
+     "eval \"$(pyenv init -)\""
+    ],
+    "did": "Printing a shell startup file to read it."
+   },
+   {
+    "app": "TextEdit",
+    "title": "settings.json",
+    "details": {
+     "file": "~/Library/Application Support/Code/User/settings.json"
+    },
+    "lines": [
+     "\"editor.fontSize\": 13",
+     "\"files.autoSave\": \"afterDelay\""
+    ],
+    "did": "Opening an editor's settings file and reading it."
+   },
+   {
+    "app": "Finder",
+    "title": "Connected Servers",
+    "details": {},
+    "lines": [
+     "No servers connected"
+    ],
+    "did": "Opening the list of connected servers in Finder."
+   },
+   {
+    "app": "Terminal",
+    "title": "defaults read com.apple.dock",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "autohide = 1;",
+     "tilesize = 48;",
+     "persistent-apps = (...)"
+    ],
+    "did": "Printing the Dock's stored preferences."
+   }
+  ]
+ },
+ {
+  "id": "memory-disk",
+  "theme": "checking memory and disk use out of curiosity",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Activity Monitor",
+    "title": "Activity Monitor — Memory",
+    "details": {},
+    "lines": [
+     "Memory Pressure: green",
+     "Swap Used: 2.1 GB",
+     "Physical Memory: 8 GB"
+    ],
+    "did": "Looking at how much memory is in use."
+   },
+   {
+    "app": "System Settings",
+    "title": "Storage",
+    "details": {},
+    "lines": [
+     "Applications 41 GB",
+     "System Data 62 GB",
+     "Documents 9 GB"
+    ],
+    "did": "Looking at what takes up space on the disk."
+   },
+   {
+    "app": "Finder",
+    "title": "About This Mac",
+    "details": {},
+    "lines": [
+     "Chip Apple M2",
+     "Memory 8 GB",
+     "macOS 15"
+    ],
+    "did": "Checking the specifications of the computer."
+   },
+   {
+    "app": "Terminal",
+    "title": "df -h",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "/dev/disk3s1s1 228Gi 11Gi 73Gi 14% /",
+     "/dev/disk3s5 228Gi 133Gi 73Gi 65% /System/Volumes/Data"
+    ],
+    "did": "Printing disk usage in a terminal."
+   }
+  ]
+ },
+ {
+  "id": "terminal-tinkering",
+  "theme": "trying terminal commands to see what they print",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Terminal",
+    "title": "zsh — 100×28",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "$ which python3",
+     "/usr/bin/python3",
+     "$ python3 --version",
+     "Python 3.9.6"
+    ],
+    "did": "Checking which python is installed."
+   },
+   {
+    "app": "Terminal",
+    "title": "man ls",
+    "details": {},
+    "lines": [
+     "LS(1) General Commands Manual",
+     "-a Include directory entries whose names begin with a dot"
+    ],
+    "did": "Reading the manual page for a listing command."
+   },
+   {
+    "app": "Terminal",
+    "title": "zsh — 100×28",
+    "details": {
+     "cwd": "/usr/local"
+    },
+    "lines": [
+     "$ ls -la /usr/local",
+     "$ ps aux | head",
+     "$ uptime"
+    ],
+    "did": "Trying a few commands one after another."
+   },
+   {
+    "app": "Terminal",
+    "title": "zsh — 100×28",
+    "details": {
+     "cwd": "~"
+    },
+    "lines": [
+     "$ curl -I https://example.org",
+     "HTTP/2 200",
+     "content-type: text/html"
+    ],
+    "did": "Fetching the headers of a web page to see them."
+   }
+  ]
+ },
+ {
+  "id": "news-and-suggestions",
+  "theme": "skimming a news front page and video suggestions",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Top stories - The Daily Herald",
+    "details": {
+     "url": "https://www.dailyherald.example/"
+    },
+    "lines": [
+     "Heatwave grips the north",
+     "Markets close flat",
+     "Film festival opens tonight"
+    ],
+    "did": "Skimming the headlines on a news front page."
+   },
+   {
+    "app": "YouTube",
+    "title": "YouTube Home",
+    "details": {
+     "url": "https://www.youtube.com/"
+    },
+    "lines": [
+     "Recommended",
+     "Live: city jazz festival",
+     "10 things you missed this week"
+    ],
+    "did": "Looking at suggested videos on the home page."
+   },
+   {
+    "app": "Safari",
+    "title": "Most read today | Metro Times",
+    "details": {
+     "url": "https://www.metrotimes.example/popular"
+    },
+    "lines": [
+     "Bridge reopens after repairs",
+     "Ten cafes worth a detour"
+    ],
+    "did": "Skimming the most read stories of the day."
+   },
+   {
+    "app": "Safari",
+    "title": "Trending - Reddit",
+    "details": {
+     "url": "https://www.reddit.com/r/popular/"
+    },
+    "lines": [
+     "r/todayilearned",
+     "r/pics",
+     "r/AskReddit"
+    ],
+    "did": "Scrolling the trending page of a discussion site."
+   }
+  ]
+ },
+ {
+  "id": "social-timelines",
+  "theme": "scrolling social media timelines",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Instagram",
+    "title": "Home",
+    "details": {
+     "url": "https://www.instagram.com/"
+    },
+    "lines": [
+     "Stories",
+     "Suggested for you",
+     "42 likes"
+    ],
+    "did": "Scrolling a photo feed."
+   },
+   {
+    "app": "X",
+    "title": "Home / X",
+    "details": {
+     "url": "https://x.com/home"
+    },
+    "lines": [
+     "For you",
+     "Following",
+     "Promoted"
+    ],
+    "did": "Scrolling a timeline of short posts."
+   },
+   {
+    "app": "LinkedIn",
+    "title": "Feed | LinkedIn",
+    "details": {
+     "url": "https://www.linkedin.com/feed/"
+    },
+    "lines": [
+     "Congratulations on the new role!",
+     "5 lessons from a decade at one company"
+    ],
+    "did": "Scrolling a professional network's feed."
+   },
+   {
+    "app": "Instagram",
+    "title": "Explore",
+    "details": {
+     "url": "https://www.instagram.com/explore/"
+    },
+    "lines": [
+     "Reels",
+     "Travel",
+     "Food"
+    ],
+    "did": "Browsing suggested photos and short videos."
+   }
+  ]
+ },
+ {
+  "id": "weather-scores-stocks",
+  "theme": "looking at the weather, sport scores and share prices",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Weather",
+    "title": "Mumbai",
+    "details": {},
+    "lines": [
+     "31° Mostly sunny",
+     "Rain likely Thursday"
+    ],
+    "did": "Checking the weather forecast."
+   },
+   {
+    "app": "Safari",
+    "title": "Live scores | CricNow",
+    "details": {
+     "url": "https://www.cricnow.example/live"
+    },
+    "lines": [
+     "India 214/4 (38.2)",
+     "Match drawn"
+    ],
+    "did": "Looking at a live cricket score."
+   },
+   {
+    "app": "Stocks",
+    "title": "Watchlist",
+    "details": {},
+    "lines": [
+     "NIFTY 50 22,410 +0.3%",
+     "SENSEX 73,880 +0.2%"
+    ],
+    "did": "Looking at how the market indexes moved today."
+   },
+   {
+    "app": "Safari",
+    "title": "Today's fuel prices in Mumbai",
+    "details": {
+     "url": "https://www.fuelrates.example/mumbai"
+    },
+    "lines": [
+     "Petrol 104.2",
+     "Diesel 92.1"
+    ],
+    "did": "Looking up today's fuel prices."
+   }
+  ]
+ },
+ {
+  "id": "tidying-downloads",
+  "theme": "tidying the downloads folder",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Finder",
+    "title": "Downloads",
+    "details": {
+     "folder": "~/Downloads"
+    },
+    "lines": [
+     "Screenshot 2026-10-28 at 9.14.02 AM.png",
+     "invoice (3).pdf",
+     "installer.dmg",
+     "archive.zip"
+    ],
+    "did": "Looking through the downloads folder."
+   },
+   {
+    "app": "Finder",
+    "title": "Downloads — sorted by size",
+    "details": {
+     "folder": "~/Downloads"
+    },
+    "lines": [
+     "xcode-cli-tools.dmg 1.2 GB",
+     "movie-clip.mov 640 MB"
+    ],
+    "did": "Sorting downloads by size to see the big ones."
+   },
+   {
+    "app": "Finder",
+    "title": "Trash",
+    "details": {},
+    "lines": [
+     "32 items",
+     "Empty"
+    ],
+    "did": "Looking at the trash before emptying it."
+   },
+   {
+    "app": "Finder",
+    "title": "Desktop",
+    "details": {
+     "folder": "~/Desktop"
+    },
+    "lines": [
+     "Untitled folder",
+     "Screen Recording 2026-11-01.mov"
+    ],
+    "did": "Looking at files lying on the desktop."
+   }
+  ]
+ },
+ {
+  "id": "app-store-browsing",
+  "theme": "browsing an extension and app store listing",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "App Store",
+    "title": "Today",
+    "details": {},
+    "lines": [
+     "App of the Day",
+     "Games we love"
+    ],
+    "did": "Looking at the featured apps."
+   },
+   {
+    "app": "Chrome",
+    "title": "Chrome Web Store — Extensions",
+    "details": {
+     "url": "https://chromewebstore.example/category/extensions"
+    },
+    "lines": [
+     "Popular: ad blocker",
+     "Editors' picks"
+    ],
+    "did": "Browsing a store of browser extensions."
+   },
+   {
+    "app": "App Store",
+    "title": "Productivity",
+    "details": {},
+    "lines": [
+     "Top Free",
+     "Top Paid"
+    ],
+    "did": "Looking at the top apps in a category."
+   },
+   {
+    "app": "Safari",
+    "title": "Alternatives to a note app | AlternativeTo",
+    "details": {
+     "url": "https://alternativeto.example/notes"
+    },
+    "lines": [
+     "Notion",
+     "Obsidian",
+     "Bear"
+    ],
+    "did": "Looking at a list of alternatives to a note-taking app."
+   }
+  ]
+ },
+ {
+  "id": "release-notes",
+  "theme": "reading a tool's release notes with no plan to use it",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Changelog | Fastlane",
+    "details": {
+     "url": "https://docs.fastlane.example/changelog"
+    },
+    "lines": [
+     "2.221.0: new lane for TestFlight",
+     "Fixed: crash on empty plist"
+    ],
+    "did": "Reading the changelog of a build tool."
+   },
+   {
+    "app": "GitHub",
+    "title": "Releases · rustlang/rust",
+    "details": {
+     "url": "https://github.com/rust-lang/rust/releases"
+    },
+    "lines": [
+     "Rust 1.80.0",
+     "Stabilized APIs"
+    ],
+    "did": "Reading the release notes of a programming language."
+   },
+   {
+    "app": "Safari",
+    "title": "What's new in Python 3.13",
+    "details": {
+     "url": "https://docs.python.example/whatsnew/3.13"
+    },
+    "lines": [
+     "Improved REPL",
+     "Experimental free-threaded build"
+    ],
+    "did": "Reading what changed in a new language version."
+   },
+   {
+    "app": "Hacker News",
+    "title": "Show HN: a tiny terminal emulator",
+    "details": {
+     "url": "https://news.ycombinator.example/"
+    },
+    "lines": [
+     "412 points",
+     "128 comments"
+    ],
+    "did": "Skimming a link aggregator's front page."
+   }
+  ]
+ },
+ {
+  "id": "old-photos",
+  "theme": "going through old photos and screenshots",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Photos",
+    "title": "Library — All Photos",
+    "details": {},
+    "lines": [
+     "14,203 photos",
+     "2019",
+     "2020"
+    ],
+    "did": "Scrolling through the photo library."
+   },
+   {
+    "app": "Photos",
+    "title": "Screenshots",
+    "details": {},
+    "lines": [
+     "Screenshot 2025-12-03",
+     "Screenshot 2026-01-17"
+    ],
+    "did": "Looking at an album of old screenshots."
+   },
+   {
+    "app": "Photos",
+    "title": "On This Day",
+    "details": {},
+    "lines": [
+     "3 years ago",
+     "5 years ago"
+    ],
+    "did": "Looking at photos from past years."
+   },
+   {
+    "app": "Photos",
+    "title": "Recently Deleted",
+    "details": {},
+    "lines": [
+     "27 photos",
+     "Deleted in 12 days"
+    ],
+    "did": "Looking at recently deleted photos."
+   }
+  ]
+ },
+ {
+  "id": "notification-sweep",
+  "theme": "checking notifications across apps without replying",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Slack",
+    "title": "Threads",
+    "details": {},
+    "lines": [
+     "3 unread",
+     "Mentions & reactions"
+    ],
+    "did": "Opening Slack and glancing at unread threads."
+   },
+   {
+    "app": "Mail",
+    "title": "All Inboxes",
+    "details": {},
+    "lines": [
+     "212 unread",
+     "Promotions",
+     "Updates"
+    ],
+    "did": "Glancing at the unread count in the mailbox."
+   },
+   {
+    "app": "Messages",
+    "title": "Messages",
+    "details": {},
+    "lines": [
+     "Mom: ok",
+     "Group: lol"
+    ],
+    "did": "Glancing at the list of conversations."
+   },
+   {
+    "app": "Calendar",
+    "title": "Today",
+    "details": {},
+    "lines": [
+     "No events",
+     "Week 45"
+    ],
+    "did": "Glancing at the calendar for the day."
+   }
+  ]
+ },
+ {
+  "id": "background-videos",
+  "theme": "watching a playlist of videos in the background",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "YouTube",
+    "title": "chillhop live radio - jazzy beats for the evening",
+    "details": {
+     "url": "https://www.youtube.com/watch?v=lofi"
+    },
+    "lines": [
+     "LIVE",
+     "24/7"
+    ],
+    "did": "Playing a live music stream."
+   },
+   {
+    "app": "Spotify",
+    "title": "Daily Mix 2",
+    "details": {},
+    "lines": [
+     "Now playing",
+     "Shuffle"
+    ],
+    "did": "Playing a shuffled music mix."
+   },
+   {
+    "app": "YouTube",
+    "title": "Autoplay: Top 10 street food videos",
+    "details": {
+     "url": "https://www.youtube.com/watch?v=food10"
+    },
+    "lines": [
+     "Up next",
+     "Autoplay on"
+    ],
+    "did": "Letting suggested videos autoplay."
+   },
+   {
+    "app": "YouTube",
+    "title": "Library — History",
+    "details": {},
+    "lines": [
+     "Today",
+     "Yesterday"
+    ],
+    "did": "Looking at the watch history."
+   }
+  ]
+ },
+ {
+  "id": "random-trivia",
+  "theme": "looking up trivia that came to mind",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "How tall is Mount Kilimanjaro? - Search",
+    "details": {
+     "url": "https://www.google.example/search?q=kilimanjaro"
+    },
+    "lines": [
+     "5,895 m",
+     "Highest peak in Africa"
+    ],
+    "did": "Searching for the height of a mountain."
+   },
+   {
+    "app": "Wikipedia",
+    "title": "Octopus - Wikipedia",
+    "details": {
+     "url": "https://en.wikipedia.example/wiki/Octopus"
+    },
+    "lines": [
+     "Octopuses have three hearts",
+     "Class Cephalopoda"
+    ],
+    "did": "Reading an encyclopedia article about an animal."
+   },
+   {
+    "app": "Safari",
+    "title": "Who invented the paperclip? | HowStuffWorks",
+    "details": {
+     "url": "https://www.howstuff.example/paperclip"
+    },
+    "lines": [
+     "Disputed origins",
+     "Johan Vaaler"
+    ],
+    "did": "Reading about who invented an everyday object."
+   },
+   {
+    "app": "Safari",
+    "title": "Time difference Mumbai Lisbon - Search",
+    "details": {
+     "url": "https://www.google.example/search?q=time+difference"
+    },
+    "lines": [
+     "4 hours 30 minutes behind"
+    ],
+    "did": "Looking up a time difference between two cities."
+   }
+  ]
+ },
+ {
+  "id": "browser-tab-sweep",
+  "theme": "going through open browser tabs and closing them",
+  "aimless": true,
+  "windows": [
+   {
+    "app": "Safari",
+    "title": "Tab Overview",
+    "details": {},
+    "lines": [
+     "31 tabs",
+     "Recently closed"
+    ],
+    "did": "Looking at all open browser tabs."
+   },
+   {
+    "app": "Safari",
+    "title": "Recipe: 15-minute pasta",
+    "details": {
+     "url": "https://recipes.example/15-minute-pasta"
+    },
+    "lines": [
+     "Boil water",
+     "Toss with garlic"
+    ],
+    "did": "Glancing at an old recipe tab before closing it."
+   },
+   {
+    "app": "Safari",
+    "title": "Untitled",
+    "details": {},
+    "lines": [
+     "about:blank"
+    ],
+    "did": "Looking at an empty tab."
+   },
+   {
+    "app": "Safari",
+    "title": "History",
+    "details": {},
+    "lines": [
+     "Today",
+     "Yesterday",
+     "Earlier this week"
+    ],
+    "did": "Scrolling the browsing history."
+   }
+  ]
+ }
+]

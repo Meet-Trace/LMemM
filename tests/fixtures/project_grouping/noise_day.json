@@ -1,0 +1,817 @@
+{
+ "version": 1,
+ "about": "Fourth invented day, the noise test. Not real data. Three real projects (a bathroom renovation, guitar practice, a terminal-heavy blog deploy) and three bouts of idle looking around (reading web-server logs, browsing preferences, scrolling feeds) that belong to no project, each coming back in several sittings. A good method files the real projects and leaves the idle bouts alone.",
+ "items": {
+  "b-chat-contractor": {
+   "id": "b-chat-contractor",
+   "app": "WhatsApp",
+   "kind": "chat",
+   "title": "Suresh Tiles",
+   "doing": "Working on \"Suresh Tiles\"",
+   "state": {
+    "chat": "Suresh Tiles"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Can you start on the 18th?"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Yes, two men for four days",
+      "Waterproofing first, then the floor"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-06T09:11:00",
+   "last_seen": "2026-11-06T20:04:00",
+   "seconds": 540,
+   "visits": 2,
+   "label": [
+    "Bathroom renovation/Contractor"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Suresh Tiles: Waterproofing first, then the floor",
+      "source": {
+       "app": "WhatsApp"
+      }
+     }
+    ]
+   }
+  },
+  "b-sheet-quotes": {
+   "id": "b-sheet-quotes",
+   "app": "Google Sheets",
+   "kind": "spreadsheet",
+   "title": "Quotes compared",
+   "doing": "Working on \"Quotes compared\"",
+   "state": {
+    "url": "https://docs.google.com/spreadsheets/d/1Qq9"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Suresh 1.9 L",
+      "Imtiyaz 2.3 L"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Labour | Material | Total"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:16:00",
+   "last_seen": "2026-11-06T09:28:00",
+   "seconds": 720,
+   "visits": 1,
+   "label": [
+    "Bathroom renovation/Contractor"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Vendor | Labour | Material | Total",
+      "source": {
+       "app": "Google Sheets"
+      }
+     }
+    ]
+   }
+  },
+  "b-page-tiles": {
+   "id": "b-page-tiles",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Matt porcelain 600x600 - Kajaria",
+   "doing": "Working on \"Matt porcelain 600x600 - Kajaria\"",
+   "state": {
+    "url": "https://www.kajaria.example/matt-porcelain-600"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Anti-skid, R10",
+      "Coverage 1.44 sq m per box"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:39:00",
+   "last_seen": "2026-11-06T09:47:00",
+   "seconds": 480,
+   "visits": 1,
+   "label": [
+    "Bathroom renovation/Fittings"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Price per box 1,380",
+      "source": {
+       "app": "Safari"
+      }
+     }
+    ]
+   }
+  },
+  "b-notes-measure": {
+   "id": "b-notes-measure",
+   "app": "Notes",
+   "kind": "note",
+   "title": "Bathroom measurements",
+   "doing": "Working on \"Bathroom measurements\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 90,
+     "text": [
+      "Floor 6 ft x 8 ft",
+      "Wall height 9 ft",
+      "Shower niche 12 in"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:47:00",
+   "last_seen": "2026-11-06T09:52:00",
+   "seconds": 300,
+   "visits": 1,
+   "label": [
+    "Bathroom renovation/Fittings"
+   ]
+  },
+  "g-yt-lesson": {
+   "id": "g-yt-lesson",
+   "app": "YouTube",
+   "kind": "page",
+   "title": "Fingerstyle for beginners - lesson 3",
+   "doing": "Working on \"Fingerstyle for beginners - lesson 3\"",
+   "state": {
+    "url": "https://www.youtube.com/watch?v=fs3"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Thumb on the bass strings",
+      "Slow metronome at 60"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T15:00:00",
+   "last_seen": "2026-11-06T15:15:00",
+   "seconds": 900,
+   "visits": 1,
+   "label": [
+    "Guitar practice"
+   ]
+  },
+  "g-page-tabs": {
+   "id": "g-page-tabs",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Blackbird - Beatles tab",
+   "doing": "Working on \"Blackbird - Beatles tab\"",
+   "state": {
+    "url": "https://tabs.example/blackbird"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Intro bars 1 to 8",
+      "Capo none, standard tuning"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T15:15:00",
+   "last_seen": "2026-11-06T15:23:00",
+   "seconds": 480,
+   "visits": 1,
+   "label": [
+    "Guitar practice"
+   ]
+  },
+  "g-notes-log": {
+   "id": "g-notes-log",
+   "app": "Notes",
+   "kind": "note",
+   "title": "Fingerstyle log",
+   "doing": "Working on \"Fingerstyle log\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Mon: 20 min, intro bars 1-4",
+      "Tue: 25 min, bars 5-8 too fast"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T15:23:00",
+   "last_seen": "2026-11-06T15:28:00",
+   "seconds": 300,
+   "visits": 1,
+   "label": [
+    "Guitar practice"
+   ]
+  },
+  "g-chat-teacher": {
+   "id": "g-chat-teacher",
+   "app": "WhatsApp",
+   "kind": "chat",
+   "title": "Neel (guitar)",
+   "doing": "Working on \"Neel (guitar)\"",
+   "state": {
+    "chat": "Neel (guitar)"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Can we shift Saturday's class to 5?"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Sure, bring the new capo"
+     ],
+     "count": 1
+    }
+   },
+   "first_seen": "2026-11-06T15:42:00",
+   "last_seen": "2026-11-06T15:45:00",
+   "seconds": 180,
+   "visits": 1,
+   "label": [
+    "Guitar practice"
+   ]
+  },
+  "d-code-config": {
+   "id": "d-code-config",
+   "app": "Visual Studio Code",
+   "kind": "code",
+   "title": "deploy.yml - blog",
+   "doing": "Working on \"deploy.yml - blog\"",
+   "state": {
+    "file": "~/code/blog/.github/workflows/deploy.yml"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "on: push: branches: [main]",
+      "run: rsync -az public/ user@host:/var/www/blog"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "jobs: build, deploy"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:00:00",
+   "last_seen": "2026-11-06T11:12:00",
+   "seconds": 720,
+   "visits": 1,
+   "label": [
+    "Blog deploy"
+   ]
+  },
+  "d-term-build": {
+   "id": "d-term-build",
+   "app": "Terminal",
+   "kind": "terminal",
+   "title": "hugo --minify — 110×30",
+   "doing": "Working on \"hugo --minify — 110×30\"",
+   "state": {
+    "cwd": "~/code/blog"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "$ hugo --minify",
+      "$ rsync -az public/ user@host:/var/www/blog"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Pages | 48",
+      "Total in 214 ms"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:12:00",
+   "last_seen": "2026-11-06T11:46:00",
+   "seconds": 600,
+   "visits": 2,
+   "label": [
+    "Blog deploy"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Start building sites",
+      "source": {
+       "app": "Terminal"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Total in 214 ms",
+      "source": {
+       "app": "Terminal"
+      }
+     }
+    ]
+   }
+  },
+  "d-page-actions": {
+   "id": "d-page-actions",
+   "app": "GitHub",
+   "kind": "page",
+   "title": "Deploy blog #12 · Actions · me/blog",
+   "doing": "Working on \"Deploy blog #12 · Actions · me/blog\"",
+   "state": {
+    "url": "https://github.com/me/blog/actions/runs/12"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "build passed",
+      "deploy failed: Permission denied (publickey)"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:18:00",
+   "last_seen": "2026-11-06T11:23:00",
+   "seconds": 300,
+   "visits": 1,
+   "label": [
+    "Blog deploy"
+   ]
+  },
+  "d-term-ssh": {
+   "id": "d-term-ssh",
+   "app": "Terminal",
+   "kind": "terminal",
+   "title": "ssh-keygen -t ed25519 — 110×30",
+   "doing": "Working on \"ssh-keygen -t ed25519 — 110×30\"",
+   "state": {
+    "cwd": "~"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "$ ssh-keygen -t ed25519 -C deploy@blog",
+      "$ cat ~/.ssh/id_ed25519.pub"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Your public key has been saved"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:27:00",
+   "last_seen": "2026-11-06T11:35:00",
+   "seconds": 480,
+   "visits": 1,
+   "label": [
+    "Blog deploy"
+   ]
+  },
+  "n-term-nginx": {
+   "id": "n-term-nginx",
+   "app": "Terminal",
+   "kind": "terminal",
+   "title": "tail -f /opt/homebrew/var/log/nginx/access.log",
+   "doing": "Working on \"tail -f /opt/homebrew/var/log/nginx/access.log\"",
+   "state": {
+    "cwd": "~"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "127.0.0.1 - - GET /favicon.ico 404",
+      "127.0.0.1 - - GET / 200",
+      "::1 - - GET /robots.txt 404"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:00:00",
+   "last_seen": "2026-11-06T15:38:00",
+   "seconds": 600,
+   "visits": 2,
+   "label": [],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "127.0.0.1 - - GET / 200",
+      "source": {
+       "app": "Terminal"
+      }
+     }
+    ]
+   }
+  },
+  "n-console-reports": {
+   "id": "n-console-reports",
+   "app": "Console",
+   "kind": "app",
+   "title": "Log Reports",
+   "doing": "Working on \"Log Reports\"",
+   "state": {},
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "DiagnosticReports",
+      "Spin reports",
+      "Crash reports"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:06:00",
+   "last_seen": "2026-11-06T15:48:00",
+   "seconds": 480,
+   "visits": 2,
+   "label": [],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "SafariBookmarksSyncAgent_2026-11-02.ips",
+      "source": {
+       "app": "Console"
+      }
+     }
+    ]
+   }
+  },
+  "n-term-lsof": {
+   "id": "n-term-lsof",
+   "app": "Terminal",
+   "kind": "terminal",
+   "title": "lsof -i -P | head — 110×30",
+   "doing": "Working on \"lsof -i -P | head — 110×30\"",
+   "state": {
+    "cwd": "~"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "$ lsof -i -P | head -20"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "rapportd TCP *:49152 (LISTEN)",
+      "ControlCe TCP *:7000 (LISTEN)"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T15:30:00",
+   "last_seen": "2026-11-06T20:28:00",
+   "seconds": 420,
+   "visits": 2,
+   "label": []
+  },
+  "n-settings-display": {
+   "id": "n-settings-display",
+   "app": "System Settings",
+   "kind": "app",
+   "title": "Displays",
+   "doing": "Working on \"Displays\"",
+   "state": {},
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Resolution: Default",
+      "Refresh rate: ProMotion",
+      "Night Shift"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:24:00",
+   "last_seen": "2026-11-06T20:11:00",
+   "seconds": 360,
+   "visits": 2,
+   "label": []
+  },
+  "n-settings-keyboard": {
+   "id": "n-settings-keyboard",
+   "app": "System Settings",
+   "kind": "app",
+   "title": "Keyboard",
+   "doing": "Working on \"Keyboard\"",
+   "state": {},
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Key repeat rate",
+      "Text replacements",
+      "Dictation: Off"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:35:00",
+   "last_seen": "2026-11-06T20:31:00",
+   "seconds": 360,
+   "visits": 2,
+   "label": []
+  },
+  "n-finder-prefs": {
+   "id": "n-finder-prefs",
+   "app": "Finder",
+   "kind": "folder",
+   "title": "Preferences",
+   "doing": "Working on \"Preferences\"",
+   "state": {
+    "folder": "~/Library/Preferences"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "com.apple.dock.plist",
+      "com.apple.finder.plist",
+      "com.google.Chrome.plist"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:38:00",
+   "last_seen": "2026-11-06T20:08:00",
+   "seconds": 480,
+   "visits": 2,
+   "label": []
+  },
+  "n-safari-news": {
+   "id": "n-safari-news",
+   "app": "Safari",
+   "kind": "page",
+   "title": "World | The Daily Herald",
+   "doing": "Working on \"World | The Daily Herald\"",
+   "state": {
+    "url": "https://www.dailyherald.example/world"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Talks resume in the capital",
+      "Flood warning for coastal towns"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:30:00",
+   "last_seen": "2026-11-06T20:21:00",
+   "seconds": 480,
+   "visits": 2,
+   "label": []
+  },
+  "n-yt-home": {
+   "id": "n-yt-home",
+   "app": "YouTube",
+   "kind": "page",
+   "title": "YouTube — Recommended",
+   "doing": "Working on \"YouTube — Recommended\"",
+   "state": {
+    "url": "https://www.youtube.com/"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Recommended",
+      "Mix - synthwave",
+      "You might also like"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:34:00",
+   "last_seen": "2026-11-06T20:17:00",
+   "seconds": 660,
+   "visits": 2,
+   "label": []
+  },
+  "n-insta-explore": {
+   "id": "n-insta-explore",
+   "app": "Instagram",
+   "kind": "page",
+   "title": "Discover people and reels",
+   "doing": "Working on \"Discover people and reels\"",
+   "state": {
+    "url": "https://www.instagram.com/explore/"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Reels",
+      "Food",
+      "Travel"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T15:38:00",
+   "last_seen": "2026-11-06T20:25:00",
+   "seconds": 480,
+   "visits": 2,
+   "label": []
+  }
+ },
+ "timeline": [
+  {
+   "item": "n-term-nginx",
+   "from": "2026-11-06T09:00:00",
+   "to": "2026-11-06T09:06:00"
+  },
+  {
+   "item": "n-console-reports",
+   "from": "2026-11-06T09:06:00",
+   "to": "2026-11-06T09:11:00"
+  },
+  {
+   "item": "b-chat-contractor",
+   "from": "2026-11-06T09:11:00",
+   "to": "2026-11-06T09:16:00"
+  },
+  {
+   "item": "b-sheet-quotes",
+   "from": "2026-11-06T09:16:00",
+   "to": "2026-11-06T09:28:00"
+  },
+  {
+   "item": "n-safari-news",
+   "from": "2026-11-06T09:30:00",
+   "to": "2026-11-06T09:34:00"
+  },
+  {
+   "item": "n-yt-home",
+   "from": "2026-11-06T09:34:00",
+   "to": "2026-11-06T09:39:00"
+  },
+  {
+   "item": "b-page-tiles",
+   "from": "2026-11-06T09:39:00",
+   "to": "2026-11-06T09:47:00"
+  },
+  {
+   "item": "b-notes-measure",
+   "from": "2026-11-06T09:47:00",
+   "to": "2026-11-06T09:52:00"
+  },
+  {
+   "item": "d-code-config",
+   "from": "2026-11-06T11:00:00",
+   "to": "2026-11-06T11:12:00"
+  },
+  {
+   "item": "d-term-build",
+   "from": "2026-11-06T11:12:00",
+   "to": "2026-11-06T11:18:00"
+  },
+  {
+   "item": "d-page-actions",
+   "from": "2026-11-06T11:18:00",
+   "to": "2026-11-06T11:23:00"
+  },
+  {
+   "item": "n-settings-display",
+   "from": "2026-11-06T11:24:00",
+   "to": "2026-11-06T11:27:00"
+  },
+  {
+   "item": "d-term-ssh",
+   "from": "2026-11-06T11:27:00",
+   "to": "2026-11-06T11:35:00"
+  },
+  {
+   "item": "n-settings-keyboard",
+   "from": "2026-11-06T11:35:00",
+   "to": "2026-11-06T11:38:00"
+  },
+  {
+   "item": "n-finder-prefs",
+   "from": "2026-11-06T11:38:00",
+   "to": "2026-11-06T11:42:00"
+  },
+  {
+   "item": "d-term-build",
+   "from": "2026-11-06T11:42:00",
+   "to": "2026-11-06T11:46:00"
+  },
+  {
+   "item": "g-yt-lesson",
+   "from": "2026-11-06T15:00:00",
+   "to": "2026-11-06T15:15:00"
+  },
+  {
+   "item": "g-page-tabs",
+   "from": "2026-11-06T15:15:00",
+   "to": "2026-11-06T15:23:00"
+  },
+  {
+   "item": "g-notes-log",
+   "from": "2026-11-06T15:23:00",
+   "to": "2026-11-06T15:28:00"
+  },
+  {
+   "item": "n-term-lsof",
+   "from": "2026-11-06T15:30:00",
+   "to": "2026-11-06T15:34:00"
+  },
+  {
+   "item": "n-term-nginx",
+   "from": "2026-11-06T15:34:00",
+   "to": "2026-11-06T15:38:00"
+  },
+  {
+   "item": "n-insta-explore",
+   "from": "2026-11-06T15:38:00",
+   "to": "2026-11-06T15:42:00"
+  },
+  {
+   "item": "g-chat-teacher",
+   "from": "2026-11-06T15:42:00",
+   "to": "2026-11-06T15:45:00"
+  },
+  {
+   "item": "n-console-reports",
+   "from": "2026-11-06T15:45:00",
+   "to": "2026-11-06T15:48:00"
+  },
+  {
+   "item": "b-chat-contractor",
+   "from": "2026-11-06T20:00:00",
+   "to": "2026-11-06T20:04:00"
+  },
+  {
+   "item": "n-finder-prefs",
+   "from": "2026-11-06T20:04:00",
+   "to": "2026-11-06T20:08:00"
+  },
+  {
+   "item": "n-settings-display",
+   "from": "2026-11-06T20:08:00",
+   "to": "2026-11-06T20:11:00"
+  },
+  {
+   "item": "n-yt-home",
+   "from": "2026-11-06T20:11:00",
+   "to": "2026-11-06T20:17:00"
+  },
+  {
+   "item": "n-safari-news",
+   "from": "2026-11-06T20:17:00",
+   "to": "2026-11-06T20:21:00"
+  },
+  {
+   "item": "n-insta-explore",
+   "from": "2026-11-06T20:21:00",
+   "to": "2026-11-06T20:25:00"
+  },
+  {
+   "item": "n-term-lsof",
+   "from": "2026-11-06T20:25:00",
+   "to": "2026-11-06T20:28:00"
+  },
+  {
+   "item": "n-settings-keyboard",
+   "from": "2026-11-06T20:28:00",
+   "to": "2026-11-06T20:31:00"
+  }
+ ]
+}

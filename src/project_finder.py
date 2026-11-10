@@ -20,8 +20,10 @@ proposals that suggestions.py already holds and the window and pill already show
     H6  Every offer and every answer goes to a local log (grouping_log.jsonl beside memory.json), so your
         answers become labels to score the method against. It never leaves this Mac.
 
-No model by default: the capitalised-word rule scores as well as gemma3:1b on the test streams and makes
-no noise. `model` can be any callable the assign method accepts.
+Two methods (config.FINDER_METHOD). "ai" (project_finder_ai.py): local models in Ollama, CPU only, read
+each window and decide what belongs together; code only retrieves candidates and keeps the books.
+"assign": the rules method (capitalised-word rule), kept as the fallback switch. For "assign", `model`
+can be any callable the assign method accepts.
 """
 
 import json
@@ -127,9 +129,13 @@ def plan(reg, items, groups, keys_of=None):
     return sorted(merged, key=lambda x: -x[0])
 
 
-def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS):
-    """Run the method over the last LOOKBACK_DAYS days and plan what to offer (see `plan`). Reads only;
-    the tracker calls it outside its lock, on a copy of its items."""
+def find(reg, items, visits, now=None, model=None, days=LOOKBACK_DAYS, method="assign"):
+    """Run a method over the last LOOKBACK_DAYS days and plan what to offer (see `plan`). Reads only;
+    the tracker calls it outside its lock, on a copy of its items. method "ai" (config.FINDER_METHOD) is
+    project_finder_ai.find: local models read and decide; "assign" is the rules method below."""
+    if method == "ai":
+        import project_finder_ai
+        return project_finder_ai.find(reg, items, visits, now, days)
     now = now or datetime.now()
     things, timeline = recent(items, visits, now, days)
     if len(things) < NEW_MIN_THINGS:

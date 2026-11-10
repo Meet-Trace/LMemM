@@ -12,9 +12,10 @@ LMemM - the one command.
     lmemm.py suggest [NAME] [ID…]     offer things as one project (stands in for the model)
     lmemm.py suggest-for PROJECT [ID…]
                                       offer things for an existing project (the three latest not in it, or the ids)
-    lmemm.py look-for-projects [--dry-run [--days N]]
+    lmemm.py look-for-projects [--dry-run [--days N] [--method ai|assign] [--calls N] [--explain]]
                                       look for projects in the last two weeks now and suggest them
-                                      (--dry-run: only print what would be suggested; changes nothing)
+                                      (--dry-run: only print what would be suggested; files and offers nothing.
+                                      The ai method still caches the models' answers and logs the look)
     lmemm.py projects [--all] | projects new|rename|move|archive|restore|merge|delete …
                                       look at and shape the project tree (any depth)
     lmemm.py context [SESSION] [--days N]
@@ -257,10 +258,24 @@ def cmd_look_for_projects(args):
         try:
             items = real_days.read_items(memory_dir)
             days = int(args[args.index("--days") + 1]) if "--days" in args else project_finder.LOOKBACK_DAYS
-            planned = project_finder.find(projects.load(), items, real_days.read_visits(memory_dir), days=days)
+            method = args[args.index("--method") + 1] if "--method" in args else config.FINDER_METHOD
+            if "--calls" in args:
+                config.FINDER_CALLS = int(args[args.index("--calls") + 1])
+            planned = project_finder.find(projects.load(), items, real_days.read_visits(memory_dir), days=days,
+                                          method=method)
         except (OSError, ValueError, IndexError) as error:
             sys.exit(f"Could not look: {error}")
-        print(f"Looked at the last {days} days in {memory_dir}")
+        print(f"Looked at the last {days} days in {memory_dir} ({method} method)")
+        last = (project_finder.read_log() or [{}])[-1]
+        if method == "ai" and last.get("event") == "look":
+            if last.get("skipped"):
+                sys.exit(f"Skipped: {last['skipped']}. See scripts/install_judge.py.")
+            print(f"{last.get('things', 0)} unfiled things, {last.get('calls', 0)} new model calls, "
+                  f"{last.get('seconds', 0)} s" + (" (paused at the call budget: run it again to go on)"
+                                                   if last.get("paused") else ""))
+            if not last.get("paused"):
+                print(f"{len(last.get('projects') or {})} groups, {len(last.get('shared') or [])} shared, "
+                      f"{len(last.get('not_filed') or [])} things left unfiled")
         if not planned:
             print("Nothing to suggest yet: no group of things came up together in two separate sittings.")
         for _, kind, (target, ids, why) in planned:
@@ -268,6 +283,10 @@ def cmd_look_for_projects(args):
             print(f"{what}: {why}")
             for i in ids:
                 print(f"    {items[i].get('app') or '?'} · {items[i].get('title') or i}")
+        if "--explain" in args and method == "ai":
+            import project_finder_ai
+            print("\nWhy (what the narrator wrote about each thing, and how the judge scored the projects):")
+            print("\n".join(project_finder_ai.explain(items, planned)))
         return
     if not tracker.send_control("look_for_projects"):
         sys.exit("LMemM isn't running. `lmemm.py look-for-projects --dry-run` works without it.")

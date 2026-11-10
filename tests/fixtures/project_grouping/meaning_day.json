@@ -1,0 +1,771 @@
+{
+ "version": 1,
+ "about": "Third invented day, the meaning test. Not real data. Things of one project share no telling word: no client, person, file, folder or number repeats inside a project, and a few words repeat ACROSS projects (a pitch deck and a venue's wooden deck, a 300-cover quote in the inbox). Only reading what each thing is about can group it, so it shows what word matching cannot do; it is not a fair test of everyday data.",
+ "items": {
+  "w-chat-sister": {
+   "id": "w-chat-sister",
+   "app": "WhatsApp",
+   "kind": "chat",
+   "title": "Riya",
+   "doing": "Working on \"Riya\"",
+   "state": {
+    "chat": "Riya"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "I'll sort out the food people this week"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Mehendi is on the 12th, haldi the morning after",
+      "Mom wants marigolds everywhere"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-06T11:00:00",
+   "last_seen": "2026-11-06T14:32:00",
+   "seconds": 420,
+   "visits": 2,
+   "label": [
+    "Sister's wedding/Events"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Riya: Mehendi is on the 12th, haldi the morning after",
+      "source": {
+       "app": "WhatsApp"
+      }
+     }
+    ]
+   }
+  },
+  "w-sheet-guests": {
+   "id": "w-sheet-guests",
+   "app": "Google Sheets",
+   "kind": "spreadsheet",
+   "title": "Guest list - final",
+   "doing": "Working on \"Guest list - final\"",
+   "state": {
+    "url": "https://docs.google.com/spreadsheets/d/1Gx7qPz"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Sharma family x4",
+      "Plus-ones confirmed: 38"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Veg / Jain / Non-veg",
+      "RSVP column"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:05:00",
+   "last_seen": "2026-11-06T11:20:00",
+   "seconds": 900,
+   "visits": 1,
+   "label": [
+    "Sister's wedding/Guests and food"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Name | Side | Meal | RSVP",
+      "source": {
+       "app": "Google Sheets"
+      }
+     },
+     {
+      "id": "x1",
+      "text": "Bride's side 212, groom's side 164",
+      "source": {
+       "app": "Google Sheets"
+      }
+     }
+    ]
+   }
+  },
+  "w-mail-caterer": {
+   "id": "w-mail-caterer",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Quote for 300 covers - buffet",
+   "doing": "Working on \"Quote for 300 covers - buffet\"",
+   "state": {
+    "subject": "Quote for 300 covers - buffet",
+    "from": "orders@spiceroutecaterers.in"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "Can you also do a live chaat counter?"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Paneer tikka, dal makhani and two desserts included",
+      "Advance of 40% blocks the date"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-06T09:08:00",
+   "last_seen": "2026-11-06T19:14:00",
+   "seconds": 540,
+   "visits": 2,
+   "label": [
+    "Sister's wedding/Guests and food"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Per plate: 1,150 + GST",
+      "source": {
+       "app": "Gmail"
+      }
+     }
+    ]
+   }
+  },
+  "w-page-venue": {
+   "id": "w-page-venue",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Sea-view lawns in Juhu | VenueLook",
+   "doing": "Working on \"Sea-view lawns in Juhu | VenueLook\"",
+   "state": {
+    "url": "https://www.venuelook.com/mumbai/juhu/lawns"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Lawn with a wooden deck, seats up to 350",
+      "Floral stage packages from partner decorators"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:23:00",
+   "last_seen": "2026-11-06T11:33:00",
+   "seconds": 600,
+   "visits": 1,
+   "label": [
+    "Sister's wedding/Events"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Available dates: 12, 13, 14 Dec",
+      "source": {
+       "app": "Safari"
+      }
+     }
+    ]
+   }
+  },
+  "w-notes-sangeet": {
+   "id": "w-notes-sangeet",
+   "app": "Notes",
+   "kind": "note",
+   "title": "Sangeet",
+   "doing": "Working on \"Sangeet\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 90,
+     "text": [
+      "Opening dance: cousins",
+      "Songs: Gallan Goodiyaan, London Thumakda",
+      "Book a DJ till 11pm"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:33:00",
+   "last_seen": "2026-11-06T11:40:00",
+   "seconds": 420,
+   "visits": 1,
+   "label": [
+    "Sister's wedding/Events"
+   ]
+  },
+  "f-doc-memo": {
+   "id": "f-doc-memo",
+   "app": "Google Docs",
+   "kind": "document",
+   "title": "Seed memo - draft 3",
+   "doing": "Working on \"Seed memo - draft 3\"",
+   "state": {
+    "url": "https://docs.google.com/document/d/1Mm3rKx"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "We are raising 4 crore to reach 10k paying users",
+      "Why now: on-device AI became cheap this year"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Comment from Kabir: tighten the market slide"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:13:00",
+   "last_seen": "2026-11-06T09:46:00",
+   "seconds": 1380,
+   "visits": 2,
+   "label": [
+    "Seed fundraising/Materials"
+   ]
+  },
+  "f-keynote-deck": {
+   "id": "f-keynote-deck",
+   "app": "Keynote",
+   "kind": "document",
+   "title": "Deck v7.key",
+   "doing": "Working on \"Deck v7.key\"",
+   "state": {
+    "file": "~/Desktop/Deck v7.key"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Slide 9: use of funds",
+      "Hiring: 2 engineers, 1 designer"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Traction: 1,200 weekly actives"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T14:00:00",
+   "last_seen": "2026-11-06T14:45:00",
+   "seconds": 1800,
+   "visits": 2,
+   "label": [
+    "Seed fundraising/Materials"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Problem / Solution / Traction / Team / Ask",
+      "source": {
+       "app": "Keynote"
+      }
+     }
+    ]
+   }
+  },
+  "f-sheet-captable": {
+   "id": "f-sheet-captable",
+   "app": "Microsoft Excel",
+   "kind": "spreadsheet",
+   "title": "Captable_post_money.xlsx",
+   "doing": "Working on \"Captable_post_money.xlsx\"",
+   "state": {
+    "file": "~/Documents/Finance/Captable_post_money.xlsx",
+    "sheet": "Round"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "ESOP pool 10%",
+      "Pre-money 16 Cr"
+     ]
+    },
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Founders 78.4% after dilution"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T14:20:00",
+   "last_seen": "2026-11-06T14:30:00",
+   "seconds": 600,
+   "visits": 1,
+   "label": [
+    "Seed fundraising/Materials"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Shareholder | Shares | %",
+      "source": {
+       "app": "Microsoft Excel"
+      }
+     }
+    ]
+   }
+  },
+  "f-mail-vc": {
+   "id": "f-mail-vc",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Intro: you <> Neha (Orchard Ventures)",
+   "doing": "Working on \"Intro: you <> Neha (Orchard Ventures)\"",
+   "state": {
+    "subject": "Intro: you <> Neha (Orchard Ventures)",
+    "from": "kabir.m@gmail.com"
+   },
+   "activity": {
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Neha leads early-stage consumer AI bets",
+      "Happy to take a first call next week, send over your deck"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-06T09:04:00",
+   "last_seen": "2026-11-06T09:08:00",
+   "seconds": 240,
+   "visits": 1,
+   "label": [
+    "Seed fundraising/Investors"
+   ]
+  },
+  "f-calendly": {
+   "id": "f-calendly",
+   "app": "Safari",
+   "kind": "page",
+   "title": "30 min first call - Calendly",
+   "doing": "Working on \"30 min first call - Calendly\"",
+   "state": {
+    "url": "https://calendly.com/nk-partner/30min"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Select a date & time",
+      "Thursday 4:30 pm IST"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T14:32:00",
+   "last_seen": "2026-11-06T14:35:00",
+   "seconds": 180,
+   "visits": 1,
+   "label": [
+    "Seed fundraising/Investors"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Agenda: what are you building, and why you?",
+      "source": {
+       "app": "Safari"
+      }
+     }
+    ]
+   }
+  },
+  "f-claude": {
+   "id": "f-claude",
+   "app": "Claude",
+   "kind": "ai_conversation",
+   "title": "Questions angels ask pre-revenue",
+   "doing": "Working on \"Questions angels ask pre-revenue\"",
+   "state": {
+    "conversation": "Questions angels ask pre-revenue"
+   },
+   "activity": {
+    "typing": {
+     "seconds": 30,
+     "text": [
+      "what metrics do angels care about before we charge anyone"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Retention cohorts, engagement depth and how fast you ship"
+     ],
+     "count": 1
+    }
+   },
+   "first_seen": "2026-11-06T09:28:00",
+   "last_seen": "2026-11-06T09:38:00",
+   "seconds": 600,
+   "visits": 1,
+   "label": [
+    "Seed fundraising/Investors"
+   ]
+  },
+  "r-strava": {
+   "id": "r-strava",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Tempo run - 8.2 km | Strava",
+   "doing": "Working on \"Tempo run - 8.2 km | Strava\"",
+   "state": {
+    "url": "https://www.strava.com/activities/12093344"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Avg pace 5:41 /km",
+      "Heart rate zone 4 for 26 min"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T19:00:00",
+   "last_seen": "2026-11-06T19:05:00",
+   "seconds": 300,
+   "visits": 1,
+   "label": [
+    "Half marathon/Training"
+   ],
+   "content": {
+    "version": 1,
+    "excerpts": [
+     {
+      "id": "x0",
+      "text": "Kudos from 3 friends",
+      "source": {
+       "app": "Safari"
+      }
+     }
+    ]
+   }
+  },
+  "r-guide": {
+   "id": "r-guide",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Beginner 21K guide: week 6",
+   "doing": "Working on \"Beginner 21K guide: week 6\"",
+   "state": {
+    "url": "https://www.21kcoach.in/beginner/week-6"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Long run this week: 14 km at easy pace",
+      "Two rest days, one interval session"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T19:14:00",
+   "last_seen": "2026-11-06T19:24:00",
+   "seconds": 600,
+   "visits": 1,
+   "label": [
+    "Half marathon/Training"
+   ]
+  },
+  "r-mail-bib": {
+   "id": "r-mail-bib",
+   "app": "Gmail",
+   "kind": "email",
+   "title": "Your bib for Sunday's race",
+   "doing": "Working on \"Your bib for Sunday's race\"",
+   "state": {
+    "subject": "Your bib for Sunday's race",
+    "from": "events@raceday.in"
+   },
+   "activity": {
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Bib number 4471, collect it at the expo",
+      "Expo: Jio World Centre, Saturday 10am to 7pm"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-06T19:24:00",
+   "last_seen": "2026-11-06T19:28:00",
+   "seconds": 240,
+   "visits": 1,
+   "label": [
+    "Half marathon/Race"
+   ]
+  },
+  "r-notes-shoes": {
+   "id": "r-notes-shoes",
+   "app": "Notes",
+   "kind": "note",
+   "title": "Shoes",
+   "doing": "Working on \"Shoes\"",
+   "state": {},
+   "activity": {
+    "typing": {
+     "seconds": 60,
+     "text": [
+      "Pegasus 41 vs Novablast 5",
+      "Knee niggle after the weekend, ice and rest"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T19:05:00",
+   "last_seen": "2026-11-06T19:10:00",
+   "seconds": 300,
+   "visits": 1,
+   "label": [
+    "Half marathon/Training"
+   ]
+  },
+  "hub-gmail": {
+   "id": "hub-gmail",
+   "app": "Gmail",
+   "kind": "mailbox",
+   "title": "Inbox (96)",
+   "doing": "Working on \"Inbox (96)\"",
+   "state": {},
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "Promotions: 40% off monsoon sale"
+     ]
+    },
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "Quote for 300 covers - buffet",
+      "Intro: you <> Neha (Orchard Ventures)",
+      "Your bib for Sunday's race"
+     ],
+     "count": 3
+    }
+   },
+   "first_seen": "2026-11-06T09:00:00",
+   "last_seen": "2026-11-06T19:31:00",
+   "seconds": 420,
+   "visits": 2,
+   "label": []
+  },
+  "slack-random": {
+   "id": "slack-random",
+   "app": "Slack",
+   "kind": "chat",
+   "title": "#random",
+   "doing": "Working on \"#random\"",
+   "state": {
+    "chat": "#random",
+    "workspace": "Lumen Labs"
+   },
+   "activity": {
+    "receiving": {
+     "seconds": 0,
+     "text": [
+      "who's up for lunch at 1?",
+      "the new coffee machine is a game changer"
+     ],
+     "count": 2
+    }
+   },
+   "first_seen": "2026-11-06T11:20:00",
+   "last_seen": "2026-11-06T11:23:00",
+   "seconds": 180,
+   "visits": 1,
+   "label": []
+  },
+  "yt-lofi": {
+   "id": "yt-lofi",
+   "app": "YouTube",
+   "kind": "page",
+   "title": "lofi hip hop radio - beats to relax/study to",
+   "doing": "Working on \"lofi hip hop radio - beats to relax/study to\"",
+   "state": {
+    "url": "https://www.youtube.com/watch?v=jfKfPfyJRdk"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "LIVE"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T09:46:00",
+   "last_seen": "2026-11-06T09:50:00",
+   "seconds": 240,
+   "visits": 1,
+   "label": []
+  },
+  "news-monsoon": {
+   "id": "news-monsoon",
+   "app": "Safari",
+   "kind": "page",
+   "title": "Monsoon may arrive early in Mumbai this year",
+   "doing": "Working on \"Monsoon may arrive early in Mumbai this year\"",
+   "state": {
+    "url": "https://www.dailyherald.in/weather/monsoon-early"
+   },
+   "activity": {
+    "reading": {
+     "seconds": 60,
+     "text": [
+      "IMD forecasts above-normal rainfall"
+     ]
+    }
+   },
+   "first_seen": "2026-11-06T11:40:00",
+   "last_seen": "2026-11-06T11:43:00",
+   "seconds": 180,
+   "visits": 1,
+   "label": []
+  }
+ },
+ "timeline": [
+  {
+   "item": "hub-gmail",
+   "from": "2026-11-06T09:00:00",
+   "to": "2026-11-06T09:04:00"
+  },
+  {
+   "item": "f-mail-vc",
+   "from": "2026-11-06T09:04:00",
+   "to": "2026-11-06T09:08:00"
+  },
+  {
+   "item": "w-mail-caterer",
+   "from": "2026-11-06T09:08:00",
+   "to": "2026-11-06T09:13:00"
+  },
+  {
+   "item": "f-doc-memo",
+   "from": "2026-11-06T09:13:00",
+   "to": "2026-11-06T09:28:00"
+  },
+  {
+   "item": "f-claude",
+   "from": "2026-11-06T09:28:00",
+   "to": "2026-11-06T09:38:00"
+  },
+  {
+   "item": "f-doc-memo",
+   "from": "2026-11-06T09:38:00",
+   "to": "2026-11-06T09:46:00"
+  },
+  {
+   "item": "yt-lofi",
+   "from": "2026-11-06T09:46:00",
+   "to": "2026-11-06T09:50:00"
+  },
+  {
+   "item": "w-chat-sister",
+   "from": "2026-11-06T11:00:00",
+   "to": "2026-11-06T11:05:00"
+  },
+  {
+   "item": "w-sheet-guests",
+   "from": "2026-11-06T11:05:00",
+   "to": "2026-11-06T11:20:00"
+  },
+  {
+   "item": "slack-random",
+   "from": "2026-11-06T11:20:00",
+   "to": "2026-11-06T11:23:00"
+  },
+  {
+   "item": "w-page-venue",
+   "from": "2026-11-06T11:23:00",
+   "to": "2026-11-06T11:33:00"
+  },
+  {
+   "item": "w-notes-sangeet",
+   "from": "2026-11-06T11:33:00",
+   "to": "2026-11-06T11:40:00"
+  },
+  {
+   "item": "news-monsoon",
+   "from": "2026-11-06T11:40:00",
+   "to": "2026-11-06T11:43:00"
+  },
+  {
+   "item": "f-keynote-deck",
+   "from": "2026-11-06T14:00:00",
+   "to": "2026-11-06T14:20:00"
+  },
+  {
+   "item": "f-sheet-captable",
+   "from": "2026-11-06T14:20:00",
+   "to": "2026-11-06T14:30:00"
+  },
+  {
+   "item": "w-chat-sister",
+   "from": "2026-11-06T14:30:00",
+   "to": "2026-11-06T14:32:00"
+  },
+  {
+   "item": "f-calendly",
+   "from": "2026-11-06T14:32:00",
+   "to": "2026-11-06T14:35:00"
+  },
+  {
+   "item": "f-keynote-deck",
+   "from": "2026-11-06T14:35:00",
+   "to": "2026-11-06T14:45:00"
+  },
+  {
+   "item": "r-strava",
+   "from": "2026-11-06T19:00:00",
+   "to": "2026-11-06T19:05:00"
+  },
+  {
+   "item": "r-notes-shoes",
+   "from": "2026-11-06T19:05:00",
+   "to": "2026-11-06T19:10:00"
+  },
+  {
+   "item": "w-mail-caterer",
+   "from": "2026-11-06T19:10:00",
+   "to": "2026-11-06T19:14:00"
+  },
+  {
+   "item": "r-guide",
+   "from": "2026-11-06T19:14:00",
+   "to": "2026-11-06T19:24:00"
+  },
+  {
+   "item": "r-mail-bib",
+   "from": "2026-11-06T19:24:00",
+   "to": "2026-11-06T19:28:00"
+  },
+  {
+   "item": "hub-gmail",
+   "from": "2026-11-06T19:28:00",
+   "to": "2026-11-06T19:31:00"
+  }
+ ]
+}

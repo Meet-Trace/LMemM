@@ -34,7 +34,7 @@ h1 em,h2 em{letter-spacing:-.025em}
 .hero .button.secondary,.hero .film-button{color:#fbf3ea}
 .scroll-cue{z-index:3}
 .photo-band{position:relative;min-height:520px;display:flex;align-items:center;overflow:hidden;isolation:isolate;background:#1a110e}
-.photo-band-img{position:absolute;inset:-4%;z-index:-1;background:url(assets/photography/workday.jpg) center 78%/cover no-repeat;filter:sepia(.7) saturate(1.5) hue-rotate(-14deg) contrast(1.05) brightness(.8) blur(2.5px)}
+.photo-band-img{position:absolute;inset:-4%;z-index:-1;background:url(assets/photography/team.jpg) center 78%/cover no-repeat;filter:sepia(.7) saturate(1.5) hue-rotate(-14deg) contrast(1.05) brightness(.8) blur(2.5px)}
 .photo-band-img::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#1a110ee6 0,#2b140a88 45%,#1a110e44),linear-gradient(0deg,#1a110e99,transparent 40%)}
 .photo-band-copy{padding-block:80px;--text:#fbf3ea;--muted:#e8d8c8}
 .photo-band-copy h2{color:#fbf3ea;margin-bottom:18px}
@@ -99,7 +99,7 @@ h1 em,h2 em{letter-spacing:-.025em}
 @media(max-width:760px),(prefers-reduced-motion:reduce){.story-track{height:auto}.story-sticky{position:static;height:auto;display:block;width:calc(100% - 40px);padding-block:70px 40px}.story-steps{display:block}.step{opacity:1;transform:none;filter:none;margin-bottom:42px;transition:none}.step h3{font-size:36px}.step p{font-size:16px}.story-rail{display:none}.story-stage{height:240px}.story-stage .frag,.story-stage .threads{display:none}.story-stage .core{width:min(280px,90%)}.core>div{transition:none}.core-b,.core-c{width:100%;margin-left:0}}
 .step h3 em{display:block;white-space:nowrap}
 /* Band photo: img4, pushed right so the speaker sits clear of the text */
-.photo-band-img{inset:0 0 0 20%;background-image:url(assets/photography/workday.jpg);background-position:center 40%;filter:sepia(.25) saturate(1.15) hue-rotate(-6deg) contrast(1.05) brightness(.82);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 34%);mask-image:linear-gradient(90deg,transparent 0,#000 34%)}
+.photo-band-img{inset:0 0 0 20%;background-image:url(assets/photography/team.jpg);background-position:center 40%;filter:sepia(.25) saturate(1.15) hue-rotate(-6deg) contrast(1.05) brightness(.82);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 34%);mask-image:linear-gradient(90deg,transparent 0,#000 34%)}
 .photo-band-img::after{background:linear-gradient(90deg,#1a110e66 0,transparent 40%),linear-gradient(0deg,#1a110e88,transparent 40%)}
 
 /* Film grain: one reusable layer on top of every photo. Tune it here; the photos are never edited. */
@@ -166,3 +166,12 @@ h1 em,h2 em{letter-spacing:-.025em}
 .hero-photo{background-position:58% 48%}
 .photo-band-img{background-position:center 44%}
 .closing-photo{background-position:center 50%}
+/* Hero: soft reddish-blue gradient over the photo (grain layer stays on top). */
+.hero-photo::after{background:linear-gradient(125deg,#d9505f 0%,#8a45b0 50%,#3a64d6 100%);mix-blend-mode:color;opacity:.26}
+:root[data-theme=light] .hero-photo::after,:root[data-theme=dark] .hero-photo::after{opacity:.26}
+:root[data-theme=light] .hero-photo,:root[data-theme=dark] .hero-photo{filter:saturate(1.02) contrast(1.04) brightness(.88)}
+/* Middle photo: the picture is blurred on its own layer so the grain on top stays sharp; slight brown tint. */
+.photo-band-img{background:none;filter:none;inset:0 0 0 20%}
+.photo-band-img::before{content:'';position:absolute;inset:-4%;background:url(assets/photography/team.jpg) center 62%/cover no-repeat;filter:sepia(.4) saturate(1.1) hue-rotate(-8deg) contrast(1.04) brightness(.82) blur(4px)}
+.photo-band-img::after{background:linear-gradient(#6b422630,#6b422630),linear-gradient(90deg,#1a110e66 0,transparent 40%),linear-gradient(0deg,#1a110e88,transparent 40%)}
+.photo-band-img .grain{opacity:.6}

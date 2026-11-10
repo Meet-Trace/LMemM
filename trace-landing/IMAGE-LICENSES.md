@@ -25,3 +25,7 @@ All four former `assets/web-images/img*` files were removed from this branch bec
 The supplied concept video, its music and film-derived stills are separate supplied assets; this photo replacement does not establish rights to those. Actual-app screenshots remain synthetic product captures.
 
 Pexels restrictions include avoiding implied endorsement by people/brands and prohibited redistribution or resale. See the linked licence for the full terms.
+
+## Team photo (pending provenance)
+
+`assets/photography/team.jpg` (middle band) is resized from `assets/team.jpg`, supplied by the team. Source and licence are not yet recorded here; confirm commercial-use rights before launch.

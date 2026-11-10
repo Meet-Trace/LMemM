@@ -1873,7 +1873,7 @@ class MainWindow:
             rows.append(("Address", page["address"]))
         rows += list(page["latest"])
         for k, v in rows:
-            kit.meta(doc, k, x, y, 90, kit.warm("mute"), wrap=False, height=18, tip=False)
+            kit.meta(doc, k, x, y, 96, kit.warm("mute"), height=18, tip=False)   # wraps like the value so both lines share a baseline
             h = max(kit.meta(doc, v, x + 100, y, w - 100, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
             if k == "Address":                                        # the full address on hover of this row only, never over the buttons
                 hold = _Flipped.alloc().initWithFrame_(NSMakeRect(x + 100, y, w - 100, h))

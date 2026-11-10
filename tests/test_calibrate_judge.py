@@ -80,5 +80,37 @@ class BiasTest(unittest.TestCase):
         self.assertEqual(a, b)
 
 
+class SubsetAndMeanTest(unittest.TestCase):
+    def test_scores_are_split_by_story_in_the_order_of_the_lessons(self):
+        rows = [{"kind": "pair", "label": 1, "story": "a"}, {"kind": "general", "label": 1, "story": "a"},
+                {"kind": "pair", "label": 0, "story": "b"}, {"kind": "project", "label": 1, "story": "a"}]
+        scores = [("pair", 1, 2.0), ("pair", 0, -1.0), ("project", 1, 0.5)]
+        self.assertEqual(cj.by_story(rows, scores, {"a"}), [("pair", 1, 2.0), ("project", 1, 0.5)])
+        self.assertEqual(cj.by_other_story(rows, scores, {"a"}), [("pair", 0, -1.0)])
+
+    def test_the_hard_stories_are_named(self):
+        ids = cj.hard_story_ids()
+        self.assertIn("rb-meal-planner", ids)
+        self.assertEqual(len(ids), 22)
+
+    def test_the_mean_judge_averages_asks_both_and_adds_up_its_cost(self):
+        class One:
+            calls, seconds = 2, 0.5
+
+            def __init__(self, value):
+                self.value, self.asked = value, 0
+
+            def __call__(self, instruct, query, doc):
+                self.asked += 1
+                return self.value
+        a, b = One(1.0), One(4.0)
+        judge = ai.MeanJudge([a, b])
+        self.assertAlmostEqual(judge("i", "q", "d"), 2.5)
+        self.assertEqual((a.asked, b.asked, judge.calls, judge.seconds), (1, 1, 4, 1.0))
+        _, _, log = ai.run(pge.load_day(FIXTURES / "sample_day.json"), [], judge, None, "raw")
+        self.assertTrue(log)                                   # it runs wherever a judge does
+        self.assertGreater(a.asked, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -76,13 +76,28 @@ def calibrate(new, reference=None, false_yes=None):
 
 
 def score_lessons(scorer, rows):
-    """[(kind, label, log-odds yes vs no)] for the lessons of the kinds in KINDS."""
+    """[(kind, label, log-odds yes vs no)] for the lessons of the kinds in KINDS (in the order of those lessons)."""
     import tiny_scorer as ts
     out = []
     for r in rows:
         if r.get("kind") in KINDS:
             out.append((r["kind"], r["label"], ts.yes_no(scorer.options_for(r["instruct"], r["query"], r["doc"]))))
     return out
+
+
+def hard_story_ids(path=ROOT / "research" / "judge_lessons" / "stories_hard.json"):
+    return {s["id"] for s in json.loads(Path(path).read_text())}
+
+
+def by_story(rows, scores, ids):
+    """The scores of the lessons whose story is in `ids` (rows are the lessons, scores their scores in KINDS order)."""
+    kept = [r for r in rows if r.get("kind") in KINDS]
+    return [x for r, x in zip(kept, scores) if r.get("story") in ids]
+
+
+def by_other_story(rows, scores, ids):
+    kept = [r for r in rows if r.get("kind") in KINDS]
+    return [x for r, x in zip(kept, scores) if r.get("story") not in ids]
 
 
 def load_scores(repo, adapter, rows):
@@ -104,9 +119,20 @@ def main(argv=None):
     new = load_scores(args.model, args.adapter, rows)
     result = calibrate(new, reference, args.false_yes)
     bias = {k: v["shift"] for k, v in result.items()}
-    args.out.write_text(json.dumps({"bias": bias, "by_kind": result, "adapter": args.adapter,
+    # the same numbers for the lessons of the round-5 stories and for the older ones, each against the reference
+    # on the same lessons: did the new stories teach anything on lessons held out from them?
+    hard = hard_story_ids()
+    subsets = {}
+    if reference:
+        for name, pick in (("round 5 stories", by_story), ("older stories", by_other_story)):
+            subsets[name] = calibrate(pick(rows, new, hard), pick(rows, reference, hard))
+    raw = [{"kind": r["kind"], "label": r["label"], "story": r.get("story"), "new": n[2],
+            "reference": (reference[i][2] if reference else None)}
+           for i, (r, n) in enumerate(zip([r for r in rows if r.get("kind") in KINDS], new))]
+    args.out.write_text(json.dumps({"bias": bias, "by_kind": result, "by_stories": subsets, "adapter": args.adapter,
                                     "reference": args.reference_adapter, "lessons": str(args.lessons)}, indent=1))
-    print(json.dumps({"bias": bias, "by_kind": result}, indent=1))
+    args.out.with_suffix(".scores.json").write_text(json.dumps(raw))
+    print(json.dumps({"bias": bias, "by_kind": result, "by_stories": subsets}, indent=1))
     return result
 
 

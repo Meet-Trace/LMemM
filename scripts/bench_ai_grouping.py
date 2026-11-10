@@ -116,6 +116,8 @@ def main(argv=None):
     p.add_argument("--narrator-mlx", default=None, help="the narrator's MLX build, run with mlx-lm instead of Ollama")
     p.add_argument("--judge-mlx", default=None, help="Qwen3-Reranker repo for mlx-lm")
     p.add_argument("--judge-adapter", default=None, help="LoRA adapter folder from train_judge.py for --judge-mlx")
+    p.add_argument("--judge-adapter-2", default=None,
+                   help="a second adapter on the same base: the judge is the mean of the two (ai.MeanJudge)")
     p.add_argument("--judge", default=None, help="Ollama reranker tag")
     p.add_argument("--judge-chat", default=None, help="Ollama chat model used as the judge instead")
     p.add_argument("--work-judge", default=None, help="Ollama reranker tag that answers only the 'is this "
@@ -156,6 +158,11 @@ def main(argv=None):
     cache = json.loads(args.cache.read_text()) if args.cache and args.cache.exists() else {}
     judge = ai.Judge(scorer, cache, name=(f"adapter={args.judge_adapter}" if args.judge_adapter
                                           else f"ollama={args.judge}" if args.judge and args.cpu else ""))
+    if args.judge_adapter_2:
+        if not args.judge_mlx:
+            p.error("--judge-adapter-2 needs --judge-mlx")
+        judge = ai.MeanJudge([judge, ai.Judge(ts.MlxRerankScorer(args.judge_mlx, args.judge_adapter_2), cache,
+                                              name=f"adapter={args.judge_adapter_2}")])
     work_judge = (ai.Judge(ts.RerankScorer(args.work_judge, args.url, timeout=300, extra=cpu), cache,
                            name=f"ollama={args.work_judge}" if args.cpu else "") if args.work_judge else None)
     if args.narrator_mlx:

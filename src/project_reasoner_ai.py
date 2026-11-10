@@ -138,6 +138,26 @@ class Judge:
         return self.cache[key]
 
 
+class MeanJudge:
+    """Several judges asked the same question; the answer is their mean. A borderline decision (a mean of a few
+    pair answers near zero) flips on a small difference in one judge's answer, and two judges taught differently
+    rarely flip together. Each judge keeps its own cache; `calls` and `seconds` add up."""
+
+    def __init__(self, judges):
+        self.judges = list(judges)
+
+    def __call__(self, instruct, query, doc):
+        return sum(j(instruct, query, doc) for j in self.judges) / len(self.judges)
+
+    @property
+    def calls(self):
+        return sum(j.calls for j in self.judges)
+
+    @property
+    def seconds(self):
+        return sum(j.seconds for j in self.judges)
+
+
 class Narrator:
     """(system, user, max_tokens) -> one short written answer from a tiny_scorer.ChatScorer, cached."""
 

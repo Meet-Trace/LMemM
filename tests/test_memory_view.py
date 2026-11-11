@@ -146,3 +146,13 @@ class SettingsButtonSystemTests(unittest.TestCase):
         self.assertIn("'destructive':'danger'", settings)
         kit = open(os.path.join(os.path.dirname(__file__), "..", "src", "setup_kit.py")).read()
         self.assertIn('kind == "danger"', kit)
+
+
+class SettingsActionColumnTests(unittest.TestCase):
+    def test_one_action_width_and_no_back_to_memory(self):
+        import os
+        base = os.path.join(os.path.dirname(__file__), "..", "src")
+        pane = open(os.path.join(base, "memory_pane.py")).read().split("def _settings")[1]
+        self.assertIn("ACTION_W,PADX=148,20", pane)
+        self.assertIn("action_x=x+w-PADX-slot-ACTION_W", pane)          # every row starts its action at the same x
+        self.assertNotIn("Back to Memory", open(os.path.join(base, "window.py")).read())

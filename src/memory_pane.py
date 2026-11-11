@@ -246,6 +246,7 @@ class MemoryPane:
         the whole page fits without scrolling; narrow ones stack them and scroll."""
         from AppKit import NSMakeRect
         BTN_H,BTN_PAD,KINDS=32,34,{'primary':'primary','secondary':'outline','tertiary':'ghost','destructive':'danger'}
+        ACTION_W,PADX=148,20                                  # the action column's fixed width; the inner side padding of every container
         host=self.host;y=8;notice=view.get('notice')
         X0,W0=x,w
         y+=4
@@ -278,7 +279,7 @@ class MemoryPane:
             """Every section is one soft container with fine dividers between its rows."""
             nonlocal y
             if group['top'] is None:return
-            y+=6                                                  # one container geometry for every section; Danger zone is darker and edged in muted red
+            y+=10                                                 # one container geometry for every section; Danger zone is darker and edged in muted red
             fill=rgb((0,0,0),0.30) if group['danger'] else kit.faint(0.05)
             edge=rgb(RED,0.26) if group['danger'] else kit.faint(0.09)
             surface=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,group['top'],w,y-group['top']),fill,edge,14)
@@ -288,59 +289,68 @@ class MemoryPane:
             """A confirmation is the setting's own expanded state: an inset tonal panel under the row, same material and
             radius as the surfaces around it, a red edge mark only when it is destructive, the same buttons."""
             nonlocal y
-            inner=w-46-16-32;dh=kit.text_height(detail,13,400,inner,True,0.004,1.3);ph=14+20+4+dh+12+BTN_H+14;top=y+4
-            host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x+38,top,w-54,ph),(rgb((0,0,0),0.24) if destructive else kit.faint(0.06)),None,12))
+            inner=w-2*PADX-16-12;dh=kit.text_height(detail,13,400,inner,True,0.004,1.3);ph=16+20+6+dh+14+BTN_H+16;top=y+4
+            host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x+PADX-4,top,w-2*PADX+8,ph),(rgb((0,0,0),0.24) if destructive else kit.faint(0.06)),None,12))
             if destructive:
-                bar=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+38,top+12,3,ph-24),None);bar.fill=rgb(RED);bar.radius=1.5;host.addSubview_(bar)
-            kit.put_text(host,title,x+54,top+12,inner,15,600,wrap=False,height=20)
-            kit.put_text(host,detail,x+54,top+36,inner,13,400,kit.mute(),height=dh,track=0.004,lead=1.3)
-            by=top+36+dh+12;gw=button(go,x+54,by,call_yes,'destructive' if destructive else 'primary')
-            button('Cancel',x+54+gw+8,by,lambda:self.action('confirm_no'),'tertiary')
-            y=top+ph+6
+                bar=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+PADX-4,top+14,3,ph-28),None);bar.fill=rgb(RED);bar.radius=1.5;host.addSubview_(bar)
+            kit.put_text(host,title,x+PADX+12,top+16,inner,15,600,wrap=False,height=20)
+            kit.put_text(host,detail,x+PADX+12,top+42,inner,13,400,kit.mute(),height=dh,track=0.004,lead=1.3)
+            by=top+42+dh+14;gw=button(go,x+PADX+12,by,call_yes,'destructive' if destructive else 'primary')
+            button('Cancel',x+PADX+12+gw+8,by,lambda:self.action('confirm_no'),'tertiary')
+            y=top+ph+8
         def row(symbols,title,state,buttons,state_color=None,dot=False,more=(),warn=None,tip=None,progress=False,fraction=None,danger=False):
-            """A setting is a title, its state under it, and one action in the common right-hand column. Other actions wait in the ellipsis menu."""
+            """A setting: icon and title at the left, its state under the title, one action in the shared right-hand column
+            (ACTION_W wide, the same on every row, even when a row has none) and the ellipsis menu outside it. A state or warning
+            too long for the space beside the action drops under the row, full width."""
             nonlocal y
-            if group['rows']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+16,y,w-32,1)))
+            if group['rows']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+PADX,y,w-2*PADX,1)))
             group['rows']+=1
             btn=[(b[0],b[1],b[2],b[3] if len(b)>3 else True) for b in buttons]
-            widths=[int(kit.text_width(b[0],13,600))+BTN_PAD for b in btn]
-            slot=BTN_H+8                                          # the ellipsis slot is reserved on every row, so primary actions line up
-            text_w=max(w-44-16-slot-(sum(widths)+8*len(widths))-16,140)
+            slot=BTN_H+8                                          # the ellipsis slot is reserved on every row
+            action_x=x+w-PADX-slot-ACTION_W                       # where every row's action begins
+            text_w=action_x-(x+PADX+28)-12;full_w=w-2*PADX-28
             state_text_=('\u25CF '+state) if dot and state else state
-            sh=kit.text_height(state_text_,13,400,text_w,True,0.004,1.3) if state_text_ else 0
-            wh=kit.text_height(warn,13,400,text_w,True,0.004,1.3) if warn else 0
-            h=max(50,8+20+sh+(wh+4 if warn else 0)+8)+(12 if progress else 0)
-            kit.glyph(host,symbols,x+16,y+11,16,rgb(RED,0.85) if danger else kit.faint(0.55))
-            kit.put_text(host,title,x+44,y+8,text_w,15,600,wrap=False,height=20,track=-0.004)
-            if state_text_:kit.put_text(host,state_text_,x+44,y+27,text_w,13,400,state_color or kit.mute(),height=sh,track=0.004,lead=1.3)
-            if warn:kit.put_text(host,warn,x+44,y+27+sh+4,text_w,13,400,kit.status_text('orange'),height=wh,track=0.004,lead=1.3)
+            drop=bool(warn) or bool(state_text_ and kit.text_width(state_text_,13,400)>text_w)
+            under=[t for t in ((state_text_,state_color or kit.mute()),(warn,kit.status_text('orange'))) if t[0]] if drop else []
+            heights=[kit.text_height(t,13,400,full_w,True,0.004,1.3) for t,_c in under]
+            if drop:h=max(50,8+20+6+sum(heights)+4*(len(heights)-1)+10)+(12 if progress else 0);cy=y+5
+            else:h=50+(12 if progress else 0);cy=y+(h-BTN_H)/2-(6 if progress else 0)
+            kit.glyph(host,symbols,x+PADX,(y+10 if drop else y+(h-16)/2-(6 if progress else 0)),16,rgb(RED,0.85) if danger else kit.faint(0.55))
+            tx=x+PADX+28
+            if state_text_ and not drop:
+                kit.put_text(host,title,tx,y+8,text_w,15,600,wrap=False,height=20,track=-0.004)
+                kit.put_text(host,state_text_,tx,y+27,text_w,13,400,state_color or kit.mute(),wrap=False,height=17,track=0.004)
+            else:
+                kit.put_text(host,title,tx,y+9 if drop else y+(h-20)/2,max(action_x-tx-12,60),15,600,wrap=False,height=20,track=-0.004)
+                uy=y+34
+                for (t,c),hh in zip(under,heights):
+                    kit.put_text(host,t,tx,uy,full_w,13,400,c,height=hh,track=0.004,lead=1.3);uy+=hh+4
             if progress:
-                bw_=min(text_w,360);by=y+h-14;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+46,by,bw_,4),None);track.fill=kit.faint(0.10);track.radius=2;host.addSubview_(track)
+                bw_=min(text_w,300);by=y+h-16;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(tx,by,bw_,4),None);track.fill=kit.faint(0.10);track.radius=2;host.addSubview_(track)
                 fw=bw_*(fraction or 0)
-                if fw>0:fill=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+46,by,max(fw,4),4),None);fill.fill=rgb(ACC);fill.radius=2;host.addSubview_(fill)
+                if fw>0:fill=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(tx,by,max(fw,4),4),None);fill.fill=rgb(ACC);fill.radius=2;host.addSubview_(fill)
             if tip:
-                hover=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+46,y,text_w,h),None);hover.setToolTip_(tip);host.addSubview_(hover)
-            cy=y+(h-BTN_H)/2-(6 if progress else 0)
+                hover=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(tx,y,text_w,h),None);hover.setToolTip_(tip);host.addSubview_(hover)
             if more:
-                opts=list(more);mb=kit.button(host,'\u22EF',x+w-16-BTN_H,cy,BTN_H,BTN_H,lambda items=opts:self._menu(items),kind='ghost',size=16,weight=700);mb.ax_label='More actions'
-            right=x+w-16-slot
-            for item,bw in reversed(list(zip(btn,widths))):
-                label,action,kind,on=item;right-=bw
-                button(label,right,cy,(lambda a=action:self.action(a)),kind,on,bw);right-=8
+                opts=list(more);mb=kit.button(host,'\u22EF',x+w-PADX-BTN_H,cy,BTN_H,BTN_H,lambda items=opts:self._menu(items),kind='ghost',size=16,weight=700);mb.ax_label='More actions'
+            bx=action_x+ACTION_W
+            for item in reversed(btn):
+                label,action,kind,on=item;bw=max(ACTION_W,int(kit.text_width(label,13,600))+28);bx-=bw
+                button(label,bx,cy,(lambda a=action:self.action(a)),kind,on,bw);bx-=8
             y+=h
             if self.confirm in CONFIRMS and title==ASKED.get(self.confirm):
                 ctitle,detail,go=CONFIRMS[self.confirm];confirm_open(ctitle,detail,go,self.confirm=='confirm_disconnect',lambda:self.action('confirm_yes'))
         def sub(text):
             nonlocal y
-            if group['subs']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+12,y+4,w-24,1)))
+            if group['subs']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+PADX,y+4,w-2*PADX,1)))
             group['subs']+=1
-            y+=10;kit.put_text(host,text,x+16,y,w,12,600,kit.mute(),wrap=False,height=16,track=0.02);y+=20
+            y+=8;kit.put_text(host,text,x+PADX,y,w,12,600,kit.mute(),wrap=False,height=16,track=0.02);y+=22
             group['rows']=0
         def cap(text,danger=False,surface=False):
             nonlocal y
             end_group()
             kit.put_text(host,text,x,y,w,15,700,kit.status_text('red') if danger else None,wrap=False,height=22,track=-0.01);y+=30
-            y+=0;group['top']=y;group['rows']=0;group['subs']=0;group['danger']=danger;group['surface']=surface
+            group['top']=y;y+=10;group['rows']=0;group['subs']=0;group['danger']=danger;group['surface']=surface
         def note_for(kind,default):
             if notice and len(notice)>2 and notice[2]==kind:return notice[0],(kit.status_text('orange') if notice[1] else None)
             return default,None

@@ -1885,9 +1885,6 @@ class MainWindow:
                 gear.focusable, gear.ax_label = True, "Settings"
                 gear.setToolTip_("Settings")
                 kit.glyph(gear, ("gearshape", "gear"), 8, 8, 16, kit.ink() if in_settings else kit.mute())
-                if in_settings:                                        # the way back sits right beside it
-                    bw = kit.chip_width('Back to Memory', 'chevron.left')
-                    kit.chip(host, 'Back to Memory', 'chevron.left', gx - bw - 8, y + 2, False, lambda: self._memory_action('close_settings'))
             y += 40 + 16
             if self.memory_snapshot['tab'] in {'Memory', 'Resume'} or page.get('empty'):return y
         y = self._status(host, page, x, y, w)

@@ -59,5 +59,48 @@ class QuickIdentityTests(unittest.TestCase):
         self.assertIsNone(identity.find_item({}, st))
 
 
+def noted(iid, st, last_seen):
+    it = item(iid, st, last_seen)
+    it["notes"] = [{"at": "2026-11-08T08:00:00", "text": "check PR 39"}]
+    return it
+
+
+class NotesOnThePageTests(unittest.TestCase):
+    """A note on a page must light the pill every time you are on that page."""
+    URL = "https://github.com/adityakhuntia/LMemM"
+
+    def page(self):
+        return identity.quick_state(meta(url=self.URL, site="github.com", tab_title="LMemM"))
+
+    def test_a_newer_copy_of_the_page_without_notes_does_not_hide_the_noted_one(self):
+        st = self.page()
+        items = {"noted": noted("noted", st, "2026-11-08T08:00:00"),
+                 "newer": item("newer", st, "2026-11-08T09:00:00")}
+        self.assertEqual(identity.find_item(items, st), "noted")
+
+    def test_a_focused_text_field_does_not_hide_the_page_notes(self):
+        st = self.page()
+        items = {"p": noted("p", st, "2026-11-08T08:00:00")}
+        sig = {"doc": self.URL, "label": "Search or jump to…", "title": "LMemM - Google Chrome"}
+        found, decided = identity.ax_item(items, "Google Chrome", sig, "Google Chrome|%s|%s" % (sig["doc"], sig["label"]), True)
+        self.assertEqual((found, decided), ("p", True))
+
+    def test_a_known_field_still_names_its_own_item(self):
+        st = self.page()
+        items = {"p": noted("p", st, "2026-11-08T08:00:00")}
+        identity.learn_place(items["p"], "Google Chrome|%s|Search" % self.URL)
+        sig = {"doc": self.URL, "label": "Search", "title": "LMemM"}
+        found, _ = identity.ax_item(items, "Google Chrome", sig, "Google Chrome|%s|%s" % (sig["doc"], sig["label"]), True)
+        self.assertEqual(found, "p")
+
+    def test_a_page_with_no_notes_is_decided_as_nothing(self):
+        sig = {"doc": "https://example.com/x", "label": "", "title": "X"}
+        self.assertEqual(identity.ax_item({}, "Google Chrome", sig, None, True), (None, True))
+
+    def test_an_app_that_names_no_page_is_undecided(self):
+        sig = {"doc": "", "label": "Message", "title": ""}
+        self.assertEqual(identity.ax_item({}, "Slack", sig, "Slack||Message", False), (None, False))
+
+
 if __name__ == "__main__":
     unittest.main()

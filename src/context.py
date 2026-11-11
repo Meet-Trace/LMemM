@@ -24,15 +24,10 @@ from datetime import datetime
 from pathlib import Path
 
 import config
+import labels as labels_mod
+from memory_content import CHROME_LINE   # menu bars and other UI chrome that slips past the content filter
 import notes as notes_mod
 import store
-
-# menu bars and other UI chrome that slips past memory_content's content filter
-CHROME_LINE = re.compile(
-    r"^(?:file\s+edit\s+view|edit\s+view\s+insert|view\s+insert\s+format|"
-    r"insert\s+format\s+tools)\b.*$|"
-    r"^(?:file|edit|view|insert|format|tools|window|help|extensions|share|comment)"
-    r"(?:\s+(?:file|edit|view|insert|format|tools|window|help|extensions|share|comment))+$", re.I)
 
 
 def _clean(text):
@@ -65,9 +60,9 @@ def _when(item):
     return span + (f" ({visits} visits)" if visits > 1 else "")
 
 
-def distill(item):
+def distill(item, label=None):
     """One thing, stripped to what an AI would want to know about it. None if there's
-    nothing worth telling - no note and no kept content."""
+    nothing worth telling - no note and no kept content. `label` is its labels.py entry, if any."""
     note_rows = [{"text": n["text"], "status": "done" if notes_mod.is_done(item, n) else "open"}
                  for n in item.get("notes", [])]
     body = _content(item)
@@ -84,14 +79,22 @@ def distill(item):
     latest = {k: v for k, v in (item.get("state") or {}).items() if v and v != row["what"]}
     if latest:
         row["details"] = latest
+    if label and label.get("summary"):
+        row["summary"] = label["summary"]                     # written by a model: marked as such
+        row["summary_by"] = label.get("source", "model")
+        if label.get("entities"):
+            row["entities"] = label["entities"]
+        if label.get("open_question"):
+            row["open_question"] = label["open_question"]
     return row
 
 
 def by_project(items):
     """Every distillable thing, grouped by project, most recently touched project first."""
     groups = OrderedDict()
+    labelled = labels_mod.load_labels()
     for item in sorted(items.values(), key=lambda i: i["last_seen"], reverse=True):
-        row = distill(item)
+        row = distill(item, labelled.get(item["id"]))
         if row is None:
             continue
         groups.setdefault(notes_mod.project_of(item), []).append(row)

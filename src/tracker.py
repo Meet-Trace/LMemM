@@ -41,6 +41,7 @@ import config
 import dictation
 import identity
 import input_monitor as input_hooks
+import labels
 import macos
 import menu_model
 import moment_store
@@ -1463,6 +1464,7 @@ class Tracker:
         # 3. the memory entry for it
         item, frame_used = self.update_item(item, item_id, ref, st, meta, content, pinned)
         identity.learn_place(item, meta.get("place"))
+        labels.note_where(item, res, meta)          # where the pointer/focus was, in words, for labels
         self.record_activity(item, act, dt, res)
 
         # 4. the timeline

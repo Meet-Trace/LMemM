@@ -72,6 +72,18 @@ RETENTION_SWEEP = 3600      # seconds between screenshot-expiry sweeps
 RSS_WARN_MB = 800           # warn in the terminal when LMemM itself uses more memory than this
 CPU_WARN_PCT = 60           # ...or more than this share of one core over the last 30 s
 
+# ---------------------------------------------------------------- labels (labels.py)
+
+LABEL_DAILY_TOKENS = 50000      # most tokens `lmemm.py label` may spend per day (counted from the CLI's own usage)
+LABEL_MODEL = "haiku"           # the `claude --model` alias used for labels
+LABEL_SETTLE = 120              # seconds a thing must sit unchanged before it is sent
+LABEL_MIN_SECONDS = 20          # ...and have been worked on this long (unless pinned, noted or 2+ min)
+LABEL_BATCH = 15                # things per call: the CLI's fixed cost (~2.4k tokens) is paid once per batch
+LABEL_DICTIONARY_FILTER = True   # drop lines that are mostly not words (OCR soup), using the system word list when there is one
+LABEL_KNOWN_TOKENS = {"LMemM", "eBay", "iPad", "iOS", "iCal"}  # words that look like OCR case-flips but are real
+LABEL_OFF_APPS = {"Photos", "Messages", "Mail", "WhatsApp", "Signal", "Telegram", "Slack", "Microsoft Teams", "Discord"}
+LABEL_OFF_KINDS = {"chat", "chat_list", "email", "email_draft", "mailbox", "email_search"}   # never sent to a model (default)
+
 # ---------------------------------------------------------------- event trail (trail_*.py)
 
 TRAIL_RETENTION_HOURS = 48      # raw events stay on this Mac this long, then are deleted

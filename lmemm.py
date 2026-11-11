@@ -60,6 +60,7 @@ USAGE = ("usage: lmemm.py [menu] | start [--every N] [--input-events --input-app
          " | notes [--all] [PROJECT] | notes done|reopen ID…"
          " | projects [--all] | projects new|rename|move|archive|restore|merge|delete …"
          " | context [SESSION] [--days N]"
+         " | label [--dry-run] [--status] [--limit N]"
          " | trail … | status | pause | resume | pin | note | delete-session ID (--dry-run | --confirm ID)"
          " | delete-all (--dry-run | --confirm) | setup [--again] [--no-start]")
 
@@ -388,6 +389,39 @@ def cmd_context(args):
     print(f"\n{doc['things']} things, {doc['notes_open']} open notes -> {path}", file=sys.stderr)
 
 
+def cmd_label(args):
+    """Ask your laptop's Claude for a short label per settled thing, within the daily token cap."""
+    import labels
+    parser = argparse.ArgumentParser(prog="lmemm.py label")
+    parser.add_argument("--dry-run", action="store_true", help="show what would be sent and its token estimate; send nothing")
+    parser.add_argument("--status", action="store_true", help="today's tokens, what is waiting, whether `claude` is found")
+    parser.add_argument("--limit", type=int, help="label at most this many things")
+    opts = parser.parse_args(args)
+    try:
+        items = store.load_items()
+    except ValueError as error:
+        sys.exit(str(error))
+    provider, governor = labels.ClaudeCli(), labels.Governor()
+    known = len(labels.load_words())
+    print(f"word list for the garbled-text filter: {f'{known} words' if known else 'NOT found (/usr/share/dict/words); garbled OCR lines are only partly filtered'}",
+          file=sys.stderr)
+    if opts.status:
+        waiting = labels.due(items, labels.load_labels())
+        print(f"claude command: {'found' if provider.available() else 'NOT found'}")
+        print(f"tokens today: {governor.used} of {governor.cap} ({governor.doc['calls']} calls), mode: {governor.mode()}")
+        print(f"things waiting for a label: {len(waiting)}; labelled so far: {len(labels.load_labels())}")
+        return
+    if not opts.dry_run and not provider.available():
+        sys.exit("The `claude` command was not found. Install Claude Code and sign in, then try again.")
+    result = labels.run(items, provider, governor, limit=opts.limit, dry_run=opts.dry_run)
+    if opts.dry_run:
+        for batch in result["batches"]:
+            print(f"--- {batch['things']} things, about {batch['estimated_tokens']} tokens ---\n{batch['payload']}\n")
+    print(f"waiting {result['waiting']}, sent {result['sent']}, labelled {result['labelled']}, "
+          f"tokens spent {result['tokens']} (today {governor.used} of {governor.cap})"
+          + (f"; stopped: {result['stopped']}" if result["stopped"] else ""), file=sys.stderr)
+
+
 def cmd_delete_session(args):
     from input_store import delete_session, plan_session_deletion
     parser = argparse.ArgumentParser(prog="lmemm.py delete-session")
@@ -558,6 +592,8 @@ def main():
         cmd_setup(rest)
     elif cmd == "context":
         cmd_context(rest)
+    elif cmd == "label":
+        cmd_label(rest)
     else:
         sys.exit(USAGE)
 

@@ -257,7 +257,7 @@ class SoftEvidence(Base):
         s = inf.Sig()
         s.ctx["same_branch"] = cfg.w_same_branch
         self.assertLess(s.total(cfg), cfg.weak_floor)
-        self.assertEqual(s.families(cfg)[0], set())
+        self.assertEqual(s.families(cfg), set())
 
     def test_same_branch_cannot_tip_a_margin(self):
         cfg = inf.SCORING
@@ -534,7 +534,7 @@ class Corrections(Base):
         s = inf.Sig()
         s.put("artifact", 3.0, "S1")
         s.locator = cfg.w_s3_locator
-        self.assertLess(len(s.families(cfg)[0]), cfg.min_families)        # the locator is not counted as a second family
+        self.assertLess(len(s.families(cfg)), cfg.min_families)        # the locator is not counted as a second family
         c = av.Clock()
         ids1, ids2 = ("quorum_alpha.py", "quorum_beta.py"), ("zephyr_alpha.py", "zephyr_beta.py")
         c.visit("m1", url="s1.example.com/a/1", terms=W("mma", 4), idents=ids1)
@@ -558,6 +558,57 @@ class Corrections(Base):
         res, fs, es = go(c)
         self.assertTrue(es.by_type("same_locator") and es.by_type("shared_terms"))
         self.assertFalse(together(res, a, b))
+
+
+class HardMarginAndFamilies(Base):
+    def test_a_hard_candidate_that_wins_only_through_contextual_evidence_stays_ambiguous(self):
+        c = av.Clock()
+        pair_visits(c, tag="hm")
+        x = c.visit("x", url="s9.example.com/x/1", terms=W("hmx", 5))
+        c.fillers(24)
+        fs, es = ev.analyse(prep(c), None, RP)
+        ctx = inf._Ctx(fs, es, inf.SCORING)
+        st = inf._State(ctx)
+        ids = [r["visit_id"] for r in c.records if r["seq"] == 0]
+        members = {"A": ids[0], "B": ids[1]}
+        keys = {k: st.new(v) for k, v in members.items()}
+        cfg = inf.SCORING
+
+        def cand(name, substantive, contextual):
+            sig = inf.Sig()
+            sig.put("lexical", substantive, "H3", hard=True)
+            sig.locator = contextual
+            return inf.Cand(keys[name], sig, [members[name]])
+        a, b = cand("A", 5.0, 1.0), cand("B", 4.0, 0.0)
+        self.assertGreaterEqual(a.total(cfg) - b.total(cfg), cfg.margin)                    # passes on the total...
+        self.assertLess(a.sig.net_substantive() - b.sig.net_substantive(), cfg.margin)      # ...fails on substantive evidence
+        original = inf._candidates
+        inf._candidates = lambda *args, **kw: [a, b]
+        try:
+            d = inf._decide(ctx, st, x, past_only=False, allow_seed=False)
+            self.assertEqual((d["kind"], d["state"], d["reason"]), ("row", ac.AMBIGUOUS, "margin_too_small"))
+            a2 = cand("A", 6.0, 1.0)                                                         # a substantive margin of 2.0 assigns
+            inf._candidates = lambda *args, **kw: [a2, b]
+            self.assertEqual(inf._decide(ctx, st, x, past_only=False, allow_seed=False)["kind"], "assign")
+        finally:
+            inf._candidates = original
+
+    def test_locator_is_not_a_family_in_scoring_or_in_explanations(self):
+        s = inf.Sig()
+        s.put("lexical", 3.0, "S2")
+        s.locator = 1.0
+        self.assertEqual(s.families(inf.SCORING), {"lexical"})
+        c = av.Clock()
+        sh = W("lfs", 4)
+        c.visit("l1", url="docs.example.com/guides/one", terms=sh + W("lfa", 4))
+        c.visit("l2", url="docs.example.com/guides/two", terms=sh + W("lfb", 4), gap=200.0)
+        c.fillers(24)
+        res, fs, es = go(c)
+        self.assertTrue(es.by_type("same_locator"))
+        for r in res["visits"]:
+            self.assertNotIn("locator", r["explanation"].get("families", []))
+            for cd in r["candidates"]:
+                self.assertNotIn("locator", cd["families"])
 
 
 class Scoring(unittest.TestCase):
@@ -587,7 +638,7 @@ class Scoring(unittest.TestCase):
         t.put("artifact", 2.0, "S1")
         s.absorb(t)
         self.assertEqual(s.substantive(), 5.0)
-        self.assertEqual(s.families(inf.SCORING)[0], {"lexical", "artifact"})
+        self.assertEqual(s.families(inf.SCORING), {"lexical", "artifact"})
 
     def test_contextual_evidence_is_capped_and_never_a_family(self):
         cfg = inf.SCORING
@@ -595,7 +646,7 @@ class Scoring(unittest.TestCase):
         s.ctx.update({"same_branch": 0.5, "same_file_name": 0.5, "version_lineage": 1.0})
         s.locator = 1.0
         self.assertEqual(s.contextual(cfg), cfg.contextual_cap)
-        self.assertEqual(s.families(cfg)[0], set())
+        self.assertEqual(s.families(cfg), set())
         self.assertEqual(s.substantive(), 0.0)
 
     def test_contrast_and_age_subtract(self):

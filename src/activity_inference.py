@@ -184,8 +184,8 @@ class Sig:
         return self.substantive() + math.fsum(self.pen.values())
 
     def families(self, cfg):
-        anchors = {f for f, (w, _) in self.fam.items() if w >= cfg.family_min}
-        return anchors, (1 if self.locator >= cfg.family_min else 0)
+        """The independent families: substantive ones only. The locator and every other contextual signal is not a family."""
+        return {f for f, (w, _) in self.fam.items() if w >= cfg.family_min}
 
 
 def _ref(e):
@@ -516,7 +516,7 @@ def _row_cands(ctx, st, cands, limit=3):
     out = []
     for c in sorted(cands, key=lambda c: (-c.total(ctx.cfg), c.key))[:limit]:
         out.append({"activity": c.key, "score": round(c.total(ctx.cfg), 6), "adjacent": c.adjacent, "cannot_link": c.cannot,
-                    "families": sorted(c.sig.families(ctx.cfg)[0])})
+                    "families": sorted(c.sig.families(ctx.cfg))})
     return out
 
 
@@ -561,8 +561,8 @@ def _decide(ctx, st, v, past_only, allow_seed):
     sig = top.sig
     margin_total = top.total(cfg) - (runner.total(cfg) if runner else 0.0)
     margin_subst = sig.net_substantive() - (runner.sig.net_substantive() if runner else 0.0)
-    anchors, loc = sig.families(cfg)
-    facts = {"key": top.key, "rule": "+".join(sorted(sig.hard)) or "soft", "families": sorted(anchors | ({"locator"} if loc else set())),
+    anchors = sig.families(cfg)
+    facts = {"key": top.key, "rule": "+".join(sorted(sig.hard)) or "soft", "families": sorted(anchors),
              "score": round(top.total(cfg), 6), "evidence": sorted(sig.evidence), "demotions": sorted(sig.demotions),
              "margin": round(margin_total, 6), "incomplete_support": False}
 
@@ -572,7 +572,8 @@ def _decide(ctx, st, v, past_only, allow_seed):
         return dict(base, kind="assign", tier="hard" if sig.hard else "soft", **facts)
 
     if sig.hard:
-        if runner is None or margin_total >= cfg.margin:
+        # a hard signal establishes the candidate; the margin over a rival is substantive evidence only (contextual never tips it)
+        if runner is None or (margin_total >= cfg.margin and margin_subst >= cfg.margin):
             return assign()
         return row(ac.AMBIGUOUS, "margin_too_small", facts=facts)
     total = top.total(cfg)
@@ -682,7 +683,7 @@ def _merge_pass(ctx, st):
                 best_for.setdefault(me, []).append((sig.total(cfg), sig.net_substantive(), other))
         cands = []
         for (ka, kb), sig in sorted(table.items()):
-            anchors, _ = sig.families(cfg)
+            anchors = sig.families(cfg)
             total, subst = sig.total(cfg), sig.net_substantive()
             if sig.hard:
                 ok = True

@@ -23,8 +23,8 @@ def short_name(locator,limit=26):
 
 PERIOD_LABELS={'Last 2 days':'2 days','Last 7 days':'7 days','All retained':'All'}
 STATE_LABELS={'Ready':'Remembering','Processing':'Processing','Paused':'Paused · nothing new is kept','Needs attention':'Needs attention'}
-CONFIRMS={'confirm_model':('Install meaning search?','Downloads about 46 MB (the MiniLM model) to LMemM’s own folder on this Mac. Needs Ollama installed. No notes or text are sent anywhere.','Install'),
-          'confirm_agent':('Let Codex read this project’s memory?','Codex can search saved notes and sources and read the cited text. Using these tools sends that text to Codex and its provider. LMemM also adds itself to Codex’s settings on this Mac. You can turn it off at any time.','Allow and add to Codex'),
+CONFIRMS={'confirm_model':('Install meaning search?','Downloads about 46 MB (the MiniLM model) to Trace’s own folder on this Mac. Needs Ollama installed. No notes or text are sent anywhere.','Install'),
+          'confirm_agent':('Let Codex read this project’s memory?','Codex can search saved notes and sources and read the cited text. Using these tools sends that text to Codex and its provider. Trace also adds itself to Codex’s settings on this Mac. You can turn it off at any time.','Allow and add to Codex'),
           'confirm_disconnect':('Disconnect Memory for this project?','Stops capture and revokes agent access. Saved notes stay on this Mac but can’t be searched until you enable Memory again.','Disconnect')}
 
 def provenance(row):

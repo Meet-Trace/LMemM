@@ -118,3 +118,19 @@ class GroupEvidenceTests(unittest.TestCase):
         long = '\n'.join('line %d' % i for i in range(20))
         self.assertTrue(excerpt(long).endswith('\n…'))
         self.assertEqual(len(excerpt('x' * 500).rstrip('…')), 109)
+
+
+class SettingsCopyTests(unittest.TestCase):
+    def test_confirmations_say_trace_and_use_no_em_dash(self):
+        from memory_view import CONFIRMS
+        for title, detail, button in CONFIRMS.values():
+            for text in (title, detail, button):
+                self.assertNotIn("LMemM", text)
+                self.assertNotIn("—", text)
+
+    def test_settings_copy_in_the_pane_uses_no_em_dash(self):
+        import os
+        source = open(os.path.join(os.path.dirname(__file__), "..", "src", "memory_pane.py")).read()
+        settings = source.split("def _settings")[1]
+        self.assertNotIn("—", settings)
+        self.assertNotIn("LMemM", settings.split("self.bottom")[0].replace("LMemM:", ""))

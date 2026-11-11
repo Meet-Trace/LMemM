@@ -43,6 +43,13 @@ class ShellTests(unittest.TestCase):
         clear = WINDOW.split("def clear_select")[1].split("def pick_thing")[0]
         self.assertIn("self.sel = []", clear)                              # stays in selection mode
 
+    def test_panes_keep_their_scroll_place(self):
+        self.assertEqual(WINDOW.count("setDocumentView_(self.memory_pane.host)"), 0)     # never re-set on every draw: that snaps to the top
+        self.assertEqual(WINDOW.count("setDocumentView_(self.resume_pane.host)"), 0)
+        place = WINDOW.split("def _place_pane")[1].split("def _fill")[0]
+        self.assertIn("if scroll.documentView() is not host", place)
+        self.assertIn("clip.scrollToPoint_", place)
+
     def test_keys(self):
         for key in ('"k"', '","', '"["', '"q"', '"w"', '"m"'):
             self.assertIn(key, WINDOW)

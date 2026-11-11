@@ -312,6 +312,7 @@ class MainWindow:
         self.app_icons = {}
         self.app_paths = None
         self.W, self.H = W, H                                      # the content's size now; _measure() keeps them true
+        self.pane_key = None                                       # which pane the main scroll area shows (None: a page of its own)
         self.main_w, self.col_x = MIN_MAIN, PAD                    # the page's column
         self.stamp, self.page_cache = None, None                   # what the last draw was for (so a resize does not recompute pages)
         style = 1 | 2 | 4 | 8 | (1 << 15)                          # titled, closable, minimise, resize, content under the title bar
@@ -780,13 +781,30 @@ class MainWindow:
             from resume_pane import ResumePane
             if not getattr(self,'resume_pane',None):self.resume_pane=ResumePane(self._memory_action)
             self.resume_pane.render(self.memory_snapshot,self.W-SIDE_W,self.col_x,self.main_w)
-            self.main_scroll.setDocumentView_(self.resume_pane.host)
+            self._place_pane(self.resume_pane.host, ("resume", self.memory_snapshot.get("binding") and self.memory_snapshot["binding"].get("project_id")))
         elif self.memory_snapshot and self.memory_snapshot['tab'] in {'Memory','Resume'}:
             from memory_pane import MemoryPane
             if self.memory_pane is None:self.memory_pane=MemoryPane(self._memory_action)
             self.memory_pane.render(self.memory_snapshot,self.W-SIDE_W,self.col_x,self.main_w)
-            self.main_scroll.setDocumentView_(self.memory_pane.host)
-        else:self._fill(self.main_scroll, self.W - SIDE_W, lambda doc: self._main(doc, main, split), top=moved)
+            retained = self.memory_snapshot.get("retained_binding") or self.memory_snapshot.get("binding") or {}
+            self._place_pane(self.memory_pane.host, ("memory", bool(self.memory_pane.settings), retained.get("project_id")))
+        else:
+            leaving_pane, self.pane_key = self.pane_key is not None, None
+            self._fill(self.main_scroll, self.W - SIDE_W, lambda doc: self._main(doc, main, split), top=moved or leaving_pane)
+
+    def _place_pane(self, host, key):
+        """Show a pane's view in the scroll area without losing the place the person scrolled to. Setting the same
+        document view again, or one the scroll area has not measured, snaps it back to the top: so the view is set only when
+        it changes, and the old position is put back, kept inside the new height. A different pane or project starts at the top."""
+        scroll = self.main_scroll
+        clip = scroll.contentView()
+        keep = 0 if key != self.pane_key else clip.bounds().origin.y
+        self.pane_key = key
+        if scroll.documentView() is not host:
+            scroll.setDocumentView_(host)
+        room = max(0, host.frame().size.height - scroll.frame().size.height)
+        clip.scrollToPoint_(NSMakePoint(0, max(0, min(keep, room))))
+        scroll.reflectScrolledClipView_(clip)
 
     def _fill(self, scroll, width, build, top=False):
         """Swap the scrolling area's contents, keeping the place the person had scrolled to (or

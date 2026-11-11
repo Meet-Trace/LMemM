@@ -183,3 +183,8 @@ h1 em,h2 em{letter-spacing:-.025em}
 .photo-band-img::after{background:linear-gradient(#6b422630,#6b422630),linear-gradient(90deg,#1a110ef2 0,#1a110ecc 45%,#1a110e33 75%),linear-gradient(0deg,#1a110e88,transparent 40%)}
 .photo-band-copy h2,.photo-band-copy p{text-shadow:0 1px 18px #1a110eb3}
 .photo-band-copy h2 em{color:#a9c1ff}
+/* The walkthrough shows the app's own window, not a second frame around it */
+.proof-device{background:none;border:0;box-shadow:none;border-radius:0}
+.proof-caption{background:none;border-top:0;padding:18px 4px 0}
+@media(min-width:761px){.proof-device{overflow:visible}.proof-image-wrap{overflow:visible}.proof-image-wrap>img{filter:drop-shadow(0 28px 44px rgba(0,0,0,.30)) drop-shadow(0 3px 8px rgba(0,0,0,.22))}}
+@media(max-width:760px){.proof-device{overflow:hidden}.proof-image-wrap>img{filter:drop-shadow(0 12px 22px rgba(0,0,0,.28))}}

@@ -122,6 +122,7 @@ class _Ctx:
             self.affected |= set(members)
         self._content = {}
         self.contested = set()
+        self.anchor_adj = {}
         self.constrained = sorted(set(self.store.branch_of) | set(self.store.file_of), key=self.order.get)
 
     def gap(self, a, b):
@@ -377,7 +378,7 @@ def _check(ctx, st, before, where):
 def _contested(ctx, anchors):
     """Visits that are anchored to two or more groups that are not otherwise linked (design N2: a visit strongly tied to
     different activities must not chain them). They stay out of Pass 1 and are decided, with a margin, in Pass 2."""
-    adj = {}
+    adj = ctx.anchor_adj = {}
     for _, _, _, a, b, _ in anchors:
         adj.setdefault(a, set()).add(b)
         adj.setdefault(b, set()).add(a)
@@ -407,7 +408,7 @@ def _contested(ctx, anchors):
 
 def _pass1(ctx, st):
     cfg = ctx.cfg
-    ok = {v for v in ctx.ids if ctx.feats[v].substance["ok"]}
+    ok = {v for v in ctx.ids if ctx.feats[v].substance["ok"] and v not in ctx.affected}
     anchors = []
     for (a, b), evs in sorted(ctx.pair_ev.items(), key=lambda kv: (ctx.order[kv[0][0]], ctx.order[kv[0][1]])):
         if a not in ok or b not in ok:
@@ -566,17 +567,17 @@ def _decide(ctx, st, v, past_only, allow_seed):
              "margin": round(margin_total, 6), "incomplete_support": False}
 
     def assign():
+        if affected:        # a margin needs every rival listed: a missing runner-up is not an infinite margin, so abstain
+            return row(ac.AMBIGUOUS, "insufficient_families", incomplete_support=True, facts=facts)
         return dict(base, kind="assign", tier="hard" if sig.hard else "soft", **facts)
 
-    # a margin is only believed when the runner-up's evidence is fully listed
-    if runner is not None and affected:
-        return row(ac.AMBIGUOUS, "insufficient_families", incomplete_support=True, **{"facts": facts})
     if sig.hard:
         if runner is None or margin_total >= cfg.margin:
             return assign()
         return row(ac.AMBIGUOUS, "margin_too_small", facts=facts)
     total = top.total(cfg)
-    if total >= cfg.assign_threshold and anchors and len(anchors) + loc >= cfg.min_families:
+    # contextual evidence (locator, branch, file name) is never a family and never helps reach the assign threshold
+    if sig.net_substantive() >= cfg.assign_threshold and len(anchors) >= cfg.min_families:
         if runner is None or (margin_total >= cfg.margin and margin_subst >= cfg.margin):
             return assign()
         return row(ac.AMBIGUOUS, "margin_too_small", facts=facts)
@@ -678,24 +679,24 @@ def _merge_pass(ctx, st):
         best_for = {}
         for (ka, kb), sig in table.items():
             for me, other in ((ka, kb), (kb, ka)):
-                best_for.setdefault(me, []).append((sig.total(cfg), other))
+                best_for.setdefault(me, []).append((sig.total(cfg), sig.net_substantive(), other))
         cands = []
         for (ka, kb), sig in sorted(table.items()):
-            anchors, loc = sig.families(cfg)
-            total = sig.total(cfg)
+            anchors, _ = sig.families(cfg)
+            total, subst = sig.total(cfg), sig.net_substantive()
             if sig.hard:
                 ok = True
             else:
-                ok = total >= cfg.assign_threshold and anchors and len(anchors) + loc >= cfg.min_families
+                ok = subst >= cfg.assign_threshold and len(anchors) >= cfg.min_families
             if not ok:
                 continue
+            if any(v in ctx.affected for v in st.members[ka] + st.members[kb]):
+                continue                  # an omitted pair listing could favour a rival: an uncontested merge is unprovable
             fine = True
             for me, other in ((ka, kb), (kb, ka)):
-                rivals = [t for t, o in best_for[me] if o != other]
-                if rivals and total - max(rivals) < cfg.margin:
+                rivals = [(t, u) for t, u, o in best_for[me] if o != other]
+                if rivals and (total - max(t for t, _ in rivals) < cfg.margin or subst - max(u for _, u in rivals) < cfg.margin):
                     fine = False
-                if rivals and any(v in ctx.affected for v in st.members[me]):
-                    fine = False                                       # a missing listing could favour a rival
             if fine:
                 cands.append((-total, ka, kb, sig))
         if not cands:
@@ -714,10 +715,25 @@ def _merge_pass(ctx, st):
 def _pass3(ctx, st):
     for _ in range(len(ctx.ids) + 1):
         moved = False
-        for v in ctx.ids:
-            if v in st.act:
-                continue
-            d = _decide(ctx, st, v, past_only=False, allow_seed=False)
+        decisions = {}
+        for v in ctx.ids:                                             # every decision is made on the same snapshot
+            if v not in st.act:
+                decisions[v] = _decide(ctx, st, v, past_only=False, allow_seed=False)
+        for v, d in decisions.items():
+            if d["kind"] == "assign" and v in ctx.contested and any(w in decisions for w in ctx.anchor_adj.get(v, ())
+                                                                    if w in ctx.contested):
+                d = decisions[v] = dict(d, kind="row", state=ac.AMBIGUOUS, reason="margin_too_small",
+                                        facts={"rule": "contested", "evidence": [], "demotions": []})
+        incoming = {}
+        for v, d in decisions.items():
+            if d["kind"] == "assign":
+                incoming.setdefault(st.root(d["key"]), []).append(v)
+        for k, vs in incoming.items():                                # two newcomers that are cannot-linked: neither goes in
+            for i, a in enumerate(vs):
+                if any(ctx.cannot(a, b) for j, b in enumerate(vs) if j != i):
+                    decisions[a] = dict(decisions[a], kind="row", state=ac.AMBIGUOUS, reason="cannot_link",
+                                        facts={"rule": None, "evidence": [], "demotions": []})
+        for v, d in decisions.items():
             if d["kind"] == "assign":
                 before = st.snapshot()
                 _apply(ctx, st, v, d)

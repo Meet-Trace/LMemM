@@ -456,6 +456,110 @@ class Consolidation(Base):
             inf._check(ctx, st3, {a: k1, b: k1}, "test")           # a group that was one is now two
 
 
+class Corrections(Base):
+    def _hub(self, c, idents=()):
+        """Six visits of one page: with max_group_visits=4 its pair listing is omitted, so each of them is 'affected'."""
+        out = []
+        for i in range(6):
+            out.append(c.visit("hubdoc", url="docs.example.com/d/shared", kind="document",
+                               terms=W(f"hb{chr(97 + i)}", 5), idents=list(idents) if i < 2 else [], gap=900.0))
+        return out
+
+    def test_an_affected_visit_never_assigns_even_with_no_visible_runner_up(self):
+        c = av.Clock()
+        hub = self._hub(c, idents=("quorum_alpha.py", "quorum_beta.py"))
+        c.fillers(20)
+        small = ev.EvidenceParams(max_group_visits=4)
+        res, fs, es = go(c, ep=small)
+        self.assertFalse(es.support_complete)
+        self.assertTrue(together(res, hub[0], hub[1]) is False)       # explicit H3 evidence, but no margin can be believed
+        for v in hub[:2]:
+            r = row(res, v)
+            self.assertEqual((r["state"], r["reason"]), (ac.AMBIGUOUS, "insufficient_families"))
+            self.assertTrue(r["explanation"]["incomplete_support"])
+        res_full, _, es_full = go(c)                                   # complete support: the same pair assigns
+        self.assertTrue(es_full.support_complete)
+        self.assertTrue(together(res_full, hub[0], hub[1]))
+
+    def test_a_merge_is_not_made_when_a_member_could_have_an_unlisted_rival(self):
+        c = av.Clock()
+        a1 = c.visit("c1", url="s1.example.com/a/1", terms=W("cna", 4), idents=("aa_one.py", "aa_two.py", "aa_three.py", "link_one.py", "link_two.py"))
+        a2 = c.visit("c2", url="s1.example.com/b/2", terms=W("cnb", 4), idents=("aa_one.py", "aa_two.py", "aa_three.py", "link_three.py", "link_four.py"), gap=200.0)
+        b1 = c.visit("c3", url="s2.example.com/a/3", terms=W("cnc", 4), idents=("bb_one.py", "bb_two.py", "bb_three.py", "link_one.py", "link_two.py"), gap=200.0)
+        b2 = c.visit("c4", url="s2.example.com/b/4", terms=W("cnd", 4), idents=("bb_one.py", "bb_two.py", "bb_three.py", "link_three.py", "link_four.py"), gap=200.0)
+        c.fillers(24)
+
+        def merged(affected):
+            fs, es = ev.analyse(prep(c), None, RP)
+            ctx = inf._Ctx(fs, es, inf.SCORING)
+            ctx.affected = set(affected)
+            st = inf._State(ctx)
+            for grp in ((a1, a2), (b1, b2)):
+                k = st.new(grp[0])
+                st.add(k, grp[1])
+            inf._merge_pass(ctx, st)
+            return len(st.members)
+        self.assertEqual(merged([]), 1)
+        self.assertEqual(merged([a1]), 2)
+
+    def _bridge(self, flip):
+        c = av.Clock()
+        one, two = ("aa_one.py", "aa_two.py", "aa_three.py"), ("bb_one.py", "bb_two.py", "bb_three.py")
+        link = ("link_one.py", "link_two.py")
+        first, second = (one, two) if not flip else (two, one)
+        a1 = c.visit("c1", url="s1.example.com/a/1", terms=W("cna", 4), idents=first + link)
+        a2 = c.visit("c2", url="s1.example.com/b/2", terms=W("cnb", 4), idents=first, gap=200.0)
+        b1 = c.visit("c3", url="s2.example.com/a/3", terms=W("cnc", 4), idents=second + link, gap=200.0)
+        b2 = c.visit("c4", url="s2.example.com/b/4", terms=W("cnd", 4), idents=second, gap=200.0)
+        c.fillers(24)
+        return c, a1, a2, b1, b2
+
+    def test_bridge_visits_stay_ambiguous_whatever_their_order(self):
+        for flip in (False, True):
+            c, a1, a2, b1, b2 = self._bridge(flip)
+            res, _, _ = go(c)
+            for v in (a1, b1):
+                r = row(res, v)
+                self.assertEqual((r["state"], r["reason"]), (ac.AMBIGUOUS, "margin_too_small"), (flip, v))
+            self.assertFalse(together(res, a1, b1))
+        # exchanging the two sides leaves the outcome of the corresponding visits unchanged
+        c1, *v1 = self._bridge(False)
+        c2, *v2 = self._bridge(True)
+        r1, r2 = go(c1)[0], go(c2)[0]
+        for x, y in zip(v1, v2):
+            self.assertEqual((row(r1, x)["state"], row(r1, x)["reason"]), (row(r2, y)["state"], row(r2, y)["reason"]))
+
+    def test_locator_is_never_a_corroborating_family_and_never_tips_a_margin(self):
+        cfg = inf.SCORING
+        s = inf.Sig()
+        s.put("artifact", 3.0, "S1")
+        s.locator = cfg.w_s3_locator
+        self.assertLess(len(s.families(cfg)[0]), cfg.min_families)        # the locator is not counted as a second family
+        c = av.Clock()
+        ids1, ids2 = ("quorum_alpha.py", "quorum_beta.py"), ("zephyr_alpha.py", "zephyr_beta.py")
+        c.visit("m1", url="s1.example.com/a/1", terms=W("mma", 4), idents=ids1)
+        c.visit("m2", url="s1.example.com/b/2", terms=W("mmb", 4), idents=ids1, gap=200.0)
+        c.visit("m3", url="s2.example.com/a/3", terms=W("mmc", 4), idents=ids2, gap=200.0)
+        c.visit("m4", url="s2.example.com/b/4", terms=W("mmd", 4), idents=ids2, gap=200.0)
+        x = c.visit("m5", url="s1.example.com/a/5", terms=W("mme", 4),         # same locator as the first group only
+                    idents=("quorum_alpha.py", "zephyr_alpha.py", "quorum_beta.py", "zephyr_beta.py"), gap=200.0)
+        c.fillers(24)
+        res, fs, es = go(c)
+        self.assertTrue(es.by_type("same_locator"))
+        r = row(res, x)
+        self.assertEqual((r["state"], r["reason"]), (ac.AMBIGUOUS, "margin_too_small"))
+
+    def test_locator_plus_one_family_below_threshold_does_not_assign(self):
+        c = av.Clock()
+        sh = W("lps", 4)
+        a = c.visit("l1", url="docs.example.com/guides/one", terms=sh + W("lpa", 4))
+        b = c.visit("l2", url="docs.example.com/guides/two", terms=sh + W("lpb", 4), gap=200.0)
+        c.fillers(24)
+        res, fs, es = go(c)
+        self.assertTrue(es.by_type("same_locator") and es.by_type("shared_terms"))
+        self.assertFalse(together(res, a, b))
+
+
 class Scoring(unittest.TestCase):
     def test_all_weights_and_thresholds_live_in_one_config(self):
         cfg = inf.SCORING

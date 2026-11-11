@@ -523,6 +523,104 @@ class NoLeakageTests(unittest.TestCase):
         self.assertTrue(all("label" not in k for r in f.records for k in r))
 
 
+class SpecificityHeuristicTests(unittest.TestCase):
+    """Recurrence, volatility and the effective specificity: UNCALIBRATED heuristics, tested for definition, boundaries and sensitivity."""
+
+    def test_recurrence_boundaries(self):
+        r = lambda n, fp=FP: af.recurrence_of(n, fp)
+        self.assertEqual([r(n) for n in (1, 2, 3, 5, 6, 7, 100)], [0.0, 0.2, 0.4, 0.8, 1.0, 1.0, 1.0])
+        self.assertEqual(r(3, dataclasses.replace(FP, recurrence_sessions=2)), 1.0)
+        with self.assertRaises(ValueError):
+            r(0)
+        self.assertTrue(all(r(n) <= r(n + 1) for n in range(1, 30)))                       # monotone
+
+    def test_volatility_definition_and_boundaries(self):
+        same = {"kelpweave": 0.9, "loomwarp": 0.8, "orchard": 0.7, "quillstone": 0.6}
+        other = {"zebra": 0.9, "yarrow": 0.8, "xylem": 0.7, "wombat": 0.6}
+        self.assertEqual(af.volatility_of([same, dict(same)]), (0.0, True))                 # identical content: not volatile
+        self.assertEqual(af.volatility_of([same, other]), (1.0, True))                      # nothing in common: fully volatile
+        self.assertEqual(af.volatility_of([same]), (0.0, False))                            # one bag: undefined, reported as 0
+        self.assertEqual(af.volatility_of([]), (0.0, False))
+        half = {**{k: v for k, v in list(same.items())[:2]}, "zebra": 0.9, "yarrow": 0.8}
+        v, defined = af.volatility_of([same, half])
+        self.assertTrue(defined and 0.0 < v < 1.0)
+        self.assertEqual(af.volatility_of([same, other, half]), af.volatility_of([half, other, same]))   # order does not matter
+
+    def test_volatility_is_a_mean_over_all_pairs(self):
+        a, b, c = {"x": 1.0, "y": 1.0}, {"x": 1.0, "z": 1.0}, {"x": 1.0, "w": 1.0}
+        v, defined = af.volatility_of([a, b, c])                                            # every pair has cosine 0.5: mean 0.5
+        self.assertEqual((v, defined), (0.5, True))
+        d = {"q": 1.0, "r": 1.0}                                                             # three pairs at 0.5, three at 0: mean 0.25
+        self.assertEqual(af.volatility_of([a, b, c, d])[0], 0.75)
+        self.assertEqual(af.volatility_of([a, a, a, a])[0], 0.0)
+
+    def test_volatility_is_sensitive_to_added_unrelated_content(self):
+        base = {"kelpweave": 1.0, "loomwarp": 1.0, "orchard": 1.0, "quillstone": 1.0}
+        values = []
+        for extra in range(0, 5):
+            bag = {**base, **{f"unrelatedword{i}": 1.0 for i in range(extra)}}
+            values.append(af.volatility_of([base, bag])[0])
+        self.assertEqual(values, sorted(values))                                            # more unrelated words, never less volatile
+        self.assertEqual(values[0], 0.0)
+        self.assertGreater(values[-1], values[1])
+
+    def test_effective_specificity_formula_and_bounds(self):
+        e = lambda prior, vol, rec, fp=FP: af.effective_specificity(prior, vol, rec, fp)
+        self.assertEqual(e(0.8, 0.0, 0.0), 0.8)
+        self.assertEqual(e(0.8, 1.0, 0.0), 0.4)
+        self.assertEqual(e(0.8, 0.0, 1.0), 0.4)
+        self.assertEqual(e(0.8, 1.0, 1.0), 0.2)
+        self.assertEqual(e(0.8, 1.0, 1.0, dataclasses.replace(FP, volatility_weight=0.0, recurrence_weight=0.0)), 0.8)
+        self.assertEqual(e(0.8, 1.0, 1.0, dataclasses.replace(FP, volatility_weight=1.0, recurrence_weight=1.0)), 0.0)
+        for vol in (0.0, 0.3, 1.0):
+            for rec in (0.0, 0.6, 1.0):
+                self.assertTrue(0.0 <= e(0.9, vol, rec) <= 0.9)
+        self.assertGreater(e(0.8, 0.2, 0.2), e(0.8, 0.4, 0.2))                              # monotone in volatility
+        self.assertGreater(e(0.8, 0.2, 0.2), e(0.8, 0.2, 0.4))                              # and in recurrence
+
+    def test_a_visit_needs_enough_distinctive_tokens_to_count(self):
+        def stats(n_tokens):
+            b = fx.Builder(9)
+            item = fx.chrome("document", "d", "Doc", "https://docs.example.com/d")
+            for k in range(2):
+                part = b.part(None, 60, n=0, frames=3)
+                part["terms"] = [f"{w}{'abcdefghij'[k]}" for w in ("kelpweave", "loomwarp", "orchard", "quillstone")[:n_tokens]]
+                b.visit(item, part, {"x"})
+            fs = af.extract_features(prep(b.records), P)
+            return next(a for key, a in fs.artifact_stats.items() if key[0] == "item" and a.n_visits == 2)
+        self.assertEqual((stats(3).volatility_defined, stats(3).n_bags), (False, 0))        # 3 tokens < volatility_min_tokens
+        self.assertEqual((stats(4).volatility_defined, stats(4).n_bags), (True, 2))         # exactly the minimum counts
+        self.assertEqual(stats(4).volatility, 1.0)                                          # nothing in common between the two visits
+
+    def test_the_fixture_documents_show_the_expected_ordering(self):
+        two = fx.shared_doc_two_purposes()
+        same = fx.same_doc_short_gap()
+        a = af.extract_features(prep(two.records), P).artifact_stats[("item", two.shared_artifacts[0])]
+        doc_id = next(v["item_id"] for v in same.records if v["kind"] == "document")
+        b = af.extract_features(prep(same.records), P).artifact_stats[("item", doc_id)]
+        self.assertGreater(a.volatility, b.volatility)                                      # a document used for two topics is more volatile
+        self.assertEqual((a.n_sessions, b.n_sessions), (2, 1))
+        self.assertLess(a.effective_specificity, a.prior)
+        self.assertEqual(a.prior, 0.7)
+
+    def test_all_heuristic_outputs_stay_in_range_on_every_fixture(self):
+        for f in fx.all_fixtures():
+            for st in af.extract_features(prep(f.records), P).artifact_stats.values():
+                self.assertTrue(0.0 <= st.recurrence <= 1.0 and 0.0 <= st.volatility <= 1.0, f.name)
+                self.assertTrue(0.0 <= st.effective_specificity <= st.prior + 1e-9, f.name)
+                if not st.volatility_defined:
+                    self.assertEqual(st.volatility, 0.0)
+
+    def test_session_gap_changes_recurrence_and_nothing_else_about_it(self):
+        f = fx.shared_doc_two_purposes(gap_s=5 * 3600.0)
+        key = ("item", f.shared_artifacts[0])
+        fast = af.extract_features(prep(f.records), P, dataclasses.replace(FP, session_gap_s=60.0)).artifact_stats[key]
+        slow = af.extract_features(prep(f.records), P, dataclasses.replace(FP, session_gap_s=10 * 3600.0)).artifact_stats[key]
+        self.assertGreater(fast.n_sessions, slow.n_sessions)
+        self.assertGreater(fast.recurrence, slow.recurrence)
+        self.assertEqual(fast.volatility, slow.volatility)
+
+
 class FixtureIntegrationTests(unittest.TestCase):
     def test_every_fixture_extracts_with_valid_features(self):
         for f in fx.all_fixtures():
@@ -550,7 +648,7 @@ class FixtureIntegrationTests(unittest.TestCase):
         fs = af.extract_features(prep(f.records), P)
         doc = f.shared_artifacts[0]
         self.assertEqual(fs.artifact_stats[("item", doc)].n_sessions, 2)               # two sittings five hours apart
-        self.assertEqual(fs.artifact_stats[("item", doc)].reuse, 0.2)
+        self.assertEqual(fs.artifact_stats[("item", doc)].recurrence, 0.2)
         short = af.extract_features(prep(f.records), P, dataclasses.replace(FP, session_gap_s=10 * 3600.0))
         self.assertEqual(short.artifact_stats[("item", doc)].n_sessions, 1)
 

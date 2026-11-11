@@ -109,8 +109,17 @@ class FeatureParams:
     glance_frames: int = 2
     shift_cos_max: float = 0.30
     shift_min_tokens: int = 4
+    # specificity heuristics (UNCALIBRATED: see docs/adr/0004-activity-features-and-evidence.md)
+    recurrence_sessions: int = 5               # sessions at which recurrence reaches 1
+    volatility_min_tokens: int = 4             # a visit needs this many distinctive tokens to take part in volatility
+    volatility_max_visits: int = 30            # visits of one artifact compared (the first ones, in canonical order)
+    volatility_weight: float = 0.5             # how much volatility can lower a specificity prior (0 to 1)
+    recurrence_weight: float = 0.5             # how much recurrence can lower a specificity prior (0 to 1)
     # evidence construction
-    max_group: int = 40                        # visits per key beyond which pairs are limited to a successor window
+    max_group: int = 40                        # SUPPORT evidence only: visits per key beyond which pairs use a successor window
+    x_pr_restricts: bool = True                # a restriction between different PR / issue numbers (the design's original intent);
+                                               # False keeps the fact (`distinct_identity`) and makes the restriction inactive
+    max_restriction_pairs: int = 500_000       # restrictions are never truncated: beyond this the build FAILS (ConstraintOverflowError)
 
     TIME = ("cannot_link_min_dwell_s", "session_gap_s")
 
@@ -194,10 +203,16 @@ class TokenStats:
 
 @dataclass(frozen=True)
 class ArtifactStats:
-    key: tuple           # (kind, key)
+    """Observable reuse statistics of one artifact, from raw features only (never from assignments). UNCALIBRATED heuristics."""
+    key: tuple                    # (kind, key)
     n_visits: int
     n_sessions: int
-    reuse: float         # min(1, (sessions - 1) / 5)
+    recurrence: float             # min(1, (sessions - 1) / recurrence_sessions)
+    volatility: float             # 1 - mean pairwise cosine of the visits' weighted bags; 0 when undefined
+    volatility_defined: bool      # at least two visits with volatility_min_tokens distinctive tokens
+    n_bags: int                   # visits that took part in volatility
+    prior: float                  # the fixed specificity prior of the artifact's kind
+    effective_specificity: float  # prior * (1 - volatility_weight * volatility) * (1 - recurrence_weight * recurrence)
 
 
 @dataclass(frozen=True)
@@ -522,6 +537,33 @@ def _is_named(first, arts):
         a.kind != "item" and set(a.sources) - {"identifier"} for a in arts)
 
 
+# ---------------------------------------------------------------- specificity heuristics (uncalibrated)
+
+def recurrence_of(sessions, fp):
+    """min(1, (sessions - 1) / recurrence_sessions), clipped to [0, 1]: 0 for one sitting, 1 from `recurrence_sessions` + 1."""
+    if sessions < 1:
+        raise ValueError("an artifact has at least one session")
+    return round(min(1.0, max(0.0, (sessions - 1) / fp.recurrence_sessions)), 9)
+
+
+def volatility_of(bags):
+    """(1 - mean pairwise cosine over all unordered pairs of the given weighted bags, defined). Fewer than two bags: (0.0, False).
+    Identical bags give 0, bags with no token in common give 1. Pure arithmetic on the bags, in sorted-token order."""
+    if len(bags) < 2:
+        return 0.0, False
+    total, n = 0.0, 0
+    for i in range(len(bags)):
+        for j in range(i + 1, len(bags)):
+            total += _cosine(bags[i], bags[j])
+            n += 1
+    return round(min(1.0, max(0.0, 1.0 - total / n)), 9), True
+
+
+def effective_specificity(prior, volatility, recurrence, fp):
+    """prior * (1 - volatility_weight * volatility) * (1 - recurrence_weight * recurrence), in [0, prior]."""
+    return round(prior * (1.0 - fp.volatility_weight * volatility) * (1.0 - fp.recurrence_weight * recurrence), 9)
+
+
 # ---------------------------------------------------------------- the entry point
 
 def extract_features(prepared, params, fparams=None):
@@ -578,15 +620,22 @@ def extract_features(prepared, params, fparams=None):
     by_art = {}
     for f in feats:
         for a in f.artifacts:
-            by_art.setdefault((a.kind, a.key), []).append(f)
+            by_art.setdefault((a.kind, a.key), []).append((f, a))
+    bags = {f.visit_id: {t.text: t.weight * idfs.get(t.text, 0.0) for t in f.tokens if not t.generic} for f in feats}
     astats = {}
-    for key, vs in sorted(by_art.items()):
+    for key, pairs in sorted(by_art.items()):
+        vs = [f for f, _ in pairs]
+        prior = pairs[0][1].specificity
         sessions, horizon = 0, None
         for f in vs:                                   # already ordered by (t_start, visit_id)
             if horizon is None or f.t_start - horizon > fp.session_gap_s:
                 sessions += 1
             horizon = f.t_end if horizon is None else max(horizon, f.t_end)
-        astats[key] = ArtifactStats(key, len(vs), sessions, round(min(1.0, (sessions - 1) / 5), 6))
+        recurrence = recurrence_of(sessions, fp)
+        qualifying = [bags[f.visit_id] for f in vs if len(bags[f.visit_id]) >= fp.volatility_min_tokens][:fp.volatility_max_visits]
+        volatility, defined = volatility_of(qualifying)
+        astats[key] = ArtifactStats(key, len(vs), sessions, recurrence, volatility, defined, len(qualifying), prior,
+                                    effective_specificity(prior, volatility, recurrence, fp))
     return FeatureSet(tuple(feats), stats, MappingProxyType(astats), MappingProxyType({
         "feature_params": _plain(fp), "glance_dwell_s": params.glance_dwell_s,
         "internal_shift_min_dwell_s": params.internal_shift_min_dwell_s}))

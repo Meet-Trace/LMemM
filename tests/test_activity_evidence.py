@@ -19,7 +19,8 @@ FP = af.FeatureParams()
 
 
 def letters(i):
-    return "filler" + "abcdefghij"[i // 10 % 10] + "klmnopqrst"[i % 10]
+    """A word that is unique for every integer i (the digits of i written as letters), letters only."""
+    return "filler" + "".join("abcdefghij"[int(d)] for d in str(i))
 
 
 def scene(*specs, fillers=12, seed=1):
@@ -256,7 +257,7 @@ class CannotLinkTests(unittest.TestCase):
     def test_two_different_non_integration_branches(self):
         (fs, es), a, b = self.branches("feature-retry", "fix-pagination")
         cl = [e for e in es.pair(a, b) if e.type == "cannot_link"]
-        self.assertEqual([(e.category, e.active, e.detail["scope_match"]) for e in cl], [("x_branch", True, "same_scope")])
+        self.assertEqual([(e.category, e.active, e.detail["scope"]) for e in cl], [("x_branch", True, "repo:github.com/acme/billing")])
         self.assertEqual(cl[0].detail["branches"], ["feature-retry", "fix-pagination"])
 
     def test_same_branch_integration_branch_and_missing_branch_never_restrict(self):
@@ -267,13 +268,18 @@ class CannotLinkTests(unittest.TestCase):
         fs, es = analyse(recs)
         self.assertEqual(es.of_type("cannot_link"), ())                                  # absence is not a different branch
 
-    def test_a_branch_in_an_editor_title_is_comparable_with_a_repository_page_by_name_only(self):
+    def test_a_branch_read_from_a_window_title_is_support_evidence_only_never_a_restriction(self):
         title = lambda branch, project="billing": fx.Item("Visual Studio Code", "com.microsoft.VSCode", "code_file", "a.py", f"a.py - {project} ({branch})")
-        recs, (page, editor, other), _ = scene((gh("acme/billing/tree/feature-retry"), 20, ["kelpweave"], []), (title("fix-pagination"), 20, ["loomwarp"], []),
-                                                (title("fix-pagination", "platform"), 20, ["orchardwing"], []))
+        recs, (page, one, two, other), _ = scene((gh("acme/billing/tree/feature-retry"), 90, ["kelpweave"], []), (title("feature-retry"), 90, ["loomwarp"], []),
+                                                  (title("fix-pagination"), 90, ["orchardwing"], []), (title("fix-pagination", "platform"), 90, ["quillstone"], []))
         fs, es = analyse(recs)
-        got = {e.target: e.detail["scope_match"] for e in es.items if e.source == page and e.type == "cannot_link"}
-        self.assertEqual(got, {editor: "project_equals_repo_name"})                       # the 'platform' project is not the 'billing' repository
+        self.assertEqual(es.of_type("cannot_link"), ())                                   # a workspace name is not a repository identity
+        facts = {(e.source, e.target): e for e in es.of_type("distinct_identity") if e.category == "branch"}
+        self.assertEqual(set(facts), {(one, two)})                                          # same project, different branches: a fact
+        self.assertEqual((facts[(one, two)].detail["scope"], facts[(one, two)].detail["source"]), ("project:billing", "window"))
+        self.assertTrue(facts[(one, two)].detail["restriction"].startswith("none"))
+        # a repository page and an editor title are never compared, not even when the project is named like the repository
+        self.assertFalse([e for e in es.pair(page, one) + es.pair(page, two) if e.type in ("cannot_link", "distinct_identity")])
 
     def test_a_branch_with_a_slash_in_a_path_is_not_a_branch(self):
         f = fx.blob_slash_branch()
@@ -293,8 +299,133 @@ class CannotLinkTests(unittest.TestCase):
         for f in fx.all_fixtures():
             fs, es = ae.analyse(ai.prepare(f.records), P)
             active = es.cannot_link_pairs()
-            self.assertTrue({frozenset(p) for p in f.cannot_link} <= active, f.name)
+            workspace = {e.pair for e in es.of_type("distinct_identity") if e.category == "branch" and e.detail["source"] == "window"}
+            expected = {frozenset(p) for p in f.cannot_link}
+            self.assertTrue(expected <= active | workspace, f.name)
+            # the only fixture expectations NOT met by an active restriction are branches read from an editor title, by design
+            self.assertTrue((expected - active) <= workspace, f.name)
             self.assertFalse({frozenset(p) for p in f.must_merge} & active, f.name)
+            if f.name == "branches_alternating":
+                self.assertTrue(expected - active)                                         # the deviation from the fixture is real and visible
+
+
+def crowd(groups, per_group, dwell=90, fillers=0):
+    """`per_group` visits for each (path, label), every visit with words of its own so no override can apply."""
+    specs, n = [], 0
+    for path in groups:
+        for _ in range(per_group):
+            specs.append((gh(path), dwell, [letters(n), letters(n) + "y"], []))
+            n += 1
+    return scene(*specs, fillers=fillers)
+
+
+class RestrictionCompletenessTests(unittest.TestCase):
+    """Cannot-links are never dropped by a performance cutoff: enumerated completely, or the build fails closed."""
+
+    def test_mixed_branch_groups_far_beyond_sixty_visits_keep_every_restriction(self):
+        recs, ids, _ = crowd(["acme/billing/tree/feature-a", "acme/billing/tree/feature-b"], 40, fillers=0)
+        self.assertEqual(len(ids), 80)
+        for max_group in (40, 3, 2):                                                   # the support cutoff must not matter
+            fs, es = analyse(recs, P, dataclasses.replace(FP, max_group=max_group))
+            want = {frozenset((a, b)) for a in ids[:40] for b in ids[40:]}
+            self.assertEqual(es.cannot_link_pairs(), want, max_group)                  # all 1600, none missing, none extra
+            self.assertEqual(len(want), 1600)
+            self.assertTrue(es.constraints_complete)
+            self.assertEqual(es.constraint_pairs_considered, 80 * 79 // 2)
+        self.assertEqual({e.category for e in es.of_type("cannot_link")}, {"x_branch"})
+
+    def test_mixed_pr_groups_far_beyond_sixty_visits_keep_every_restriction(self):
+        recs, ids, _ = crowd(["acme/billing/pull/12", "acme/billing/pull/15", "acme/billing/issues/21"], 35)
+        a, b, c = ids[:35], ids[35:70], ids[70:]
+        for max_group in (40, 2):
+            fs, es = analyse(recs, P, dataclasses.replace(FP, max_group=max_group))
+            want = {frozenset((x, y)) for g, h in ((a, b), (a, c), (b, c)) for x in g for y in h}
+            self.assertEqual(es.cannot_link_pairs(), want, max_group)
+            self.assertEqual(len(want), 35 * 35 + 35 * 35 + 35 * 35)
+            facts = {e.pair for e in es.of_type("distinct_identity") if e.category == "pr"}
+            self.assertEqual(facts, want)                                              # the fact accompanies every restriction
+
+    def test_a_group_of_mixed_branches_and_prs_loses_nothing_either(self):
+        recs, ids, _ = crowd(["acme/billing/pull/12", "acme/billing/pull/15", "acme/billing/tree/a", "acme/billing/tree/b"], 20)
+        fs, es = analyse(recs, P, dataclasses.replace(FP, max_group=2))
+        pr_pairs = {frozenset((x, y)) for x in ids[:20] for y in ids[20:40]}
+        br_pairs = {frozenset((x, y)) for x in ids[40:60] for y in ids[60:]}
+        self.assertEqual(es.cannot_link_pairs(), pr_pairs | br_pairs)
+
+    def test_restrictions_do_not_depend_on_the_support_window(self):
+        recs, ids, _ = crowd(["acme/billing/pull/12", "acme/billing/pull/15"], 30)
+        wide = analyse(recs, P, dataclasses.replace(FP, max_group=200))[1]
+        narrow = analyse(recs, P, dataclasses.replace(FP, max_group=2))[1]
+        self.assertEqual(wide.cannot_link_pairs(), narrow.cannot_link_pairs())
+        self.assertEqual([e for e in wide.items if e.type == "cannot_link"], [e for e in narrow.items if e.type == "cannot_link"])
+
+    def test_too_many_pairs_fails_closed_before_any_evidence_exists(self):
+        recs, ids, _ = crowd(["acme/billing/tree/feature-a", "acme/billing/tree/feature-b"], 40)
+        small = dataclasses.replace(FP, max_restriction_pairs=100)
+        with self.assertRaises(ae.ConstraintOverflowError) as cm:
+            analyse(recs, P, small)
+        text = str(cm.exception)
+        self.assertIn("refusing to drop any", text)
+        self.assertNotIn("kelp", text)
+        at_limit = dataclasses.replace(FP, max_restriction_pairs=80 * 79 // 2)
+        self.assertEqual(len(analyse(recs, P, at_limit)[1].cannot_link_pairs()), 1600)       # exactly enough: completes
+        with self.assertRaises(ae.ConstraintOverflowError):
+            analyse(recs, P, dataclasses.replace(FP, max_restriction_pairs=80 * 79 // 2 - 1))   # one short: fails
+
+    def test_the_consumer_check_refuses_an_incomplete_set(self):
+        recs, ids, _ = crowd(["acme/billing/pull/12", "acme/billing/pull/15"], 3)
+        fs, es = analyse(recs)
+        self.assertIs(es.require_complete_constraints(), es)
+        broken = dataclasses.replace(es, constraints_complete=False)
+        with self.assertRaises(ae.ConstraintsIncompleteError):
+            broken.require_complete_constraints()
+
+    def test_support_truncation_is_reported_but_never_touches_restrictions(self):
+        recs, ids, _ = crowd(["acme/billing/pull/12"] * 1 + ["acme/billing/pull/15"], 30)
+        fs, es = analyse(recs, P, dataclasses.replace(FP, max_group=5))
+        self.assertTrue(es.truncated)                                                      # support keys were limited ...
+        self.assertTrue(all(not k.startswith(("x_pr", "x_branch", "cannot")) for k in es.truncated))
+        self.assertEqual(len(es.cannot_link_pairs()), 900)                                  # ... restrictions were not
+
+
+class RestrictionSourceTests(unittest.TestCase):
+    def test_workspace_derived_branches_support_only_repository_backed_branches_restrict(self):
+        title = lambda branch: fx.Item("Visual Studio Code", "com.microsoft.VSCode", "code_file", "a.py", f"a.py - billing ({branch})")
+        recs, (u1, u2, w1, w2), _ = scene((gh("acme/billing/tree/feature-a"), 90, ["kelpweave"], []), (gh("acme/billing/tree/feature-b"), 90, ["loomwarp"], []),
+                                         (title("feature-a"), 90, ["orchardwing"], []), (title("feature-b"), 90, ["quillstone"], []))
+        fs, es = analyse(recs)
+        self.assertEqual(es.cannot_link_pairs(), frozenset([frozenset((u1, u2))]))
+        facts = {e.pair: e.detail["source"] for e in es.of_type("distinct_identity") if e.category == "branch"}
+        self.assertEqual(facts, {frozenset((u1, u2)): "url", frozenset((w1, w2)): "window"})
+
+    def test_two_workspaces_with_one_name_are_never_a_repository(self):
+        title = lambda branch: fx.Item("Visual Studio Code", "com.microsoft.VSCode", "code_file", "a.py", f"a.py - app ({branch})")
+        recs, ids, _ = scene((title("one"), 90, ["kelpweave"], []), (title("two"), 90, ["loomwarp"], []))
+        fs, es = analyse(recs)
+        self.assertEqual(es.cannot_link_pairs(), frozenset())
+        self.assertEqual(es.of_type("cannot_link"), ())
+
+    def test_different_pull_requests_are_a_fact_and_the_restriction_is_a_documented_switch(self):
+        recs, (a, b), _ = scene((gh("acme/billing/pull/12"), 90, ["kelpweave"], []), (gh("acme/billing/pull/15"), 90, ["loomwarp"], []))
+        fs, es = analyse(recs)
+        self.assertEqual(len(es.of_type("distinct_identity")), 1)
+        self.assertEqual(es.cannot_link_pairs(), frozenset([frozenset((a, b))]))            # the design's original intent
+        fs, off = analyse(recs, P, dataclasses.replace(FP, x_pr_restricts=False))
+        self.assertEqual(len(off.of_type("distinct_identity")), 1)                          # the fact is unchanged
+        self.assertEqual(off.cannot_link_pairs(), frozenset())
+        rec = off.of_type("cannot_link")[0]
+        self.assertEqual((rec.active, rec.detail["inactive_reason"]), (False, "x_pr_not_a_constraint"))
+
+    def test_the_fact_does_not_wait_for_dwell_or_overrides(self):
+        recs, (a, b), _ = scene((gh("acme/billing/pull/12"), 20, ["kelpweave"], ["#15"]), (gh("acme/billing/pull/15"), 20, ["loomwarp"], []))
+        fs, es = analyse(recs)
+        self.assertEqual(len(es.of_type("distinct_identity")), 1)
+        self.assertEqual(es.of_type("cannot_link"), ())                                     # too short for a restriction
+
+    def test_a_difference_is_not_support_in_conflicts(self):
+        recs, (a, b), _ = scene((gh("acme/billing/pull/12"), 90, ["kelpweave"], []), (gh("acme/billing/pull/15"), 90, ["loomwarp"], []))
+        fs, es = analyse(recs)
+        self.assertEqual(es.conflicts(), ())
 
 
 class BoundsAndDeterminismTests(unittest.TestCase):

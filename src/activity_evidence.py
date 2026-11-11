@@ -16,18 +16,26 @@ An `Evidence` record
               shared_lineage    the same commit (class L): a relationship, never proof of the same work
               shared_namespace  the same soft context (class N): domain, section, repo, project, branch
               shared_tokens     screen-derived words in common, only for pairs sharing at least one rare, non-generic token
-              cannot_link       a restriction (class CL): x_pr (same repository, different PR / issue numbers) or x_branch
-                                (comparable scopes, different non-integration branches; no dwell condition). `active` is False when the raw
-                                override applies (a shared identity, or at least two shared rare tokens); the record is kept so
-                                the reason is visible, and `EvidenceSet.cannot_link_pairs()` returns only the active ones.
+              distinct_identity a FACT: two visits carry different PR / issue numbers in one repository (class H1), or different
+                                non-integration branches in one scope (class N). It is support-side information, produced for
+                                every such pair whether or not a restriction is enforced.
+              cannot_link       a restriction (class CL): x_pr (same repository, different PR / issue numbers, each visit with
+                                the declared dwell) or x_branch (two REPOSITORY-BACKED branches from code-host URLs, same
+                                repository, both non-integration). `active` is False when the raw override applies (a shared
+                                identity, or at least two shared rare tokens) or when `x_pr_restricts` is off; the record is kept
+                                so the reason is visible, and `EvidenceSet.cannot_link_pairs()` returns only the active ones.
+                                A branch read from an editor window title is workspace-derived and never produces a restriction.
     source / target   visit ids; `source` starts earlier (ties by visit id). Evidence is symmetric in meaning.
     category / key    the artifact or namespace kind, and its normalised identity
     cls       H1 | I | L | N | T | CL
     detail    read-only mapping of plain values (specificity prior, match kind, shared words, counts, ...)
     provenance  ids of the moments that carried it on each side, how it was observed, and the lower of the two qualities
 
-Bounded work. A key shared by more than `FeatureParams.max_group` visits does not produce every pair: each visit is paired
-with the next `max_group - 1` visits that carry it, and the key is listed in `EvidenceSet.truncated`.
+Bounded work, for SUPPORT evidence only. A key shared by more than `FeatureParams.max_group` visits does not produce every
+pair: each visit is paired with the next `max_group - 1` visits that carry it, and the key is listed in
+`EvidenceSet.truncated`. RESTRICTIONS are never limited this way (see `_restrictions`): all pairs are enumerated, or the
+build raises ConstraintOverflowError; `EvidenceSet.constraints_complete` and `require_complete_constraints()` make the
+guarantee checkable by the consumer.
 
 Duplicates. Two records with the same (type, source, target, category, key) are one record whose provenance is the union.
 Conflicts. `EvidenceSet.conflicts()` lists visit pairs that have both positive evidence (artifact, identity, lineage, content)
@@ -67,12 +75,29 @@ class Evidence:
         return frozenset((self.source, self.target))
 
 
+class ConstraintOverflowError(Exception):
+    """Too many candidate restriction pairs to enumerate completely. The build FAILS instead of dropping any: a missing
+    cannot-link would let a later step put two visits that must be apart into one activity."""
+
+
+class ConstraintsIncompleteError(Exception):
+    """A consumer was handed an EvidenceSet whose restrictions are not known to be complete."""
+
+
 @dataclass(frozen=True)
 class EvidenceSet:
     items: tuple
-    truncated: tuple
+    truncated: tuple                 # SUPPORT keys that were limited to a successor window; never restrictions
     visit_ids: tuple
+    constraints_complete: bool = True
+    constraint_pairs_considered: int = 0
     schema: int = SCHEMA
+
+    def require_complete_constraints(self):
+        """PR 2C calls this before assigning anything: an incomplete restriction set must stop the run (fail closed)."""
+        if not self.constraints_complete:
+            raise ConstraintsIncompleteError("the cannot-link set is not known to be complete; no visit may be assigned from it")
+        return self
 
     def pair(self, a, b):
         want = frozenset((a, b))
@@ -91,7 +116,7 @@ class EvidenceSet:
             if e.type == "cannot_link":
                 if e.active:
                     neg.setdefault(e.pair, set()).add(e.category)
-            elif e.type != "shared_namespace":
+            elif e.type not in ("shared_namespace", "distinct_identity"):          # soft context and a difference are not support
                 pos.setdefault(e.pair, set()).add(e.type)
         order = {v: i for i, v in enumerate(self.visit_ids)}
         keys = sorted(set(pos) & set(neg), key=lambda p: sorted(order[v] for v in p))
@@ -134,6 +159,115 @@ def _plain_detail(d):
     for k, v in sorted(d.items()):
         out[k] = list(v) if isinstance(v, (tuple, set, frozenset)) else v
     return out
+
+
+# ---------------------------------------------------------------- restrictions (never truncated)
+
+def _restrictions(visits, by_id, rare, fp, sink, q):
+    """Restrictions and the distinct-identity facts that accompany them. Returns the number of pairs enumerated.
+
+    Completeness guarantee. Every pair that can carry a restriction is enumerated, with no group-size cutoff and no
+    successor window (`max_group` applies to support evidence only). If the number of pairs to enumerate would exceed
+    `max_restriction_pairs`, the build raises ConstraintOverflowError BEFORE producing anything; an EvidenceSet therefore
+    either holds every required cannot-link or does not exist. `EvidenceSet.require_complete_constraints()` is the
+    consumer-side check.
+
+    Sources (what may generate what):
+      PR / issue numbers   scoped identity from a code-host URL (repository + number)
+                           -> `distinct_identity` (always, for different numbers in one repository) and the `x_pr` restriction
+                              (dwell condition, raw override; switchable by `x_pr_restricts`)
+      branch from URL      repository-backed (`.../tree/<ref>` under a known code host; scope `repo:<host/owner/repo>`)
+                           -> `distinct_identity` and the `x_branch` restriction (same repository, different non-integration branches)
+      branch from a window title   workspace-derived (scope `project:<name>`); a project / workspace name is not a globally
+                           unique repository identity -> `distinct_identity` (support) ONLY, never a restriction
+      unscoped "#N", domains, sections, projects   never restrictions
+    """
+    def ids_of(v):
+        return {int(a.key.rsplit("#", 1)[1]) for a in v.artifacts if a.kind in ("pr", "issue", "ref")}
+
+    def override(a, b):
+        if ids_of(by_id[a]) & ids_of(by_id[b]):
+            return "shared_identity"
+        if len(rare[a] & rare[b]) >= 2:
+            return "shared_rare_tokens"
+        return None
+
+    def check(total, label, size):
+        if total > fp.max_restriction_pairs:
+            raise ConstraintOverflowError(f"{label}: a group of {size} visits needs {total} restriction pairs, more than "
+                                          f"max_restriction_pairs={fp.max_restriction_pairs}; refusing to drop any")
+
+    # PR / issue identities
+    pr_of = {}
+    for v in visits:
+        found = {}
+        for a in v.artifacts:
+            if a.kind in ("pr", "issue"):
+                found.setdefault(a.scope, set()).add(int(a.key.rsplit("#", 1)[1]))
+        pr_of[v.visit_id] = {repo: next(iter(nums)) for repo, nums in found.items() if len(nums) == 1}      # exactly one number
+    considered = 0
+    repos = sorted({r for f in pr_of.values() for r in f})
+    for repo in repos:
+        group = [v for v in visits if repo in pr_of[v.visit_id]]
+        pairs = len(group) * (len(group) - 1) // 2
+        check(considered + pairs, f"x_pr {repo}", len(group))
+        considered += pairs
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                va, vb = group[i], group[j]
+                na, nb = pr_of[va.visit_id][repo], pr_of[vb.visit_id][repo]
+                if na == nb:
+                    continue
+                numbers = tuple(sorted((na, nb)))
+                sink.add(va.visit_id, vb.visit_id, "distinct_identity", "pr", repo, "H1", {"repo": repo, "numbers": numbers},
+                         va.moments, vb.moments, ("url",), q(va.visit_id, vb.visit_id))
+                if min(va.dwell_s, vb.dwell_s) < fp.cannot_link_min_dwell_s:
+                    continue
+                why = override(va.visit_id, vb.visit_id)
+                inactive = "x_pr_not_a_constraint" if not fp.x_pr_restricts else None
+                sink.add(va.visit_id, vb.visit_id, "cannot_link", "x_pr", repo, "CL",
+                         {"repo": repo, "numbers": numbers, "override": why, "inactive_reason": inactive},
+                         va.moments, vb.moments, ("url",), q(va.visit_id, vb.visit_id), active=why is None and inactive is None)
+
+    # branches: one observed, non-integration branch per visit and scope
+    def one_branch(v, prefix):
+        names = {(n.scope, n.key) for n in v.namespaces if n.kind == "branch" and (n.scope or "").startswith(prefix)}
+        if len(names) != 1:
+            return None
+        scope, name = next(iter(names))
+        return None if name in af.INTEGRATION_BRANCHES else (scope, name)
+
+    def branch_moments(v, scope):
+        return tuple(sorted({m for n in v.namespaces if n.kind == "branch" and n.scope == scope for m in n.moments}))
+
+    for prefix, via, restrict in (("repo:", ("url",), True), ("project:", ("window",), False)):
+        by_scope = {}
+        for v in visits:
+            ob = one_branch(v, prefix)
+            if ob:
+                by_scope.setdefault(ob[0], []).append((v, ob[1]))
+        for scope in sorted(by_scope):
+            group = by_scope[scope]
+            pairs = len(group) * (len(group) - 1) // 2
+            check(considered + pairs, f"branch {scope}", len(group))
+            considered += pairs
+            for i in range(len(group)):
+                for j in range(i + 1, len(group)):
+                    (va, ba), (vb, bb) = group[i], group[j]
+                    if ba == bb:
+                        continue
+                    names = tuple(sorted((ba, bb)))
+                    ma, mb = branch_moments(va, scope), branch_moments(vb, scope)
+                    sink.add(va.visit_id, vb.visit_id, "distinct_identity", "branch", "|".join(names), "N",
+                             {"scope": scope, "branches": names, "source": "url" if restrict else "window",
+                              "restriction": "x_branch" if restrict else "none (workspace-derived branch is not a repository identity)"},
+                             ma, mb, via, q(va.visit_id, vb.visit_id))
+                    if restrict:
+                        why = override(va.visit_id, vb.visit_id)
+                        sink.add(va.visit_id, vb.visit_id, "cannot_link", "x_branch", "|".join(names), "CL",
+                                 {"scope": scope, "branches": names, "override": why, "inactive_reason": None},
+                                 ma, mb, via, q(va.visit_id, vb.visit_id), active=why is None)
+    return considered
 
 
 def build_evidence(feature_set, params, fparams=None):
@@ -239,77 +373,14 @@ def build_evidence(feature_set, params, fparams=None):
                   "cosine": round(cos, 9)},
                  (), (), ("digest",), q(a, b))
 
-    # -- restrictions: x_pr and x_branch, with the raw override baked in as `active` -------------------
-    def ids_of(v):
-        return {int(a.key.rsplit("#", 1)[1]) for a in v.artifacts if a.kind in ("pr", "issue", "ref")}
-
-    def override(a, b):
-        if ids_of(by_id[a]) & ids_of(by_id[b]):
-            return "shared_identity"
-        if len(rare[a] & rare[b]) >= 2:
-            return "shared_rare_tokens"
-        return None
-
-    long_enough = {v.visit_id: v.dwell_s >= fp.cannot_link_min_dwell_s for v in visits}
-    pr_of = {}
-    for v in visits:
-        found = {}
-        for a in v.artifacts:
-            if a.kind in ("pr", "issue"):
-                found.setdefault(a.scope, set()).add(int(a.key.rsplit("#", 1)[1]))
-        pr_of[v.visit_id] = found
-    repos = sorted({r for f in pr_of.values() for r in f})
-    for repo in repos:
-        group = [v for v in visits if repo in pr_of[v.visit_id] and len(pr_of[v.visit_id][repo]) == 1 and long_enough[v.visit_id]]
-        for i in range(len(group)):
-            for j in range(i + 1, len(group)):
-                va, vb = group[i], group[j]
-                na, nb = next(iter(pr_of[va.visit_id][repo])), next(iter(pr_of[vb.visit_id][repo]))
-                if na == nb:
-                    continue
-                why = override(va.visit_id, vb.visit_id)
-                sink.add(va.visit_id, vb.visit_id, "cannot_link", "x_pr", repo, "CL",
-                         {"repo": repo, "numbers": tuple(sorted((na, nb))), "override": why},
-                         va.moments, vb.moments, ("url",), q(va.visit_id, vb.visit_id), active=why is None)
-
-    def single_branch(v):
-        names = {n.key for n in v.namespaces if n.kind == "branch"}
-        if len(names) != 1:
-            return None
-        name = next(iter(names))
-        return None if name in af.INTEGRATION_BRANCHES else name
-
-    def comparable(na, nb):
-        sa, sb = na.scope or "", nb.scope or ""
-        if sa == sb and sa:
-            return "same_scope"
-        for repo_scope, project_scope in ((sa, sb), (sb, sa)):
-            if repo_scope.startswith("repo:") and project_scope.startswith("project:") \
-                    and repo_scope.rsplit("/", 1)[-1] == project_scope[len("project:"):]:
-                return "project_equals_repo_name"
-        return None
-
-    cand = [v for v in visits if single_branch(v)]            # no dwell condition: only x_pr has one
-    for i in range(len(cand)):
-        for j in range(i + 1, len(cand)):
-            va, vb = cand[i], cand[j]
-            if single_branch(va) == single_branch(vb):
-                continue
-            scopes = {comparable(x, y) for x in va.namespaces for y in vb.namespaces if x.kind == "branch" and y.kind == "branch"} - {None}
-            if not scopes:
-                continue
-            why = override(va.visit_id, vb.visit_id)
-            moments_a = tuple(sorted({m for n in va.namespaces if n.kind == "branch" for m in n.moments}))
-            moments_b = tuple(sorted({m for n in vb.namespaces if n.kind == "branch" for m in n.moments}))
-            sink.add(va.visit_id, vb.visit_id, "cannot_link", "x_branch", "|".join(sorted((single_branch(va), single_branch(vb)))), "CL",
-                     {"branches": tuple(sorted((single_branch(va), single_branch(vb)))), "scope_match": sorted(scopes)[0], "override": why},
-                     moments_a, moments_b, ("url", "window"), q(va.visit_id, vb.visit_id), active=why is None)
+    # -- restrictions and the facts that go with them: ALWAYS complete, never limited by max_group ----------
+    considered = _restrictions(visits, by_id, rare, fp, sink, q)
 
     items = []
     for (type_, a, b, category, key), r in sorted(sink.rows.items(), key=lambda kv: (order[kv[0][1]], order[kv[0][2]], kv[0][0], kv[0][3], kv[0][4])):
         items.append(Evidence(type_, a, b, category, key, r["cls"], r["active"], MappingProxyType(_plain_detail(r["detail"])),
                               tuple(sorted(r["am"])), tuple(sorted(r["bm"])), tuple(sorted(r["via"])), round(r["q"], 6)))
-    return EvidenceSet(tuple(items), tuple(sorted(truncated)), tuple(v.visit_id for v in visits))
+    return EvidenceSet(tuple(items), tuple(sorted(truncated)), tuple(v.visit_id for v in visits), True, considered)
 
 
 def analyse(prepared, params, fparams=None):

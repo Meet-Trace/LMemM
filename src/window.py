@@ -1888,11 +1888,11 @@ class MainWindow:
                 gear.focusable, gear.ax_label = True, "Settings"
                 gear.setToolTip_("Settings")
                 kit.glyph(gear, ("gearshape", "gear"), 8, 8, 16, kit.ink() if in_settings else kit.mute())
-            y += 40 + 16
+            y += 40 + (16 if self.memory_snapshot['tab'] == 'Memory' else 30)
             if self.memory_snapshot['tab'] == 'Memory' or page.get('empty'):return y
         y = self._status(host, page, x, y, w)
-        host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y + 4, w, 1)))   # the one separator: identity above, activity below
-        y += 26
+        host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y + 8, w, 1)))   # the one separator: identity above, activity below
+        y += 32
         y = self._toolbar(host, page, x, y, w)
         return y
 
@@ -1930,65 +1930,71 @@ class MainWindow:
                 kit.put_text(host, caught["title"], x + 20, y, tw + 6, 12, 600, kit.mute(), wrap=False, height=20, middle=True)
                 kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
                 return y + 28
-        self._label(host, "PICK UP", x, y + 2, 60, size=11)
-        gap, left = 8, x + 68
-        if snap:                                                                      # the quick actions: always there, always the same two
-            aw = int(kit.text_width("Add note", 13, 600)) + 28
-            kit.button(host, "Add note", x + w - aw, y - 3, aw, 28, lambda: self._memory_action("add_note"), kind="primary", size=13, weight=600)
-            right = x + w - aw - gap
-            if not empty:
-                cw_ = int(kit.text_width("Copy context", 13, 600)) + 28
-                kit.button(host, "Copy context", right - cw_, y - 3, cw_, 28, lambda: self._memory_action("copy_context"), kind="outline", size=13, weight=600)
-                right -= cw_ + gap
-            else:
-                right = x + w
-            line_end = right - 12
-            if item:
-                kind_w = int(kit.text_width(item["kind"], 12, 600)) + 12
-                kit.put_text(host, item["kind"], left, y, kind_w, 12, 600, kit.accent_text(), wrap=False, height=20, middle=True)
-                cx = left + kind_w + 6
-                stamp = friendly(item["at"]) if item["at"] else ""
-                sw_ = int(kit.text_width("Source", 12, 600)) + 30 if item["citation_id"] else 0
-                dw_ = int(kit.text_width("Mark done", 12, 600)) + 22 if item["done"] else 0
-                tail = sum(v + 8 for v in (int(kit.text_width(stamp, 12, 400)) + 2 if stamp else 0, sw_, dw_) if v)
-                title_w = max(line_end - cx - tail, 80)
-                shown_w = min(int(kit.text_width(item["title"], 13, 600)) + 4, title_w)
-                kit.put_text(host, item["title"], cx, y, shown_w, 13, 600, wrap=False, height=20, middle=True)
-                cx += shown_w + 8
-                if stamp:
-                    kit.put_text(host, stamp, cx, y, int(kit.text_width(stamp, 12, 400)) + 2, 12, 400, kit.mute(), wrap=False, height=20, middle=True)
-                    cx += int(kit.text_width(stamp, 12, 400)) + 10
-                if item["citation_id"]:
-                    pill = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(cx, y - 2, sw_, 24), lambda c=item["citation_id"]: self._memory_action("view_source", {"citation_id": c}))
-                    pill.fill, pill.radius, pill.ax_label = kit.accent(0.10), 8, "Source for: " + item["title"][:60]
-                    host.addSubview_(pill)
-                    kit.put_text(pill, "Source  \u203a", 0, 0, sw_, 12, 600, kit.accent_text(), align=kit.CENTER, wrap=False, height=24, middle=True)
-                    cx += sw_ + 8
-                if item["done"]:
-                    kit.button(host, "Mark done", cx, y - 2, dw_, 24, lambda d=item["done"]: self._memory_action(d[0], d[1]), kind="outline", size=12, weight=600)
-            elif empty:
-                kit.put_text(host, "Save a note to start", left, y, max(right - left, 80), 13, 500, kit.mute(), wrap=False, height=20, middle=True)
-            elif not chips and not snap.get("loading"):
-                caught = page["caught_up"]
-                kit.put_text(host, caught["title"] + "  " + caught["line"], left, y, max(right - left, 80), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
-        if snap:y += 38 if not chips else 32
-        undo = snap.get("last_completed") if snap else None
-        if undo:
-            kit.put_text(host, "Marked done", left, y - 6, 90, 12, 500, kit.mute(), wrap=False, height=20, middle=True)
-            uw = int(kit.text_width("Undo", 12, 600)) + 22
-            kit.button(host, "Undo", left + 88, y - 8, uw, 24, lambda: self._memory_action(undo[0], undo[1]), kind="outline", size=12, weight=600)
-            y += 26
-        if chips:
-            cx = left
-            cw = (w - 68 - gap * (len(chips) - 1)) / len(chips)
+        if not snap:                                                                  # Memory is off: only the quiet activity links
+            cx = x
+            cw = min(220, (w - 8 * (len(chips) - 1)) / len(chips))
             for t in chips:
                 tap = self._tap(host, cx, y, cw, 26, (lambda i=t["id"]: self.press("thing", i)), fill=True)
                 tap.setToolTip_("\n".join("\u25cb  " + n for n in t.get("notes", [])[:3]) or t["title"])
                 self._app_icon(tap, t["app"], 6, 4, 18, t.get("kind", ""), t.get("url"))
-                tail = f"  {t['open']}" if t["open"] else ""
-                kit.put_text(tap, t["title"] + tail, 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
+                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
+                cx += cw + 8
+            return y + 38
+        gap = 8
+        kit.put_text(host, "Resume", x, y - 2, 120, 16, 700, wrap=False, height=24, middle=True, track=-0.012)        # the section, named
+        y += 28
+        top = y
+        aw = int(kit.text_width("Add note", 13, 600)) + 28
+        kit.button(host, "Add note", x + w - aw, top + 7, aw, 28, lambda: self._memory_action("add_note"), kind="primary", size=13, weight=600)
+        right = x + w - aw - gap
+        if not empty:
+            cw_ = int(kit.text_width("Copy context", 13, 600)) + 28
+            kit.button(host, "Copy context", right - cw_, top + 7, cw_, 28, lambda: self._memory_action("copy_context"), kind="outline", size=13, weight=600)
+            right -= cw_ + gap
+        if item:                                                                      # one unit: accent edge, title first, then type, time, Source
+            host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, top + 1, 3, 40), kit.accent(0.85), None, 1.5))
+            left = x + 16
+            stamp = friendly(item["at"]) if item["at"] else ""
+            kit.put_text(host, item["title"], left, top, max(right - left - 16, 80), 15, 600, wrap=False, height=22, middle=True, track=-0.004)
+            cx = left
+            kw = int(kit.text_width(item["kind"], 12, 600)) + 2
+            kit.put_text(host, item["kind"], cx, top + 24, kw, 12, 600, kit.accent_text(), wrap=False, height=18, middle=True)
+            cx += kw + 8
+            if stamp:
+                tw_ = int(kit.text_width(stamp, 12, 400)) + 2
+                kit.put_text(host, "\u00b7  " + stamp, cx, top + 24, tw_ + 16, 12, 400, kit.mute(), wrap=False, height=18, middle=True)
+                cx += tw_ + 22
+            if item["citation_id"]:
+                sw_ = int(kit.text_width("Source", 12, 600)) + 30
+                pill = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(cx, top + 21, sw_, 24), lambda c=item["citation_id"]: self._memory_action("view_source", {"citation_id": c}))
+                pill.fill, pill.radius, pill.ax_label = kit.accent(0.10), 8, "Source for: " + item["title"][:60]
+                host.addSubview_(pill)
+                kit.put_text(pill, "Source  \u203a", 0, 0, sw_, 12, 600, kit.accent_text(), align=kit.CENTER, wrap=False, height=24, middle=True)
+                cx += sw_ + gap
+            if item["done"]:
+                dw_ = int(kit.text_width("Mark done", 12, 600)) + 22
+                kit.button(host, "Mark done", cx, top + 21, dw_, 24, lambda d=item["done"]: self._memory_action(d[0], d[1]), kind="outline", size=12, weight=600)
+            y = top + 46
+            undo = snap.get("last_completed")
+            if undo:
+                kit.put_text(host, "Marked done", left, y, 90, 12, 500, kit.mute(), wrap=False, height=24, middle=True)
+                uw = int(kit.text_width("Undo", 12, 600)) + 22
+                kit.button(host, "Undo", left + 88, y, uw, 24, lambda: self._memory_action(undo[0], undo[1]), kind="outline", size=12, weight=600)
+                y += 30
+        else:
+            msg = "Save a note to start" if empty else "" if snap.get("loading") else page["caught_up"]["title"] if not chips else ""
+            if msg:kit.put_text(host, msg, x, top, max(right - x - 16, 80), 14, 500, kit.mute(), wrap=False, height=42, middle=True)
+            y = top + 46
+        if chips:                                                                     # open-note links: present, but quieter than Resume
+            cx = x + 16
+            cw = min(200, (w - 16 - gap * (len(chips) - 1)) / len(chips))
+            for t in chips:
+                tap = self._tap(host, cx, y, cw, 24, (lambda i=t["id"]: self.press("thing", i)))
+                tap.setToolTip_("\n".join("\u25cb  " + n for n in t.get("notes", [])[:3]) or t["title"])
+                self._app_icon(tap, t["app"], 4, 4, 16, t.get("kind", ""), t.get("url"))
+                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 26, 0, cw - 30, 11, 500, kit.mute(), wrap=False, height=24, middle=True)
                 cx += cw + gap
-            y += 38
+            y += 30
         return y
 
     def _toolbar(self, host, page, x, y, w):

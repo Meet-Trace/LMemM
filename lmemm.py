@@ -22,6 +22,8 @@ LMemM - the one command.
     lmemm.py context [SESSION] [--days N]
                                       a clean export for handing to an AI: what you did
                                       and why, grouped by project, with no operational detail
+    lmemm.py handoff demo|make FILE|panel
+                                      move ongoing AI work to another assistant (see docs/handoff.md)
     lmemm.py trail start|show|places|status|pause|resume|forget|probe
                                       the event trail: what you are doing, from app events (see docs/specs)
     lmemm.py status | pause | resume | open  control the running tracker or open its window
@@ -60,7 +62,7 @@ USAGE = ("usage: lmemm.py [menu] | start [--every N] [--input-events --input-app
          " | notes [--all] [PROJECT] | notes done|reopen ID…"
          " | projects [--all] | projects new|rename|move|archive|restore|merge|delete …"
          " | context [SESSION] [--days N]"
-         " | trail … | status | pause | resume | pin | note | delete-session ID (--dry-run | --confirm ID)"
+         " | handoff demo|make FILE|panel | trail … | status | pause | resume | pin | note | delete-session ID (--dry-run | --confirm ID)"
          " | delete-all (--dry-run | --confirm) | setup [--again] [--no-start]")
 
 
@@ -546,6 +548,9 @@ def main():
     elif cmd == "trail":
         import trail_cli
         trail_cli.main(sys.argv[2:])
+    elif cmd == "handoff":
+        from handoff import cli as handoff_cli
+        sys.exit(handoff_cli.main(rest))
     elif cmd == "pin":
         tracker.pin()
     elif cmd == "note":

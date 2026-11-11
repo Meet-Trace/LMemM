@@ -181,6 +181,7 @@ class EvidenceSet:
     skipped: dict                       # support/contrast groups over max_group_visits -> number of visits
     report: dict
     constraints: object                 # ConstraintStore: the complete cannot-links
+    skipped_members: object = None      # label -> visit ids of each skipped group (who the omitted pair evidence concerns)
 
     def for_pair(self, a, b):
         key = tuple(sorted((a, b)))
@@ -231,7 +232,7 @@ def build_evidence(fs, eparams=None):
     p, corpus = fs.params, fs.corpus
     feats = {f.visit_id: f for f in fs.visits}
     order = {f.visit_id: i for i, f in enumerate(fs.visits)}          # visits are sorted by (t_start, visit_id)
-    out, skipped, omitted = {}, {}, {}
+    out, skipped, omitted, skipped_members = {}, {}, {}, {}
     store = build_constraints(fs)
 
     def emit(type_, a, b, subject, strength, fields, lifted=False, lifted_by=None):
@@ -257,6 +258,8 @@ def build_evidence(fs, eparams=None):
                 continue
             if len(ids) > ep.max_group_visits:
                 (omitted if explanation else skipped)[f"{label}:{k}"] = len(ids)
+                if not explanation:
+                    skipped_members[f"{label}:{k}"] = tuple(ids)
                 continue
             yield k, ids
 
@@ -422,7 +425,8 @@ def build_evidence(fs, eparams=None):
         "constraints_complete": store.complete, "constraint_rules": list(store.rules),
         "constraint_observations": store.count_observations(),
         "constraint_explanations_omitted": dict(sorted(omitted.items())),
-        "support_complete": not skipped, "skipped_groups": len(skipped)}, store)
+        "support_complete": not skipped, "skipped_groups": len(skipped)}, store,
+        {k: v for k, v in sorted(skipped_members.items())})
 
 
 def analyse(prepared, params=None, replay_params=None, eparams=None):

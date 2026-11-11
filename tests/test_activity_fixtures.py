@@ -177,6 +177,8 @@ class ScenarioStructureTests(unittest.TestCase):
         f = fx.pr_numbers_differ()
         self.assertIn("pull/12", " ".join(r["url"] for r in f.records))
         self.assertIn("pull/15", " ".join(r["url"] for r in f.records))
+        self.assertEqual(f.cannot_link, [])                       # contrast only (ADR 0004), never a hard cannot-link
+        self.assertTrue(f.must_not_merge)
         f = fx.blob_slash_branch()
         self.assertNotIn("/tree/", " ".join(r["url"] for r in f.records))
         self.assertEqual(f.cannot_link, [])

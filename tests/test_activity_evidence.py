@@ -496,7 +496,7 @@ class SetLevelTests(unittest.TestCase):
         def get(name):
             recs = fx.BUILDERS[name]().records
             return ev.analyse(ai.prepare(recs), None, RP)[1]
-        self.assertFalse(get("pr_numbers_differ").cannot_links())     # fixture B4's gold says cannot-link: see ADR 0004
+        self.assertFalse(get("pr_numbers_differ").cannot_links())     # contrast only; the fixture's gold no longer lists a cannot-link
         self.assertTrue(get("pr_numbers_differ").by_type("different_pr_issue"))
         self.assertTrue(get("branches_alternating").cannot_links())
         self.assertFalse(get("same_branch_two_tasks").cannot_links())

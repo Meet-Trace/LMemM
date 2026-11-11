@@ -154,5 +154,5 @@ class SettingsActionColumnTests(unittest.TestCase):
         base = os.path.join(os.path.dirname(__file__), "..", "src")
         pane = open(os.path.join(base, "memory_pane.py")).read().split("def _settings")[1]
         self.assertIn("ACTION_W,PADX=148,20", pane)
-        self.assertIn("action_x=x+w-PADX-slot-ACTION_W", pane)          # every row starts its action at the same x
+        self.assertIn("action_x=x+w-PADX-SLOT-ACTION_W", pane)          # every row starts its action at the same x
         self.assertNotIn("Back to Memory", open(os.path.join(base, "window.py")).read())

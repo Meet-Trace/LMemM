@@ -247,6 +247,10 @@ class MemoryPane:
         from AppKit import NSMakeRect
         BTN_H,BTN_PAD,KINDS=32,34,{'primary':'primary','secondary':'outline','tertiary':'ghost','destructive':'danger'}
         ACTION_W,PADX=148,20                                  # the action column's fixed width; the inner side padding of every container
+        GUTTER=20                                             # between the two columns
+        SLOT,ICON,ICON_GAP,TEXT_GAP=BTN_H+2,16,12,14          # ellipsis slot, icon size, icon to text, text column to action column
+        PAD_Y,LINE_GAP,MIN_ROW,PROGRESS_H=8,2,50,12            # inside a row: top and bottom, between lines, shortest row, room for a bar
+        LABEL_GAP,SECTION_GAP=6,20                            # a section label to its first row, one container to the next
         host=self.host;y=8;notice=view.get('notice')
         X0,W0=x,w
         y+=4
@@ -284,7 +288,7 @@ class MemoryPane:
             edge=rgb(RED,0.26) if group['danger'] else kit.faint(0.09)
             surface=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,group['top'],w,y-group['top']),fill,edge,14)
             host.addSubview_positioned_relativeTo_(surface,-1,None)
-            group['top']=None;y+=22
+            group['top']=None;y+=SECTION_GAP
         def confirm_open(title,detail,go,destructive,call_yes):
             """A confirmation is the setting's own expanded state: an inset tonal panel under the row, same material and
             radius as the surfaces around it, a red edge mark only when it is destructive, the same buttons."""
@@ -299,34 +303,29 @@ class MemoryPane:
             button('Cancel',x+PADX+12+gw+8,by,lambda:self.action('confirm_no'),'tertiary')
             y=top+ph+8
         def row(symbols,title,state,buttons,state_color=None,dot=False,more=(),warn=None,tip=None,progress=False,fraction=None,danger=False):
-            """A setting: icon and title at the left, its state under the title, one action in the shared right-hand column
-            (ACTION_W wide, the same on every row, even when a row has none) and the ellipsis menu outside it. A state or warning
-            too long for the space beside the action drops under the row, full width."""
+            """One grid for every setting. Left: icon, then a text column (name, state, note) that wraps inside its own width.
+            Right: the action column, ACTION_W wide on every row, and the ellipsis slot outside it. The text column ends before
+            the action column, so text can never reach a button; a longer text makes the row taller instead."""
             nonlocal y
             if group['rows']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+PADX,y,w-2*PADX,1)))
             group['rows']+=1
             btn=[(b[0],b[1],b[2],b[3] if len(b)>3 else True) for b in buttons]
-            slot=BTN_H+8                                          # the ellipsis slot is reserved on every row
-            action_x=x+w-PADX-slot-ACTION_W                       # where every row's action begins
-            text_w=action_x-(x+PADX+28)-12;full_w=w-2*PADX-28
+            action_x=x+w-PADX-SLOT-ACTION_W                       # where every row's action column begins
+            tx=x+PADX+ICON+ICON_GAP;text_w=action_x-TEXT_GAP-tx
             state_text_=('\u25CF '+state) if dot and state else state
-            drop=bool(warn) or bool(state_text_ and kit.text_width(state_text_,13,400)>text_w)
-            under=[t for t in ((state_text_,state_color or kit.mute()),(warn,kit.status_text('orange'))) if t[0]] if drop else []
-            heights=[kit.text_height(t,13,400,full_w,True,0.004,1.3) for t,_c in under]
-            if drop:h=max(50,8+20+6+sum(heights)+4*(len(heights)-1)+10)+(12 if progress else 0);cy=y+5
-            else:h=50+(12 if progress else 0);cy=y+(h-BTN_H)/2-(6 if progress else 0)
-            kit.glyph(host,symbols,x+PADX,(y+10 if drop else y+(h-16)/2-(6 if progress else 0)),16,rgb(RED,0.85) if danger else kit.faint(0.55))
-            tx=x+PADX+28
-            if state_text_ and not drop:
-                kit.put_text(host,title,tx,y+8,text_w,15,600,wrap=False,height=20,track=-0.004)
-                kit.put_text(host,state_text_,tx,y+27,text_w,13,400,state_color or kit.mute(),wrap=False,height=17,track=0.004)
-            else:
-                kit.put_text(host,title,tx,y+9 if drop else y+(h-20)/2,max(action_x-tx-12,60),15,600,wrap=False,height=20,track=-0.004)
-                uy=y+34
-                for (t,c),hh in zip(under,heights):
-                    kit.put_text(host,t,tx,uy,full_w,13,400,c,height=hh,track=0.004,lead=1.3);uy+=hh+4
+            th=kit.text_height(title,15,600,text_w,True,-0.004,None)
+            sh=kit.text_height(state_text_,13,400,text_w,True,0.004,1.3) if state_text_ else 0
+            wh=kit.text_height(warn,13,400,text_w,True,0.004,1.3) if warn else 0
+            content=th+(LINE_GAP+sh if sh else 0)+(LINE_GAP+wh if wh else 0)+(PROGRESS_H if progress else 0)
+            h=max(MIN_ROW,PAD_Y+content+PAD_Y)
+            cy=y+(min(h,MIN_ROW+PROGRESS_H*bool(progress))-BTN_H)/2        # actions sit level with the first line, however tall the row grows
+            kit.glyph(host,symbols,x+PADX,y+PAD_Y+(15-ICON)/2+2,ICON,rgb(RED,0.85) if danger else kit.faint(0.55))
+            ty=y+PAD_Y
+            kit.put_text(host,title,tx,ty,text_w,15,600,height=th,track=-0.004);ty+=th
+            if sh:ty+=LINE_GAP;kit.put_text(host,state_text_,tx,ty,text_w,13,400,state_color or kit.mute(),height=sh,track=0.004,lead=1.3);ty+=sh
+            if wh:ty+=LINE_GAP;kit.put_text(host,warn,tx,ty,text_w,13,400,kit.status_text('orange'),height=wh,track=0.004,lead=1.3);ty+=wh
             if progress:
-                bw_=min(text_w,300);by=y+h-16;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(tx,by,bw_,4),None);track.fill=kit.faint(0.10);track.radius=2;host.addSubview_(track)
+                bw_=min(text_w,300);by=ty+6;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(tx,by,bw_,4),None);track.fill=kit.faint(0.10);track.radius=2;host.addSubview_(track)
                 fw=bw_*(fraction or 0)
                 if fw>0:fill=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(tx,by,max(fw,4),4),None);fill.fill=rgb(ACC);fill.radius=2;host.addSubview_(fill)
             if tip:
@@ -344,7 +343,7 @@ class MemoryPane:
             nonlocal y
             if group['subs']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+PADX,y+4,w-2*PADX,1)))
             group['subs']+=1
-            y+=8;kit.put_text(host,text,x+PADX,y,w,12,600,kit.mute(),wrap=False,height=16,track=0.02);y+=22
+            y+=8;kit.put_text(host,text,x+PADX,y,w,12,600,kit.mute(),wrap=False,height=16,track=0.02);y+=16+LABEL_GAP
             group['rows']=0
         def cap(text,danger=False,surface=False):
             nonlocal y
@@ -355,13 +354,13 @@ class MemoryPane:
             if notice and len(notice)>2 and notice[2]==kind:return notice[0],(kit.status_text('orange') if notice[1] else None)
             return default,None
         two=W0>=740                                              # wide enough for two columns
-        cw=int((W0-28)/2) if two else W0
+        cw=int((W0-GUTTER)/2) if two else W0
         top_y=y;x,w=X0,cw
         root=(view.get('binding') or {}).get('workspace_root')
         status=view.get('status',{})
         cap('Capture',surface=True)
         sub('Storage')
-        row(['folder'],'Project folder',(STATE_LABELS.get(mode,mode).split(' \u00b7')[0])+(' \u00b7 '+short_name(root,40) if root else ''),
+        row(['folder'],'Project folder',(STATE_LABELS.get(mode,mode).split(' \u00b7')[0])+(' \u00b7 '+short_name(root,28) if root else ''),
             [('Resume' if mode=='Paused' else 'Pause','resume' if mode=='Paused' else 'pause','secondary')],state_color=state_text(mode,kit),dot=True)
         if not root:
             row(['folder.badge.plus','folder'],'Optional workspace','Not connected',[('Choose folder…','choose_root','secondary')],dot=True,tip='Connect a folder for VS Code capture. Notes and browser saves work without one.')
@@ -404,7 +403,7 @@ class MemoryPane:
             text,color=note_for('install_model','On' if ready else 'Not installed')
             row(['sparkles'],'Meaning search',text,[] if ready else [('Install','confirm_model','primary')],state_color=color or (kit.status_text('green') if ready else None),dot=not color,tip=model_tip)
         end_group();left_bottom=y
-        if two:x,w=X0+cw+28,cw;y=top_y
+        if two:x,w=X0+cw+GUTTER,cw;y=top_y
         cap('Agents')
         connected_codex=view.get('codex_connected')
         row(['terminal'],'Codex','Connected' if connected_codex else 'Not connected',[('Preview','preview','secondary')] if connected_codex else [('Connect…','confirm_agent','primary')],

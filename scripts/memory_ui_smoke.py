@@ -5,8 +5,10 @@ from pathlib import Path
 sys.path[:0]=[str(Path(__file__).resolve().parents[1]/'src')]
 from AppKit import NSApplication,NSBitmapImageFileTypePNG,NSAppearance,NSImage,NSColor,NSBezierPath,NSBitmapImageRep
 import projects,page_model,window,window_model,macos
+import config
 from memory_model import new_memory_state,memory_view
-p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
+p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);p.add_argument('--background',default='auto',help='auto, morning, afternoon, evening or night: pins the time-of-day background for the captures');args=p.parse_args();args.output.mkdir(parents=True,exist_ok=True)
+config.BACKDROP=args.background          # set before the window is built
 app=NSApplication.sharedApplication();app.setActivationPolicy_(0);app.setAppearance_(NSAppearance.appearanceNamed_('NSAppearanceNameAqua'))
 reg=projects.empty();pid=projects.create(reg,'MVP launch · synthetic');items={}
 state=new_memory_state();state['tab']='Memory'

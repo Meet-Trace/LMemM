@@ -87,13 +87,13 @@ function requestScene(){if(!ticking){ticking=true;requestAnimationFrame(updateSc
 addEventListener('scroll',requestScene,{passive:true});addEventListener('resize',requestScene);motion.addEventListener('change',requestScene);desktop.addEventListener('change',requestScene);requestScene();
 
 // The proof viewer uses untouched real app captures, never illustrative scenario data.
-const proofImages={decision:'assets/app-decision.png',source:'assets/app-source.png'};
+const proofImages={decision:'assets/app-memory-decision.webp',source:'assets/app-memory-source.webp'};
 function setProof(mode){
  const isSource=mode==='source',img=document.querySelector('#proof-image');if(!img)return;
- img.src=proofImages[mode];img.alt=isSource?'Actual earlier app build showing the retained source text for a synthetic project decision':'Actual earlier app build showing the synthetic project decision and View retained source button';
+ img.src=proofImages[mode];img.alt=isSource?'Actual Trace app capture showing where a saved project note came from, with made-up data':'Actual Trace app capture of the Memory page, showing a made-up project decision with a blue Source button';
  document.querySelector('.proof-device').dataset.proof=mode;
  text('#proof-count',isSource?'02 / 02':'01 / 02');
- text('#proof-description',isSource?'The exact text, as it appears in the app. These are the original words behind the decision, not a generated summary.':'Every decision links back to where it came from. Select the highlighted button in the screenshot.');
+ text('#proof-description',isSource?'Where it came from: what kind of source it is, when it was saved, and a way to open it. Nothing is summarised or made up.':'Every decision links back to where it came from. Select the highlighted button in the screenshot.');
  document.querySelector('.proof-hotspot').hidden=isSource;document.querySelector('.proof-reset').hidden=!isSource;
  for(const button of document.querySelectorAll('[data-proof]')){const active=button.dataset.proof===mode;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));}
 }

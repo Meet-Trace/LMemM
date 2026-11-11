@@ -42,7 +42,7 @@ The opening uses custom HTML/SVG work fragments and an original geometric illust
 
 `scenarios.js` defines three synthetic worlds: Building, Studying, and Everyday life. The audience switch consistently updates the hero note, scroll-stage project, answer tabs, retained-source dialog, mobile illustrations, and closing note. The closing fragments gather into the Trace mark; reduced motion shows the settled mark without movement.
 
-The guided actual-app section uses `assets/app-decision.png` and `assets/app-source.png`, copied unchanged from the native synthetic UI captures in the original application repository. They are explicitly labeled earlier-build captures with synthetic data. This is an interactive screenshot walkthrough, not a recording or a live embedded app. The two screenshots are separate from the synthetic audience examples. The supplied concept film remains independently available.
+The guided actual-app section uses `assets/app-memory-decision.webp` and `assets/app-memory-source.webp`, resized captures of the current native Memory page made with `scripts/memory_ui_smoke.py --background night` (synthetic data only). They are labeled as real app captures with made-up data. This is an interactive screenshot walkthrough, not a recording or a live embedded app. The two screenshots are separate from the synthetic audience examples. The supplied concept film remains independently available.
 
 ## Shared deployment
 

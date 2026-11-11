@@ -133,7 +133,7 @@ class MemoryPane:
             y+=48+14
             # one quiet controls line: time range at the left; Ask Codex, Refresh and the state at the right
             px=x;items=[(PERIOD_LABELS.get(period,period),period==view['period'],period) for period in view['periods']]
-            widths=[int(kit.text_width(l,13,500))+26 for l,_o,_p in items]
+            widths=[int(kit.text_width(l,13,600))+28 for l,_o,_p in items]
             track=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,y,sum(widths)+4,BTN_H),kit.faint(0.06),kit.faint(0.12),10);host.addSubview_(track)
             sx=x+2
             for (l,on,period),sw in zip(items,widths):
@@ -141,7 +141,7 @@ class MemoryPane:
                 seg.radius=8;seg.ax_label=l+(', selected' if on else '')
                 if on:seg.fill=kit.accent(0.18);seg.border=kit.accent(0.55)
                 host.addSubview_(seg)
-                kit.put_text(seg,l,13,0,sw-26,13,600 if on else 500,kit.accent_text() if on else kit.mute(),wrap=False,height=BTN_H-4,middle=True);sx+=sw
+                kit.put_text(seg,l,14,0,sw-28,13,600 if on else 500,kit.accent_text() if on else kit.mute(),wrap=False,height=BTN_H-4,middle=True);sx+=sw
             right=x+w
             color=state_text(mode,kit);label=STATE_LABELS.get(mode,mode).split(' ·')[0]
             busy=self.refresh_state=='busy';done=self.refresh_state=='done'
@@ -201,10 +201,11 @@ class MemoryPane:
                 self.details=self.details if self.detail_for==source.get('citation_id') else False;self.detail_for=source.get('citation_id')
                 p=source_presentation(source);pv=source_provenance(source);inner=w-2*PADX;top=y
                 LW=76;vw=inner-LW-8
-                heading_h=min(kit.text_height(pv['heading'],17,600,inner-190,True,-0.006,None),46)
+                head=pv['heading'] if pv['heading']!=pv['kind'] else ''          # a note with no title: the kind label already says it
+                heading_h=min(kit.text_height(head,17,600,inner-190,True,-0.006,None),46) if head else 0
                 facts=[(l,v,min(kit.text_height(v,13,400,vw,True,0.002,1.3),36)) for l,v in pv['facts']]
                 dets=[(l,v,min(kit.text_height(v,12,400,vw,True,0.004,1.3),48)) for l,v in pv['details']] if self.details else []
-                total=16+18+6+heading_h+12+sum(hh+6 for _l,_v,hh in facts)+10+BTN_H+(10+sum(hh+4 for _l,_v,hh in dets) if dets else 0)+16
+                total=16+18+6+(heading_h+12 if head else 6)+sum(hh+6 for _l,_v,hh in facts)+10+BTN_H+(10+sum(hh+4 for _l,_v,hh in dets) if dets else 0)+16
                 host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,total),kit.accent(0.05),kit.accent(0.30),14),-1,None)
                 kit.put_text(host,pv['kind'],x+PADX,top+16,inner-190,12,600,kit.accent_text(),wrap=False,height=18,track=0.01)
                 menu=self._source_menu(source,view)
@@ -213,8 +214,8 @@ class MemoryPane:
                     mb=kit.button(host,'\u22EF',rx-BTN_H,top+10,BTN_H,BTN_H,lambda items=menu:self._menu(items),kind='ghost',size=16,weight=700);mb.ax_label='More actions';rx-=BTN_H+4
                 kit.button(host,'Close',rx-76,top+10,76,BTN_H,lambda:self.action('close_source'),kind='ghost',size=13,weight=600)
                 hy=top+16+18+6
-                kit.put_text(host,pv['heading'],x+PADX,hy,inner-190,17,600,height=heading_h,track=-0.006)
-                fy=hy+heading_h+12
+                if head:kit.put_text(host,head,x+PADX,hy,inner-190,17,600,height=heading_h,track=-0.006)
+                fy=hy+(heading_h+12 if head else 6)
                 for l,v,hh in facts:
                     kit.put_text(host,l,x+PADX,fy+1,LW,12,500,kit.mute(),wrap=False,height=18)
                     kit.put_text(host,v,x+PADX+LW+8,fy,vw,13,400,height=hh,track=0.002,lead=1.3);fy+=hh+6

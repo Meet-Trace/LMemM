@@ -1352,6 +1352,9 @@ class MainWindow:
         payload=payload or {}
         try:
             if action=='tab' and self.memory_pane is not None:self.memory_pane.settings=False        # choosing a tab always leaves Settings
+            if action in {'toggle_details','toggle_composer'}:
+                pane=self._pane();attr='details' if action=='toggle_details' else 'composer'
+                setattr(pane,attr,not getattr(pane,attr));self.shown=None;self.render();return
             if action in {'toggle_status','open_status'}:
                 self._pane().settings=True            # the details live in Settings, never on the Memory page
                 self.shown=None;self.render();return

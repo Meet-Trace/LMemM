@@ -141,9 +141,9 @@ class SettingsButtonSystemTests(unittest.TestCase):
         import os
         source = open(os.path.join(os.path.dirname(__file__), "..", "src", "memory_pane.py")).read()
         settings = source.split("def _settings")[1]
-        self.assertIn("BTN_H,BTN_PAD,KINDS=32,34", settings)
+        self.assertIn("BTN_H,BTN_PAD=32,34", source)                    # module level: shared with the Memory page
         self.assertEqual(settings.count("kit.button("), 2)              # the helper, and the ellipsis menu button
-        self.assertIn("'destructive':'danger'", settings)
+        self.assertIn("'destructive':'danger'", source)
         kit = open(os.path.join(os.path.dirname(__file__), "..", "src", "setup_kit.py")).read()
         self.assertIn('kind == "danger"', kit)
 
@@ -153,6 +153,18 @@ class SettingsActionColumnTests(unittest.TestCase):
         import os
         base = os.path.join(os.path.dirname(__file__), "..", "src")
         pane = open(os.path.join(base, "memory_pane.py")).read().split("def _settings")[1]
-        self.assertIn("ACTION_W,PADX=148,20", pane)
+        self.assertIn("ACTION_W=148", pane)
         self.assertIn("action_x=x+w-PADX-SLOT-ACTION_W", pane)          # every row starts its action at the same x
         self.assertNotIn("Back to Memory", open(os.path.join(base, "window.py")).read())
+
+
+class MemoryPageTests(unittest.TestCase):
+    def test_default_cards_show_no_provenance_label_and_details_sit_behind_a_toggle(self):
+        import os
+        source = open(os.path.join(os.path.dirname(__file__), "..", "src", "memory_pane.py")).read()
+        page = source.split("def render")[1].split("def _fade_in")[0]
+        self.assertNotIn("row['provenance']", page)                       # "Your note" and friends are not on the card
+        self.assertIn("'toggle_details'", page)
+        self.assertIn("'toggle_composer'", page)
+        win = open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")).read()
+        self.assertIn("'toggle_details','toggle_composer'", win)

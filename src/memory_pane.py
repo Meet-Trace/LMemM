@@ -9,6 +9,9 @@ import palette
 
 ACC = palette.ACCENT
 GREEN, ORANGE, GRAY = (.18, .62, .36), (.91, .45, .16), (.50, .50, .55)
+BTN_H,BTN_PAD=32,34                              # the one button size, shared by Settings and the Memory page
+KINDS={'primary':'primary','secondary':'outline','tertiary':'ghost','destructive':'danger'}
+PADX=20                                          # inner side padding of every container
 RED = (.86, .27, .25)                            # only the Danger zone's quiet accent; never a whole red section
 SECTIONS = {'Search results': ('Best matches', ['magnifyingglass'], ACC), 'Related evidence': ('Related', ['link'], ACC),
             'Decisions': ('Decisions', ['flag.fill'], ACC), 'Open tasks': ('Open tasks', ['checkmark.circle', 'checkmark.circle.fill'], ACC),
@@ -37,7 +40,7 @@ class MemoryPane:
     def __init__(self,on_action):
         from AppKit import NSTextField,NSMakeRect
         from widget import _Fields,_Flipped
-        self.project=None;self.shown_state=None;self.settings=False;self.confirm=None;self.status_open=False
+        self.project=None;self.shown_state=None;self.settings=False;self.composer=False;self.details=False;self.detail_for=None;self.confirm=None;self.status_open=False
         self.action=on_action;self.host=_Flipped.alloc().initWithFrame_(NSMakeRect(0,0,800,600))
         self.query_typing=_Fields.alloc().initWithChange_submit_cancel_(lambda text:self.action('query',{'text':text}),lambda text:self.action('submit',{'enter':True}),lambda:self.action('query',{'text':''}))
         self.query=NSTextField.alloc().initWithFrame_(NSMakeRect(0,0,100,30));self.query.setDelegate_(self.query_typing)
@@ -47,10 +50,10 @@ class MemoryPane:
         self.note.setPlaceholderString_('Add a note… start with TODO: for a task, or “We decided … because …”');self.note.setAccessibilityLabel_('New intentional project note')
         import setup_kit as kit
         for field in (self.query,self.note):                       # no square bezel: the pane draws a rounded box behind each field
-            field.setBezeled_(False);field.setDrawsBackground_(False);field.setFocusRingType_(1);field.setFont_(kit.font(14,400))
+            field.setBezeled_(False);field.setDrawsBackground_(False);field.setFocusRingType_(1);field.setFont_(kit.font(16 if field is self.query else 14,400))
         self.host.addSubview_(self.query);self.host.addSubview_(self.note)
     def _save_note(self,text):
-        if text.strip():self.action('note',{'text':text});self.note.setStringValue_('')
+        if text.strip():self.composer=False;self.action('note',{'text':text});self.note.setStringValue_('')
     def render(self,view,width=800,x=32,w=None):
         from AppKit import NSColor,NSMakeRect
         import setup_kit as kit
@@ -60,40 +63,37 @@ class MemoryPane:
             if sub is not self.query and sub is not self.note:sub.removeFromSuperview()
         retained=view.get('retained_binding') or view.get('binding')
         project=retained.get('project_id') if retained else None
-        if project!=self.project:self.project=project;self.settings=False;self.confirm=None;self.status_open=False;self.note.setStringValue_('')
+        if project!=self.project:self.project=project;self.composer=False;self.details=False;self.settings=False;self.confirm=None;self.status_open=False;self.note.setStringValue_('')
         binding=view.get('binding') or (retained if self.settings else None)
         if str(self.query.stringValue())!=view['query']:self.query.setStringValue_(view['query'])
         hide=not binding or self.settings
-        self.query.setHidden_(hide);self.note.setHidden_(hide)
+        self.query.setHidden_(hide);self.note.setHidden_(True)          # the note field is shown only while the composer is open
         y=8;self.bottom=None
         def panel(px,py,pw,ph,bar=None):
             box=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(px,py,pw,ph),None);box.fill=kit.faint(0.05);box.radius=10;host.addSubview_(box)
             if bar is not None:
                 stripe=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(px,py+10,3,ph-20),None);stripe.fill=rgb(bar);stripe.radius=1.5;host.addSubview_(stripe)
-        def label_row(symbols,color,text,at):
-            kit.tile(host,symbols,rgb(color),x,at,22)
-            kit.put_text(host,text.upper(),x+30,at+3,w-30,11,700,kit.mute(),wrap=False,height=16)
-            return 30
-        def card(text,meta,locator,citation,bar,title=None):
-            nonlocal y
-            inner=w-32;head=28 if title else 0
-            th=kit.text_height(text,13 if title else 15,400 if title else 500,inner);top=y
-            panel(x,top,w,th+58+head,bar)
-            if title:kit.put_text(host,title,x+16,top+12,inner,15,700,wrap=False,height=20)
-            kit.put_text(host,text,x+16,top+12+head,inner,13 if title else 15,400 if title else 500,kit.mute() if title else None,height=th)
-            my=top+th+20+head;kit.put_text(host,meta,x+16,my,kit.text_width(meta,12,400)+8,12,400,kit.mute(),wrap=False,height=16);cx=x+16+kit.text_width(meta,12,400)+14
-            name=None if title else short_name(locator)
-            if name:
-                cw=kit.text_width(name,11,500)+26;chip=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(cx,my-2,cw,20),None);chip.fill=kit.faint(0.07);chip.radius=6;host.addSubview_(chip)
-                glyph=kit.icon(kit.first_symbol(['doc.text','doc']),11,kit.mute(),(cx+7,my+1,12,13))
-                if glyph is not None:host.addSubview_(glyph)
-                kit.put_text(host,name,cx+22,my-2,cw-24,11,500,kit.mute(),wrap=False,height=20,middle=True)
-            if citation:kit.button(host,'View source',x+w-108,my-6,96,28,lambda c=citation:self.action('source',{'citation_id':c}),kind='link',size=12,weight=600)
-            y=top+th+58+head+10
-        def field_box(field,fy,left=14):
-            box=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x,fy,w,40),None);box.fill=kit.faint(0.05);box.border=kit.line();box.radius=11
+        def field_box(field,fy,left=14,height=40):
+            box=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x,fy,w,height),None);box.fill=kit.faint(0.06);box.border=kit.line();box.radius=14 if height>40 else 11
             host.addSubview_positioned_relativeTo_(box,-1,field)        # behind the field
-            field.setFrame_(NSMakeRect(x+left,fy+10,w-left-14,20))
+            field.setFrame_(NSMakeRect(x+left,fy+(height-22)/2,w-left-18,22))
+        def fragment(row,first):
+            """A saved fragment: its title or text first, the time at the right, a quiet way to its source. The whole row opens it."""
+            nonlocal y
+            RIGHT_W=104;tw_=w-2*PADX-RIGHT_W-12
+            if not first:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+PADX,y,w-2*PADX,1)))
+            lead=row['title'] or row['text']
+            lines=[l for l in str(row['text']).split('\n') if l.strip()][:2] if row['title'] else []
+            head_h=min(kit.text_height(lead,15,600 if row['title'] else 500,tw_,True,-0.004,None),57)
+            body='\n'.join(lines);bh_=min(kit.text_height(body,13,400,tw_,True,0.004,1.3),36) if body else 0
+            h=max(56,10+head_h+(3+bh_ if bh_ else 0)+10)
+            if row['citation_id']:
+                hit=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+6,y+2,w-12,h-4),lambda c=row['citation_id']:self.action('source',{'citation_id':c}));hit.radius=10;hit.ax_label='Open source: '+lead[:60];host.addSubview_(hit)
+            kit.put_text(host,lead,x+PADX,y+10,tw_,15,600 if row['title'] else 500,height=head_h,track=-0.004)
+            if bh_:kit.put_text(host,body,x+PADX,y+10+head_h+3,tw_,13,400,kit.mute(),height=bh_,track=0.004,lead=1.3)
+            if row['at']:kit.put_text(host,friendly(row['at']),x+w-PADX-RIGHT_W,y+11,RIGHT_W,12,400,kit.mute(),align=kit.RIGHT,wrap=False,height=18,track=0.01)
+            if row['citation_id']:kit.put_text(host,'Source  ›',x+w-PADX-RIGHT_W,y+h-28,RIGHT_W,12,500,kit.faint(0.5),align=kit.RIGHT,wrap=False,height=18)
+            y+=h
         def para(text,size=13,weight=400,color=None,gap=10):
             nonlocal y
             y+=kit.put_text(host,str(text),x,y,w,size,weight,color or kit.mute())+gap
@@ -102,7 +102,7 @@ class MemoryPane:
             nonlocal y
             slow='stopped' in text
             title='Memory stopped' if slow else "Memory couldn't start"
-            body='LMemM keeps your notes safe on this Mac. Its private memory service is not responding right now. Try again, and if it keeps happening quit and reopen LMemM.'
+            body='Trace keeps your notes safe on this Mac. Its private memory service is not responding right now. Try again, and if it keeps happening quit and reopen Trace.'
             bh=kit.text_height(body,13,400,w-32);top=at
             panel(x,top,w,bh+90,ORANGE)
             kit.tile(host,['exclamationmark.triangle.fill','exclamationmark.triangle'],rgb(ORANGE),x+16,top+14,22)
@@ -115,70 +115,131 @@ class MemoryPane:
             y=40;cx=x+w/2
             kit.tile(host,['brain','sparkles'],rgb(ACC),cx-32,y,64);y+=84
             kit.put_text(host,'Give this project a memory',x,y,w,22,700,align=kit.CENTER,height=30);y+=38
-            body='Save notes, decisions and browser sources for this project. A folder and VS Code are optional. LMemM never scans your folders or imports history.'
+            body='Save notes, decisions and browser sources for this project. A folder and VS Code are optional. Trace never scans your folders or imports history.'
             bw=min(w,420);y+=kit.put_text(host,body,cx-bw/2,y,bw,14,400,kit.mute(),align=kit.CENTER)+20
             kit.button(host,'Enable Memory',cx-90,y,180,40,lambda:self.action('enroll',{}),kind='primary',size=15);y+=40
             if view.get('error'):y+=24;error_card(view['error'],y)
         elif self.settings:self._settings(dict(view,binding=binding),x,w,kit,rgb,panel)
         else:
-            color=state_text(mode,kit);label=STATE_LABELS.get(mode,mode);shown=label+'  ›'
-            pw=kit.text_width(shown,12,600)+34;chip=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x,y,pw,26),lambda:self.action('open_status'));chip.fill=rgb(STATE_COLORS.get(mode,GREEN),.14);chip.radius=13;chip.focusable=True;host.addSubview_(chip)
-            dot=kit.icon('circle.fill',7,rgb(STATE_COLORS.get(mode,GREEN)),(12,9,8,8))
-            if dot is not None:chip.addSubview_(dot)
-            kit.put_text(chip,shown,24,0,pw-26,12,600,color,wrap=False,height=26,middle=True)   # inside the pill, so a click on the words is a click on the pill
-            rw=kit.chip_width('Refresh','arrow.clockwise');kit.chip(host,'Refresh','arrow.clockwise',x+w-rw,y-3,False,lambda:self.action('refresh'));y+=40
             if view.get('error'):error_card(view['error'],y)
             if view.get('notice'):para(view['notice'][0],13,500,kit.status_text('orange') if view['notice'][1] else kit.mute())
-            field_box(self.query,y,left=42)
-            glyph=kit.icon('magnifyingglass',16,rgb(ACC),(x+14,y+11,18,18))
+            field_box(self.query,y,left=46,height=48)                                  # search is the anchor of the page
+            glyph=kit.icon('magnifyingglass',17,kit.mute(),(x+16,y+15,18,18))
             if glyph is not None:host.addSubview_(glyph)
-            y+=54
-            px=x
-            for period in view['periods']:                       # the same selected look as the tabs: a filled blue chip
-                label=PERIOD_LABELS.get(period,period)
-                kit.chip(host,label,None,px,y-3,period==view['period'],lambda p=period:self.action('time_filter',{'period':p}));px+=kit.chip_width(label,None)+8
+            y+=48+14
+            # one quiet controls line: time range at the left; Ask Codex, Refresh and the state at the right
+            px=x;items=[(PERIOD_LABELS.get(period,period),period==view['period'],period) for period in view['periods']]
+            widths=[int(kit.text_width(l,12,500))+24 for l,_o,_p in items]
+            track=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,y,sum(widths)+4,28),kit.faint(0.07),None,9);host.addSubview_(track)
+            sx=x+2
+            for (l,on,period),sw in zip(items,widths):
+                seg=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(sx,y+2,sw,24),lambda p=period:self.action('time_filter',{'period':p}))
+                seg.radius=7;seg.ax_label=l
+                if on:seg.fill=kit.faint(0.16)
+                host.addSubview_(seg)
+                kit.put_text(seg,l,12,0,sw-24,12,600 if on else 500,None if on else kit.mute(),wrap=False,height=24,middle=True);sx+=sw
+            right=x+w
+            color=state_text(mode,kit);label=STATE_LABELS.get(mode,mode).split(' ·')[0]
+            rw=int(kit.text_width('Refresh',12,500))+36
+            rb=kit.button(host,'Refresh',right-rw,y,rw,28,lambda:self.action('refresh'),kind='ghost',size=12,weight=500);right-=rw+4
+            rg=kit.icon('arrow.clockwise',12,kit.mute(),(10,8,12,12))
+            if rg is not None:rb.addSubview_(rg)
+            pw=int(kit.text_width(label,12,500))+36
+            chip=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(right-pw,y,pw,28),lambda:self.action('open_status'));chip.radius=9;chip.focusable=True;chip.ax_label='Memory status: '+label;host.addSubview_(chip)
+            dot=kit.icon('circle.fill',7,rgb(STATE_COLORS.get(mode,GREEN)),(12,10,8,8))
+            if dot is not None:chip.addSubview_(dot)
+            kit.put_text(chip,label,24,0,pw-26,12,500,color,wrap=False,height=28,middle=True);right-=pw+4
             if view.get('codex_connected'):
-                aw=kit.chip_width('Ask Codex','sparkles');kit.chip(host,'Ask Codex','sparkles',x+w-aw,y-3,False,lambda:self.action('ask_codex',{'text':str(self.query.stringValue())}))
-            y+=44
+                aw=int(kit.text_width('Ask Codex',12,500))+24
+                kit.button(host,'Ask Codex',right-aw,y,aw,28,lambda:self.action('ask_codex',{'text':str(self.query.stringValue())}),kind='ghost',size=12,weight=600)
+            y+=28+20
             ask=view.get('ask')
             if ask:
                 if ask['state']=='asking':title,body='Asking Codex…','Reading this project’s notes and files. This takes a few seconds.'
                 elif ask['state']=='done':title,body='Codex’s answer'+(' to “'+ask['question']+'”' if ask.get('question') else ''),ask['text']
                 else:title,body="Codex couldn't answer",ask.get('message','')
-                bh=kit.text_height(body,14,400,w-32);top=y
-                panel(x,top,w,bh+(96 if ask['state']!='asking' else 68),ACC)
-                kit.put_text(host,title,x+16,top+14,w-32,15,700,wrap=False,height=20)
-                kit.put_text(host,body,x+16,top+42,w-32,14,400,height=bh)
-                if ask['state']=='done':kit.put_text(host,'Generated by Codex. Verify its citations; the search cards below may differ.',x+16,top+bh+50,w-32,11,400,kit.mute(),wrap=False,height=16)
-                if ask['state']!='asking':kit.button(host,'Close',x+16,top+bh+(68 if ask['state']=='done' else 54),80,26,lambda:self.action('close_ask'),kind='quiet',size=12,weight=600)
-                y=top+bh+(96 if ask['state']!='asking' else 68)+14
+                bh=kit.text_height(body,14,400,w-40);top=y
+                tall=(56+BTN_H) if ask['state']!='asking' else 0
+                host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,bh+tall+60),kit.faint(0.05),kit.faint(0.09),14),-1,None)
+                kit.put_text(host,title,x+PADX,top+16,w-2*PADX,15,600,wrap=False,height=20)
+                kit.put_text(host,body,x+PADX,top+42,w-2*PADX,14,400,height=bh)
+                if ask['state']=='done':kit.put_text(host,'Generated by Codex. Verify its citations; the search cards below may differ.',x+PADX,top+bh+52,w-2*PADX,12,400,kit.mute(),wrap=False,height=16)
+                if ask['state']!='asking':kit.button(host,'Close',x+PADX,top+bh+(76 if ask['state']=='done' else 58),84,BTN_H,lambda:self.action('close_ask'),kind='ghost',size=13,weight=600)
+                y=top+bh+tall+60+16
             if view['loading']:para('Loading permitted evidence…')
             if view['empty'] and not (view['query'].strip() and view.get('asked')==view['query']):para(view['empty'],14,500)
             previous=None;source=view.get('source');rows=[] if source else evidence_rows(view['result'])
             miss=search_note(view['query'],rows) if view['query'].strip() and view.get('asked')==view['query'] and not view['loading'] and not source else None
             if miss:para(miss,14,500,kit.mute() if rows else kit.status_text('orange'))
+            group={'top':None}
+            def close_list():
+                nonlocal y
+                if group['top'] is None:return
+                y+=6
+                host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,group['top'],w,y-group['top']),kit.faint(0.05),kit.faint(0.09),14),-1,None)
+                group['top']=None;y+=22
             for row in ([] if source else group_evidence(rows)):
                 if row['section']!=previous:
+                    close_list()
                     title,symbols,color_=SECTIONS.get(row['section'],(row['section'],['circle'],GRAY))
-                    if miss and row['section']=='Search results':title,symbols,color_='Possible matches',['magnifyingglass'],GRAY
-                    if previous is not None:y+=8
-                    y+=label_row(symbols,color_,title,y);previous=row['section']
-                meta=row['provenance']+(' · seen %d times'%row['count'] if row['count']>1 else '')+(' · Truncated excerpt' if row['truncated'] else '')+(' · '+friendly(row['at']) if row['at'] else '')
-                card(row['text'],meta,row['locator'],row['citation_id'],SECTIONS.get(row['section'],('',[],GRAY))[2],row['title'])
+                    if miss and row['section']=='Search results':title='Possible matches'
+                    kit.put_text(host,title,x+4,y,w,14,700,kit.mute(),wrap=False,height=20,track=-0.005);y+=28
+                    group['top']=y;y+=6;previous=row['section'];first=True
+                fragment(row,first);first=False
+            close_list()
             if source:
-                p=source_presentation(source);y+=label_row(['doc.text'],ACC,'Retained source',y)
-                inner=w-32;th=kit.text_height(p['text'],14,400,inner);top=y;panel(x,top,w,th+88,ACC)
-                kit.put_text(host,p['text'],x+16,top+12,inner,14,400,height=th)
-                kit.put_text(host,p['provenance']+(' · Truncated excerpt' if p['truncated'] else '')+' · '+friendly(p['at']),x+16,top+th+20,inner,11,400,kit.mute(),height=16)
-                kit.put_text(host,short_name(p['locator'],60)+'   '+p['open_explanation'],x+16,top+th+40,inner,11,400,kit.mute(),height=34)
-                y=top+th+98
-                if p['open_enabled']:kit.button(host,'Open current file…',x,y,170,30,lambda c=source['citation_id']:self.action('open_file',{'citation_id':c}),kind='outline',size=13,weight=600)
-                kit.button(host,'Close source',x+(180 if p['open_enabled'] else 0),y,120,30,lambda:self.action('close_source'),kind='quiet',size=13,weight=600);y+=46
-                if p.get('url'):kit.button(host,'Open original URL…',x,y,180,30,lambda c=source['citation_id']:self.action('open_original',{'citation_id':c}),kind='outline',size=13);y+=42
-                if source.get('source_id'):kit.button(host,'Delete saved snapshot…',x,y,210,30,lambda s=source['source_id']:self.action('forget_source',{'source_id':s}),kind='outline',size=13);y+=42
-            y+=14;y+=label_row(['note.text','doc.text'],ACC,'Add a note',y)
-            field_box(self.note,y);y+=54
-            kit.button(host,'Save excerpt…',x,y,160,32,lambda:self.action('show_excerpt_form'),kind='outline',size=13);y+=44
+                self.details=self.details if self.detail_for==source.get('citation_id') else False;self.detail_for=source.get('citation_id')
+                p=source_presentation(source);inner=w-2*PADX
+                stamp=p['provenance']+' · '+friendly(p['at']);th=kit.text_height(p['text'],15,400,inner-24,True,0.002,1.35);top=y
+                body_h=th+24;extra=[]
+                if self.details:
+                    extra=[short_name(p['locator'],70),p['open_explanation']]+(['Truncated excerpt.'] if p['truncated'] else [])
+                eh=[kit.text_height(t,12,400,inner,True,0.004,1.3) for t in extra]
+                total=16+20+10+body_h+14+BTN_H+(8+sum(eh)+4*len(eh) if extra else 0)+16
+                host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,total),kit.faint(0.05),kit.faint(0.09),14),-1,None)
+                kit.put_text(host,stamp,x+PADX,top+16,inner-170,13,500,kit.mute(),wrap=False,height=20)
+                menu=[('Open original URL…','open_original',{'citation_id':source['citation_id']})] if p.get('url') else []
+                if source.get('source_id'):menu.append(('Delete saved snapshot…','forget_source',{'source_id':source['source_id']}))
+                rx=x+w-PADX
+                if menu:
+                    mb=kit.button(host,'\u22EF',rx-BTN_H,top+10,BTN_H,BTN_H,lambda items=menu:self._menu(items),kind='ghost',size=16,weight=700);mb.ax_label='More actions';rx-=BTN_H+4
+                kit.button(host,'Close',rx-76,top+10,76,BTN_H,lambda:self.action('close_source'),kind='ghost',size=13,weight=600)
+                ty=top+16+20+10
+                host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x+PADX,ty,inner,body_h),kit.faint(0.06),None,12))
+                kit.put_text(host,p['text'],x+PADX+12,ty+12,inner-24,15,400,height=th,track=0.002,lead=1.35)
+                by=ty+body_h+14
+                if p['open_enabled']:kit.button(host,'Open file',x+PADX,by,int(kit.text_width('Open file',13,600))+BTN_PAD,BTN_H,lambda c=source['citation_id']:self.action('open_file',{'citation_id':c}),kind='outline',size=13,weight=600)
+                dl='Hide details' if self.details else 'More details'
+                dw=int(kit.text_width(dl,13,600))+BTN_PAD
+                kit.button(host,dl,x+w-PADX-dw,by,dw,BTN_H,lambda:self.action('toggle_details'),kind='ghost',size=13,weight=600)
+                if extra:
+                    ey=by+BTN_H+8
+                    for t,hh in zip(extra,eh):kit.put_text(host,t,x+PADX,ey,inner,12,400,kit.mute(),height=hh,track=0.004,lead=1.3);ey+=hh+4
+                y=top+total+22
+            # the composer: one quiet row; it opens into a field only when asked for
+            if self.composer:
+                inner=w-2*PADX;top=y;fh=64
+                host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,16+22+10+fh+14+BTN_H+16),kit.faint(0.05),kit.faint(0.09),14),-1,None)
+                kit.put_text(host,'Add to project memory',x+PADX,top+16,inner,15,600,wrap=False,height=22,track=-0.004)
+                fy=top+16+22+10
+                box=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+PADX,fy,inner,fh),None);box.fill=kit.faint(0.06);box.border=kit.line();box.radius=11
+                host.addSubview_positioned_relativeTo_(box,-1,self.note)
+                self.note.setHidden_(False);self.note.setFrame_(NSMakeRect(x+PADX+12,fy+10,inner-24,fh-20))
+                by=fy+fh+14
+                sw_=int(kit.text_width('Save note',13,600))+BTN_PAD
+                kit.button(host,'Save note',x+PADX,by,sw_,BTN_H,lambda:self._save_note(str(self.note.stringValue())),kind='primary',size=13,weight=600)
+                cw_=int(kit.text_width('Cancel',13,600))+BTN_PAD
+                kit.button(host,'Cancel',x+PADX+sw_+8,by,cw_,BTN_H,lambda:self.action('toggle_composer'),kind='ghost',size=13,weight=600)
+                xw=int(kit.text_width('Save excerpt…',13,600))+BTN_PAD
+                kit.button(host,'Save excerpt…',x+w-PADX-xw,by,xw,BTN_H,lambda:self.action('show_excerpt_form'),kind='ghost',size=13,weight=600)
+                y=by+BTN_H+16+22
+            else:
+                host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,y,w,56),kit.faint(0.05),kit.faint(0.09),14),-1,None)
+                kit.put_text(host,'Add to project memory',x+PADX,y,w,15,600,wrap=False,height=56,middle=True,track=-0.004)
+                xw=int(kit.text_width('Save excerpt…',13,600))+BTN_PAD;nw=int(kit.text_width('Add note',13,600))+BTN_PAD
+                kit.button(host,'Add note',x+w-PADX-nw,y+12,nw,BTN_H,lambda:self.action('toggle_composer'),kind='outline',size=13,weight=600)
+                kit.button(host,'Save excerpt…',x+w-PADX-nw-8-xw,y+12,xw,BTN_H,lambda:self.action('show_excerpt_form'),kind='ghost',size=13,weight=600)
+                y+=56+22
         if view.get('preview') and binding and not self.settings:self.bottom=self._preview(view,x,w,y,kit,panel)
         end=(self.bottom if self.bottom is not None else y)+40
         self.host.setFrame_(NSMakeRect(0,0,width,max(end,500)))
@@ -189,13 +250,13 @@ class MemoryPane:
         return end
     def _menu(self,items):
         """A native menu of the secondary actions under a setting's ellipsis button."""
-        from AppKit import NSEvent,NSMenu,NSMenuItem
+        from AppKit import NSMenu,NSMenuItem
         if not hasattr(self,'_pick'):self._pick=_pick_class().alloc().init()
         self._pick.calls={}
         menu=NSMenu.alloc().initWithTitle_('')
-        for n,(label,action) in enumerate(items):
+        for n,(label,action,*rest) in enumerate(items):
             item=NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(label,'pick:','');item.setTarget_(self._pick);item.setTag_(n)
-            self._pick.calls[n]=(lambda a=action:self.action(a));menu.addItem_(item)
+            self._pick.calls[n]=(lambda a=action,r=rest:self.action(a,r[0]) if r else self.action(a));menu.addItem_(item)
         window=self.host.window()
         where=self.host.convertPoint_fromView_(window.mouseLocationOutsideOfEventStream(),None) if window else (0,0)
         menu.popUpMenuPositioningItem_atLocation_inView_(None,where,self.host)
@@ -245,8 +306,7 @@ class MemoryPane:
         (ghost) and destructive (red outline). Wide windows put Capture on the left and Agents and Danger zone on the right so
         the whole page fits without scrolling; narrow ones stack them and scroll."""
         from AppKit import NSMakeRect
-        BTN_H,BTN_PAD,KINDS=32,34,{'primary':'primary','secondary':'outline','tertiary':'ghost','destructive':'danger'}
-        ACTION_W,PADX=148,20                                  # the action column's fixed width; the inner side padding of every container
+        ACTION_W=148                                  # the action column's fixed width
         GUTTER=20                                             # between the two columns
         SLOT,ICON,ICON_GAP,TEXT_GAP=BTN_H+2,16,12,14          # ellipsis slot, icon size, icon to text, text column to action column
         PAD_Y,LINE_GAP,MIN_ROW,PROGRESS_H=8,2,50,12            # inside a row: top and bottom, between lines, shortest row, room for a bar

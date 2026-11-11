@@ -48,8 +48,7 @@ BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
-MIN_MAIN, MAX_MAIN, MAX_WIDE = 560, 980, 1280 
-TIMELINE_W = 880                                        # the history never runs wider than this, so a row stays easy to read across
+MIN_MAIN, MAX_MAIN = 560, 980 
                          # the page's reading column: it grows with the window, up to this
 TOP = 32                                               # below the title bar
 TONES = {"red": "red", "grey": None, "calm": None}      # the banner box's tone (red is only for what is off)
@@ -313,7 +312,6 @@ class MainWindow:
         self.app_icons = {}
         self.app_paths = None
         self.W, self.H = W, H                                      # the content's size now; _measure() keeps them true
-        self.wide = False
         self.main_w, self.col_x = MIN_MAIN, PAD                    # the page's column
         self.stamp, self.page_cache = None, None                   # what the last draw was for (so a resize does not recompute pages)
         style = 1 | 2 | 4 | 8 | (1 << 15)                          # titled, closable, minimise, resize, content under the title bar
@@ -416,7 +414,7 @@ class MainWindow:
         size = self.root.frame().size
         self.W, self.H = max(MIN_W, size.width), max(MIN_H, size.height)
         room = self.W - SIDE_W - 2 * PAD
-        self.main_w = max(MIN_MAIN, min(MAX_WIDE if self.wide else MAX_MAIN, room))      # the history gets a wider column than the reading pages
+        self.main_w = max(MIN_MAIN, min(MAX_MAIN, room))
         self.col_x = PAD + max(0, (room - self.main_w) / 2)
 
     def _layout(self):
@@ -762,10 +760,6 @@ class MainWindow:
         top = self._banner(self.banner and self.banner["banner"])
         main = page["main"]
         split = main["kind"] == "project" and (not main.get("empty") or self.memory_snapshot is not None)      # a project: its top stays put, Things scrolls
-        wide = split and (self.memory_snapshot is None or self.memory_snapshot["tab"] == "Overview")
-        if wide != self.wide:
-            self.wide = wide
-            self._measure()
         head = self._head(main) if split else self._no_head()
         thing = main["kind"] == "thing"
         self.item_here = main.get("item") if thing else None
@@ -974,6 +968,11 @@ class MainWindow:
 
     def stop_select(self):
         self.sel = None
+        self.render_now()
+
+    def clear_select(self):
+        """Deselect everything and stay in selection mode (Done is the way out)."""
+        self.sel = []
         self.render_now()
 
     def pick_thing(self, tid):
@@ -1861,17 +1860,17 @@ class MainWindow:
             in_settings = bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
             tabs = self.memory_snapshot['tabs']
             self._segmented(host, x, y, [(tab, self.memory_snapshot['tab'] == tab and not in_settings,
-                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs])
+                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs], size=14, height=40, pad=26)
             if self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding'):
-                gx = x + w - 28                                                        # Settings: a quiet gear at the far edge, not a tab
-                gear = self._tap(host, gx, y, 28, 28, lambda: self._memory_action('open_settings'), fill=in_settings)
+                gx = x + w - 32                                                        # Settings: a quiet gear at the far edge, not a tab
+                gear = self._tap(host, gx, y + 4, 32, 32, lambda: self._memory_action('open_settings'), fill=in_settings)
                 gear.focusable, gear.ax_label = True, "Settings"
                 gear.setToolTip_("Settings")
-                kit.glyph(gear, ("gearshape", "gear"), 6, 6, 16, kit.ink() if in_settings else kit.mute())
+                kit.glyph(gear, ("gearshape", "gear"), 8, 8, 16, kit.ink() if in_settings else kit.mute())
                 if in_settings:                                        # the way back sits right beside it
                     bw = kit.chip_width('Back to Memory', 'chevron.left')
-                    kit.chip(host, 'Back to Memory', 'chevron.left', gx - bw - 8, y - 2, False, lambda: self._memory_action('close_settings'))
-            y += 28 + 16
+                    kit.chip(host, 'Back to Memory', 'chevron.left', gx - bw - 8, y + 2, False, lambda: self._memory_action('close_settings'))
+            y += 40 + 16
             if self.memory_snapshot['tab'] in {'Memory', 'Resume'} or page.get('empty'):return y
         y = self._status(host, page, x, y, w)
         host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y + 4, w, 1)))   # the one separator: identity above, activity below
@@ -1937,17 +1936,19 @@ class MainWindow:
             y += self._select_bar(host, page, x, y, w) + 10
         return y
 
-    def _segmented(self, parent, x, y, items):
-        """A compact two-or-more way toggle: a soft track with the chosen segment lifted."""
-        widths = [kit.text_width(label, 12, 500) + 24 for label, _on, _call in items]
-        track = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, sum(widths) + 4, 28), kit.faint(0.07), None, 9)
+    def _segmented(self, parent, x, y, items, size=12, height=28, pad=24):
+        """A compact two-or-more way toggle: a soft track with the chosen segment lifted. `size`, `height` and `pad`
+        make the same control larger for primary navigation."""
+        widths = [kit.text_width(label, size, 500) + 2 * pad for label, _on, _call in items]
+        track = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, sum(widths) + 4, height), kit.faint(0.07), None, 9 + (height - 28) / 4)
         parent.addSubview_(track)
         sx = x + 2
         for (label, on, call), width in zip(items, widths):
-            seg = self._tap(parent, sx, y + 2, width, 24, call)
+            seg = self._tap(parent, sx, y + 2, width, height - 4, call)
+            seg.focusable, seg.ax_label = True, label
             if on:
                 seg.tint = kit.faint(0.16)
-            kit.put_text(seg, label, 12, 0, width - 24, 12, 600 if on else 500, None if on else kit.mute(), wrap=False, height=24, middle=True)
+            kit.put_text(seg, label, pad, 0, width - 2 * pad, size, 600 if on else 500, None if on else kit.mute(), wrap=False, height=height - 4, middle=True)
             sx += width
         return sx + 2 - x
 
@@ -1984,7 +1985,10 @@ class MainWindow:
         n = len(self.sel)
         tap = self._tap(parent, x, y, w, 44, None, fill=True)
         text = f"{n} selected" if n else "Tap things to select them"
-        kit.put_text(tap, text, 14, 0, 200, 13, 600, None if n else kit.mute(), wrap=False, height=44, middle=True)
+        tw = int(kit.text_width(text, 13, 600))
+        kit.put_text(tap, text, 14, 0, tw + 8, 13, 600, None if n else kit.mute(), wrap=False, height=44, middle=True)
+        if n:                                                            # Clear deselects but stays here; Done, at the right, leaves
+            kit.button(tap, "Clear", 14 + tw + 12, 6, 64, 32, self.clear_select, kind="quiet", size=13, weight=600)
         right = w - 8
         for label, kind, call, width in (
                 ("Done", "primary", self.stop_select, 70),
@@ -2015,7 +2019,6 @@ class MainWindow:
         """The scrolling list: things grouped by when, newest first."""
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
-        w = min(w, TIMELINE_W)
         first = y
         for index, group in enumerate(page["groups"]):
             recent = index == 0

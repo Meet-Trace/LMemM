@@ -12,6 +12,10 @@
     # 3. the baselines on the invented labelled days (no labelling needed):
     python3 scripts/eval_activities.py days [--day tests/fixtures/project_grouping/pivot_day.json]
 
+    # 4. replay labelled real datasets through the activity inference and score it (see src/activity_evaluation.py):
+    python3 scripts/eval_activities.py replay --dataset ~/Desktop/day1 [--dataset ~/Desktop/day2 ...] --out ~/Desktop/eval-out
+    #    a dataset folder holds moments/*.jsonl, the filled units.csv, and optionally dataset.json (name, scenario tags)
+
 `--predicted` is {unit_id: cluster}. See src/activity_eval.py for what each number means.
 """
 import argparse
@@ -24,6 +28,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import activity_eval as ev  # noqa: E402
+import activity_evaluation as ae  # noqa: E402
+import activity_inference  # noqa: E402
+import activity_input  # noqa: E402
 import moment_store  # noqa: E402
 
 DAYS = ROOT / "tests" / "fixtures" / "project_grouping"
@@ -92,6 +99,31 @@ def cmd_score(a):
     return 1 if problems else 0
 
 
+def cmd_replay(a):
+    """Exit codes: 0 ok, 2 bad arguments or dataset problems, 3 records that break the integrity rules (nothing is written)."""
+    results = []
+    for d in a.dataset:
+        ds = ae.load_dataset(str(d))
+        if ds.problems or not ds.gold:
+            for p in ds.problems or ["no labelled moments"]:
+                print(f"{d}: problem: {p}", file=sys.stderr)
+            return 2
+        try:
+            results.append(ae.run_dataset(ds, activity_inference.infer, max_pairs=a.max_pairs))
+        except activity_input.ActivityInputError as e:
+            print(f"{d}: records rejected: {e.problems[:3]}", file=sys.stderr)
+            return 3
+    out = {"datasets": results, "combined": ae.combine(results)}
+    for r in results:
+        print("\n".join(ae.summary_lines(r)))
+    if len(results) > 1:
+        c = out["combined"]
+        print(f"all datasets: precision {c['precision_of_assigned']}, recall {c['recall_of_eligible']}, "
+              f"false merges {c['false_merge_pairs']}, missed merges {c['missed_merge_pairs']}")
+    print("written:", ae.write_result(out, str(a.out), protected=[Path(d) / "moments" for d in a.dataset]))
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -103,6 +135,9 @@ def main(argv=None):
     c = sub.add_parser("score")
     c.add_argument("--sheet", type=Path, required=True); c.add_argument("--units", type=Path)
     c.add_argument("--predicted", type=Path); c.add_argument("--supplementary", action="store_true"); c.set_defaults(fn=cmd_score)
+    r = sub.add_parser("replay")
+    r.add_argument("--dataset", type=Path, action="append", required=True); r.add_argument("--out", type=Path, required=True)
+    r.add_argument("--max-pairs", type=int, default=ae.MAX_PAIRS); r.set_defaults(fn=cmd_replay)
     a = p.parse_args(argv)
     return a.fn(a)
 

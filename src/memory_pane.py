@@ -4,7 +4,7 @@ memory_view.py (pure, tested).
 Colour: one blue accent (palette.ACCENT) for every icon, stripe and button. Green, orange and grey appear only as state
 (a dot, a status word). Red is not used here: it is for a permission that is off.
 """
-from memory_view import CONFIRMS, PERIOD_LABELS, STATE_LABELS, evidence_rows, friendly, group_evidence, search_note, short_name, source_presentation
+from memory_view import CONFIRMS, PERIOD_LABELS, STATE_LABELS, evidence_rows, friendly, group_evidence, search_note, short_name, source_presentation, source_provenance
 import palette
 
 ACC = palette.ACCENT
@@ -40,7 +40,7 @@ class MemoryPane:
     def __init__(self,on_action):
         from AppKit import NSTextField,NSMakeRect
         from widget import _Fields,_Flipped
-        self.project=None;self.shown_state=None;self.settings=False;self.composer=False;self.details=False;self.detail_for=None;self.confirm=None;self.status_open=False
+        self.project=None;self.shown_state=None;self.settings=False;self.composer=False;self.details=False;self.detail_for=None;self.confirm=None;self.status_open=False;self.refresh_state=None
         self.action=on_action;self.host=_Flipped.alloc().initWithFrame_(NSMakeRect(0,0,800,600))
         self.query_typing=_Fields.alloc().initWithChange_submit_cancel_(lambda text:self.action('query',{'text':text}),lambda text:self.action('submit',{'enter':True}),lambda:self.action('query',{'text':''}))
         self.query=NSTextField.alloc().initWithFrame_(NSMakeRect(0,0,100,30));self.query.setDelegate_(self.query_typing)
@@ -92,7 +92,11 @@ class MemoryPane:
             kit.put_text(host,lead,x+PADX,y+10,tw_,15,600 if row['title'] else 500,height=head_h,track=-0.004)
             if bh_:kit.put_text(host,body,x+PADX,y+10+head_h+3,tw_,13,400,kit.mute(),height=bh_,track=0.004,lead=1.3)
             if row['at']:kit.put_text(host,friendly(row['at']),x+w-PADX-RIGHT_W,y+11,RIGHT_W,12,400,kit.mute(),align=kit.RIGHT,wrap=False,height=18,track=0.01)
-            if row['citation_id']:kit.put_text(host,'Source  ›',x+w-PADX-RIGHT_W,y+h-28,RIGHT_W,12,500,kit.faint(0.5),align=kit.RIGHT,wrap=False,height=18)
+            if row['citation_id']:
+                sw_=int(kit.text_width('Source',12,600))+30
+                sb=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+w-PADX-sw_,y+h-34,sw_,24),lambda c=row['citation_id']:self.action('source',{'citation_id':c}))
+                sb.fill=kit.accent(0.10);sb.radius=8;sb.ax_label='Source for: '+lead[:60];host.addSubview_(sb)
+                kit.put_text(sb,'Source  ›',0,0,sw_,12,600,kit.accent_text(),align=kit.CENTER,wrap=False,height=24,middle=True)
             y+=h
         def para(text,size=13,weight=400,color=None,gap=10):
             nonlocal y
@@ -129,30 +133,35 @@ class MemoryPane:
             y+=48+14
             # one quiet controls line: time range at the left; Ask Codex, Refresh and the state at the right
             px=x;items=[(PERIOD_LABELS.get(period,period),period==view['period'],period) for period in view['periods']]
-            widths=[int(kit.text_width(l,12,500))+24 for l,_o,_p in items]
-            track=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,y,sum(widths)+4,28),kit.faint(0.07),None,9);host.addSubview_(track)
+            widths=[int(kit.text_width(l,13,500))+26 for l,_o,_p in items]
+            track=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,y,sum(widths)+4,BTN_H),kit.faint(0.06),kit.faint(0.12),10);host.addSubview_(track)
             sx=x+2
             for (l,on,period),sw in zip(items,widths):
-                seg=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(sx,y+2,sw,24),lambda p=period:self.action('time_filter',{'period':p}))
-                seg.radius=7;seg.ax_label=l
-                if on:seg.fill=kit.faint(0.16)
+                seg=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(sx,y+2,sw,BTN_H-4),lambda p=period:self.action('time_filter',{'period':p}))
+                seg.radius=8;seg.ax_label=l+(', selected' if on else '')
+                if on:seg.fill=kit.accent(0.18);seg.border=kit.accent(0.55)
                 host.addSubview_(seg)
-                kit.put_text(seg,l,12,0,sw-24,12,600 if on else 500,None if on else kit.mute(),wrap=False,height=24,middle=True);sx+=sw
+                kit.put_text(seg,l,13,0,sw-26,13,600 if on else 500,kit.accent_text() if on else kit.mute(),wrap=False,height=BTN_H-4,middle=True);sx+=sw
             right=x+w
             color=state_text(mode,kit);label=STATE_LABELS.get(mode,mode).split(' ·')[0]
-            rw=int(kit.text_width('Refresh',12,500))+36
-            rb=kit.button(host,'Refresh',right-rw,y,rw,28,lambda:self.action('refresh'),kind='ghost',size=12,weight=500);right-=rw+4
-            rg=kit.icon('arrow.clockwise',12,kit.mute(),(10,8,12,12))
+            busy=self.refresh_state=='busy';done=self.refresh_state=='done'
+            rl='Refreshing…' if busy else 'Updated' if done else 'Refresh'
+            rw=int(kit.text_width('Refreshing…',13,600))+BTN_PAD+14
+            rb=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(right-rw,y,rw,BTN_H),None if busy else self._refresh)
+            rb.border=kit.line();rb.radius=9;rb.ax_label=rl;host.addSubview_(rb)
+            if busy:rb.setAlphaValue_(0.6)
+            rg=kit.icon('checkmark' if done else 'arrow.clockwise',13,kit.accent_text() if done else kit.mute(),(14,9,14,14))
             if rg is not None:rb.addSubview_(rg)
+            kit.put_text(rb,rl,34,0,rw-40,13,600,kit.accent_text() if done else None,wrap=False,height=BTN_H,middle=True);right-=rw+8
             pw=int(kit.text_width(label,12,500))+36
-            chip=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(right-pw,y,pw,28),lambda:self.action('open_status'));chip.radius=9;chip.focusable=True;chip.ax_label='Memory status: '+label;host.addSubview_(chip)
+            chip=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(right-pw,y+2,pw,28),lambda:self.action('open_status'));chip.radius=9;chip.focusable=True;chip.ax_label='Memory status: '+label;host.addSubview_(chip)
             dot=kit.icon('circle.fill',7,rgb(STATE_COLORS.get(mode,GREEN)),(12,10,8,8))
             if dot is not None:chip.addSubview_(dot)
-            kit.put_text(chip,label,24,0,pw-26,12,500,color,wrap=False,height=28,middle=True);right-=pw+4
+            kit.put_text(chip,label,24,0,pw-26,12,500,color,wrap=False,height=28,middle=True);right-=pw+8
             if view.get('codex_connected'):
-                aw=int(kit.text_width('Ask Codex',12,500))+24
-                kit.button(host,'Ask Codex',right-aw,y,aw,28,lambda:self.action('ask_codex',{'text':str(self.query.stringValue())}),kind='ghost',size=12,weight=600)
-            y+=28+20
+                aw=int(kit.text_width('Ask Codex',13,600))+BTN_PAD
+                kit.button(host,'Ask Codex',right-aw,y,aw,BTN_H,lambda:self.action('ask_codex',{'text':str(self.query.stringValue())}),kind='outline',size=13,weight=600)
+            y+=BTN_H+18
             ask=view.get('ask')
             if ask:
                 if ask['state']=='asking':title,body='Asking Codex…','Reading this project’s notes and files. This takes a few seconds.'
@@ -189,32 +198,41 @@ class MemoryPane:
             close_list()
             if source:
                 self.details=self.details if self.detail_for==source.get('citation_id') else False;self.detail_for=source.get('citation_id')
-                p=source_presentation(source);inner=w-2*PADX
-                stamp=p['provenance']+' · '+friendly(p['at']);th=kit.text_height(p['text'],15,400,inner-24,True,0.002,1.35);top=y
-                body_h=th+24;extra=[]
-                if self.details:
-                    extra=[short_name(p['locator'],70),p['open_explanation']]+(['Truncated excerpt.'] if p['truncated'] else [])
-                eh=[kit.text_height(t,12,400,inner,True,0.004,1.3) for t in extra]
-                total=16+20+10+body_h+14+BTN_H+(8+sum(eh)+4*len(eh) if extra else 0)+16
-                host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,total),kit.faint(0.05),kit.faint(0.09),14),-1,None)
-                kit.put_text(host,stamp,x+PADX,top+16,inner-170,13,500,kit.mute(),wrap=False,height=20)
-                menu=[('Open original URL…','open_original',{'citation_id':source['citation_id']})] if p.get('url') else []
-                if source.get('source_id'):menu.append(('Delete saved snapshot…','forget_source',{'source_id':source['source_id']}))
+                p=source_presentation(source);pv=source_provenance(source);inner=w-2*PADX;top=y
+                LW=76;vw=inner-LW-8
+                heading_h=min(kit.text_height(pv['heading'],17,600,inner-190,True,-0.006,None),46)
+                facts=[(l,v,min(kit.text_height(v,13,400,vw,True,0.002,1.3),36)) for l,v in pv['facts']]
+                dets=[(l,v,min(kit.text_height(v,12,400,vw,True,0.004,1.3),48)) for l,v in pv['details']] if self.details else []
+                total=16+18+6+heading_h+12+sum(hh+6 for _l,_v,hh in facts)+10+BTN_H+(10+sum(hh+4 for _l,_v,hh in dets) if dets else 0)+16
+                host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,total),kit.accent(0.05),kit.accent(0.30),14),-1,None)
+                kit.put_text(host,pv['kind'],x+PADX,top+16,inner-190,12,600,kit.accent_text(),wrap=False,height=18,track=0.01)
+                menu=[('Delete saved snapshot…','forget_source',{'source_id':source['source_id']})] if source.get('source_id') else []
                 rx=x+w-PADX
                 if menu:
                     mb=kit.button(host,'\u22EF',rx-BTN_H,top+10,BTN_H,BTN_H,lambda items=menu:self._menu(items),kind='ghost',size=16,weight=700);mb.ax_label='More actions';rx-=BTN_H+4
                 kit.button(host,'Close',rx-76,top+10,76,BTN_H,lambda:self.action('close_source'),kind='ghost',size=13,weight=600)
-                ty=top+16+20+10
-                host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x+PADX,ty,inner,body_h),kit.faint(0.06),None,12))
-                kit.put_text(host,p['text'],x+PADX+12,ty+12,inner-24,15,400,height=th,track=0.002,lead=1.35)
-                by=ty+body_h+14
-                if p['open_enabled']:kit.button(host,'Open file',x+PADX,by,int(kit.text_width('Open file',13,600))+BTN_PAD,BTN_H,lambda c=source['citation_id']:self.action('open_file',{'citation_id':c}),kind='outline',size=13,weight=600)
+                hy=top+16+18+6
+                kit.put_text(host,pv['heading'],x+PADX,hy,inner-190,17,600,height=heading_h,track=-0.006)
+                fy=hy+heading_h+12
+                for l,v,hh in facts:
+                    kit.put_text(host,l,x+PADX,fy+1,LW,12,500,kit.mute(),wrap=False,height=18)
+                    kit.put_text(host,v,x+PADX+LW+8,fy,vw,13,400,height=hh,track=0.002,lead=1.3);fy+=hh+6
+                by=fy+10;bx=x+PADX
+                if pv['url']:
+                    ow=int(kit.text_width('Open original',13,600))+BTN_PAD
+                    kit.button(host,'Open original',bx,by,ow,BTN_H,lambda c=source['citation_id']:self.action('open_original',{'citation_id':c}),kind='primary',size=13,weight=600);bx+=ow+8
+                if p['open_enabled']:
+                    fw=int(kit.text_width('Open file',13,600))+BTN_PAD
+                    kit.button(host,'Open file',bx,by,fw,BTN_H,lambda c=source['citation_id']:self.action('open_file',{'citation_id':c}),kind='primary' if not pv['url'] else 'outline',size=13,weight=600)
                 dl='Hide details' if self.details else 'More details'
                 dw=int(kit.text_width(dl,13,600))+BTN_PAD
                 kit.button(host,dl,x+w-PADX-dw,by,dw,BTN_H,lambda:self.action('toggle_details'),kind='ghost',size=13,weight=600)
-                if extra:
-                    ey=by+BTN_H+8
-                    for t,hh in zip(extra,eh):kit.put_text(host,t,x+PADX,ey,inner,12,400,kit.mute(),height=hh,track=0.004,lead=1.3);ey+=hh+4
+                if dets:
+                    dy=by+BTN_H+10
+                    host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+PADX,dy-5,inner,1)))
+                    for l,v,hh in dets:
+                        kit.put_text(host,l,x+PADX,dy+1,LW,12,500,kit.mute(),wrap=False,height=18)
+                        kit.put_text(host,v,x+PADX+LW+8,dy,vw,12,400,kit.mute(),height=hh,track=0.004,lead=1.3);dy+=hh+4
                 y=top+total+22
             # the composer: one quiet row; it opens into a field only when asked for
             if self.composer:
@@ -231,14 +249,14 @@ class MemoryPane:
                 cw_=int(kit.text_width('Cancel',13,600))+BTN_PAD
                 kit.button(host,'Cancel',x+PADX+sw_+8,by,cw_,BTN_H,lambda:self.action('toggle_composer'),kind='ghost',size=13,weight=600)
                 xw=int(kit.text_width('Save excerpt…',13,600))+BTN_PAD
-                kit.button(host,'Save excerpt…',x+w-PADX-xw,by,xw,BTN_H,lambda:self.action('show_excerpt_form'),kind='ghost',size=13,weight=600)
+                kit.button(host,'Save excerpt…',x+w-PADX-xw,by,xw,BTN_H,lambda:self.action('show_excerpt_form'),kind='outline',size=13,weight=600)
                 y=by+BTN_H+16+22
             else:
                 host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,y,w,56),kit.faint(0.05),kit.faint(0.09),14),-1,None)
                 kit.put_text(host,'Add to project memory',x+PADX,y,w,15,600,wrap=False,height=56,middle=True,track=-0.004)
                 xw=int(kit.text_width('Save excerpt…',13,600))+BTN_PAD;nw=int(kit.text_width('Add note',13,600))+BTN_PAD
-                kit.button(host,'Add note',x+w-PADX-nw,y+12,nw,BTN_H,lambda:self.action('toggle_composer'),kind='outline',size=13,weight=600)
-                kit.button(host,'Save excerpt…',x+w-PADX-nw-8-xw,y+12,xw,BTN_H,lambda:self.action('show_excerpt_form'),kind='ghost',size=13,weight=600)
+                kit.button(host,'Add note',x+w-PADX-nw,y+12,nw,BTN_H,lambda:self.action('toggle_composer'),kind='primary',size=13,weight=600)
+                kit.button(host,'Save excerpt…',x+w-PADX-nw-8-xw,y+12,xw,BTN_H,lambda:self.action('show_excerpt_form'),kind='outline',size=13,weight=600)
                 y+=56+22
         if view.get('preview') and binding and not self.settings:self.bottom=self._preview(view,x,w,y,kit,panel)
         end=(self.bottom if self.bottom is not None else y)+40
@@ -248,6 +266,18 @@ class MemoryPane:
         if self.shown_state is not None and shown!=self.shown_state:self._fade_in()      # a state changed: ease it in, never snap
         self.shown_state=shown
         return end
+    def _refresh(self):
+        """Refresh once at a time: show 'Refreshing…', then a brief 'Updated', then the plain button again."""
+        if self.refresh_state=='busy':return
+        self.refresh_state='busy';self.action('refresh')
+        from Foundation import NSTimer
+        def settle(_t):
+            self.refresh_state='done';self.action('repaint')
+            def reset(_t2):
+                self.refresh_state=None;self.action('repaint')
+            NSTimer.scheduledTimerWithTimeInterval_repeats_block_(1.6,False,reset)
+        NSTimer.scheduledTimerWithTimeInterval_repeats_block_(1.2,False,settle)
+        self.action('repaint')
     def _menu(self,items):
         """A native menu of the secondary actions under a setting's ellipsis button."""
         from AppKit import NSMenu,NSMenuItem

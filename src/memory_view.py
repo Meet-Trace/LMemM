@@ -95,3 +95,44 @@ def search_note(query,rows):
     if any(sum(w in r['text'].lower() for w in words)>=need for r in primary):return None
     if not primary:return 'No matches for “%s”. %s'%(str(query).strip(),KEPT)
     return 'Possible matches with different wording. Open a source to check whether it answers your question.'
+
+
+def source_provenance(source):
+    """Where a saved fragment really came from, built only from the fields the source carries (nothing is guessed).
+    Returns kind, heading, facts (label, value) shown at once, and details (label, value) kept behind 'More details'.
+    The retained text itself is never repeated: the card above already shows it."""
+    from urllib.parse import urlparse
+    kind_=source.get('origin_type');url=str(source.get('url') or '').strip();title=str(source.get('title') or '').strip()
+    locator=str(source.get('locator') or '').strip();at=source.get('at','');when=friendly(at) if at else ''
+    host=(urlparse(url).hostname or '') if url else ''
+    host=host[4:] if host.startswith('www.') else host
+    facts,details=[],[]
+    if kind_ in {'browser_page','browser_selection'}:
+        kind='Saved from browser';heading=title or host or 'Browser page'
+        if host:facts.append(('Site',host))
+        if url:facts.append(('Page',url))
+        facts.append(('Captured','Selected text from the page' if kind_=='browser_selection' else 'The page text'))
+        if when:facts.append(('Saved',when))
+    elif kind_=='user_note':
+        kind='Project note';heading=title or 'Project note'
+        if when:facts.append(('Created',when))
+        facts.append(('Source','A standalone saved note. It has no external source.' if not (url or locator or source.get('can_open_file')) else short_name(locator,70) if locator else url))
+    elif kind_=='pasted_excerpt':
+        kind='Pasted excerpt';heading=title or 'Pasted excerpt'
+        if url:facts.append(('Page',url))
+        if host and not url:facts.append(('Site',host))
+        if when:facts.append(('Saved',when))
+        if not (url or locator):facts.append(('Source','A standalone saved excerpt. It has no external source.'))
+        elif locator:facts.append(('From',short_name(locator,70)))
+    else:
+        kind='Observed on this Mac' if locator else 'Saved text';heading=title or (short_name(locator,60) if locator else 'Saved text')
+        if locator:facts.append(('File',short_name(locator,70)))
+        if url:facts.append(('Page',url))
+        if when:facts.append(('Kept',when))
+        if not (locator or url):facts.append(('Source','No external source is recorded.'))
+    if locator:details.append(('Location',locator))
+    if source.get('source_id'):details.append(('Source id',str(source['source_id'])))
+    if source.get('citation_id'):details.append(('Citation id',str(source['citation_id'])))
+    if source.get('truncated'):details.append(('Retained','Only part of the original was kept'))
+    if kind_:details.append(('Type',str(kind_)))
+    return dict(kind=kind,heading=heading,facts=facts,details=details,url=url,when=when)

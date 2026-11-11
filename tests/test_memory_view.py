@@ -168,3 +168,23 @@ class MemoryPageTests(unittest.TestCase):
         self.assertIn("'toggle_composer'", page)
         win = open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")).read()
         self.assertIn("'toggle_details','toggle_composer'", win)
+
+
+class SourceProvenanceTests(unittest.TestCase):
+    def test_browser_capture_shows_page_facts_not_the_note_text(self):
+        from memory_view import source_provenance
+        p = source_provenance(dict(origin_type='browser_selection', title='Pricing – Acme', url='https://www.acme.com/pricing?x=1',
+                                   text='SECRET BODY', locator='', at='2026-11-10T10:00:00Z', source_id='s1', citation_id='c1'))
+        self.assertEqual(p['kind'], 'Saved from browser')
+        self.assertEqual(p['heading'], 'Pricing – Acme')
+        self.assertIn(('Site', 'acme.com'), p['facts'])
+        self.assertNotIn('SECRET BODY', str(p))
+        self.assertIn(('Source id', 's1'), p['details'])
+        self.assertFalse(any('s1' in v for _l, v in p['facts']))
+
+    def test_standalone_note_says_so_and_invents_nothing(self):
+        from memory_view import source_provenance
+        p = source_provenance(dict(origin_type='user_note', text='x', locator='', at='2026-11-10T10:00:00Z'))
+        self.assertEqual(p['kind'], 'Project note')
+        self.assertTrue(any('standalone saved note' in v for _l, v in p['facts']))
+        self.assertEqual(p['url'], '')

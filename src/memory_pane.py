@@ -9,6 +9,7 @@ import palette
 
 ACC = palette.ACCENT
 GREEN, ORANGE, GRAY = (.18, .62, .36), (.91, .45, .16), (.50, .50, .55)
+RED = (.86, .27, .25)                            # only the Danger zone's quiet accent; never a whole red section
 SECTIONS = {'Search results': ('Best matches', ['magnifyingglass'], ACC), 'Related evidence': ('Related', ['link'], ACC),
             'Decisions': ('Decisions', ['flag.fill'], ACC), 'Open tasks': ('Open tasks', ['checkmark.circle', 'checkmark.circle.fill'], ACC),
             'Recent evidence': ('Recent', ['clock'], GRAY)}
@@ -221,7 +222,7 @@ class MemoryPane:
         from AppKit import NSMakeRect
         host=self.host;y=8;notice=view.get('notice')
         y+=4
-        kit.put_text(host,'Memory settings',x,y,w,24,700,height=32);y+=48
+        kit.put_text(host,'Memory settings',x,y,w,24,700,height=32,track=-0.022);y+=52
         if not (view.get('binding') or {}).get('active',True):
             y+=kit.put_text(host,'Memory is disconnected. Its retained snapshots remain on this Mac. Re-enable it to search, or delete retained memory before deleting the project.',x,y,w,14,400,kit.mute())+20
             kit.button(host,'Enable Memory',x,y,170,34,lambda:self.action('enroll',{}),kind='primary',size=13);y+=46
@@ -251,27 +252,52 @@ class MemoryPane:
             kit.put_text(host,detail,x+16,top+38,w-32,13,400,kit.mute(),height=dh)
             gw=kit.text_width(go,13,600)+34;kit.button(host,go,x+16,top+dh+50,gw,30,lambda:self.action('confirm_yes'),kind='outline' if self.confirm=='confirm_disconnect' else 'primary',size=13,weight=600)
             kit.button(host,'Cancel',x+24+gw,top+dh+50,90,30,lambda:self.action('confirm_no'),kind='quiet',size=13,weight=600);y=top+dh+88+8
+        group={'top':None,'danger':False,'rows':0}
+        def end_group():
+            """One soft surface under a whole section, so its rows read as one list, not as separate cards."""
+            nonlocal y
+            if group['top'] is None:return
+            fill=rgb(RED,0.055) if group['danger'] else kit.faint(0.045)
+            edge=rgb(RED,0.20) if group['danger'] else kit.faint(0.06)
+            surface=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,group['top'],w,y-group['top']),fill,edge,16)
+            host.addSubview_positioned_relativeTo_(surface,-1,None)
+            group['top']=None;y+=28
         def row(symbols,color,title,sub,buttons,status=None,status_color=None,sub_color=None,progress=False,fraction=None,seconds=0):
+            """Four regions: identity (icon, title) at the left, its explanation under the title, the state, then the action."""
             nonlocal y
-            widths=[kit.text_width(b[0],13,600)+30 for b in buttons];btn_w=sum(widths)+8*len(widths)
-            sub_w=max(w-76-btn_w-(100 if status else 0),160);sh=kit.text_height(sub,12,400,sub_w);h=max(62,sh+46)+(14 if progress else 0)
-            panel(x,y,w,h);kit.tile(host,symbols,rgb(color),x+16,y+(h-34)/2,34)
-            kit.put_text(host,title,x+64,y+12,sub_w,14,600,wrap=False,height=18)
-            kit.put_text(host,sub,x+64,y+32,sub_w,12,400,sub_color or kit.mute(),height=sh)
+            if group['rows']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+18,y,w-36,1)))
+            group['rows']+=1
+            widths=[kit.text_width(b[0],13,600)+34 for b in buttons];btn_w=sum(widths)+8*len(widths)
+            room=w-84-btn_w-(112 if status else 0)
+            stacked=bool(buttons) and room<230                   # a narrow window: the buttons drop under the description
+            sub_w=max(w-100 if stacked else room,150);sh=kit.text_height(sub,13,400,sub_w,True,0.004,1.34)
+            h=max(70,sh+54)+(14 if progress else 0)+(46 if stacked else 0)
+            icon_y=y+(h-(46 if stacked else 0)-36)/2
+            kit.tile(host,symbols,rgb(color),x+18,icon_y,36)
+            kit.put_text(host,title,x+68,y+14,sub_w,16,600,wrap=False,height=22,track=-0.004)
+            kit.put_text(host,sub,x+68,y+38,sub_w,13,400,sub_color or kit.mute(),height=sh,track=0.004,lead=1.34)
             if progress:                                       # a thin bar, filled from the left to the percentage
-                bar_w=sub_w;by=y+h-20;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+64,by,bar_w,5),None);track.fill=kit.faint(0.10);track.radius=2.5;host.addSubview_(track)
+                bar_w=sub_w;by=y+h-22;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+68,by,bar_w,5),None);track.fill=kit.faint(0.10);track.radius=2.5;host.addSubview_(track)
                 fw=bar_w*(fraction or 0)
-                if fw>0:fill=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+64,by,max(fw,5),5),None);fill.fill=rgb(color);fill.radius=2.5;host.addSubview_(fill)
-            bx=x+w-14
-            for item,bw in reversed(list(zip(buttons,widths))):
+                if fw>0:fill=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+68,by,max(fw,5),5),None);fill.fill=rgb(color);fill.radius=2.5;host.addSubview_(fill)
+            if stacked:bx=x+68;by_=y+h-46
+            else:bx=x+w-18;by_=y+(h-32)/2-(7 if progress else 0)
+            order=list(zip(buttons,widths)) if stacked else list(reversed(list(zip(buttons,widths))))
+            for item,bw in order:
                 label,action,kind=item[:3];on=item[3] if len(item)>3 else True
-                bx-=bw;kit.button(host,label,bx,y+(h-30)/2-(7 if progress else 0),bw,30,lambda a=action:self.action(a),kind=kind,size=13,weight=600,enabled=on);bx-=8
-            if status:kit.put_text(host,status,bx-96,y,92,12,600,status_color or kit.status_text('green'),align=kit.RIGHT,wrap=False,height=h,middle=True)
-            y+=h+8
-            if self.confirm in CONFIRMS and title==ASKED.get(self.confirm):confirm_card()
-        def cap(text):
+                if not stacked:bx-=bw
+                kit.button(host,label,bx,by_,bw,32,lambda a=action:self.action(a),kind=kind,size=13,weight=600,enabled=on)
+                bx+=bw+8 if stacked else -8
+            if status:                                        # a dot and a word, so the state never rests on colour alone
+                if stacked:kit.put_text(host,'\u25CF '+status,x+w-18-112,y+14,112,13,600,status_color or kit.status_text('green'),align=kit.RIGHT,wrap=False,height=22)
+                else:kit.put_text(host,'\u25CF '+status,bx-112,y,108,13,600,status_color or kit.status_text('green'),align=kit.RIGHT,wrap=False,height=h,middle=True)
+            y+=h
+            if self.confirm in CONFIRMS and title==ASKED.get(self.confirm):y+=8;confirm_card()
+        def cap(text,danger=False):
             nonlocal y
-            y+=8;kit.put_text(host,text.upper(),x,y,w,11,700,kit.mute(),wrap=False,height=16);y+=24
+            end_group()
+            y+=2;kit.put_text(host,text.upper(),x+4,y,w,13,700,kit.status_text('red') if danger else kit.mute(),wrap=False,height=18,track=0.08);y+=28
+            group['top']=y;group['rows']=0;group['danger']=danger
         def note_for(kind,default):
             if notice and len(notice)>2 and notice[2]==kind:return notice[0],(kit.status_text('orange') if notice[1] else None)
             return default,None
@@ -312,7 +338,8 @@ class MemoryPane:
             row(['sparkles'],ACC,'Meaning search',text,[] if ready else [('Install','confirm_model','primary')],status='On' if ready else None,sub_color=color)
         cap('Agents')
         row(['terminal.fill','terminal'],ACC,'Codex','Connected. Can read this project’s notes and sources.' if view.get('codex_connected') else 'Preview and grant access to this project’s notes and sources.',[('Copy prompt','copy_codex_prompt','outline'),('Preview','preview','outline'),('Revoke','revoke_agent','outline')] if view.get('codex_connected') else [('Connect…','confirm_agent','primary')])
-        cap('Danger zone')
-        row(['bolt.slash.fill','xmark.circle'],ACC,'Disconnect Memory','Stops capture and agent access. Saved notes stay on this Mac.',[('Disconnect…','confirm_disconnect','outline')])
-        row(['trash'],ACC,'Delete retained memory','Permanently removes this project’s retained snapshots, graph and agent access. Original notes/files remain.',[('Delete…','confirm_delete_memory','outline')])
+        cap('Danger zone',True)
+        row(['bolt.slash.fill','xmark.circle'],RED,'Disconnect Memory','Stops capture and agent access. Saved notes stay on this Mac.',[('Disconnect…','confirm_disconnect','outline')])
+        row(['trash'],RED,'Delete retained memory','Permanently removes this project’s retained snapshots, graph and agent access. Original notes/files remain.',[('Delete…','confirm_delete_memory','outline')])
+        end_group()
         self.bottom=y

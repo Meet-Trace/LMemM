@@ -8,6 +8,7 @@ interrupted by a redraw; the two scrolling areas keep their place when the data 
 """
 
 import os
+import re
 import sys
 import time
 import traceback
@@ -82,6 +83,11 @@ def _local_minute():
         return backdrop.minute_of(time.localtime())
 
 
+def _short_ago(text):
+    """"12 min ago" becomes "12m", "3 h ago" "3h", "5 days ago" "5d"; dates and "Yesterday" stay as they are."""
+    return re.sub(r"^(\d+) (?:min|h|days?) ago$", lambda m: m.group(1) + {"m": "m", "h": "h", "d": "d"}[text.split()[1][0]], text)
+
+
 class _SourcePick(NSObject):
     """Receives a menu pick and runs the callable kept for that item's tag."""
 
@@ -89,6 +95,32 @@ class _SourcePick(NSObject):
         call = self.calls.get(sender.tag())
         if call:
             call()
+
+
+class _Row(_Tap):
+    """A timeline row. The source (where the thing lives) stays out of sight until the pointer, the keys or a tick
+    are on the row; the title then gives up that much width."""
+
+    def initWithFrame_callback_(self, frame, callback):
+        self = objc.super(_Row, self).initWithFrame_callback_(frame, callback)
+        self.reveal, self.title_view, self.title_frames, self.pinned = None, None, None, False
+        return self
+
+    @objc.python_method
+    def show(self, on):
+        if self.reveal is None or self.title_view is None:
+            return
+        on = on or self.pinned
+        self.reveal.setHidden_(not on)
+        self.title_view.setFrame_(self.title_frames[1 if on else 0])
+
+    def mouseEntered_(self, event):
+        objc.super(_Row, self).mouseEntered_(event)
+        self.show(True)
+
+    def mouseExited_(self, event):
+        objc.super(_Row, self).mouseExited_(event)
+        self.show(False)
 
 
 class _Bar(_Flipped):
@@ -1460,7 +1492,7 @@ class MainWindow:
         """A thing: its title, where it is, when. With notes: the open ones underneath. While selecting,
         a tap ticks it instead of opening it. Returns the new y."""
         call = (lambda i=t["id"]: self.pick_thing(i)) if select else (lambda i=t["id"]: self.press("thing", i))
-        box = _Tap.alloc().initWithFrame_callback_(NSMakeRect(x, y, w, 10), call)
+        box = (_Row if compact else _Tap).alloc().initWithFrame_callback_(NSMakeRect(x, y, w, 10), call)
         if not notes:
             box.fill = self._krow("main", "t" + t["id"], call, box)
         if compact:
@@ -1492,31 +1524,41 @@ class MainWindow:
         return y + h
 
     def _thing_line(self, doc, box, t, x, y, w, select):
-        """The timeline row: one 36 pt line, small source icon, title, quiet source text, open notes, time."""
-        h, lead = 36, 0
+        """The timeline row. Resting: a source plate, the title, the time. Pointer, keys or a tick on it: the source
+        appears too. The open-notes count stays, since it asks something of you."""
+        h, lead = 48, 0
         ticked = False
         if select:
             ticked = t["id"] in self.sel
             kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if ticked else ("circle", "circle"),
-                     kit.accent_text() if ticked else kit.mute(), 2, 7, 22)
+                     kit.accent_text() if ticked else kit.mute(), 2, 13, 22)
             lead = 30
             box.fill = box.fill or ticked                                # a ticked row stays softly lit
         elif box.fill:                                                   # the keys are on this row: the lit wash and a short blue mark
-            box.addSubview_(_Bar.alloc().initWithFrame_color_(NSMakeRect(0, 9, 3, 18), kit.accent_text()))
-        self._app_icon(box, t["app"], lead + 8, 7, 22, t.get("kind", ""), t.get("url"))
-        tx = lead + 42
-        right = w - 14                                                  # source, open count and time sit together at the right edge
+            box.addSubview_(_Bar.alloc().initWithFrame_color_(NSMakeRect(0, 12, 3, 24), kit.accent_text()))
+        plate = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(lead + 8, 8, 32, 32), kit.faint(0.07), None, 9)
+        box.addSubview_(plate)
+        self._app_icon(box, t["app"], lead + 12, 12, 24, t.get("kind", ""), t.get("url"))
+        tx = lead + 52
+        right = w - 14
         if t["ago"]:
-            kit.put_text(box, t["ago"], right - 76, 0, 76, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.012)
-            right -= 84
+            kit.put_text(box, _short_ago(t["ago"]), right - 70, 0, 70, 13, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
+            right -= 78
         if t["open"]:
-            kit.put_text(box, f"{t['open']} open", right - 64, 0, 64, 12, 600, kit.accent_text(), align=RIGHT, wrap=False, height=h, middle=True)
-            right -= 72
-        src_w = min(190, max(int((right - tx) * 0.35), 0)) if t["sub"] else 0
+            kit.put_text(box, f"{t['open']} open", right - 70, 0, 70, 13, 600, kit.accent_text(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 78
+        src_w = min(220, max(int((right - tx) * 0.34), 0)) if t["sub"] else 0
+        wide = max(right - 12 - tx, 40)
+        before = len(box.subviews())
+        kit.put_text(box, t["title"], tx, 0, wide, 15, 600 if ticked else 500, wrap=False, height=h, middle=True, track=-0.006)
+        title_view = box.subviews()[before]
         if src_w:
-            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.012)
-        src_x = right - src_w
-        kit.put_text(box, t["title"], tx, 0, max(src_x - 16 - tx, 40), 13.5, 600 if ticked else 500, wrap=False, height=h, middle=True, track=-0.004)
+            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 13, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
+            reveal = box.subviews()[before + 1]
+            box.reveal, box.title_view = reveal, title_view
+            box.title_frames = (NSMakeRect(tx, 0, wide, h), NSMakeRect(tx, 0, max(wide - src_w - 12, 40), h))
+            box.pinned = bool(box.fill) or ticked
+            box.show(False)
         box.setFrame_(NSMakeRect(x, y, w, h))
         doc.addSubview_(box)
         return y + h
@@ -1952,25 +1994,27 @@ class MainWindow:
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
         w = min(w, TIMELINE_W)
-        first, veil_top = y, y
+        first = y
         for index, group in enumerate(page["groups"]):
+            recent = index == 0
             n = len(group["things"])
-            tw = kit.text_width(group["title"], 15, 600)
-            kit.put_text(doc, group["title"], x + 24, y + 2, tw + 8, 15, 600, wrap=False, height=22, track=-0.012)
+            tw = kit.text_width(group["title"], 17, 700)
+            kit.put_text(doc, group["title"], x + 26, y, tw + 8, 17, 700, None if recent else kit.mute(), wrap=False, height=26, track=-0.014)
             label = f"{n} thing{'s' * (n != 1)}"
-            kit.put_text(doc, label, x + 24 + tw + 10, y + 2, 100, 12, 400, kit.mute(), wrap=False, height=22, track=0.012)
-            if index == 0:                                               # the newest chapter is a filled blue mark, the older ones hollow rings
-                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 10, 10), kit.accent_text(), None, 5)
+            kit.put_text(doc, label, x + 26 + tw + 10, y + 1, 100, 13, 400, kit.mute(), wrap=False, height=26, track=0.01)
+            self._filmstrip(doc, group["things"], x + w - 8, y - 1, recent)
+            if recent:                                                   # the newest chapter is a filled blue mark, the older ones hollow rings
+                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 11, 11), kit.accent_text(), None, 5.5)
             else:
-                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 10, 10), None, kit.faint(0.38), 5)
+                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 11, 11), None, kit.faint(0.38), 5.5)
             doc.addSubview_(marker)
-            top = y + 28
+            top = y + 34
             y = top
             for t in group["things"]:
                 y = self._thing(doc, t, x + 20, y, w - 20, select=self.sel is not None, compact=True)
-            rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 7.5, top - 6, 1, y - top + 6))
+            rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 8, top - 10, 1, y - top + 8))
             doc.addSubview_(rail)
-            y += 20
+            y += 26
         if page["groups"]:                                               # one quiet tonal ground under the whole history, so it reads against the canvas
             ground = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(
                 NSMakeRect(x - 12, first - 10, w + 24, y - first - 10 + 14), kit.faint(0.035), kit.faint(0.06), 16)
@@ -1983,6 +2027,40 @@ class MainWindow:
                        x, y + 4, 240, 36, lambda: self.press("more"), kind="quiet", size=13, weight=500)
             y += 48
         return y
+
+    def _filmstrip(self, doc, things, right, y, recent):
+        """Up to four of the screenshots already kept for this session's things, small, at the right of its heading:
+        a glance at what the session looked like. Older sessions are dimmer. Sessions with none show nothing."""
+        shots = [t["shot"] for t in things if t.get("shot")][:4]
+        cx = right
+        for path in shots:
+            image = self._thumb(path)
+            if image is None:
+                continue
+            cx -= 50
+            tile = _Flipped.alloc().initWithFrame_(NSMakeRect(cx, y, 44, 28))
+            tile.setWantsLayer_(True)
+            layer = tile.layer()
+            try:
+                cg = image.CGImageForProposedRect_context_hints_(None, None, None)
+                cg = cg[0] if isinstance(cg, tuple) else cg                  # pyobjc hands back (image, rect) for the in/out rect
+                layer.setContents_(cg)
+                layer.setContentsGravity_("resizeAspectFill")
+                layer.setBorderWidth_(1)
+                layer.setBorderColor_(kit.faint(0.12).CGColor())
+            except Exception:
+                continue                                                     # no picture, no tile: never an empty box
+            layer.setCornerRadius_(6)
+            layer.setMasksToBounds_(True)
+            tile.setAlphaValue_(1.0 if recent else 0.62)
+            tile.setAccessibilityElement_(False)
+            doc.addSubview_(tile)
+
+    def _thumb(self, path):
+        cache = self.__dict__.setdefault("_thumbs", {})
+        if path not in cache:
+            cache[path] = NSImage.alloc().initWithContentsOfFile_(path)
+        return cache[path]
 
     def _card_box(self, parent, x, y, w, build, tap=None):
         """A soft box. `build(box, inner_width)` draws inside it from (14, 12) and returns the inner height."""

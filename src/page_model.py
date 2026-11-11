@@ -208,7 +208,7 @@ def _live(reg, pid):
     return projects.exists(reg, pid) and not projects.hidden(reg, pid)
 
 
-def _thing(reg, item, now, here=None, with_notes=False):
+def _thing(reg, item, now, here=None, with_notes=False, shots_dir=None):
     """One thing as a row. `here` is the project page it is shown on (P4)."""
     main = projects._main(item)
     others = [projects.get(reg, p)["name"] for p in projects._members_of(item)
@@ -222,10 +222,20 @@ def _thing(reg, item, now, here=None, with_notes=False):
     row = {"id": item["id"], "pid": main if main and _live(reg, main) else None, "title": title_of(item), "sub": " · ".join(b for b in bits if b),
            "ago": ago(item.get("last_seen"), now), "open": len(open_notes), "app": item.get("app", ""),
            "kind": item.get("kind", ""), "url": favicons.page_url(item)}
+    if shots_dir:                                       # the screenshot already kept for this thing, if the file is still there
+        row["shot"] = _kept_shot(item, shots_dir)
     if with_notes:
         row["notes"] = [n["text"] for n in open_notes[:NOTES_SHOWN]]
         row["more_notes"] = max(0, len(open_notes) - NOTES_SHOWN)
     return row
+
+
+def _kept_shot(item, shots_dir):
+    name = item.get("screenshot")
+    if not isinstance(name, str) or name == "quick":
+        return None
+    path = os.path.join(shots_dir, os.path.basename(name))
+    return path if os.path.isfile(path) else None
 
 
 def _subs(reg, pid):
@@ -404,8 +414,9 @@ def project_page(reg, items, state, counts, now, sugg=None):
     page["deep"] = {"on": deep, "show": bool(kids)}
     page["total"] = len(chosen)
     groups = {"Today": [], "This week": [], "Earlier": []}
+    shots = _shots_dir()
     for i in chosen[:state["shown"]]:
-        groups[group_of(i.get("last_seen"), now)].append(_thing(reg, i, now, here=pid))
+        groups[group_of(i.get("last_seen"), now)].append(_thing(reg, i, now, here=pid, shots_dir=shots))
     page["groups"] = [{"title": t, "things": r} for t, r in groups.items() if r]
     page["things_more"] = max(0, len(chosen) - state["shown"])
     return page

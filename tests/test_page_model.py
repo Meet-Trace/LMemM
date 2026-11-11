@@ -550,3 +550,14 @@ class WindowWiringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KeptShotTests(unittest.TestCase):
+    def test_row_shot_is_the_kept_file_or_none(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, "a.jpg"), "wb").close()
+            self.assertEqual(pm._kept_shot({"screenshot": "a.jpg"}, d), os.path.join(d, "a.jpg"))
+            self.assertIsNone(pm._kept_shot({"screenshot": "gone.jpg"}, d))
+            self.assertIsNone(pm._kept_shot({"screenshot": "quick"}, d))
+            self.assertIsNone(pm._kept_shot({}, d))

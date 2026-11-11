@@ -14,7 +14,7 @@ What is extracted (schemas: see VisitFeatures and Corpus; rules: docs/adr/0004-a
                  shows it), a PR or issue (repository plus number), a chat thread. Each carries `id_bearing` (it names one
                  thing) and `hub_pattern` (it is a container: inbox, calendar, chat, search, a service's home page).
     namespaces   boundaries around artifacts: domain, repository, folder, locator (host plus first path segment).
-    branch       a git branch only where the title or URL shows it, with its repository (exact_links rules).
+    branch       a git branch only where the title or URL shows it; repository-backed or workspace-derived (see branch_of).
     lineage      a version chain key (same stem, app, folder or domain) for files and documents.
     bag          weighted tokens (design 14.3): terms and identifiers 1.0, title/target/URL-path words 1.0, line
                  words 0.5, times the visit quality q(V); hub-like tokens dropped.
@@ -268,8 +268,16 @@ def namespaces_of(first, artifacts):
 # ---------------------------------------------------------------- branch and lineage
 
 def branch_of(first, lines):
-    """{'name', 'repo'} when the title or URL shows exactly one branch of a known repository, else None. The repository
-    is known only from a git host URL: a Moment has no working directory, so a terminal's repository is not observable."""
+    """The one git branch a window shows, or None. {'name', 'scope', 'repo', 'workspace'}.
+
+    scope 'repo'       the page is on a git host, so the repository is `host/owner/repo` (a real, global identity).
+                       Only this scope may produce `same_branch` support and `different_branch` cannot-links.
+    scope 'workspace'  a '(branch)' suffix on an editor workspace name. A workspace name is NOT a repository identity
+                       (two checkouts can share a name, one repository can have several), so it never produces a
+                       cannot-link; it yields only soft same/different-workspace-branch evidence within one name.
+    scope 'none'       a branch seen with no repository (a terminal title or output; a Moment has no working directory).
+                       Kept as a feature, never paired.
+    Two branches in one window, a default branch, or an ambiguous deep path give no branch."""
     names, kind = set(), first.get("kind")
     window = first.get("window") or ""
     seg = _segments(first.get("url")) if first.get("url") else None
@@ -295,16 +303,22 @@ def branch_of(first, lines):
         n = exact_links._valid(seg[1][3], False)                  # a branch's root page; deeper paths are ambiguous
         if n:
             names.add(n)
+    workspace = None
     ws = _workspace(first)
     if ws:
         m = _BRANCH_SUFFIX.search(ws)
         n = exact_links._valid(m.group(1), False) if m else None
         if n:
             names.add(n)
-            repo = f"workspace:{_BRANCH_SUFFIX.sub('', ws).strip().casefold()}"
+            workspace = _BRANCH_SUFFIX.sub("", ws).strip().casefold()
     if len(names) != 1:                                           # none, or two branches in one window: no signal
         return None
-    return {"name": next(iter(names)), "repo": repo}
+    name = next(iter(names))
+    if workspace and not repo:
+        return {"name": name, "scope": "workspace", "repo": None, "workspace": workspace}
+    if repo:
+        return {"name": name, "scope": "repo", "repo": repo, "workspace": None}
+    return {"name": name, "scope": "none", "repo": None, "workspace": None}
 
 
 def lineage_of(first, artifacts):
@@ -341,7 +355,7 @@ class VisitFeatures:
     n_frames: int
     artifacts: tuple                    # dicts: type, key, fields, id_bearing, hub_pattern, ... (sorted)
     namespaces: tuple                   # (type, value) pairs, sorted
-    branch: object                      # {'name','repo'} or None
+    branch: object                      # {'name','scope','repo','workspace'} or None
     lineage: object                     # {'stem','ext','scope','name'} or None
     bag: tuple                          # (token, weight) sorted by token, hub-like tokens dropped
     key_tokens: frozenset               # tokens that come from the artifact key (url path, target, file name)
@@ -551,9 +565,35 @@ def extract(prepared, params=None, replay_params=None):
     return FeatureSet(tuple(feats), corpus, p, rp, report)
 
 
+def volatility_factor(mean_sim, p=FeatureParams()):
+    """UNCALIBRATED HEURISTIC. f_vol = clamp(mean_sim / vol_ref, vol_floor, 1), where mean_sim is the mean pairwise cos_idf
+    between the artifact's own visits (the first vol_max_visits by (t_start, visit_id)). An artifact whose own visits share
+    little content (a feed, a mailbox, a reused tab) is container-like and is demoted. A single visit gives 1.0."""
+    return min(1.0, max(p.vol_floor, mean_sim / p.vol_ref))
+
+
+def sittings_of(visits, t_resume_s):
+    """Number of sittings of one artifact: 1 + the number of times a visit starts MORE than t_resume_s after the latest
+    end of the earlier visits. A gap of exactly t_resume_s stays inside the sitting. Differences only, so it is
+    translation-invariant; with t_resume_s scaled with the timestamps it is scale-invariant. `visits` ordered by start."""
+    n, end = 1, visits[0].t_end
+    for f in visits[1:]:
+        if f.t_start - end > t_resume_s:
+            n += 1
+        end = max(end, f.t_end)
+    return n
+
+
+def recurrence_factor(sittings):
+    """UNCALIBRATED HEURISTIC. f_rec = 1 for 1 or 2 sittings, else 2 / sittings: an artifact seen in many separate
+    sittings is a place you keep returning to rather than one piece of work. In (0, 1]."""
+    return 1.0 if sittings <= 2 else 2.0 / sittings
+
+
 def _specificity(feats, corpus, p, rp):
     """prior x breadth per artifact (13.3), from raw visit features only. breadth = pattern x volatility x recurrence,
-    each a factor in (0, 1]. Placeholders, documented in ADR 0004. Nothing here reads an assignment."""
+    each a factor in (0, 1]. The volatility and recurrence definitions and every constant are uncalibrated heuristics
+    (docs/adr/0004). Nothing here reads an assignment."""
     groups = {}
     for f in feats:
         for a in f.artifacts:
@@ -568,15 +608,11 @@ def _specificity(feats, corpus, p, rp):
         fs = [x[0] for x in vs][:p.vol_max_visits]
         if len(fs) >= 2:
             sims = [content_similarity(fs[i], fs[j], corpus, p)["cos_idf"] for i in range(len(fs)) for j in range(i + 1, len(fs))]
-            f_vol = min(1.0, max(p.vol_floor, (math.fsum(sims) / len(sims)) / p.vol_ref))
+            f_vol = volatility_factor(math.fsum(sims) / len(sims), p)
         else:
             f_vol = 1.0
-        sittings, end = 1, vs[0][0].t_end
-        for f, _ in vs[1:]:
-            if f.t_start - end > rp.t_resume_s:
-                sittings += 1
-            end = max(end, f.t_end)
-        f_rec = 1.0 if sittings <= 2 else 2.0 / sittings
+        sittings = sittings_of([x[0] for x in vs], rp.t_resume_s)
+        f_rec = recurrence_factor(sittings)
         spec = prior * f_pat * f_vol * f_rec
         band = "low" if spec < p.spec_low else "high" if spec >= p.spec_high else "mid"
         out[k] = {"visits": len(vs), "specificity": spec, "prior": prior, "f_pattern": f_pat, "f_volatility": f_vol,

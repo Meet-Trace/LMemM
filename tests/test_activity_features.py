@@ -243,11 +243,11 @@ class NamespaceBranchLineageTests(unittest.TestCase):
 
     def test_branch_from_tree_page_workspace_suffix_and_terminal(self):
         self.assertEqual(self.one(url="github.com/acme/billing/tree/feature-retry").branch,
-                         {"name": "feature-retry", "repo": "github.com/acme/billing"})
+                         {"name": "feature-retry", "scope": "repo", "repo": "github.com/acme/billing", "workspace": None})
         self.assertEqual(self.one(kind="code_file", app="Code", target="m.py", window="m.py - billing (dev-wip)").branch,
-                         {"name": "dev-wip", "repo": "workspace:billing"})
+                         {"name": "dev-wip", "scope": "workspace", "repo": None, "workspace": "billing"})
         t = self.one(kind="terminal", app="Terminal", target="zsh", window="~/billing git:(feature-x)")
-        self.assertEqual(t.branch["name"], "feature-x")
+        self.assertEqual((t.branch["name"], t.branch["scope"]), ("feature-x", "none"))
         self.assertIsNone(t.branch["repo"])                           # a Moment has no working directory
 
     def test_branch_absent_default_ambiguous_or_two_names(self):
@@ -424,6 +424,69 @@ class SpecificityTests(unittest.TestCase):
         self.assertEqual(list(inspect.signature(af._specificity).parameters), ["feats", "corpus", "p", "rp"])
 
 
+class HeuristicBoundaryTests(unittest.TestCase):
+    """Volatility and recurrence are uncalibrated heuristics (docs/adr/0004); these tests pin their exact definitions,
+    boundaries and sensitivity, not their correctness."""
+    P = af.FeatureParams()
+
+    def test_volatility_factor_is_clamped_linear_in_the_mean_similarity(self):
+        p = self.P
+        self.assertEqual(af.volatility_factor(0.0, p), p.vol_floor)
+        self.assertEqual(af.volatility_factor(0.03, p), p.vol_floor)              # 0.03 / 0.3 = 0.1: the floor itself
+        self.assertEqual(af.volatility_factor(0.03 - 1e-9, p), p.vol_floor)       # below it stays at the floor
+        self.assertAlmostEqual(af.volatility_factor(0.15, p), 0.5)
+        self.assertEqual(af.volatility_factor(0.3, p), 1.0)
+        self.assertEqual(af.volatility_factor(0.3 + 1e-9, p), 1.0)
+        self.assertLess(af.volatility_factor(0.3 - 1e-6, p), 1.0)
+        self.assertEqual(af.volatility_factor(1.0, p), 1.0)
+
+    def test_volatility_is_monotone_and_always_in_the_unit_interval(self):
+        xs = [i / 200 for i in range(0, 201)]
+        ys = [af.volatility_factor(x) for x in xs]
+        self.assertEqual(ys, sorted(ys))
+        self.assertTrue(all(0 < y <= 1 for y in ys))
+
+    def test_volatility_sensitivity_to_its_parameters(self):
+        base = af.volatility_factor(0.1, self.P)
+        self.assertGreater(af.volatility_factor(0.1, af.FeatureParams(vol_ref=0.15)), base)     # lower reference: gentler
+        self.assertLess(af.volatility_factor(0.1, af.FeatureParams(vol_ref=0.6)), base)
+        self.assertGreater(af.volatility_factor(0.0, af.FeatureParams(vol_floor=0.3)), af.volatility_factor(0.0, self.P))
+
+    def test_recurrence_factor_values_and_monotonicity(self):
+        self.assertEqual([af.recurrence_factor(n) for n in (1, 2)], [1.0, 1.0])
+        self.assertAlmostEqual(af.recurrence_factor(3), 2 / 3)
+        self.assertEqual(af.recurrence_factor(4), 0.5)
+        self.assertEqual(af.recurrence_factor(10), 0.2)
+        ys = [af.recurrence_factor(n) for n in range(1, 60)]
+        self.assertEqual(ys, sorted(ys, reverse=True))
+        self.assertTrue(all(0 < y <= 1 for y in ys))
+
+    def test_sittings_split_only_when_the_gap_exceeds_the_resume_parameter(self):
+        mk = lambda s, e: types.SimpleNamespace(t_start=s, t_end=e)
+        vs = [mk(0.0, 10.0), mk(910.0, 920.0)]                      # gap exactly 900
+        self.assertEqual(af.sittings_of(vs, 900.0), 1)
+        self.assertEqual(af.sittings_of(vs, 899.999), 2)
+        self.assertEqual(af.sittings_of([mk(0, 10), mk(5, 8), mk(915, 920)], 900.0), 2)      # nested visit does not shorten the gap
+        self.assertEqual(af.sittings_of([mk(0, 1000), mk(1500, 1600)], 900.0), 1)            # gap is from the latest end
+        for k in (0.5, 8.0, 1e-3):
+            scaled = [mk(v.t_start * k, v.t_end * k) for v in vs]
+            self.assertEqual(af.sittings_of(scaled, 900.0 * k), 1)
+            self.assertEqual(af.sittings_of(scaled, 899.999 * k), 2)
+
+    def test_specificity_bands_at_their_thresholds(self):
+        c = padded(25)
+        for kind_url, expect in (("docs.example.com/d/1", "high"),):
+            c.visit(1, url=kind_url, kind="document", terms=["alpha", "bravo", "charlie", "delta"])
+        s = af.extract(ai.prepare(c.records), None, RP).corpus.artifacts[("document", "docs.example.com/d/1")]
+        self.assertEqual(s["band"], "high")
+        p = af.FeatureParams(spec_high=1.0000001)
+        s2 = af.extract(ai.prepare(c.records), p, RP).corpus.artifacts[("document", "docs.example.com/d/1")]
+        self.assertEqual(s2["band"], "mid")
+        p3 = af.FeatureParams(spec_low=1.0000001, spec_high=2.0)
+        s3 = af.extract(ai.prepare(c.records), p3, RP).corpus.artifacts[("document", "docs.example.com/d/1")]
+        self.assertEqual(s3["band"], "low")
+
+
 class InvarianceAndDeterminismTests(unittest.TestCase):
     def test_every_fixture_extracts_serialises_and_is_order_independent(self):
         for name, build in fx.BUILDERS.items():
@@ -529,7 +592,7 @@ class NoLeakageTests(unittest.TestCase):
         import ast
         import activity_evidence as ev
         allowed = {"math", "posixpath", "re", "json", "hashlib", "dataclasses", "exact_links", "moments",
-                   "activity_contract", "activity_features"}
+                   "activity_contract", "activity_features", "types"}
         for mod in (af, ev):
             with open(mod.__file__, encoding="utf-8") as fh:
                 tree = ast.parse(fh.read())

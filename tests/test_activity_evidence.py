@@ -82,11 +82,11 @@ class ArtifactEvidenceTests(unittest.TestCase):
         same = es.by_type("same_pr_issue")
         self.assertEqual([(x.source, x.target) for x in same], [(a, b)])
         self.assertIn("needs_corroboration_other_than_time", same[0].restrictions)
-        conf = es.by_type("different_pr_issue")
-        self.assertEqual({frozenset(x.pair()) for x in conf}, {frozenset((a, d)), frozenset((b, d))})
-        self.assertTrue(all(x.polarity == "conflict" and not x.lifted for x in conf))
+        contrast = es.by_type("different_pr_issue")
+        self.assertEqual({frozenset(x.pair()) for x in contrast}, {frozenset((a, d)), frozenset((b, d))})
+        self.assertTrue(all(x.polarity == "contrast" and not x.lifted for x in contrast))
         self.assertEqual(es.for_pair(a, e_), ())                       # same number, other repository: nothing
-        self.assertEqual(es.cannot_links(), frozenset({frozenset((a, d)), frozenset((b, d))}))
+        self.assertEqual(es.cannot_links(), frozenset())               # distinct PRs are evidence, never a hard constraint
 
     def test_files_same_name_known_and_unknown_folder(self):
         c = av.Clock()
@@ -157,8 +157,11 @@ class GitEvidenceTests(unittest.TestCase):
         b = c.visit(2, kind="code_file", app="Code", target="b.py", window="b.py - billing (fix-x)")
         d = c.visit(3, kind="code_file", app="Code", target="c.py", window="c.py - other (dev-wip)")
         fs, es = run(c)
-        self.assertEqual({frozenset(x.pair()) for x in es.by_type("different_branch")}, {frozenset((a, b))})
+        self.assertEqual({frozenset(x.pair()) for x in es.by_type("different_workspace_branch")}, {frozenset((a, b))})
+        self.assertEqual(es.by_type("different_branch"), ())           # a workspace name is not a repository identity
         self.assertEqual(es.by_type("same_branch"), ())
+        self.assertEqual(es.cannot_links(), frozenset())
+        self.assertTrue(all(x.polarity == "contrast" for x in es.by_type("different_workspace_branch")))
 
 
 class LineageAndLocatorTests(unittest.TestCase):
@@ -262,6 +265,168 @@ class LexicalEvidenceTests(unittest.TestCase):
         self.assertTrue(flagged["pricing"] and flagged["strategy"])
 
 
+class ConstraintCompletenessTests(unittest.TestCase):
+    """Cannot-links are never dropped by a size cutoff: the ConstraintStore is complete whatever max_group_visits is."""
+
+    @staticmethod
+    def oracle(fs):
+        """Independent brute-force cannot-link set from the features, over all pairs."""
+        out = set()
+        vs = fs.visits
+        for i in range(len(vs)):
+            for j in range(i + 1, len(vs)):
+                a, b = vs[i], vs[j]
+                prs_a = {x["key"] for x in a.artifacts if x["type"] in ("pr", "issue")}
+                prs_b = {x["key"] for x in b.artifacts if x["type"] in ("pr", "issue")}
+                if prs_a & prs_b:
+                    continue
+                hit = False
+                if a.branch and b.branch and a.branch["scope"] == b.branch["scope"] == "repo" \
+                        and a.branch["repo"] == b.branch["repo"] and a.branch["name"] != b.branch["name"]:
+                    hit = True
+                fa = [x for x in a.artifacts if x["type"] == "file" and x["folder_known"]]
+                fb = [x for x in b.artifacts if x["type"] == "file" and x["folder_known"]]
+                if fa and fb and fa[0]["name"] == fb[0]["name"] and fa[0]["folder"] != fb[0]["folder"]:
+                    hit = True
+                if hit:
+                    out.add(frozenset((a.visit_id, b.visit_id)))
+        return out
+
+    def big_branch_clock(self, n=70):
+        c = av.Clock()
+        ids = []
+        for i in range(n):
+            branch = "feature-a" if i % 2 == 0 else "feature-b"
+            ids.append(c.visit(i, url=f"github.com/acme/billing/tree/{branch}", window=f"billing at {branch} {i}", dwell=40.0))
+        return c, ids
+
+    def test_a_branch_group_over_sixty_visits_keeps_every_cannot_link(self):
+        c, ids = self.big_branch_clock(70)
+        fs, es = run(c)
+        self.assertGreater(len(ids), 60)
+        self.assertEqual(es.cannot_links(), frozenset(self.oracle(fs)))
+        self.assertEqual(len(es.cannot_links()), 35 * 35)
+        self.assertEqual(es.report["cannot_links"], 35 * 35)
+        self.assertTrue(es.report["constraints_complete"])
+        self.assertTrue(any(k.startswith("repo_branch:") for k in es.report["constraint_explanations_omitted"]))
+        self.assertEqual(es.by_type("different_branch"), ())           # the listing is omitted, the constraint is not
+        self.assertTrue(es.constraints.is_cannot_link(ids[0], ids[1]))
+        self.assertFalse(es.constraints.is_cannot_link(ids[0], ids[2]))
+
+    def test_the_constraints_do_not_depend_on_the_group_limit(self):
+        c, ids = self.big_branch_clock(30)
+        base = run(c, ep=ev.EvidenceParams(max_group_visits=1000))[1]
+        for cap in (2, 5, 29, 60):
+            es = run(c, ep=ev.EvidenceParams(max_group_visits=cap))[1]
+            self.assertEqual(es.cannot_links(), base.cannot_links(), cap)
+        self.assertEqual(len(base.by_type("different_branch")), 15 * 15)    # all listed when the cap allows
+
+    def test_a_mixed_branch_and_pr_group_lifts_only_the_directly_shared_pair(self):
+        c = av.Clock()
+        ids = []
+        for i in range(70):
+            branch = "feature-a" if i % 2 == 0 else "feature-b"
+            ids.append(c.visit(i, url=f"github.com/acme/billing/pull/{12 if i in (0, 1) else 100 + i}",
+                               window=f"x {branch} into main {i}", dwell=40.0))
+        fs, es = run(c)
+        self.assertEqual(es.cannot_links(), frozenset(self.oracle(fs)))
+        self.assertFalse(es.constraints.is_cannot_link(ids[0], ids[1]))      # same PR 12: lifted
+        self.assertTrue(es.constraints.is_cannot_link(ids[0], ids[3]))
+        reasons = es.constraints.reasons(ids[0], ids[1])
+        self.assertEqual([(r["rule"], r["lifted"], r["lifted_by"]) for r in reasons],
+                         [("different_branch", True, "github.com/acme/billing#12")])
+        self.assertEqual(es.by_type("different_pr_issue"), ())                # contrast listing also skipped over the cap
+        self.assertTrue(any(k.startswith("repo_pr:") for k in es.skipped))
+        self.assertFalse(es.support_complete)
+
+    def test_many_different_prs_in_a_large_group_create_no_cannot_link(self):
+        c = av.Clock()
+        for i in range(70):
+            c.visit(i, url=f"github.com/acme/billing/pull/{i + 1}", window=f"PR {i}", dwell=40.0)
+        fs, es = run(c)
+        self.assertEqual(es.cannot_links(), frozenset())
+        self.assertEqual(self.oracle(fs), set())
+
+    def test_a_file_name_group_over_sixty_visits_keeps_the_folder_constraints(self):
+        c = av.Clock()
+        ids = []
+        for i in range(70):
+            ws = "alpha" if i % 2 == 0 else "beta"
+            ids.append(c.visit(i, kind="code_file", app="Code", target="util.py", window=f"util.py - {ws}", dwell=40.0))
+        fs, es = run(c)
+        self.assertEqual(es.cannot_links(), frozenset(self.oracle(fs)))
+        self.assertEqual(len(es.cannot_links()), 35 * 35)
+        self.assertTrue(any(k.startswith("file_name:") for k in es.report["constraint_explanations_omitted"]))
+
+    def test_every_fixture_matches_the_brute_force_oracle(self):
+        for name, build in fx.BUILDERS.items():
+            fs, es = ev.analyse(ai.prepare(build().records), None, RP)
+            self.assertEqual(es.cannot_links(), frozenset(self.oracle(fs)), name)
+
+    def test_fail_closed_when_the_store_is_incomplete(self):
+        c, _ = self.big_branch_clock(4)
+        fs, es = run(c)
+        self.assertIs(es.require_complete(), es.constraints)
+        broken = dataclasses.replace(es, constraints=dataclasses.replace(es.constraints, complete=False))
+        with self.assertRaises(ev.ConstraintsIncompleteError):
+            broken.require_complete()
+        with self.assertRaises(ev.ConstraintsIncompleteError):
+            broken.cannot_links()
+
+    def test_the_store_is_immutable_and_pairs_are_sorted_and_unique(self):
+        c, ids = self.big_branch_clock(8)
+        fs, es = run(c)
+        with self.assertRaises(TypeError):
+            es.constraints.branch_of[ids[0]] = ("x", "y")
+        pairs = list(es.constraints.pairs())
+        self.assertEqual(len(pairs), len(set(pairs)))
+        order = es.constraints.order
+        self.assertEqual(pairs, sorted(pairs, key=lambda p: (order[p[0]], order[p[1]])))
+        self.assertTrue(all(order[a] < order[b] for a, b in pairs))
+
+    def test_workspace_derived_and_repo_less_branches_are_never_constraints(self):
+        c = av.Clock()
+        c.visit(1, kind="code_file", app="Code", target="a.py", window="a.py - billing (dev-wip)")
+        c.visit(2, kind="code_file", app="Code", target="b.py", window="b.py - billing (fix-x)")
+        c.visit(3, kind="terminal", app="Terminal", target="zsh", window="git:(feature-x)")
+        c.visit(4, kind="terminal", app="Terminal", target="zsh", window="git:(fix-y)")
+        fs, es = run(c)
+        self.assertEqual(es.cannot_links(), frozenset())
+        self.assertEqual(es.constraints.count_observations()["branch"], 0)
+        self.assertEqual(len(es.by_type("different_workspace_branch")), 1)
+
+    def test_workspace_branch_support_is_soft_and_marked(self):
+        c = av.Clock()
+        c.visit(1, kind="code_file", app="Code", target="a.py", window="a.py - billing (dev-wip)")
+        c.visit(2, kind="code_file", app="Code", target="b.py", window="b.py - billing (dev-wip)")
+        fs, es = run(c)
+        e = es.by_type("same_workspace_branch")[0]
+        self.assertEqual(e.polarity, "support")
+        self.assertIn("workspace_name_not_unique", e.restrictions)
+        self.assertEqual(es.by_type("same_branch"), ())
+
+    def test_distinct_prs_are_contrast_evidence_with_the_refs_listed(self):
+        c = av.Clock()
+        a = c.visit(1, url="github.com/o/r/pull/12", window="a")
+        b = c.visit(2, url="github.com/o/r/issues/7", window="b")
+        fs, es = run(c)
+        e = es.by_type("different_pr_issue")[0]
+        self.assertEqual((e.polarity, e.family), ("contrast", "artifact"))
+        self.assertEqual(e.subject["refs"], ["issue#7", "pr#12"])
+        self.assertFalse(es.constraints.is_cannot_link(a, b))
+
+    def test_constraint_completeness_holds_under_reordering_and_time_changes(self):
+        recs = fx.BUILDERS["branches_alternating"]().records
+        base = ev.analyse(ai.prepare(recs), None, RP)[1].cannot_links()
+        shuffled = ev.analyse(ai.prepare(hn.with_duplicates(hn.shuffled(recs, 5), 6)), None, RP)[1].cannot_links()
+        moved = ev.analyse(ai.prepare(hn.translate(recs, 777.0), check_capture_clock=False), None, RP)[1].cannot_links()
+        rp = RP.scaled(4.0)
+        scaled = ev.analyse(ai.prepare(hn.scale(recs, 4.0), max_intra_visit_gap_s=rp.max_intra_visit_gap_s,
+                                       check_capture_clock=False), None, rp)[1].cannot_links()
+        self.assertTrue(base)
+        self.assertEqual({base, shuffled, moved, scaled}, {base})
+
+
 class SetLevelTests(unittest.TestCase):
     def test_duplicate_evidence_collapses_and_ids_are_unique(self):
         c = av.Clock()
@@ -331,7 +496,8 @@ class SetLevelTests(unittest.TestCase):
         def get(name):
             recs = fx.BUILDERS[name]().records
             return ev.analyse(ai.prepare(recs), None, RP)[1]
-        self.assertTrue(get("pr_numbers_differ").cannot_links())
+        self.assertFalse(get("pr_numbers_differ").cannot_links())     # fixture B4's gold says cannot-link: see ADR 0004
+        self.assertTrue(get("pr_numbers_differ").by_type("different_pr_issue"))
         self.assertTrue(get("branches_alternating").cannot_links())
         self.assertFalse(get("same_branch_two_tasks").cannot_links())
         self.assertTrue(get("shared_doc_two_purposes").by_type("same_artifact"))

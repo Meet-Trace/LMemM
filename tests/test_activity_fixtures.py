@@ -177,6 +177,8 @@ class ScenarioStructureTests(unittest.TestCase):
         f = fx.pr_numbers_differ()
         self.assertIn("pull/12", " ".join(r["url"] for r in f.records))
         self.assertIn("pull/15", " ".join(r["url"] for r in f.records))
+        self.assertEqual(f.cannot_link, [])                      # contrast only: two PRs are never a cannot-link (PR 2C)
+        self.assertTrue(f.must_not_merge)                        # but the two PR groups must not merge on this evidence
         f = fx.blob_slash_branch()
         self.assertNotIn("/tree/", " ".join(r["url"] for r in f.records))
         self.assertEqual(f.cannot_link, [])

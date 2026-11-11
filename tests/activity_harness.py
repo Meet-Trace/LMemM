@@ -212,6 +212,14 @@ def _tokens(rec):
     return {t.lower() for t in (d.get("terms") or []) + (d.get("identifiers") or [])}
 
 
+def _string_values(obj):
+    if isinstance(obj, dict):
+        return [x for v in obj.values() for x in _string_values(v)]
+    if isinstance(obj, list):
+        return [x for v in obj for x in _string_values(v)]
+    return [obj] if isinstance(obj, str) else []
+
+
 def check_forget(infer, records, params, visit_ids):
     """After removing visits (and scrubbing pointers), nothing about them appears in the output."""
     kept, gone_ids = remove_visits(records, visit_ids)
@@ -228,8 +236,9 @@ def check_forget(infer, records, params, visit_ids):
     for r in records:
         if r["id"] in gone_ids:
             only_gone |= _tokens(r)
+    values_text = " ".join(_string_values(json.loads(out_text)))      # keys are schema vocabulary (e.g. "status"), not data
     for t in sorted(only_gone - kept_tokens):
-        if re.search(r"\b" + re.escape(t) + r"\b", out_text, re.I):
+        if re.search(r"\b" + re.escape(t) + r"\b", values_text, re.I):
             out.append(f"token {t!r} that only removed moments contained appears in the output")
     return out
 

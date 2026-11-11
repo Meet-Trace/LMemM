@@ -1465,7 +1465,7 @@ class MainWindow:
                  "thing": self._thing_page, "archived": self._archived, "settings": self._settings}[kind]
         return build(doc, page, x, y + 6, w)
 
-    def _crumbs(self, doc, chain, x, y):
+    def _crumbs(self, doc, chain, x, y, quiet=False):
         cx = x - 6
         cx += self._link(doc, "All projects", cx, y - 12, lambda: self.press("home"), size=12)
         for i, c in enumerate(chain):
@@ -1475,7 +1475,7 @@ class MainWindow:
             if c["id"] and not last:
                 cx += self._link(doc, c["name"], cx, y - 12, (lambda p=c["id"]: self.press("go", p)), size=12)
             else:
-                cx += self._link(doc, c["name"], cx, y - 12, None, size=12, color=kit.ink() if last else kit.mute())
+                cx += self._link(doc, c["name"], cx, y - 12, None, size=12, color=kit.ink() if last and not quiet else kit.mute())
         return y + 18
 
     def _section(self, doc, text, x, y, w):
@@ -1846,32 +1846,53 @@ class MainWindow:
         for sub in list(host.subviews()):
             sub.removeFromSuperview()
         x, w = self.col_x, self.main_w
-        y = self._crumbs(host, page["crumbs"], x, 26)
-        self._project_icon(host, page["hue"], x, y - 2, 28)
+        y = self._crumbs(host, page["crumbs"], x, 26, quiet=True)                      # identity: where you are, quietly
+        self._project_icon(host, page["hue"], x, y + 2, 36)
         if page["archived"]:
-            kit.button(host, "Bring back", x + w - 110, y - 4, 110, 32, lambda: self.project_action("restore", pid=page["pid"]),
+            kit.button(host, "Bring back", x + w - 110, y, 110, 32, lambda: self.project_action("restore", pid=page["pid"]),
                        kind="outline", size=13, weight=600)
         else:
-            self._project_actions(host, x + w, y - 4, page["pid"])
-        title_w = min(kit.text_width(page["title"], 22, 700), w - 38 - 170)
-        kit.put_text(host, page["title"], x + 38, y - 3, title_w + 6, 22, 700, wrap=False, height=30, track=-0.022)
-        self._label(host, page["meta"], x + 38 + title_w + 16, y + 3, max(w - 38 - title_w - 16 - 170, 60), size=12, weight=400)
-        y += 40
+            self._grouped_actions(host, x + w, y + 2, page["pid"])
+        title_w = min(kit.text_width(page["title"], 26, 700), w - 52 - 190)
+        kit.put_text(host, page["title"], x + 50, y - 2, title_w + 8, 26, 700, wrap=False, height=34, track=-0.026)
+        kit.put_text(host, page["meta"], x + 50, y + 33, max(w - 50 - 190, 60), 13, 400, kit.mute(), wrap=False, height=20)
+        y += 66
         if self.memory_snapshot:
-            tx=x;in_settings=bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
-            for tab in self.memory_snapshot['tabs']:
-                symbol={'Resume':'arrow.clockwise','Overview':'square.grid.2x2','Memory':'brain'}.get(tab)
-                tx+=kit.chip(host,tab,symbol,tx,y,self.memory_snapshot['tab']==tab and not in_settings,lambda t=tab:self._memory_action('tab',{'tab':t}))+8
+            in_settings = bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
+            tabs = self.memory_snapshot['tabs']
+            self._segmented(host, x, y, [(tab, self.memory_snapshot['tab'] == tab and not in_settings,
+                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs])
             if self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding'):
-                sx=x+w-kit.chip_width('Settings','gearshape')
-                kit.chip(host,'Settings','gearshape',sx,y,in_settings,lambda:self._memory_action('open_settings'))
+                gx = x + w - 28                                                        # Settings: a quiet gear at the far edge, not a tab
+                gear = self._tap(host, gx, y, 28, 28, lambda: self._memory_action('open_settings'), fill=in_settings)
+                gear.focusable, gear.ax_label = True, "Settings"
+                gear.setToolTip_("Settings")
+                kit.glyph(gear, ("gearshape", "gear"), 6, 6, 16, kit.ink() if in_settings else kit.mute())
                 if in_settings:                                        # the way back sits right beside it
-                    bw=kit.chip_width('Back to Memory','chevron.left');kit.chip(host,'Back to Memory','chevron.left',sx-bw-8,y,False,lambda:self._memory_action('close_settings'))
-            y+=44
-            if self.memory_snapshot['tab'] in {'Memory','Resume'} or page.get('empty'):return y
+                    bw = kit.chip_width('Back to Memory', 'chevron.left')
+                    kit.chip(host, 'Back to Memory', 'chevron.left', gx - bw - 8, y - 2, False, lambda: self._memory_action('close_settings'))
+            y += 28 + 16
+            if self.memory_snapshot['tab'] in {'Memory', 'Resume'} or page.get('empty'):return y
         y = self._status(host, page, x, y, w)
+        host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y + 4, w, 1)))   # the one separator: identity above, activity below
+        y += 26
         y = self._toolbar(host, page, x, y, w)
         return y
+
+    def _grouped_actions(self, parent, right, y, pid):
+        """"+ Sub-project" and "…" as one soft pair, not two buttons."""
+        add_w, more_w = int(kit.text_width("+ Sub-project", 13, 600)) + 28, 36
+        total = add_w + more_w + 1
+        x = right - total
+        parent.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, total, 32), kit.faint(0.07), None, 10))
+        add = self._tap(parent, x, y, add_w, 32, lambda: self.open_name("new", parent=pid))
+        kit.put_text(add, "+ Sub-project", 14, 0, add_w - 28, 13, 600, wrap=False, height=32, middle=True)
+        add.radius = 10
+        parent.addSubview_(_Rail.alloc().initWithFrame_(NSMakeRect(x + add_w, y + 8, 1, 16)))
+        more = self._tap(parent, x + add_w + 1, y, more_w, 32, lambda: self.open_menu(pid))
+        kit.put_text(more, "⋯", 0, 0, more_w, 16, 700, align=kit.CENTER, wrap=False, height=32, middle=True)
+        more.setToolTip_("More")
+        more.radius = 10
 
     def _status(self, host, page, x, y, w):
         """Where you left off, in one quiet strip above the history. With open notes it is a row of small links
@@ -1899,12 +1920,13 @@ class MainWindow:
     def _toolbar(self, host, page, x, y, w):
         """The Things heading on its own line (count and Select beside it), then the controls on a line of their
         own: where to look (a segmented Only here / With sub-projects) at the left, which source (one menu) at the right."""
-        kit.put_text(host, "Things", x, y, w, 17, 700, wrap=False, height=26, middle=True)
-        cx = x + kit.text_width("Things", 17, 700) + 8
-        kit.put_text(host, str(page["total"]), cx, y + 1, 60, 13, 400, kit.mute(), wrap=False, height=26, middle=True)
-        if self.sel is None and page["total"]:
-            self._link(host, "Select", x + w - kit.text_width("Select", 12, 500) - 12, y + 1, self.start_select, size=12)
-        y += 38
+        kit.put_text(host, "Things", x, y, w, 20, 700, wrap=False, height=30, middle=True, track=-0.018)
+        cx = x + kit.text_width("Things", 20, 700) + 10
+        kit.put_text(host, str(page["total"]), cx, y + 2, 60, 13, 400, kit.mute(), wrap=False, height=30, middle=True)
+        if self.sel is None and page["total"]:                                        # a contextual action of browsing, at the heading's edge
+            sw = int(kit.text_width("Select", 13, 600)) + 28
+            kit.button(host, "Select", x + w - sw, y + 1, sw, 28, self.start_select, kind="quiet", size=13, weight=600)
+        y += 42
         if page["deep"]["show"]:
             self._segmented(host, x, y, [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
                                          ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))])

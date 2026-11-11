@@ -134,3 +134,15 @@ class SettingsCopyTests(unittest.TestCase):
         settings = source.split("def _settings")[1]
         self.assertNotIn("—", settings)
         self.assertNotIn("LMemM", settings.split("self.bottom")[0].replace("LMemM:", ""))
+
+
+class SettingsButtonSystemTests(unittest.TestCase):
+    def test_settings_buttons_all_go_through_the_shared_helper(self):
+        import os
+        source = open(os.path.join(os.path.dirname(__file__), "..", "src", "memory_pane.py")).read()
+        settings = source.split("def _settings")[1]
+        self.assertIn("BTN_H,BTN_PAD,KINDS=32,34", settings)
+        self.assertEqual(settings.count("kit.button("), 2)              # the helper, and the ellipsis menu button
+        self.assertIn("'destructive':'danger'", settings)
+        kit = open(os.path.join(os.path.dirname(__file__), "..", "src", "setup_kit.py")).read()
+        self.assertIn('kind == "danger"', kit)

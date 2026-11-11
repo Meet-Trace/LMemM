@@ -228,28 +228,36 @@ class MemoryPane:
             if show_command:
                 top=by-2;box=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+16,top,w-32,ch+16),None);box.fill=kit.faint(0.07);box.radius=8;self.host.addSubview_(box)
                 kit.put_text(self.host,command,x+28,top+8,w-56,12,400,height=ch);by=top+ch+26
-                kit.button(self.host,'Copy command',x+16,by,130,30,lambda:self.action('copy_codex_command'),kind='primary',size=13,weight=600)
-                kit.button(self.host,'Done',x+154,by,80,30,lambda:self.action('close_preview'),kind='quiet',size=13,weight=600)
+                kit.button(self.host,'Copy command',x+16,by,130,32,lambda:self.action('copy_codex_command'),kind='primary',size=13,weight=600)
+                kit.button(self.host,'Done',x+154,by,80,32,lambda:self.action('close_preview'),kind='ghost',size=13,weight=600)
             elif state=='added':
-                kit.button(self.host,'Done',x+16,by,80,30,lambda:self.action('close_preview'),kind='primary',size=13,weight=600)
+                kit.button(self.host,'Done',x+16,by,80,32,lambda:self.action('close_preview'),kind='primary',size=13,weight=600)
             return by+30+16
         title='Proposed context for Codex · no access granted' if preview.get('proposed') else 'Exact context preview for Codex'
         body=json.dumps(preview,ensure_ascii=False,indent=2);th=kit.text_height(body,12,400,w-32)
         y+=12;y+=kit.put_text(self.host,title,x,y,w,14,700,height=20)+6
         panel(x,y,w,th+24);kit.put_text(self.host,body,x+16,y+12,w-32,12,400,height=th);y+=th+36
-        kit.button(self.host,'Copy context preview',x,y,200,30,lambda:self.action('copy_preview'),kind='outline',size=13,weight=600)
-        kit.button(self.host,'Close',x+208,y,80,30,lambda:self.action('close_preview'),kind='quiet',size=13,weight=600)
+        kit.button(self.host,'Copy context preview',x,y,200,32,lambda:self.action('copy_preview'),kind='outline',size=13,weight=600)
+        kit.button(self.host,'Close',x+208,y,80,32,lambda:self.action('close_preview'),kind='ghost',size=13,weight=600)
         return y+46
     def _settings(self,view,x,w,kit,rgb,panel):
+        """Memory settings. One button system: BTN_H tall, text + BTN_PAD wide, primary (blue), secondary (outline), tertiary
+        (ghost) and destructive (red outline). Wide windows put Capture on the left and Agents and Danger zone on the right so
+        the whole page fits without scrolling; narrow ones stack them and scroll."""
         from AppKit import NSMakeRect
+        BTN_H,BTN_PAD,KINDS=32,34,{'primary':'primary','secondary':'outline','tertiary':'ghost','destructive':'danger'}
         host=self.host;y=8;notice=view.get('notice')
+        X0,W0=x,w
         y+=4
-        kit.put_text(host,'Memory settings',x,y,w,24,700,height=32,track=-0.022);y+=52
+        kit.put_text(host,'Memory settings',x,y,w,24,700,height=32,track=-0.022);y+=44
+        def button(label,bx,by,call,kind='secondary',enabled=True,width=None):
+            width=width or int(kit.text_width(label,13,600))+BTN_PAD
+            kit.button(host,label,bx,by,width,BTN_H,call,kind=KINDS[kind],size=13,weight=600,enabled=enabled);return width
         if not (view.get('binding') or {}).get('active',True):
             y+=kit.put_text(host,'Memory is disconnected. Its retained snapshots remain on this Mac. Re-enable it to search, or delete retained memory before deleting the project.',x,y,w,14,400,kit.mute())+20
-            kit.button(host,'Enable Memory',x,y,170,34,lambda:self.action('enroll',{}),kind='primary',size=13);y+=46
-            kit.button(host,'Delete retained memory…',x,y,220,34,lambda:self.action('confirm_delete_memory'),kind='outline',size=13)
-            self.bottom=y+60;return
+            button('Enable Memory',x,y,lambda:self.action('enroll',{}),'primary');y+=BTN_H+12
+            button('Delete retained memory…',x,y,lambda:self.action('confirm_delete_memory'),'destructive')
+            self.bottom=y+BTN_H+28;return
         if view.get('preview'):y=self._preview(view,x,w,y,kit,panel)+8
         mode=view['state']
         if mode=='Needs attention':
@@ -258,109 +266,115 @@ class MemoryPane:
             if st.get('failed'):facts.append('Failed: %s'%st['failed'])
             if st.get('indexed_at'):facts.append('Last indexed '+friendly(st['indexed_at']))
             facts=' · '.join(facts);dh=kit.text_height(detail,13,400,w-32);top=y
-            panel(x,top,w,dh+100,ORANGE)
+            panel(x,top,w,dh+92,ORANGE)
             kit.put_text(host,'What needs attention',x+16,top+12,w-32,14,700,wrap=False,height=20)
             kit.put_text(host,detail,x+16,top+36,w-32,13,400,kit.status_text('orange'),height=dh)
             kit.put_text(host,facts,x+16,top+dh+42,w-32,11,400,kit.mute(),wrap=False,height=16)
-            kit.button(host,'Try again',x+16,top+dh+66,110,30,lambda:self.action('resume'),kind='primary',size=13,weight=600)
-            kit.chip(host,'Recover notes','lifepreserver',x+134,top+dh+66,False,lambda:self.action('recover_native_notes'))
-            y=top+dh+100+14
-        def confirm_card():
-            """The question sits directly under the row whose button asked it, so it is never off screen."""
-            nonlocal y
-            title,detail,go=CONFIRMS[self.confirm];dh=kit.text_height(detail,13,400,w-32);top=y
-            panel(x,top,w,dh+88,ACC)
-            kit.put_text(host,title,x+16,top+14,w-32,15,700,wrap=False,height=20)
-            kit.put_text(host,detail,x+16,top+38,w-32,13,400,kit.mute(),height=dh)
-            gw=kit.text_width(go,13,600)+34;kit.button(host,go,x+16,top+dh+50,gw,30,lambda:self.action('confirm_yes'),kind='outline' if self.confirm=='confirm_disconnect' else 'primary',size=13,weight=600)
-            kit.button(host,'Cancel',x+24+gw,top+dh+50,90,30,lambda:self.action('confirm_no'),kind='quiet',size=13,weight=600);y=top+dh+88+8
+            bw=button('Try again',x+16,top+dh+54,lambda:self.action('resume'),'primary')
+            button('Recover notes',x+16+bw+8,top+dh+54,lambda:self.action('recover_native_notes'),'secondary')
+            y=top+dh+92+14
         group={'top':None,'danger':False,'rows':0,'surface':False}
         def end_group():
             """Only the Capture list sits on a soft tonal surface; the other sections are rows between fine dividers."""
             nonlocal y
             if group['top'] is None:return
             if group['surface']:
-                y+=8
+                y+=6
                 surface=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,group['top'],w,y-group['top']),kit.faint(0.04),None,14)
                 host.addSubview_positioned_relativeTo_(surface,-1,None)
-            group['top']=None;y+=30
-        def tip_over(px,py,pw,ph,text):
-            """The longer instruction, kept out of the page until the pointer rests on the row."""
-            if text:
-                hover=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(px,py,pw,ph),None);hover.setToolTip_(text);host.addSubview_(hover)
+            group['top']=None;y+=22
+        def confirm_open(title,detail,go,destructive,call_yes):
+            """A confirmation is the setting's own expanded state: an inset tonal panel under the row, same material and
+            radius as the surfaces around it, a red edge mark only when it is destructive, the same buttons."""
+            nonlocal y
+            inner=w-46-16-32;dh=kit.text_height(detail,13,400,inner,True,0.004,1.3);ph=14+20+4+dh+12+BTN_H+14;top=y+4
+            host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x+38,top,w-54,ph),kit.faint(0.06),None,12))
+            if destructive:
+                bar=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+38,top+12,3,ph-24),None);bar.fill=rgb(RED);bar.radius=1.5;host.addSubview_(bar)
+            kit.put_text(host,title,x+54,top+12,inner,15,600,wrap=False,height=20)
+            kit.put_text(host,detail,x+54,top+36,inner,13,400,kit.mute(),height=dh,track=0.004,lead=1.3)
+            by=top+36+dh+12;gw=button(go,x+54,by,call_yes,'destructive' if destructive else 'primary')
+            button('Cancel',x+54+gw+8,by,lambda:self.action('confirm_no'),'tertiary')
+            y=top+ph+6
         def row(symbols,title,state,buttons,state_color=None,dot=False,more=(),warn=None,tip=None,progress=False,fraction=None,danger=False):
-            """A setting is a title, its state under it, and one action. Other actions wait in the ellipsis menu."""
+            """A setting is a title, its state under it, and one action in the common right-hand column. Other actions wait in the ellipsis menu."""
             nonlocal y
             if group['rows']:host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+16,y,w-32,1)))
             group['rows']+=1
             btn=[(b[0],b[1],b[2],b[3] if len(b)>3 else True) for b in buttons]
-            widths=[kit.text_width(b[0],13,600)+34 for b in btn];right=x+w-16
-            menu_w=34 if more else 0;action_w=sum(widths)+8*len(widths)+menu_w
-            text_w=max(w-44-16-action_w-24,160)
+            widths=[int(kit.text_width(b[0],13,600))+BTN_PAD for b in btn]
+            slot=BTN_H+8                                          # the ellipsis slot is reserved on every row, so primary actions line up
+            text_w=max(w-46-16-slot-(sum(widths)+8*len(widths))-16,140)
             state_text_=('\u25CF '+state) if dot and state else state
             sh=kit.text_height(state_text_,13,400,text_w,True,0.004,1.3) if state_text_ else 0
             wh=kit.text_height(warn,13,400,text_w,True,0.004,1.3) if warn else 0
-            h=max(58,14+22+sh+(wh+4 if warn else 0)+14)+(14 if progress else 0)
-            kit.glyph(host,symbols,x+16,y+16,18,rgb(RED) if danger else kit.mute())
-            kit.put_text(host,title,x+46,y+13,text_w,15,600,wrap=False,height=22,track=-0.004)
-            if state_text_:kit.put_text(host,state_text_,x+46,y+36,text_w,13,400,state_color or kit.mute(),height=sh,track=0.004,lead=1.3)
-            if warn:kit.put_text(host,warn,x+46,y+36+sh+4,text_w,13,400,kit.status_text('orange'),height=wh,track=0.004,lead=1.3)
+            h=max(52,9+20+sh+(wh+4 if warn else 0)+9)+(12 if progress else 0)
+            kit.glyph(host,symbols,x+16,y+10,18,rgb(RED) if danger else kit.mute())
+            kit.put_text(host,title,x+46,y+9,text_w,15,600,wrap=False,height=20,track=-0.004)
+            if state_text_:kit.put_text(host,state_text_,x+46,y+29,text_w,13,400,state_color or kit.mute(),height=sh,track=0.004,lead=1.3)
+            if warn:kit.put_text(host,warn,x+46,y+29+sh+4,text_w,13,400,kit.status_text('orange'),height=wh,track=0.004,lead=1.3)
             if progress:
-                by=y+h-20;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+46,by,min(text_w,420),4),None);track.fill=kit.faint(0.10);track.radius=2;host.addSubview_(track)
-                fw=min(text_w,420)*(fraction or 0)
+                bw_=min(text_w,360);by=y+h-14;track=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+46,by,bw_,4),None);track.fill=kit.faint(0.10);track.radius=2;host.addSubview_(track)
+                fw=bw_*(fraction or 0)
                 if fw>0:fill=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+46,by,max(fw,4),4),None);fill.fill=rgb(ACC);fill.radius=2;host.addSubview_(fill)
-            tip_over(x+46,y,text_w,h,tip)
+            if tip:
+                hover=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+46,y,text_w,h),None);hover.setToolTip_(tip);host.addSubview_(hover)
+            cy=y+(h-BTN_H)/2-(6 if progress else 0)
             if more:
-                right-=34;opts=[m for m in more]
-                more_btn=kit.button(host,'\u22EF',right,y+(h-32)/2-(7 if progress else 0),34,32,lambda items=opts:self._menu(items),kind='quiet',size=16,weight=700);right-=8
+                opts=list(more);mb=kit.button(host,'\u22EF',x+w-16-BTN_H,cy,BTN_H,BTN_H,lambda items=opts:self._menu(items),kind='ghost',size=16,weight=700);mb.ax_label='More actions'
+            right=x+w-16-slot
             for item,bw in reversed(list(zip(btn,widths))):
                 label,action,kind,on=item;right-=bw
-                kit.button(host,label,right,y+(h-32)/2-(7 if progress else 0),bw,32,lambda a=action:self.action(a),kind=kind,size=13,weight=600,enabled=on);right-=8
+                button(label,right,cy,(lambda a=action:self.action(a)),kind,on,bw);right-=8
             y+=h
-            if self.confirm in CONFIRMS and title==ASKED.get(self.confirm):y+=8;confirm_card()
+            if self.confirm in CONFIRMS and title==ASKED.get(self.confirm):
+                ctitle,detail,go=CONFIRMS[self.confirm];confirm_open(ctitle,detail,go,self.confirm=='confirm_disconnect',lambda:self.action('confirm_yes'))
         def sub(text):
             nonlocal y
-            y+=10;kit.put_text(host,text,x+16,y,w,12,600,kit.mute(),wrap=False,height=16,track=0.02);y+=24
+            y+=8;kit.put_text(host,text,x+16,y,w,12,600,kit.mute(),wrap=False,height=16,track=0.02);y+=20
             group['rows']=0
         def cap(text,danger=False,surface=False):
             nonlocal y
             end_group()
-            kit.put_text(host,text,x,y,w,15,700,kit.status_text('red') if danger else None,wrap=False,height=22,track=-0.01);y+=34
+            kit.put_text(host,text,x,y,w,15,700,kit.status_text('red') if danger else None,wrap=False,height=22,track=-0.01);y+=30
             group['top']=y;group['rows']=0;group['danger']=danger;group['surface']=surface
         def note_for(kind,default):
             if notice and len(notice)>2 and notice[2]==kind:return notice[0],(kit.status_text('orange') if notice[1] else None)
             return default,None
+        two=W0>=740                                              # wide enough for two columns
+        cw=int((W0-28)/2) if two else W0
+        top_y=y;x,w=X0,cw
         root=(view.get('binding') or {}).get('workspace_root')
-        binding=view.get('binding') or {};status=view.get('status',{})
+        status=view.get('status',{})
         cap('Capture',surface=True)
         sub('Storage')
-        row(['folder'],'Project folder',(STATE_LABELS.get(mode,mode).split(' \u00b7')[0])+(' \u00b7 '+short_name(root,48) if root else ''),
-            [('Resume' if mode=='Paused' else 'Pause','resume' if mode=='Paused' else 'pause','outline')],state_color=state_text(mode,kit),dot=True)
+        row(['folder'],'Project folder',(STATE_LABELS.get(mode,mode).split(' \u00b7')[0])+(' \u00b7 '+short_name(root,40) if root else ''),
+            [('Resume' if mode=='Paused' else 'Pause','resume' if mode=='Paused' else 'pause','secondary')],state_color=state_text(mode,kit),dot=True)
         if not root:
-            row(['folder.badge.plus','folder'],'Optional workspace','Not connected. Notes and browser saves work without one.',[('Choose folder…','choose_root','outline')],tip='Connect a folder for VS Code capture.')
+            row(['folder.badge.plus','folder'],'Optional workspace','Not connected',[('Choose folder…','choose_root','secondary')],tip='Connect a folder for VS Code capture. Notes and browser saves work without one.')
         sub('Connected apps')
         paired=status.get('browser_paired')
         row(['globe'],'Chrome','Paired' if paired else 'Not connected',
-            [('Show extension folder','open_browser_extension','outline')] if paired else [('Connect Chrome','install_browser','primary')],
+            [('Disconnect','revoke_browser','secondary')] if paired else [('Connect','install_browser','primary')],
             state_color=kit.status_text('green') if paired else None,dot=bool(paired),
-            more=[('Disconnect','revoke_browser')] if paired else [('Show extension folder','open_browser_extension')],
+            more=[('Show extension folder','open_browser_extension')],
             tip='Pin the Trace extension in Chrome and save selected text with Control + Shift + S. Saved sources stay when you disconnect. No background browsing is collected.' if paired else 'Connect Chrome, then load the bundled Trace extension from its installation folder. No background browsing is collected.')
         installed=view.get('extension_installed');kind=notice[2] if notice and len(notice)>2 else None
         busy=bool(notice and kind in ('install_extension','connect_extension') and notice[0].endswith('…'))
-        said=None
-        if notice and kind in ('install_extension','connect_extension'):said=notice[0]
+        said=notice[0] if notice and kind in ('install_extension','connect_extension') else None
         connected=status.get('source_connected');blind=view.get('accessibility') is False
-        vs_tip='Open this project in standard VS Code, then connect. Your editor windows stay open.'
+        icons=['chevron.left.forwardslash.chevron.right','curlybraces']
         if connected:
-            row(['chevron.left.forwardslash.chevron.right','curlybraces'],'VS Code','Connected, paused' if mode=='Paused' else 'Connected',[],state_color=kit.status_text('green'),dot=True,
+            row(icons,'VS Code','Connected, paused' if mode=='Paused' else 'Connected',[],state_color=kit.status_text('green'),dot=True,
                 warn=('Nothing kept from this file. '+status['capture_blocker']) if status.get('capture_blocker') else None,tip='Shares the text you view in the editor.')
         elif installed and not busy:
-            row(['chevron.left.forwardslash.chevron.right','curlybraces'],'VS Code',said or ('Needs Accessibility access' if blind else 'Installed'),
+            row(icons,'VS Code',said or ('Needs Accessibility access' if blind else 'Installed'),
                 [('Allow Accessibility','allow_accessibility','primary')] if blind else [('Connect','reconnect_extension','primary')],
-                state_color=kit.status_text('orange') if (notice and notice[1]) or blind else None,tip=('Press Allow, switch Trace on in the list, then come back.' if blind else vs_tip))
+                state_color=kit.status_text('orange') if (notice and notice[1]) or blind else None,
+                tip='Press Allow, switch Trace on in the list, then come back.' if blind else 'Open this project in standard VS Code, then connect. Your editor windows stay open.')
         else:
-            row(['chevron.left.forwardslash.chevron.right','curlybraces'],'VS Code','Installing in VS Code…' if busy and kind=='install_extension' else (said or 'Not installed'),
-                [('Working…' if busy else 'Install extension','install_extension','quiet' if busy else 'primary',not busy)],
+            row(icons,'VS Code','Installing in VS Code…' if busy and kind=='install_extension' else (said or 'Not installed'),
+                [('Working…' if busy else 'Install','install_extension','secondary' if busy else 'primary',not busy)],
                 state_color=kit.status_text('orange') if notice and notice[1] else None,tip='Shares the text you view in the editor.')
         sub('Intelligence')
         ready=status.get('model_state')=='available';state=status.get('model_install')
@@ -369,23 +383,24 @@ class MemoryPane:
         if state=='installing' or starting:
             percent=status.get('model_install_percent');secs=status.get('model_install_seconds') or 0
             text='Starting the download…' if state!='installing' else ('Downloading… %d%%'%percent if percent else 'Starting the download…')+' \u00b7 %d:%02d'%(secs//60,secs%60)
-            row(['sparkles'],'Meaning search',text,[('Installing…','confirm_model','quiet',False)],progress=True,fraction=(percent or 0)/100,
+            row(['sparkles'],'Meaning search',text,[('Installing…','confirm_model','secondary',False)],progress=True,fraction=(percent or 0)/100,
                 warn='Taking longer than usual. Check your connection.' if secs>180 else None,tip=model_tip)
         elif state=='failed':
             row(['sparkles'],'Meaning search',status.get('model_install_message') or 'The install failed.',[('Try again','confirm_model','primary')],state_color=kit.status_text('orange'),tip=model_tip)
         else:
             text,color=note_for('install_model','On' if ready else 'Not installed')
             row(['sparkles'],'Meaning search',text,[] if ready else [('Install','confirm_model','primary')],state_color=color or (kit.status_text('green') if ready else None),dot=ready,tip=model_tip)
-        end_group()
+        end_group();left_bottom=y
+        if two:x,w=X0+cw+28,cw;y=top_y
         cap('Agents')
         connected_codex=view.get('codex_connected')
-        row(['terminal'],'Codex','Connected' if connected_codex else 'Not connected',[('Preview','preview','outline')] if connected_codex else [('Connect…','confirm_agent','primary')],
+        row(['terminal'],'Codex','Connected' if connected_codex else 'Not connected',[('Preview','preview','secondary')] if connected_codex else [('Connect…','confirm_agent','primary')],
             state_color=kit.status_text('green') if connected_codex else None,dot=bool(connected_codex),
             more=[('Copy prompt','copy_codex_prompt'),('Revoke access','revoke_agent')] if connected_codex else [],
             tip='Codex can search this project’s notes and sources and read the cited text.')
         end_group()
         cap('Danger zone',True)
-        row(['bolt.slash'],'Disconnect Memory','Stops capture and agent access. Saved notes stay on this Mac.',[('Disconnect…','confirm_disconnect','outline')],danger=True)
-        row(['trash'],'Delete retained memory','Removes retained snapshots, the graph and agent access. Original notes and files stay.',[('Delete…','confirm_delete_memory','outline')],danger=True)
+        row(['bolt.slash'],'Disconnect Memory','Stops capture and agent access. Saved notes stay on this Mac.',[('Disconnect…','confirm_disconnect','destructive')],danger=True)
+        row(['trash'],'Delete retained memory','Removes retained snapshots, the graph and agent access. Original notes and files stay.',[('Delete…','confirm_delete_memory','destructive')],danger=True)
         end_group()
-        self.bottom=y
+        self.bottom=max(left_bottom,y) if two else y

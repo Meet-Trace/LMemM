@@ -31,6 +31,25 @@ class ShellTests(unittest.TestCase):
         body = WINDOW.split("def _render(self)")[1].split("def _fill")[0]
         self.assertIsNone(re.search(r"(?<![\w.])[WH](?![\w])\s*[-,)]", body.replace("MIN_W", "")), body)
 
+    def test_one_column_width_for_every_page(self):
+        self.assertNotIn("MAX_WIDE", WINDOW)
+        self.assertEqual(WINDOW.count("min(MAX_MAIN, room)"), 1)
+
+    def test_selection_has_clear_and_done(self):
+        bar = WINDOW.split("def _select_bar")[1].split("def _mini_card")[0]
+        self.assertIn('"Clear", 14 + tw + 12', bar)
+        self.assertIn("self.clear_select", bar)
+        self.assertIn('("Done", "primary", self.stop_select', bar)
+        clear = WINDOW.split("def clear_select")[1].split("def pick_thing")[0]
+        self.assertIn("self.sel = []", clear)                              # stays in selection mode
+
+    def test_panes_keep_their_scroll_place(self):
+        self.assertEqual(WINDOW.count("setDocumentView_(self.memory_pane.host)"), 0)     # never re-set on every draw: that snaps to the top
+        self.assertEqual(WINDOW.count("setDocumentView_(self.resume_pane.host)"), 0)
+        place = WINDOW.split("def _place_pane")[1].split("def _fill")[0]
+        self.assertIn("if scroll.documentView() is not host", place)
+        self.assertIn("clip.scrollToPoint_", place)
+
     def test_keys(self):
         for key in ('"k"', '","', '"["', '"q"', '"w"', '"m"'):
             self.assertIn(key, WINDOW)

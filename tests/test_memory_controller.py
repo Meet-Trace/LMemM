@@ -130,13 +130,13 @@ class ControllerTests(unittest.TestCase):
         m.action('enroll',{})
         self.assertIsNone(c.calls[-1][1]['root'])
         m.bindings=[dict(ui_project_id='a',project_id='pa',active=True,workspace_root=None)]
-        m.action('tab',{'tab':'Resume'})
+        m.action('tab',{'tab':'Overview'})
         self.assertEqual(c.calls[-1][0],'resume_project')
 
     def test_submit_only_and_response_project_fence(self):
         c=Client();m=MemoryController(lambda:c,lambda:{},lambda:None)
         m.bindings=[dict(ui_project_id='a',project_id='pa',active=True,workspace_root='/a')]
-        m.select('a');m.action('query',{'text':'rollback'})
+        m.select('a');m.action('tab',{'tab':'Memory'});m.action('query',{'text':'rollback'})
         self.assertFalse(any(call[0]=='search_project_memory' for call in c.calls))
         m.action('submit',{});call=c.calls[-1]
         self.assertEqual(call[0],'search_project_memory');self.assertEqual(call[1]['project_id'],'pa')
@@ -178,3 +178,38 @@ class ControllerTests(unittest.TestCase):
         m.action('enroll',{'root':'/a'});self.assertIn('busy',m.view())
         m.poll([dict(type='error',error='Project memory service unavailable.')])
         self.assertNotIn('busy',m.view())
+
+
+class OverviewResumeTests(unittest.TestCase):
+    def setUp(self):
+        self.c=Client();self.m=MemoryController(lambda:self.c,lambda:{},lambda:None)
+        self.m.bindings=[dict(ui_project_id='a',project_id='pa',active=True,workspace_root='/a')];self.m.select('a')
+    def test_overview_is_the_default_tab_and_loads_the_resume_packet(self):
+        self.assertEqual(self.m.state['tab'],'Overview')
+        self.assertEqual(self.c.calls[-1][0],'resume_project')
+        self.assertNotIn('Resume',self.m.view()['tabs'])
+    def test_mark_done_then_undo_uses_the_same_backend_calls_and_clears_the_undo(self):
+        self.m.action('set_task_state',{'claim_id':'t1','done':True})
+        self.assertEqual(self.c.calls[-1][:2],('set_task_state',{'claim_id':'t1','done':True,'project_id':'pa'}))
+        self.assertEqual(self.m.view()['last_completed'],('set_task_state',{'claim_id':'t1','done':False}))
+        self.m.action('set_task_state',{'claim_id':'t1','done':False})
+        self.assertIsNone(self.m.view()['last_completed'])
+    def test_related_sources_come_from_the_resume_packet(self):
+        rid=self.c.calls[-1][2]
+        self.m.poll([dict(type='response',id=rid,result=dict(related_sources=[dict(id='e1',citation_id='c2',from_citation='c1',title='T')]))])
+        self.assertEqual(self.m.view()['related'][0]['id'],'e1')
+    def test_closing_a_source_reloads_the_list(self):
+        self.m.action('tab',{'tab':'Memory'});self.m.action('source',{'citation_id':'c'})
+        n=len(self.c.calls);self.m.action('close_source')
+        self.assertEqual(self.c.calls[n][0],'get_project_context')
+
+
+class ResumeActionsSurviveTests(unittest.TestCase):
+    def test_every_old_resume_action_is_still_reachable(self):
+        root=os.path.join(os.path.dirname(__file__),'..','src')
+        window=open(os.path.join(root,'window.py')).read();pane=open(os.path.join(root,'memory_pane.py')).read()
+        self.assertFalse(os.path.exists(os.path.join(root,'resume_pane.py')))
+        for a in ('copy_context','add_note','view_source'):self.assertIn(a,window)
+        view=open(os.path.join(root,'memory_view.py')).read()
+        for a in ('complete_native_note','set_task_state'):self.assertIn(a,view)
+        for a in ('record_claim','remove_relationship','forget_source'):self.assertIn(a,pane)

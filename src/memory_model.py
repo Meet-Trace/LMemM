@@ -2,11 +2,11 @@
 from copy import deepcopy
 from datetime import datetime,timedelta,timezone
 
-TABS=['Resume','Overview','Memory']
+TABS=['Overview','Memory']        # Resume is part of Overview now
 PERIODS=['Last 2 days','Last 7 days','All retained']
 
 def new_memory_state():
-    return dict(project_id=None,tab='Resume',history={},query='',period=PERIODS[0],generation=None,epoch=0,
+    return dict(project_id=None,tab='Overview',history={},query='',period=PERIODS[0],generation=None,epoch=0,
                 request_count=0,request=None,result=None,source=None,preview=None,error=None,loading=False)
 
 def memory_reduce(state,action,payload):
@@ -15,7 +15,7 @@ def memory_reduce(state,action,payload):
         pid=payload.get('project_id')
         if pid!=s['project_id']:
             if s['project_id']:s['history'][s['project_id']]=s['tab']
-            s.update(project_id=pid,tab=s['history'].get(pid,'Resume'),query='',result=None,source=None,preview=None,error=None,loading=False,request=None,epoch=s['epoch']+1)
+            s.update(project_id=pid,tab=s['history'].get(pid,'Overview') if s['history'].get(pid) in TABS else 'Overview',query='',result=None,source=None,preview=None,error=None,loading=False,request=None,epoch=s['epoch']+1)
     elif action=='tab':
         if payload['tab'] not in TABS:raise ValueError('Unknown tab')
         s['tab']=payload['tab'];s['source']=None

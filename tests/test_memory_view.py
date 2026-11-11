@@ -118,3 +118,93 @@ class GroupEvidenceTests(unittest.TestCase):
         long = '\n'.join('line %d' % i for i in range(20))
         self.assertTrue(excerpt(long).endswith('\n…'))
         self.assertEqual(len(excerpt('x' * 500).rstrip('…')), 109)
+
+
+class SettingsCopyTests(unittest.TestCase):
+    def test_confirmations_say_trace_and_use_no_em_dash(self):
+        from memory_view import CONFIRMS
+        for title, detail, button in CONFIRMS.values():
+            for text in (title, detail, button):
+                self.assertNotIn("LMemM", text)
+                self.assertNotIn("—", text)
+
+    def test_settings_copy_in_the_pane_uses_no_em_dash(self):
+        import os
+        source = open(os.path.join(os.path.dirname(__file__), "..", "src", "memory_pane.py")).read()
+        settings = source.split("def _settings")[1]
+        self.assertNotIn("—", settings)
+        self.assertNotIn("LMemM", settings.split("self.bottom")[0].replace("LMemM:", ""))
+
+
+class SettingsButtonSystemTests(unittest.TestCase):
+    def test_settings_buttons_all_go_through_the_shared_helper(self):
+        import os
+        source = open(os.path.join(os.path.dirname(__file__), "..", "src", "memory_pane.py")).read()
+        settings = source.split("def _settings")[1]
+        self.assertIn("BTN_H,BTN_PAD=32,34", source)                    # module level: shared with the Memory page
+        self.assertEqual(settings.count("kit.button("), 2)              # the helper, and the ellipsis menu button
+        self.assertIn("'destructive':'danger'", source)
+        kit = open(os.path.join(os.path.dirname(__file__), "..", "src", "setup_kit.py")).read()
+        self.assertIn('kind == "danger"', kit)
+
+
+class SettingsActionColumnTests(unittest.TestCase):
+    def test_one_action_width_and_no_back_to_memory(self):
+        import os
+        base = os.path.join(os.path.dirname(__file__), "..", "src")
+        pane = open(os.path.join(base, "memory_pane.py")).read().split("def _settings")[1]
+        self.assertIn("ACTION_W=148", pane)
+        self.assertIn("action_x=x+w-PADX-SLOT-ACTION_W", pane)          # every row starts its action at the same x
+        self.assertNotIn("Back to Memory", open(os.path.join(base, "window.py")).read())
+
+
+class MemoryPageTests(unittest.TestCase):
+    def test_default_cards_show_no_provenance_label_and_details_sit_behind_a_toggle(self):
+        import os
+        source = open(os.path.join(os.path.dirname(__file__), "..", "src", "memory_pane.py")).read()
+        page = source.split("def render")[1].split("def _fade_in")[0]
+        self.assertNotIn("row['provenance']", page)                       # "Your note" and friends are not on the card
+        self.assertIn("'toggle_details'", page)
+        self.assertIn("'toggle_composer'", page)
+        win = open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")).read()
+        self.assertIn("'toggle_details','toggle_composer'", win)
+
+
+class SourceProvenanceTests(unittest.TestCase):
+    def test_browser_capture_shows_page_facts_not_the_note_text(self):
+        from memory_view import source_provenance
+        p = source_provenance(dict(origin_type='browser_selection', title='Pricing – Acme', url='https://www.acme.com/pricing?x=1',
+                                   text='SECRET BODY', locator='', at='2026-11-10T10:00:00Z', source_id='s1', citation_id='c1'))
+        self.assertEqual(p['kind'], 'Saved from browser')
+        self.assertEqual(p['heading'], 'Pricing – Acme')
+        self.assertIn(('Site', 'acme.com'), p['facts'])
+        self.assertNotIn('SECRET BODY', str(p))
+        self.assertIn(('Source id', 's1'), p['details'])
+        self.assertFalse(any('s1' in v for _l, v in p['facts']))
+
+    def test_standalone_note_says_so_and_invents_nothing(self):
+        from memory_view import source_provenance
+        p = source_provenance(dict(origin_type='user_note', text='x', locator='', at='2026-11-10T10:00:00Z'))
+        self.assertEqual(p['kind'], 'Project note')
+        self.assertTrue(any('standalone saved note' in v for _l, v in p['facts']))
+        self.assertEqual(p['url'], '')
+
+
+class ResumeItemTests(unittest.TestCase):
+    def test_priority_is_task_then_decision_then_note(self):
+        from memory_view import resume_item
+        note = dict(text='a note', at='2026-11-10T09:00:00Z', citation_id='n')
+        dec = dict(statement='We chose X', at='2026-11-09T09:00:00Z', citations=['d'])
+        t_old = dict(id='t1', statement='Old task', at='2026-11-01T09:00:00Z', citations=['t1c'], native_note_id=None)
+        t_new = dict(id='t2', statement='New task\nsecond line', at='2026-11-05T09:00:00Z', citations=['t2c'], native_note_id=None)
+        item = resume_item(dict(open_tasks=[t_old, t_new], decisions=[dec], saved_activity=[note]))
+        self.assertEqual((item['kind'], item['title'], item['citation_id']), ('Next action', 'New task', 't2c'))
+        self.assertEqual(item['done'], ('set_task_state', {'claim_id': 't2', 'done': True}))
+        self.assertEqual(resume_item(dict(decisions=[dec], saved_activity=[note]))['kind'], 'Decision')
+        self.assertEqual(resume_item(dict(saved_activity=[note]))['kind'], 'Note')
+        self.assertIsNone(resume_item(dict()))
+
+    def test_a_native_note_task_is_completed_as_a_note(self):
+        from memory_view import resume_item
+        item = resume_item(dict(open_tasks=[dict(id='t', statement='Do it', at='x', citations=['c'], native_note_id='nn')]))
+        self.assertEqual(item['done'], ('complete_native_note', {'note_id': 'nn', 'done': True}))

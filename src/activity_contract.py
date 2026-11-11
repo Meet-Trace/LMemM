@@ -57,7 +57,7 @@ def replay(infer, records, params):
 
 ASSIGNMENT_TIME = ("t_resume_s", "interruption_max_s", "decay_half_life_s", "candidate_horizon_s", "long_gap_s",
                    "glance_dwell_s", "seed_dwell_s", "unknown_app_seed_dwell_s", "internal_shift_min_dwell_s",
-                   "max_intra_visit_gap_s", "neighbour_window_s")
+                   "max_intra_visit_gap_s", "neighbour_window_s", "handoff_s")
 REPORTING_TIME = ("status_active_s", "status_paused_s")      # dormant = beyond paused
 
 
@@ -75,6 +75,7 @@ class ReplayParams:
     internal_shift_min_dwell_s: float = 120.0
     max_intra_visit_gap_s: float = 300.0
     neighbour_window_s: float = 300.0
+    handoff_s: float = 60.0
     status_active_s: float = 900.0
     status_paused_s: float = 21600.0
 

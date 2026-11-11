@@ -487,13 +487,14 @@ def same_pr_three_pages(seed=15):
 
 
 def pr_numbers_differ(seed=16):
-    """10 (B4). PR 12 and PR 15 in one repository: a cannot-link between them."""
+    """10 (B4). PR 12 and PR 15 in one repository. Contrast only (design 12.2): two PRs are distinct artifacts, never a
+    cannot-link, so the pairs must not merge on the evidence of this fixture, but no hard rule forbids them: one Activity can
+    span several PRs when stronger corroborating evidence supports it."""
     b = Builder(seed)
     p12, p15 = _gh("pull/12", "Add retry backoff - Pull Request #12"), _gh("pull/15", "Fix pagination order - Pull Request #15")
     a = [b.visit(p12, b.part("retry", 90, n=6, extra_idents=["#12"]), {"pr12"}), b.visit(p12, b.part("retry", 80, n=6, extra_idents=["#12"]), {"pr12"})]
     c = [b.visit(p15, b.part("pagination", 90, n=6, extra_idents=["#15"]), {"pr15"}), b.visit(p15, b.part("pagination", 80, n=6, extra_idents=["#15"]), {"pr15"})]
-    return b.done("pr_numbers_differ", must_merge=[tuple(a), tuple(c)], must_not_merge=[(x, y) for x in a for y in c],
-                  cannot_link=[(a[0], c[0]), (a[1], c[1])])
+    return b.done("pr_numbers_differ", must_merge=[tuple(a), tuple(c)], must_not_merge=[(x, y) for x in a for y in c])
 
 
 def blob_slash_branch(seed=17):

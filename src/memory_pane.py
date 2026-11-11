@@ -94,7 +94,7 @@ class MemoryPane:
             if row['at']:kit.put_text(host,friendly(row['at']),x+w-PADX-RIGHT_W,y+11,RIGHT_W,12,400,kit.mute(),align=kit.RIGHT,wrap=False,height=18,track=0.01)
             if row['citation_id']:
                 sw_=int(kit.text_width('Source',12,600))+30
-                sb=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+w-PADX-sw_,y+h-34,sw_,24),lambda c=row['citation_id']:self.action('source',{'citation_id':c}))
+                sb=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+w-PADX-sw_,y+h-28,sw_,24),lambda c=row['citation_id']:self.action('source',{'citation_id':c}))
                 sb.fill=kit.accent(0.10);sb.radius=8;sb.ax_label='Source for: '+lead[:60];host.addSubview_(sb)
                 kit.put_text(sb,'Source  ›',0,0,sw_,12,600,kit.accent_text(),align=kit.CENTER,wrap=False,height=24,middle=True)
             y+=h
@@ -150,9 +150,10 @@ class MemoryPane:
             rb=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(right-rw,y,rw,BTN_H),None if busy else self._refresh)
             rb.border=kit.line();rb.radius=9;rb.ax_label=rl;host.addSubview_(rb)
             if busy:rb.setAlphaValue_(0.6)
-            rg=kit.icon('checkmark' if done else 'arrow.clockwise',13,kit.accent_text() if done else kit.mute(),(14,9,14,14))
+            tw_=int(kit.text_width(rl,13,600));gl=13+7+tw_;gx=(rw-gl)/2                 # icon and label as one group, centred in the button
+            rg=kit.icon('checkmark' if done else 'arrow.clockwise',13,kit.accent_text() if done else kit.mute(),(gx,(BTN_H-13)/2,13,13))
             if rg is not None:rb.addSubview_(rg)
-            kit.put_text(rb,rl,34,0,rw-40,13,600,kit.accent_text() if done else None,wrap=False,height=BTN_H,middle=True);right-=rw+8
+            kit.put_text(rb,rl,gx+20,0,tw_+4,13,600,kit.accent_text() if done else None,wrap=False,height=BTN_H,middle=True);right-=rw+8
             pw=int(kit.text_width(label,12,500))+36
             chip=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(right-pw,y+2,pw,28),lambda:self.action('open_status'));chip.radius=9;chip.focusable=True;chip.ax_label='Memory status: '+label;host.addSubview_(chip)
             dot=kit.icon('circle.fill',7,rgb(STATE_COLORS.get(mode,GREEN)),(12,10,8,8))

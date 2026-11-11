@@ -8,6 +8,7 @@ interrupted by a redraw; the two scrolling areas keep their place when the data 
 """
 
 import os
+import re
 import sys
 import time
 import traceback
@@ -17,6 +18,7 @@ from Foundation import NSData, NSObject
 from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView, NSTextView,
                     NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
+import ambient
 import apps
 import backdrop
 import config
@@ -46,7 +48,8 @@ BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
-MIN_MAIN, MAX_MAIN = 560, 980                          # the page's reading column: it grows with the window, up to this
+MIN_MAIN, MAX_MAIN = 560, 980 
+                         # the page's reading column: it grows with the window, up to this
 TOP = 32                                               # below the title bar
 TONES = {"red": "red", "grey": None, "calm": None}      # the banner box's tone (red is only for what is off)
 
@@ -65,6 +68,83 @@ def hue_color(hue):
     names = ("systemBlue", "systemPurple", "systemPink", "systemOrange", "systemTeal", "systemGreen",
              "systemIndigo", "systemBrown")
     return getattr(NSColor, names[hue % len(names)] + "Color")()
+
+
+def _local_minute():
+    """Minute of the day on the Mac's clock right now. Asks the system each time: Python's own time.localtime() keeps the
+    time zone the process started in, so changing the Mac's time zone would never reach the background."""
+    try:
+        from Foundation import NSCalendar, NSDate, NSTimeZone
+        NSTimeZone.resetSystemTimeZone()
+        parts = NSCalendar.autoupdatingCurrentCalendar().components_fromDate_(32 | 64, NSDate.date())    # hour | minute
+        return int(parts.hour()) * 60 + int(parts.minute())
+    except Exception:
+        return backdrop.minute_of(time.localtime())
+
+
+def _short_ago(text):
+    """"12 min ago" becomes "12m", "3 h ago" "3h", "5 days ago" "5d"; dates and "Yesterday" stay as they are."""
+    return re.sub(r"^(\d+) (?:min|h|days?) ago$", lambda m: m.group(1) + {"m": "m", "h": "h", "d": "d"}[text.split()[1][0]], text)
+
+
+class _SourcePick(NSObject):
+    """Receives a menu pick and runs the callable kept for that item's tag."""
+
+    def pick_(self, sender):
+        call = self.calls.get(sender.tag())
+        if call:
+            call()
+
+
+class _Row(_Tap):
+    """A timeline row. The source (where the thing lives) stays out of sight until the pointer, the keys or a tick
+    are on the row; the title then gives up that much width."""
+
+    def initWithFrame_callback_(self, frame, callback):
+        self = objc.super(_Row, self).initWithFrame_callback_(frame, callback)
+        self.reveal, self.title_view, self.title_frames, self.pinned = None, None, None, False
+        return self
+
+    @objc.python_method
+    def show(self, on):
+        if self.reveal is None or self.title_view is None:
+            return
+        on = on or self.pinned
+        self.reveal.setHidden_(not on)
+        self.title_view.setFrame_(self.title_frames[1 if on else 0])
+
+    def mouseEntered_(self, event):
+        objc.super(_Row, self).mouseEntered_(event)
+        self.show(True)
+
+    def mouseExited_(self, event):
+        objc.super(_Row, self).mouseExited_(event)
+        self.show(False)
+
+
+class _Bar(_Flipped):
+    """A short rounded bar in one colour that lets clicks through: the keyboard-focus mark at the left of a row."""
+
+    def initWithFrame_color_(self, frame, color):
+        self = objc.super(_Bar, self).initWithFrame_(frame)
+        self.color = color
+        return self
+
+    def drawRect_(self, rect):
+        self.color.setFill()
+        box = self.bounds()
+        NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(box, box.size.width / 2, box.size.width / 2).fill()
+
+    def hitTest_(self, point):
+        return None
+
+
+class _Rail(_Flipped):
+    """The thin vertical line that ties a session's Things together on the Overview timeline."""
+
+    def drawRect_(self, rect):
+        kit.faint(0.14).setFill()
+        NSBezierPath.fillRect_(NSMakeRect(0, 0, 1, self.bounds().size.height))
 
 
 class _MainWindow(NSWindow):
@@ -137,21 +217,6 @@ class _SideBackdrop(_Flipped):
         NSBezierPath.fillRect_(NSMakeRect(box.size.width - 1, 0, 1, box.size.height))
 
 
-_grain_tiles = {}
-
-
-def _grain_color(opacity):
-    """The film-grain tile (grain.py) as a tiling colour; made once per strength and kept."""
-    key = round(opacity, 3)
-    if key not in _grain_tiles:
-        import grain
-        png = grain.tile_png(key)
-        image = NSImage.alloc().initWithData_(NSData.dataWithBytes_length_(png, len(png)))
-        image.setSize_((grain.SIZE / 2, grain.SIZE / 2))                  # drawn at half size: fine on a Retina screen
-        _grain_tiles[key] = NSColor.colorWithPatternImage_(image)
-    return _grain_tiles[key]
-
-
 class _Backdrop(_Flipped):
     """The background behind the whole window (sidebar and page), drawn in code: a dark ground, a few soft
     radial lights, a faint top light, a vignette and film grain, for each time-of-day background at its weight
@@ -196,7 +261,7 @@ class _Backdrop(_Flipped):
         NSGradient.alloc().initWithStartingColor_endingColor_(dark.colorWithAlphaComponent_(0.0), dark.colorWithAlphaComponent_(0.34)) \
             .drawFromCenter_radius_toCenter_radius_options_(centre, max(w, h) * 0.5, centre, max(w, h) * 0.95, 3)
         grain = sum(backdrop.entry(k)["grain"] * v for k, v in weights.items()) / total
-        _grain_color(grain).setFill()
+        ambient.grain_color(grain).setFill()
         NSBezierPath.fillRect_(box)
 
     def hitTest_(self, point):
@@ -247,6 +312,7 @@ class MainWindow:
         self.app_icons = {}
         self.app_paths = None
         self.W, self.H = W, H                                      # the content's size now; _measure() keeps them true
+        self.pane_key = None                                       # which pane the main scroll area shows (None: a page of its own)
         self.main_w, self.col_x = MIN_MAIN, PAD                    # the page's column
         self.stamp, self.page_cache = None, None                   # what the last draw was for (so a resize does not recompute pages)
         style = 1 | 2 | 4 | 8 | (1 << 15)                          # titled, closable, minimise, resize, content under the title bar
@@ -276,7 +342,13 @@ class MainWindow:
         self.window.setContentView_(self.root)
         self.wall = _Backdrop.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))      # the time-of-day picture, behind everything
         self.root.addSubview_(self.wall)
-        self.wall_tween = self.wall_clock = None
+        self.ambient = ambient.AmbientCanvas(NSMakeRect(0, 0, W, H))   # the supplied artwork over it, once all four pictures are in
+        self.root.addSubview_(self.ambient.view)
+        try:
+            self.ambient.attach(self.window)
+        except Exception:
+            traceback.print_exc()
+        self.wall_tween = self.wall_clock = self.wall_choice = None
         self.backdrop = _SideBackdrop.alloc().initWithFrame_(NSMakeRect(0, 0, SIDE_W, H))
         self.root.addSubview_(self.backdrop)
         self.banner_host = _Flipped.alloc().initWithFrame_(NSMakeRect(SIDE_W, TOP, W - SIDE_W, 0))
@@ -350,18 +422,37 @@ class MainWindow:
         """Put the parts that do not scroll where the window's size says."""
         self.backdrop.setFrame_(NSMakeRect(0, 0, SIDE_W, self.H))
         self.wall.setFrame_(NSMakeRect(0, 0, self.W, self.H))
+        self.ambient.view.setFrame_(NSMakeRect(0, 0, self.W, self.H))
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         self.overlay.setFrame_(NSMakeRect(0, 0, self.W, self.H))
 
     # ------------------------------------------------------------ the time-of-day background
 
     def _wall_target(self):
-        return backdrop.plan(backdrop.minute_of(time.localtime()), config.BACKDROP)
+        return backdrop.plan(_local_minute(), config.BACKDROP)
+
+    def _sync_ambient(self, target, animate):
+        """Show the supplied artwork for the period the clock (or the pinned choice) says, if it is in place. The clock
+        changes period over config.AMBIENT_FADE_SECONDS; a person's own pick in Settings over about a second.
+        False means there is no artwork: the code-drawn stand-in below takes over."""
+        if not self.ambient.usable:
+            return False
+        picked = config.BACKDROP != self.wall_choice
+        self.wall_choice = config.BACKDROP
+        try:
+            shown = self.ambient.show(next(iter(target)), animate=animate, seconds=1.2 if picked else None)
+        except Exception:
+            traceback.print_exc()
+            shown = False
+        self.wall.setHidden_(shown)
+        return shown
 
     def _sync_wall(self, animate=True):
         """Show what the clock (or the chosen background) says. Time itself only ever nudges the weights by a
         little; a manual change cross-fades over about a second (reduced motion: it just changes)."""
         target = self._wall_target()
+        if self._sync_ambient(target, animate):
+            return
         now = dict(self.wall.mix)
         keys = set(now) | set(target)
         if all(abs(now.get(k, 0) - target.get(k, 0)) < 0.004 for k in keys):
@@ -374,7 +465,7 @@ class MainWindow:
         from Foundation import NSTimer
         if self.wall_tween is not None:
             self.wall_tween.invalidate()
-        began, start, span = time.time(), now, 0.9
+        began, start, span = time.time(), now, 0.9 if big and config.BACKDROP != "auto" else config.AMBIENT_FADE_SECONDS
 
         def step(timer):
             try:
@@ -407,6 +498,10 @@ class MainWindow:
             from Foundation import NSTimer
             self.wall_clock = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(60.0, True, self._clock_tick)
             self.wall_clock.setTolerance_(10.0)
+            from Foundation import NSNotificationCenter
+            self.wall_watch = [NSNotificationCenter.defaultCenter().addObserverForName_object_queue_usingBlock_(
+                name, None, None, lambda note: self._clock_tick(None))                         # a changed time zone or clock: look now
+                for name in ("NSSystemTimeZoneDidChangeNotification", "NSSystemClockDidChangeNotification")]
         except Exception:
             self.wall_clock = None
 
@@ -682,17 +777,29 @@ class MainWindow:
         if moved:
             self.cur = {"zone": self.cur["zone"], "id": None}
         self._fill(self.side_scroll, SIDE_W, lambda doc: self._side(doc, page["side"]))
-        if self.memory_snapshot and self.memory_snapshot['tab']=='Resume' and self.memory_snapshot.get('binding'):
-            from resume_pane import ResumePane
-            if not getattr(self,'resume_pane',None):self.resume_pane=ResumePane(self._memory_action)
-            self.resume_pane.render(self.memory_snapshot,self.W-SIDE_W,self.col_x,self.main_w)
-            self.main_scroll.setDocumentView_(self.resume_pane.host)
-        elif self.memory_snapshot and self.memory_snapshot['tab'] in {'Memory','Resume'}:
+        if self.memory_snapshot and self.memory_snapshot['tab']=='Memory':
             from memory_pane import MemoryPane
             if self.memory_pane is None:self.memory_pane=MemoryPane(self._memory_action)
             self.memory_pane.render(self.memory_snapshot,self.W-SIDE_W,self.col_x,self.main_w)
-            self.main_scroll.setDocumentView_(self.memory_pane.host)
-        else:self._fill(self.main_scroll, self.W - SIDE_W, lambda doc: self._main(doc, main, split), top=moved)
+            retained = self.memory_snapshot.get("retained_binding") or self.memory_snapshot.get("binding") or {}
+            self._place_pane(self.memory_pane.host, ("memory", bool(self.memory_pane.settings), retained.get("project_id")))
+        else:
+            leaving_pane, self.pane_key = self.pane_key is not None, None
+            self._fill(self.main_scroll, self.W - SIDE_W, lambda doc: self._main(doc, main, split), top=moved or leaving_pane)
+
+    def _place_pane(self, host, key):
+        """Show a pane's view in the scroll area without losing the place the person scrolled to. Setting the same
+        document view again, or one the scroll area has not measured, snaps it back to the top: so the view is set only when
+        it changes, and the old position is put back, kept inside the new height. A different pane or project starts at the top."""
+        scroll = self.main_scroll
+        clip = scroll.contentView()
+        keep = 0 if key != self.pane_key else clip.bounds().origin.y
+        self.pane_key = key
+        if scroll.documentView() is not host:
+            scroll.setDocumentView_(host)
+        room = max(0, host.frame().size.height - scroll.frame().size.height)
+        clip.scrollToPoint_(NSMakePoint(0, max(0, min(keep, room))))
+        scroll.reflectScrolledClipView_(clip)
 
     def _fill(self, scroll, width, build, top=False):
         """Swap the scrolling area's contents, keeping the place the person had scrolled to (or
@@ -874,6 +981,11 @@ class MainWindow:
 
     def stop_select(self):
         self.sel = None
+        self.render_now()
+
+    def clear_select(self):
+        """Deselect everything and stay in selection mode (Done is the way out)."""
+        self.sel = []
         self.render_now()
 
     def pick_thing(self, tid):
@@ -1235,6 +1347,14 @@ class MainWindow:
         payload=payload or {}
         try:
             if action=='tab' and self.memory_pane is not None:self.memory_pane.settings=False        # choosing a tab always leaves Settings
+            if action in {'toggle_details','toggle_composer'}:
+                pane=self._pane();attr='details' if action=='toggle_details' else 'composer'
+                setattr(pane,attr,not getattr(pane,attr));self.shown=None;self.render();return
+            if action=='repaint':self.shown=None;self.render();return
+            if action=='view_source':            # Source from the Overview strip opens the same provenance view as the Memory page
+                self._memory_action('tab',{'tab':'Memory'});self._memory_action('source',payload);return
+            if action=='add_note':               # Add note from the Overview strip opens the Memory page's composer
+                self._memory_action('tab',{'tab':'Memory'});self._pane().composer=True;self.shown=None;self.render();return
             if action in {'toggle_status','open_status'}:
                 self._pane().settings=True            # the details live in Settings, never on the Memory page
                 self.shown=None;self.render();return
@@ -1365,7 +1485,7 @@ class MainWindow:
                  "thing": self._thing_page, "archived": self._archived, "settings": self._settings}[kind]
         return build(doc, page, x, y + 6, w)
 
-    def _crumbs(self, doc, chain, x, y):
+    def _crumbs(self, doc, chain, x, y, quiet=False):
         cx = x - 6
         cx += self._link(doc, "All projects", cx, y - 12, lambda: self.press("home"), size=12)
         for i, c in enumerate(chain):
@@ -1375,7 +1495,7 @@ class MainWindow:
             if c["id"] and not last:
                 cx += self._link(doc, c["name"], cx, y - 12, (lambda p=c["id"]: self.press("go", p)), size=12)
             else:
-                cx += self._link(doc, c["name"], cx, y - 12, None, size=12, color=kit.ink() if last else kit.mute())
+                cx += self._link(doc, c["name"], cx, y - 12, None, size=12, color=kit.ink() if last and not quiet else kit.mute())
         return y + 18
 
     def _section(self, doc, text, x, y, w):
@@ -1388,13 +1508,15 @@ class MainWindow:
         h = kit.put_text(doc, empty["line"], x, y + 112, min(w, 460), 14, 400, kit.mute())
         return y + 112 + h
 
-    def _thing(self, doc, t, x, y, w, notes=False, select=False):
+    def _thing(self, doc, t, x, y, w, notes=False, select=False, compact=False):
         """A thing: its title, where it is, when. With notes: the open ones underneath. While selecting,
         a tap ticks it instead of opening it. Returns the new y."""
         call = (lambda i=t["id"]: self.pick_thing(i)) if select else (lambda i=t["id"]: self.press("thing", i))
-        box = _Tap.alloc().initWithFrame_callback_(NSMakeRect(x, y, w, 10), call)
+        box = (_Row if compact else _Tap).alloc().initWithFrame_callback_(NSMakeRect(x, y, w, 10), call)
         if not notes:
             box.fill = self._krow("main", "t" + t["id"], call, box)
+        if compact:
+            return self._thing_line(doc, box, t, x, y, w, select)
         lead = 0
         if select:
             on = t["id"] in self.sel
@@ -1417,6 +1539,46 @@ class MainWindow:
                 self._label(box, f"+{t['more_notes']} more", tx, h, w - tx, size=12, weight=400)
                 h += 20
             h += 6
+        box.setFrame_(NSMakeRect(x, y, w, h))
+        doc.addSubview_(box)
+        return y + h
+
+    def _thing_line(self, doc, box, t, x, y, w, select):
+        """The timeline row. Resting: a source plate, the title, the time. Pointer, keys or a tick on it: the source
+        appears too. The open-notes count stays, since it asks something of you."""
+        h, lead = 48, 0
+        ticked = False
+        if select:
+            ticked = t["id"] in self.sel
+            kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if ticked else ("circle", "circle"),
+                     kit.accent_text() if ticked else kit.mute(), 2, 13, 22)
+            lead = 30
+            box.fill = box.fill or ticked                                # a ticked row stays softly lit
+        elif box.fill:                                                   # the keys are on this row: the lit wash and a short blue mark
+            box.addSubview_(_Bar.alloc().initWithFrame_color_(NSMakeRect(0, 12, 3, 24), kit.accent_text()))
+        plate = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(lead + 8, 8, 32, 32), kit.faint(0.07), None, 9)
+        box.addSubview_(plate)
+        self._app_icon(box, t["app"], lead + 12, 12, 24, t.get("kind", ""), t.get("url"))
+        tx = lead + 52
+        right = w - 14
+        if t["ago"]:
+            kit.put_text(box, _short_ago(t["ago"]), right - 70, 0, 70, 13, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
+            right -= 78
+        if t["open"]:
+            kit.put_text(box, f"{t['open']} open", right - 70, 0, 70, 13, 600, kit.accent_text(), align=RIGHT, wrap=False, height=h, middle=True)
+            right -= 78
+        src_w = min(220, max(int((right - tx) * 0.34), 0)) if t["sub"] else 0
+        wide = max(right - 12 - tx, 40)
+        before = len(box.subviews())
+        kit.put_text(box, t["title"], tx, 0, wide, 15, 600 if ticked else 500, wrap=False, height=h, middle=True, track=-0.006)
+        title_view = box.subviews()[before]
+        if src_w:
+            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 13, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
+            reveal = box.subviews()[before + 1]
+            box.reveal, box.title_view = reveal, title_view
+            box.title_frames = (NSMakeRect(tx, 0, wide, h), NSMakeRect(tx, 0, max(wide - src_w - 12, 40), h))
+            box.pinned = bool(box.fill) or ticked
+            box.show(False)
         box.setFrame_(NSMakeRect(x, y, w, h))
         doc.addSubview_(box)
         return y + h
@@ -1704,71 +1866,210 @@ class MainWindow:
         for sub in list(host.subviews()):
             sub.removeFromSuperview()
         x, w = self.col_x, self.main_w
-        y = self._crumbs(host, page["crumbs"], x, 26)
-        self._project_icon(host, page["hue"], x, y - 2, 40)
+        y = self._crumbs(host, page["crumbs"], x, 26, quiet=True)                      # identity: where you are, quietly
+        self._project_icon(host, page["hue"], x, y + 2, 36)
         if page["archived"]:
-            kit.button(host, "Bring back", x + w - 110, y - 4, 110, 32, lambda: self.project_action("restore", pid=page["pid"]),
+            kit.button(host, "Bring back", x + w - 110, y, 110, 32, lambda: self.project_action("restore", pid=page["pid"]),
                        kind="outline", size=13, weight=600)
         else:
-            self._project_actions(host, x + w, y - 4, page["pid"])
-        kit.put_text(host, page["title"], x + 54, y, w - 54 - 170, 26, 700, wrap=False, height=32)
-        self._label(host, page["meta"], x + 54, y + 33, w - 54, size=13, weight=400)
-        y += 62
+            self._grouped_actions(host, x + w, y + 2, page["pid"])
+        title_w = min(kit.text_width(page["title"], 26, 700), w - 52 - 190)
+        kit.put_text(host, page["title"], x + 50, y - 2, title_w + 8, 26, 700, wrap=False, height=34, track=-0.026)
+        kit.put_text(host, page["meta"], x + 50, y + 33, max(w - 50 - 190, 60), 13, 400, kit.mute(), wrap=False, height=20)
+        y += 66
         if self.memory_snapshot:
-            tx=x;in_settings=bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
-            for tab in self.memory_snapshot['tabs']:
-                symbol={'Resume':'arrow.clockwise','Overview':'square.grid.2x2','Memory':'brain'}.get(tab)
-                tx+=kit.chip(host,tab,symbol,tx,y,self.memory_snapshot['tab']==tab and not in_settings,lambda t=tab:self._memory_action('tab',{'tab':t}))+8
+            in_settings = bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
+            tabs = self.memory_snapshot['tabs']
+            self._segmented(host, x, y, [(tab, self.memory_snapshot['tab'] == tab and not in_settings,
+                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs], size=14, height=40, pad=26)
             if self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding'):
-                sx=x+w-kit.chip_width('Settings','gearshape')
-                kit.chip(host,'Settings','gearshape',sx,y,in_settings,lambda:self._memory_action('open_settings'))
-                if in_settings:                                        # the way back sits right beside it
-                    bw=kit.chip_width('Back to Memory','chevron.left');kit.chip(host,'Back to Memory','chevron.left',sx-bw-8,y,False,lambda:self._memory_action('close_settings'))
-            y+=48
-            if self.memory_snapshot['tab'] in {'Memory','Resume'} or page.get('empty'):return y
-        self._label(host, "PICK UP WHERE YOU LEFT OFF", x, y, w)
-        y += 22
-        if page["pick_up"]:
-            gap = 12
-            cw = (w - gap * 2) / 3
-            for i, t in enumerate(page["pick_up"]):
-                self._mini_card(host, t, x + i * (cw + gap), y, cw, 88)
-            y += 88 + 18
+                gx = x + w - 32                                                        # Settings: a quiet gear at the far edge, not a tab
+                gear = self._tap(host, gx, y + 4, 32, 32, lambda: self._memory_action('open_settings'), fill=in_settings)
+                gear.focusable, gear.ax_label = True, "Settings"
+                gear.setToolTip_("Settings")
+                kit.glyph(gear, ("gearshape", "gear"), 8, 8, 16, kit.ink() if in_settings else kit.mute())
+            y += 40 + (16 if self.memory_snapshot['tab'] == 'Memory' else 30)
+            if self.memory_snapshot['tab'] == 'Memory' or page.get('empty'):return y
+        y = self._status(host, page, x, y, w)
+        host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y + 8, w, 1)))   # the one separator: identity above, activity below
+        y += 32
+        y = self._toolbar(host, page, x, y, w)
+        return y
+
+    def _grouped_actions(self, parent, right, y, pid):
+        """"+ Sub-project" and "…" as one soft pair, not two buttons."""
+        add_w, more_w = int(kit.text_width("+ Sub-project", 13, 600)) + 28, 36
+        total = add_w + more_w + 1
+        x = right - total
+        parent.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, total, 32), kit.faint(0.07), None, 10))
+        add = self._tap(parent, x, y, add_w, 32, lambda: self.open_name("new", parent=pid))
+        kit.put_text(add, "+ Sub-project", 14, 0, add_w - 28, 13, 600, wrap=False, height=32, middle=True)
+        add.radius = 10
+        parent.addSubview_(_Rail.alloc().initWithFrame_(NSMakeRect(x + add_w, y + 8, 1, 16)))
+        more = self._tap(parent, x + add_w + 1, y, more_w, 32, lambda: self.open_menu(pid))
+        kit.put_text(more, "⋯", 0, 0, more_w, 16, 700, align=kit.CENTER, wrap=False, height=32, middle=True)
+        more.setToolTip_("More")
+        more.radius = 10
+
+    def _status(self, host, page, x, y, w):
+        """Where you left off, in one quiet strip above the history. With Memory on it leads with the one thing to pick
+        up (an unfinished next action, else a decision, else a note) and the two quick actions; below it, the
+        things with open notes as small links (their notes show on hover). With nothing at all it is one muted line."""
+        snap = self.memory_snapshot if (self.memory_snapshot and self.memory_snapshot.get("binding") and self.memory_snapshot.get("tab") == "Overview") else None
+        from memory_view import friendly, resume_item
+        result = (snap or {}).get("result") or {}
+        item = resume_item(result) if snap else None
+        chips = page["pick_up"]
+        has_memory = bool(result) and any(result.get(k) for k in ("open_tasks", "decisions", "saved_activity"))
+        empty = bool(snap) and not item and not chips and bool(result) and not has_memory and not snap.get("loading")
+        if not snap:
+            if not chips:
+                caught = page["caught_up"]
+                kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 3, 14, kit.mute())
+                tw = kit.text_width(caught["title"], 12, 600)
+                kit.put_text(host, caught["title"], x + 20, y, tw + 6, 12, 600, kit.mute(), wrap=False, height=20, middle=True)
+                kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+                return y + 28
+        if not snap:                                                                  # Memory is off: only the quiet activity links
+            cx = x
+            cw = min(220, (w - 8 * (len(chips) - 1)) / len(chips))
+            for t in chips:
+                tap = self._tap(host, cx, y, cw, 26, (lambda i=t["id"]: self.press("thing", i)), fill=True)
+                tap.setToolTip_("\n".join("\u25cb  " + n for n in t.get("notes", [])[:3]) or t["title"])
+                self._app_icon(tap, t["app"], 6, 4, 18, t.get("kind", ""), t.get("url"))
+                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
+                cx += cw + 8
+            return y + 38
+        gap = 8
+        kit.put_text(host, "Resume", x, y - 2, 120, 16, 700, wrap=False, height=24, middle=True, track=-0.012)        # the section, named
+        y += 28
+        top = y
+        aw = int(kit.text_width("Add note", 13, 600)) + 28
+        kit.button(host, "Add note", x + w - aw, top + 7, aw, 28, lambda: self._memory_action("add_note"), kind="primary", size=13, weight=600)
+        right = x + w - aw - gap
+        if not empty:
+            cw_ = int(kit.text_width("Copy context", 13, 600)) + 28
+            kit.button(host, "Copy context", right - cw_, top + 7, cw_, 28, lambda: self._memory_action("copy_context"), kind="outline", size=13, weight=600)
+            right -= cw_ + gap
+        if item:                                                                      # one unit: accent edge, title first, then type, time, Source
+            host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, top + 1, 3, 40), kit.accent(0.85), None, 1.5))
+            left = x + 16
+            stamp = friendly(item["at"]) if item["at"] else ""
+            kit.put_text(host, item["title"], left, top, max(right - left - 16, 80), 15, 600, wrap=False, height=22, middle=True, track=-0.004)
+            cx = left
+            kw = int(kit.text_width(item["kind"], 12, 600)) + 2
+            kit.put_text(host, item["kind"], cx, top + 24, kw, 12, 600, kit.accent_text(), wrap=False, height=18, middle=True)
+            cx += kw + 8
+            if stamp:
+                tw_ = int(kit.text_width(stamp, 12, 400)) + 2
+                kit.put_text(host, "\u00b7  " + stamp, cx, top + 24, tw_ + 16, 12, 400, kit.mute(), wrap=False, height=18, middle=True)
+                cx += tw_ + 22
+            if item["citation_id"]:
+                sw_ = int(kit.text_width("Source", 12, 600)) + 30
+                pill = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(cx, top + 21, sw_, 24), lambda c=item["citation_id"]: self._memory_action("view_source", {"citation_id": c}))
+                pill.fill, pill.radius, pill.ax_label = kit.accent(0.10), 8, "Source for: " + item["title"][:60]
+                host.addSubview_(pill)
+                kit.put_text(pill, "Source  \u203a", 0, 0, sw_, 12, 600, kit.accent_text(), align=kit.CENTER, wrap=False, height=24, middle=True)
+                cx += sw_ + gap
+            if item["done"]:
+                dw_ = int(kit.text_width("Mark done", 12, 600)) + 22
+                kit.button(host, "Mark done", cx, top + 21, dw_, 24, lambda d=item["done"]: self._memory_action(d[0], d[1]), kind="outline", size=12, weight=600)
+            y = top + 46
+            undo = snap.get("last_completed")
+            if undo:
+                kit.put_text(host, "Marked done", left, y, 90, 12, 500, kit.mute(), wrap=False, height=24, middle=True)
+                uw = int(kit.text_width("Undo", 12, 600)) + 22
+                kit.button(host, "Undo", left + 88, y, uw, 24, lambda: self._memory_action(undo[0], undo[1]), kind="outline", size=12, weight=600)
+                y += 30
         else:
-            caught = page["caught_up"]
-            tap = self._tap(host, x, y, w, 52, None, fill=True)
-            kit.tile(tap, ("checkmark.circle.fill", "checkmark.circle"), kit.mute(), 12, 11, 30)
-            kit.put_text(tap, caught["title"], 52, 8, w - 64, 14, 600, wrap=False, height=20)
-            kit.put_text(tap, caught["line"], 52, 28, w - 64, 12, 400, kit.mute(), wrap=False, height=16)
-            y += 52 + 18
-        if page["subs"]:
-            self._label(host, f"SUB-PROJECTS · {len(page['subs']) + page['subs_more']}", x, y, w)
-            y += 22
-            y = self._sub_chips(host, page, x, y, w) + 8
-        total = f"Things · {page['total']}"
-        kit.put_text(host, total, x, y, w, 15, 700, wrap=False, height=22)
-        if self.sel is None and page["total"]:
-            self._link(host, "Select", x + w - kit.text_width("Select", 13, 500) - 12, y - 4, self.start_select)
-        y += 30
+            msg = "Save a note to start" if empty else "" if snap.get("loading") else page["caught_up"]["title"] if not chips else ""
+            if msg:kit.put_text(host, msg, x, top, max(right - x - 16, 80), 14, 500, kit.mute(), wrap=False, height=42, middle=True)
+            y = top + 46
+        if chips:                                                                     # open-note links: present, but quieter than Resume
+            cx = x + 16
+            cw = min(200, (w - 16 - gap * (len(chips) - 1)) / len(chips))
+            for t in chips:
+                tap = self._tap(host, cx, y, cw, 24, (lambda i=t["id"]: self.press("thing", i)))
+                tap.setToolTip_("\n".join("\u25cb  " + n for n in t.get("notes", [])[:3]) or t["title"])
+                self._app_icon(tap, t["app"], 4, 4, 16, t.get("kind", ""), t.get("url"))
+                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 26, 0, cw - 30, 11, 500, kit.mute(), wrap=False, height=24, middle=True)
+                cx += cw + gap
+            y += 30
+        return y
+
+    def _toolbar(self, host, page, x, y, w):
+        """The Things heading on its own line (count and Select beside it), then the controls on a line of their
+        own: where to look (a segmented Only here / With sub-projects) at the left, which source (one menu) at the right."""
+        kit.put_text(host, "Things", x, y, w, 20, 700, wrap=False, height=30, middle=True, track=-0.018)
+        cx = x + kit.text_width("Things", 20, 700) + 10
+        kit.put_text(host, str(page["total"]), cx, y + 2, 60, 13, 400, kit.mute(), wrap=False, height=30, middle=True)
+        if self.sel is None and page["total"]:                                        # a contextual action of browsing, at the heading's edge
+            sw = int(kit.text_width("Select", 13, 600)) + 28
+            kit.button(host, "Select", x + w - sw, y + 1, sw, 28, self.start_select, kind="quiet", size=13, weight=600)
+        y += 42
+        if page["deep"]["show"]:
+            self._segmented(host, x, y, [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
+                                         ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))])
+        if len(page["filters"]) > 1 or self.nav["app"] is not None:
+            self._source_menu(host, page, x + w, y)
+        y += 28 + 16
         if self.sel is not None:
             y += self._select_bar(host, page, x, y, w) + 10
-        chips = []
-        if page["deep"]["show"]:
-            chips += [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
-                      ("With sub-projects", page["deep"]["on"], lambda: self.press("deep", True))]
-        if len(page["filters"]) > 1:
-            chips += [("All apps", self.nav["app"] is None, lambda: self.press("app", None))]
-            chips += [(f["app"], self.nav["app"] == f["app"], (lambda a=f["app"]: self.press("app", a))) for f in page["filters"]]
-        if chips:
-            y += self._chips(host, x, y, chips, w) + 10
         return y
+
+    def _segmented(self, parent, x, y, items, size=12, height=28, pad=24):
+        """A compact two-or-more way toggle: a soft track with the chosen segment lifted. `size`, `height` and `pad`
+        make the same control larger for primary navigation."""
+        widths = [kit.text_width(label, size, 500) + 2 * pad for label, _on, _call in items]
+        track = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, sum(widths) + 4, height), kit.faint(0.07), None, 9 + (height - 28) / 4)
+        parent.addSubview_(track)
+        sx = x + 2
+        for (label, on, call), width in zip(items, widths):
+            seg = self._tap(parent, sx, y + 2, width, height - 4, call)
+            seg.focusable, seg.ax_label = True, label
+            if on:
+                seg.tint = kit.faint(0.16)
+            kit.put_text(seg, label, pad, 0, width - 2 * pad, size, 600 if on else 500, None if on else kit.mute(), wrap=False, height=height - 4, middle=True)
+            sx += width
+        return sx + 2 - x
+
+    def _source_menu(self, parent, page, right, y):
+        """One control for the source filter. Closed, it names what is chosen; open, it is a native menu."""
+        chosen = self.nav["app"]
+        label = chosen or "All sources"
+        width = min(kit.text_width(label, 12, 600) + 44, 240)
+        tap = self._tap(parent, right - width, y, width, 28, None, fill=True)
+        kit.put_text(tap, label, 12, 0, width - 36, 12, 600 if chosen else 500, None if chosen else kit.mute(), wrap=False, height=28, middle=True)
+        kit.glyph(tap, ("chevron.down",), width - 22, 8, 12, kit.mute())
+        tap.callback = lambda: self._popup_sources(tap, page)
+
+    def _popup_sources(self, anchor, page):
+        menu = NSMenu.alloc().initWithTitle_("")
+        helper = _SourcePick.alloc().init()
+        helper.calls = {}
+        entries = [("All sources", None, self.nav["app"] is None)]
+        entries += [(f"{f['app']}  ·  {f['count']}", f["app"], self.nav["app"] == f["app"]) for f in page["filters"]]
+        for n, (title, app, on) in enumerate(entries):
+            if n == 1:
+                menu.addItem_(NSMenuItem.separatorItem())
+            item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(title, "pick:", "")
+            item.setTarget_(helper)
+            item.setTag_(n)
+            item.setState_(1 if on else 0)
+            helper.calls[n] = (lambda a=app: self.press("app", a))
+            menu.addItem_(item)
+        self._source_helper = helper                                   # AppKit keeps only a weak reference to a menu's target
+        menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, anchor.bounds().size.height + 4), anchor)
 
     def _select_bar(self, parent, page, x, y, w):
         """While selecting: how many, and what to do with them. Returns the height."""
         n = len(self.sel)
         tap = self._tap(parent, x, y, w, 44, None, fill=True)
         text = f"{n} selected" if n else "Tap things to select them"
-        kit.put_text(tap, text, 14, 0, 200, 13, 600, None if n else kit.mute(), wrap=False, height=44, middle=True)
+        tw = int(kit.text_width(text, 13, 600))
+        kit.put_text(tap, text, 14, 0, tw + 8, 13, 600, None if n else kit.mute(), wrap=False, height=44, middle=True)
+        if n:                                                            # Clear deselects but stays here; Done, at the right, leaves
+            kit.button(tap, "Clear", 14 + tw + 12, 6, 64, 32, self.clear_select, kind="quiet", size=13, weight=600)
         right = w - 8
         for label, kind, call, width in (
                 ("Done", "primary", self.stop_select, 70),
@@ -1795,36 +2096,35 @@ class MainWindow:
             kit.put_text(tap, "○  " + text + tail, 12, 44 + i * 18, w - 24, 12, 400, kit.mute(), wrap=False, height=18)
         return tap
 
-    def _sub_chips(self, parent, page, x, y, w):
-        """Sub-projects as small chips, wrapping onto more rows only when they must. Returns the new y."""
-        cx = x
-        for sub in page["subs"]:
-            width = min(kit.text_width(sub["name"], 13, 500) + 52, w)
-            if cx + width > x + w:
-                cx, y = x, y + 38
-            tap = self._tap(parent, cx, y, width, 32, (lambda i=sub["id"]: self.press("go", i)), fill=True)
-            self._project_icon(tap, sub["hue"], 6, 5, 22)
-            kit.put_text(tap, sub["name"], 34, 0, width - 40, 13, 500, wrap=False, height=32, middle=True)
-            cx += width + 8
-        if page["subs_more"]:
-            label = f"+{page['subs_more']} more"
-            width = kit.text_width(label, 13, 500) + 24
-            if cx + width > x + w:
-                cx, y = x, y + 38
-            tap = self._tap(parent, cx, y, width, 32, lambda: self.press("more_subs"))
-            kit.put_text(tap, label, 12, 0, width - 24, 13, 500, kit.mute(), wrap=False, height=32, middle=True)
-        return y + 32
-
     def _things(self, doc, page, x, y, w):
         """The scrolling list: things grouped by when, newest first."""
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
-        for group in page["groups"]:
-            self._label(doc, group["title"].upper(), x, y + 4, w)
-            y += 28
+        first = y
+        for index, group in enumerate(page["groups"]):
+            recent = index == 0
+            n = len(group["things"])
+            tw = kit.text_width(group["title"], 17, 700)
+            kit.put_text(doc, group["title"], x + 26, y, tw + 8, 17, 700, None if recent else kit.mute(), wrap=False, height=26, track=-0.014)
+            label = f"{n} thing{'s' * (n != 1)}"
+            kit.put_text(doc, label, x + 26 + tw + 10, y + 1, 100, 13, 400, kit.mute(), wrap=False, height=26, track=0.01)
+            self._filmstrip(doc, group["things"], x + w - 8, y - 1, recent)
+            if recent:                                                   # the newest chapter is a filled blue mark, the older ones hollow rings
+                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 11, 11), kit.accent_text(), None, 5.5)
+            else:
+                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 11, 11), None, kit.faint(0.38), 5.5)
+            doc.addSubview_(marker)
+            top = y + 34
+            y = top
             for t in group["things"]:
-                y = self._thing(doc, t, x, y, w, select=self.sel is not None)
-            y += 6
+                y = self._thing(doc, t, x + 20, y, w - 20, select=self.sel is not None, compact=True)
+            rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 8, top - 10, 1, y - top + 8))
+            doc.addSubview_(rail)
+            y += 26
+        if page["groups"]:                                               # one quiet tonal ground under the whole history, so it reads against the canvas
+            ground = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(
+                NSMakeRect(x - 12, first - 10, w + 24, y - first - 10 + 14), kit.faint(0.035), kit.faint(0.06), 16)
+            doc.addSubview_positioned_relativeTo_(ground, -1, None)
         if not page["groups"]:
             self._label(doc, "Nothing matches this filter.", x, y + 8, w, size=13, weight=400)
             y += 34
@@ -1833,6 +2133,40 @@ class MainWindow:
                        x, y + 4, 240, 36, lambda: self.press("more"), kind="quiet", size=13, weight=500)
             y += 48
         return y
+
+    def _filmstrip(self, doc, things, right, y, recent):
+        """Up to four of the screenshots already kept for this session's things, small, at the right of its heading:
+        a glance at what the session looked like. Older sessions are dimmer. Sessions with none show nothing."""
+        shots = [t["shot"] for t in things if t.get("shot")][:4]
+        cx = right
+        for path in shots:
+            image = self._thumb(path)
+            if image is None:
+                continue
+            cx -= 50
+            tile = _Flipped.alloc().initWithFrame_(NSMakeRect(cx, y, 44, 28))
+            tile.setWantsLayer_(True)
+            layer = tile.layer()
+            try:
+                cg = image.CGImageForProposedRect_context_hints_(None, None, None)
+                cg = cg[0] if isinstance(cg, tuple) else cg                  # pyobjc hands back (image, rect) for the in/out rect
+                layer.setContents_(cg)
+                layer.setContentsGravity_("resizeAspectFill")
+                layer.setBorderWidth_(1)
+                layer.setBorderColor_(kit.faint(0.12).CGColor())
+            except Exception:
+                continue                                                     # no picture, no tile: never an empty box
+            layer.setCornerRadius_(6)
+            layer.setMasksToBounds_(True)
+            tile.setAlphaValue_(1.0 if recent else 0.62)
+            tile.setAccessibilityElement_(False)
+            doc.addSubview_(tile)
+
+    def _thumb(self, path):
+        cache = self.__dict__.setdefault("_thumbs", {})
+        if path not in cache:
+            cache[path] = NSImage.alloc().initWithContentsOfFile_(path)
+        return cache[path]
 
     def _card_box(self, parent, x, y, w, build, tap=None):
         """A soft box. `build(box, inner_width)` draws inside it from (14, 12) and returns the inner height."""

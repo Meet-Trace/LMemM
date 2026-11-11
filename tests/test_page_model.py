@@ -538,7 +538,7 @@ class WindowWiringTests(unittest.TestCase):
         with open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")) as fh:
             source = fh.read()
         sent = set(re.findall(r'self\.press\("([a-z_]+)"', source))
-        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_subs", "more_side", "needs", "search", "clear", "thing", "back"} <= sent, sent)
+        self.assertTrue({"go", "home", "toggle", "deep", "app", "more", "more_side", "needs", "search", "clear", "thing", "back"} <= sent, sent)
         reg, _items, ids = world()
         for action in sent:
             pm.press(reg, pm.new_state(), action, ids["work"] if action in {"go", "toggle"} else "x")      # none raises
@@ -550,3 +550,14 @@ class WindowWiringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KeptShotTests(unittest.TestCase):
+    def test_row_shot_is_the_kept_file_or_none(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, "a.jpg"), "wb").close()
+            self.assertEqual(pm._kept_shot({"screenshot": "a.jpg"}, d), os.path.join(d, "a.jpg"))
+            self.assertIsNone(pm._kept_shot({"screenshot": "gone.jpg"}, d))
+            self.assertIsNone(pm._kept_shot({"screenshot": "quick"}, d))
+            self.assertIsNone(pm._kept_shot({}, d))

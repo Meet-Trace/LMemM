@@ -23,8 +23,8 @@ def short_name(locator,limit=26):
 
 PERIOD_LABELS={'Last 2 days':'2 days','Last 7 days':'7 days','All retained':'All'}
 STATE_LABELS={'Ready':'Remembering','Processing':'Processing','Paused':'Paused · nothing new is kept','Needs attention':'Needs attention'}
-CONFIRMS={'confirm_model':('Install meaning search?','Downloads about 46 MB (the MiniLM model) to LMemM’s own folder on this Mac. Needs Ollama installed. No notes or text are sent anywhere.','Install'),
-          'confirm_agent':('Let Codex read this project’s memory?','Codex can search saved notes and sources and read the cited text. Using these tools sends that text to Codex and its provider. LMemM also adds itself to Codex’s settings on this Mac. You can turn it off at any time.','Allow and add to Codex'),
+CONFIRMS={'confirm_model':('Install meaning search?','Downloads about 46 MB (the MiniLM model) to Trace’s own folder on this Mac. Needs Ollama installed. No notes or text are sent anywhere.','Install'),
+          'confirm_agent':('Let Codex read this project’s memory?','Codex can search saved notes and sources and read the cited text. Using these tools sends that text to Codex and its provider. Trace also adds itself to Codex’s settings on this Mac. You can turn it off at any time.','Allow and add to Codex'),
           'confirm_disconnect':('Disconnect Memory for this project?','Stops capture and revokes agent access. Saved notes stay on this Mac but can’t be searched until you enable Memory again.','Disconnect')}
 
 def provenance(row):
@@ -95,3 +95,70 @@ def search_note(query,rows):
     if any(sum(w in r['text'].lower() for w in words)>=need for r in primary):return None
     if not primary:return 'No matches for “%s”. %s'%(str(query).strip(),KEPT)
     return 'Possible matches with different wording. Open a source to check whether it answers your question.'
+
+
+def source_provenance(source):
+    """Where a saved fragment really came from, built only from the fields the source carries (nothing is guessed).
+    Returns kind, heading, facts (label, value) shown at once, and details (label, value) kept behind 'More details'.
+    The retained text itself is never repeated: the card above already shows it."""
+    from urllib.parse import urlparse
+    kind_=source.get('origin_type');url=str(source.get('url') or '').strip();title=str(source.get('title') or '').strip()
+    locator=str(source.get('locator') or '').strip();at=source.get('at','');when=friendly(at) if at else ''
+    host=(urlparse(url).hostname or '') if url else ''
+    host=host[4:] if host.startswith('www.') else host
+    facts,details=[],[]
+    if kind_ in {'browser_page','browser_selection'}:
+        kind='Saved from browser';heading=title or host or 'Browser page'
+        if host:facts.append(('Site',host))
+        if url:facts.append(('Page',url))
+        facts.append(('Captured','Selected text from the page' if kind_=='browser_selection' else 'The page text'))
+        if when:facts.append(('Saved',when))
+    elif kind_=='user_note':
+        kind='Project note';heading=title or 'Project note'
+        if when:facts.append(('Created',when))
+        facts.append(('Source','A standalone saved note. It has no external source.' if not (url or locator or source.get('can_open_file')) else short_name(locator,70) if locator else url))
+    elif kind_=='pasted_excerpt':
+        kind='Pasted excerpt';heading=title or 'Pasted excerpt'
+        if url:facts.append(('Page',url))
+        if host and not url:facts.append(('Site',host))
+        if when:facts.append(('Saved',when))
+        if not (url or locator):facts.append(('Source','A standalone saved excerpt. It has no external source.'))
+        elif locator:facts.append(('From',short_name(locator,70)))
+    else:
+        kind='Observed on this Mac' if locator else 'Saved text';heading=title or (short_name(locator,60) if locator else 'Saved text')
+        if locator:facts.append(('File',short_name(locator,70)))
+        if url:facts.append(('Page',url))
+        if when:facts.append(('Kept',when))
+        if not (locator or url):facts.append(('Source','No external source is recorded.'))
+    if locator:details.append(('Location',locator))
+    if source.get('source_id'):details.append(('Source id',str(source['source_id'])))
+    if source.get('citation_id'):details.append(('Citation id',str(source['citation_id'])))
+    if source.get('truncated'):details.append(('Retained','Only part of the original was kept'))
+    if kind_:details.append(('Type',str(kind_)))
+    return dict(kind=kind,heading=heading,facts=facts,details=details,url=url,when=when)
+
+
+def resume_item(result):
+    """The one thing to pick up: an unfinished next action first, then a decision, then a note, each the most recently
+    updated of its kind. Returns None when nothing meaningful is kept. Never invents text.
+    kind is 'Next action', 'Decision' or 'Note'; `done` is the (action, payload) that marks a next action done."""
+    result=result or {}
+    def newest(rows):return max(rows,key=lambda r:str(r.get('at') or ''))
+    def line(text):
+        for l in str(text or '').split('\n'):
+            if l.strip():return l.strip()
+        return ''
+    def ref(row):return row.get('citation_id') or next(iter(row.get('citations',[])),None)
+    tasks=[r for r in result.get('open_tasks',[]) if line(r.get('statement'))]
+    if tasks:
+        row=newest(tasks);native=row.get('native_note_id')
+        done=('complete_native_note',{'note_id':native,'done':True}) if native else ('set_task_state',{'claim_id':row['id'],'done':True})
+        return dict(kind='Next action',title=line(row['statement']),at=row.get('at',''),citation_id=ref(row),done=done)
+    decisions=[r for r in result.get('decisions',[]) if line(r.get('statement'))]
+    if decisions:
+        row=newest(decisions);return dict(kind='Decision',title=line(row['statement']),at=row.get('at',''),citation_id=ref(row),done=None)
+    notes=[r for r in result.get('saved_activity',[]) if line(r.get('text')) or line(r.get('title'))]
+    if notes:
+        mine=[r for r in notes if r.get('origin_type')=='user_note'] or notes
+        row=newest(mine);return dict(kind='Note',title=line(row.get('title')) or line(row.get('text')),at=row.get('at',''),citation_id=ref(row),done=None)
+    return None

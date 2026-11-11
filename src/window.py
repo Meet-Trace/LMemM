@@ -91,6 +91,23 @@ class _SourcePick(NSObject):
             call()
 
 
+class _Bar(_Flipped):
+    """A short rounded bar in one colour that lets clicks through: the keyboard-focus mark at the left of a row."""
+
+    def initWithFrame_color_(self, frame, color):
+        self = objc.super(_Bar, self).initWithFrame_(frame)
+        self.color = color
+        return self
+
+    def drawRect_(self, rect):
+        self.color.setFill()
+        box = self.bounds()
+        NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(box, box.size.width / 2, box.size.width / 2).fill()
+
+    def hitTest_(self, point):
+        return None
+
+
 class _Rail(_Flipped):
     """The thin vertical line that ties a session's Things together on the Overview timeline."""
 
@@ -1477,25 +1494,29 @@ class MainWindow:
     def _thing_line(self, doc, box, t, x, y, w, select):
         """The timeline row: one 36 pt line, small source icon, title, quiet source text, open notes, time."""
         h, lead = 36, 0
+        ticked = False
         if select:
-            on = t["id"] in self.sel
-            kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if on else ("circle", "circle"), kit.ink() if on else kit.mute(), 0, 7, 22)
+            ticked = t["id"] in self.sel
+            kit.tile(box, ("checkmark.circle.fill", "checkmark.circle") if ticked else ("circle", "circle"),
+                     kit.accent_text() if ticked else kit.mute(), 2, 7, 22)
             lead = 30
-        self._app_icon(box, t["app"], lead + 6, 8, 20, t.get("kind", ""), t.get("url"))
-        tx = lead + 38
-        right = w - 12                                                  # source, open count and time sit together at the right edge
+            box.fill = box.fill or ticked                                # a ticked row stays softly lit
+        elif box.fill:                                                   # the keys are on this row: the lit wash and a short blue mark
+            box.addSubview_(_Bar.alloc().initWithFrame_color_(NSMakeRect(0, 9, 3, 18), kit.accent_text()))
+        self._app_icon(box, t["app"], lead + 8, 7, 22, t.get("kind", ""), t.get("url"))
+        tx = lead + 42
+        right = w - 14                                                  # source, open count and time sit together at the right edge
         if t["ago"]:
-            kit.put_text(box, t["ago"], right - 76, 0, 76, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+            kit.put_text(box, t["ago"], right - 76, 0, 76, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.012)
             right -= 84
         if t["open"]:
-            label = f"{t['open']} open"
-            kit.put_text(box, label, right - 64, 0, 64, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=h, middle=True)
+            kit.put_text(box, f"{t['open']} open", right - 64, 0, 64, 12, 600, kit.accent_text(), align=RIGHT, wrap=False, height=h, middle=True)
             right -= 72
         src_w = min(190, max(int((right - tx) * 0.35), 0)) if t["sub"] else 0
         if src_w:
-            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True)
+            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.012)
         src_x = right - src_w
-        kit.put_text(box, t["title"], tx, 0, max(src_x - 16 - tx, 40), 13, 500, wrap=False, height=h, middle=True)
+        kit.put_text(box, t["title"], tx, 0, max(src_x - 16 - tx, 40), 13.5, 600 if ticked else 500, wrap=False, height=h, middle=True, track=-0.004)
         box.setFrame_(NSMakeRect(x, y, w, h))
         doc.addSubview_(box)
         return y + h
@@ -1790,9 +1811,9 @@ class MainWindow:
                        kind="outline", size=13, weight=600)
         else:
             self._project_actions(host, x + w, y - 4, page["pid"])
-        title_w = min(kit.text_width(page["title"], 18, 700), w - 38 - 170)
-        kit.put_text(host, page["title"], x + 38, y - 1, title_w + 4, 18, 700, wrap=False, height=28)
-        self._label(host, page["meta"], x + 38 + title_w + 14, y + 2, max(w - 38 - title_w - 14 - 170, 60), size=12, weight=400)
+        title_w = min(kit.text_width(page["title"], 22, 700), w - 38 - 170)
+        kit.put_text(host, page["title"], x + 38, y - 3, title_w + 6, 22, 700, wrap=False, height=30, track=-0.022)
+        self._label(host, page["meta"], x + 38 + title_w + 16, y + 3, max(w - 38 - title_w - 16 - 170, 60), size=12, weight=400)
         y += 40
         if self.memory_snapshot:
             tx=x;in_settings=bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
@@ -1931,21 +1952,29 @@ class MainWindow:
         if page.get("suggested"):
             y = self._suggested(doc, page["suggested"], x, y, w)
         w = min(w, TIMELINE_W)
-        for group in page["groups"]:
+        first, veil_top = y, y
+        for index, group in enumerate(page["groups"]):
             n = len(group["things"])
-            tw = kit.text_width(group["title"], 13, 700)
-            kit.put_text(doc, group["title"], x + 18, y, tw + 6, 13, 700, wrap=False, height=20)
+            tw = kit.text_width(group["title"], 15, 600)
+            kit.put_text(doc, group["title"], x + 24, y + 2, tw + 8, 15, 600, wrap=False, height=22, track=-0.012)
             label = f"{n} thing{'s' * (n != 1)}"
-            kit.put_text(doc, label, x + 18 + tw + 10, y, 100, 12, 400, kit.mute(), wrap=False, height=20)
-            dot = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 1, y + 6, 8, 8), kit.mute(), None, 4)
-            doc.addSubview_(dot)
-            top = y + 24
+            kit.put_text(doc, label, x + 24 + tw + 10, y + 2, 100, 12, 400, kit.mute(), wrap=False, height=22, track=0.012)
+            if index == 0:                                               # the newest chapter is a filled blue mark, the older ones hollow rings
+                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 10, 10), kit.accent_text(), None, 5)
+            else:
+                marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 10, 10), None, kit.faint(0.38), 5)
+            doc.addSubview_(marker)
+            top = y + 28
             y = top
             for t in group["things"]:
-                y = self._thing(doc, t, x + 14, y, w - 14, select=self.sel is not None, compact=True)
-            rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 4, top - 6, 1, y - top + 6))
+                y = self._thing(doc, t, x + 20, y, w - 20, select=self.sel is not None, compact=True)
+            rail = _Rail.alloc().initWithFrame_(NSMakeRect(x + 7.5, top - 6, 1, y - top + 6))
             doc.addSubview_(rail)
             y += 20
+        if page["groups"]:                                               # one quiet tonal ground under the whole history, so it reads against the canvas
+            ground = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(
+                NSMakeRect(x - 12, first - 10, w + 24, y - first - 10 + 14), kit.faint(0.035), kit.faint(0.06), 16)
+            doc.addSubview_positioned_relativeTo_(ground, -1, None)
         if not page["groups"]:
             self._label(doc, "Nothing matches this filter.", x, y + 8, w, size=13, weight=400)
             y += 34

@@ -777,12 +777,7 @@ class MainWindow:
         if moved:
             self.cur = {"zone": self.cur["zone"], "id": None}
         self._fill(self.side_scroll, SIDE_W, lambda doc: self._side(doc, page["side"]))
-        if self.memory_snapshot and self.memory_snapshot['tab']=='Resume' and self.memory_snapshot.get('binding'):
-            from resume_pane import ResumePane
-            if not getattr(self,'resume_pane',None):self.resume_pane=ResumePane(self._memory_action)
-            self.resume_pane.render(self.memory_snapshot,self.W-SIDE_W,self.col_x,self.main_w)
-            self._place_pane(self.resume_pane.host, ("resume", self.memory_snapshot.get("binding") and self.memory_snapshot["binding"].get("project_id")))
-        elif self.memory_snapshot and self.memory_snapshot['tab'] in {'Memory','Resume'}:
+        if self.memory_snapshot and self.memory_snapshot['tab']=='Memory':
             from memory_pane import MemoryPane
             if self.memory_pane is None:self.memory_pane=MemoryPane(self._memory_action)
             self.memory_pane.render(self.memory_snapshot,self.W-SIDE_W,self.col_x,self.main_w)
@@ -1356,6 +1351,10 @@ class MainWindow:
                 pane=self._pane();attr='details' if action=='toggle_details' else 'composer'
                 setattr(pane,attr,not getattr(pane,attr));self.shown=None;self.render();return
             if action=='repaint':self.shown=None;self.render();return
+            if action=='view_source':            # Source from the Overview strip opens the same provenance view as the Memory page
+                self._memory_action('tab',{'tab':'Memory'});self._memory_action('source',payload);return
+            if action=='add_note':               # Add note from the Overview strip opens the Memory page's composer
+                self._memory_action('tab',{'tab':'Memory'});self._pane().composer=True;self.shown=None;self.render();return
             if action in {'toggle_status','open_status'}:
                 self._pane().settings=True            # the details live in Settings, never on the Memory page
                 self.shown=None;self.render();return
@@ -1890,7 +1889,7 @@ class MainWindow:
                 gear.setToolTip_("Settings")
                 kit.glyph(gear, ("gearshape", "gear"), 8, 8, 16, kit.ink() if in_settings else kit.mute())
             y += 40 + 16
-            if self.memory_snapshot['tab'] in {'Memory', 'Resume'} or page.get('empty'):return y
+            if self.memory_snapshot['tab'] == 'Memory' or page.get('empty'):return y
         y = self._status(host, page, x, y, w)
         host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y + 4, w, 1)))   # the one separator: identity above, activity below
         y += 26
@@ -1913,27 +1912,84 @@ class MainWindow:
         more.radius = 10
 
     def _status(self, host, page, x, y, w):
-        """Where you left off, in one quiet strip above the history. With open notes it is a row of small links
-        (the notes show on hover); with none it is a single muted line."""
-        if not page["pick_up"]:
-            caught = page["caught_up"]
-            kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 3, 14, kit.mute())
-            tw = kit.text_width(caught["title"], 12, 600)
-            kit.put_text(host, caught["title"], x + 20, y, tw + 6, 12, 600, kit.mute(), wrap=False, height=20, middle=True)
-            kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
-            return y + 28
+        """Where you left off, in one quiet strip above the history. With Memory on it leads with the one thing to pick
+        up (an unfinished next action, else a decision, else a note) and the two quick actions; below it, the
+        things with open notes as small links (their notes show on hover). With nothing at all it is one muted line."""
+        snap = self.memory_snapshot if (self.memory_snapshot and self.memory_snapshot.get("binding") and self.memory_snapshot.get("tab") == "Overview") else None
+        from memory_view import friendly, resume_item
+        result = (snap or {}).get("result") or {}
+        item = resume_item(result) if snap else None
+        chips = page["pick_up"]
+        has_memory = bool(result) and any(result.get(k) for k in ("open_tasks", "decisions", "saved_activity"))
+        empty = bool(snap) and not item and not chips and bool(result) and not has_memory and not snap.get("loading")
+        if not snap:
+            if not chips:
+                caught = page["caught_up"]
+                kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 3, 14, kit.mute())
+                tw = kit.text_width(caught["title"], 12, 600)
+                kit.put_text(host, caught["title"], x + 20, y, tw + 6, 12, 600, kit.mute(), wrap=False, height=20, middle=True)
+                kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+                return y + 28
         self._label(host, "PICK UP", x, y + 2, 60, size=11)
-        gap = 8
-        cx = x + 68
-        cw = (w - 68 - gap * (len(page["pick_up"]) - 1)) / len(page["pick_up"])
-        for t in page["pick_up"]:
-            tap = self._tap(host, cx, y, cw, 26, (lambda i=t["id"]: self.press("thing", i)), fill=True)
-            tap.setToolTip_("\n".join("○  " + n for n in t.get("notes", [])[:3]) or t["title"])
-            self._app_icon(tap, t["app"], 6, 4, 18, t.get("kind", ""), t.get("url"))
-            tail = f"  {t['open']}" if t["open"] else ""
-            kit.put_text(tap, t["title"] + tail, 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
-            cx += cw + gap
-        return y + 38
+        gap, left = 8, x + 68
+        if snap:                                                                      # the quick actions: always there, always the same two
+            aw = int(kit.text_width("Add note", 13, 600)) + 28
+            kit.button(host, "Add note", x + w - aw, y - 3, aw, 28, lambda: self._memory_action("add_note"), kind="primary", size=13, weight=600)
+            right = x + w - aw - gap
+            if not empty:
+                cw_ = int(kit.text_width("Copy context", 13, 600)) + 28
+                kit.button(host, "Copy context", right - cw_, y - 3, cw_, 28, lambda: self._memory_action("copy_context"), kind="outline", size=13, weight=600)
+                right -= cw_ + gap
+            else:
+                right = x + w
+            line_end = right - 12
+            if item:
+                kind_w = int(kit.text_width(item["kind"], 12, 600)) + 12
+                kit.put_text(host, item["kind"], left, y, kind_w, 12, 600, kit.accent_text(), wrap=False, height=20, middle=True)
+                cx = left + kind_w + 6
+                stamp = friendly(item["at"]) if item["at"] else ""
+                sw_ = int(kit.text_width("Source", 12, 600)) + 30 if item["citation_id"] else 0
+                dw_ = int(kit.text_width("Mark done", 12, 600)) + 22 if item["done"] else 0
+                tail = sum(v + 8 for v in (int(kit.text_width(stamp, 12, 400)) + 2 if stamp else 0, sw_, dw_) if v)
+                title_w = max(line_end - cx - tail, 80)
+                shown_w = min(int(kit.text_width(item["title"], 13, 600)) + 4, title_w)
+                kit.put_text(host, item["title"], cx, y, shown_w, 13, 600, wrap=False, height=20, middle=True)
+                cx += shown_w + 8
+                if stamp:
+                    kit.put_text(host, stamp, cx, y, int(kit.text_width(stamp, 12, 400)) + 2, 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+                    cx += int(kit.text_width(stamp, 12, 400)) + 10
+                if item["citation_id"]:
+                    pill = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(cx, y - 2, sw_, 24), lambda c=item["citation_id"]: self._memory_action("view_source", {"citation_id": c}))
+                    pill.fill, pill.radius, pill.ax_label = kit.accent(0.10), 8, "Source for: " + item["title"][:60]
+                    host.addSubview_(pill)
+                    kit.put_text(pill, "Source  \u203a", 0, 0, sw_, 12, 600, kit.accent_text(), align=kit.CENTER, wrap=False, height=24, middle=True)
+                    cx += sw_ + 8
+                if item["done"]:
+                    kit.button(host, "Mark done", cx, y - 2, dw_, 24, lambda d=item["done"]: self._memory_action(d[0], d[1]), kind="outline", size=12, weight=600)
+            elif empty:
+                kit.put_text(host, "Save a note to start", left, y, max(right - left, 80), 13, 500, kit.mute(), wrap=False, height=20, middle=True)
+            elif not chips and not snap.get("loading"):
+                caught = page["caught_up"]
+                kit.put_text(host, caught["title"] + "  " + caught["line"], left, y, max(right - left, 80), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+        if snap:y += 38 if not chips else 32
+        undo = snap.get("last_completed") if snap else None
+        if undo:
+            kit.put_text(host, "Marked done", left, y - 6, 90, 12, 500, kit.mute(), wrap=False, height=20, middle=True)
+            uw = int(kit.text_width("Undo", 12, 600)) + 22
+            kit.button(host, "Undo", left + 88, y - 8, uw, 24, lambda: self._memory_action(undo[0], undo[1]), kind="outline", size=12, weight=600)
+            y += 26
+        if chips:
+            cx = left
+            cw = (w - 68 - gap * (len(chips) - 1)) / len(chips)
+            for t in chips:
+                tap = self._tap(host, cx, y, cw, 26, (lambda i=t["id"]: self.press("thing", i)), fill=True)
+                tap.setToolTip_("\n".join("\u25cb  " + n for n in t.get("notes", [])[:3]) or t["title"])
+                self._app_icon(tap, t["app"], 6, 4, 18, t.get("kind", ""), t.get("url"))
+                tail = f"  {t['open']}" if t["open"] else ""
+                kit.put_text(tap, t["title"] + tail, 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
+                cx += cw + gap
+            y += 38
+        return y
 
     def _toolbar(self, host, page, x, y, w):
         """The Things heading on its own line (count and Select beside it), then the controls on a line of their

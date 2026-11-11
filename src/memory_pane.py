@@ -207,7 +207,7 @@ class MemoryPane:
                 total=16+18+6+heading_h+12+sum(hh+6 for _l,_v,hh in facts)+10+BTN_H+(10+sum(hh+4 for _l,_v,hh in dets) if dets else 0)+16
                 host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,total),kit.accent(0.05),kit.accent(0.30),14),-1,None)
                 kit.put_text(host,pv['kind'],x+PADX,top+16,inner-190,12,600,kit.accent_text(),wrap=False,height=18,track=0.01)
-                menu=[('Delete saved snapshot…','forget_source',{'source_id':source['source_id']})] if source.get('source_id') else []
+                menu=self._source_menu(source,view)
                 rx=x+w-PADX
                 if menu:
                     mb=kit.button(host,'\u22EF',rx-BTN_H,top+10,BTN_H,BTN_H,lambda items=menu:self._menu(items),kind='ghost',size=16,weight=700);mb.ax_label='More actions';rx-=BTN_H+4
@@ -267,6 +267,19 @@ class MemoryPane:
         if self.shown_state is not None and shown!=self.shown_state:self._fade_in()      # a state changed: ease it in, never snap
         self.shown_state=shown
         return end
+    def _source_menu(self,source,view):
+        """The actions that belong to one source: record it as a task or a decision, remove a connection to it, delete the snapshot
+        (that last one asks first, in the window)."""
+        menu=[]
+        if source.get('source_id'):
+            span={'source_id':source['source_id'],'start':0,'end':len(source.get('text',''))}
+            menu+=[('Record as task','record_claim',dict(span,kind='task')),('Record as decision','record_claim',dict(span,kind='decision'))]
+        cid=source.get('citation_id')
+        for edge in view.get('related') or []:
+            if cid and cid in (edge.get('citation_id'),edge.get('from_citation')):
+                menu.append(('Remove connection to \u201c%s\u201d'%short_name(edge.get('title') or 'source',40),'remove_relationship',{'edge_id':edge['id']}))
+        if source.get('source_id'):menu.append(('Delete saved snapshot…','forget_source',{'source_id':source['source_id']}))
+        return menu
     def _refresh(self):
         """Refresh once at a time: show 'Refreshing…', then a brief 'Updated', then the plain button again."""
         if self.refresh_state=='busy':return

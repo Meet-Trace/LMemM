@@ -18,7 +18,7 @@ class MemoryModelTests(unittest.TestCase):
         s=memory_reduce(s,'select_project',{'project_id':'a'})
         self.assertEqual(s['tab'],'Memory')
         v=memory_view(s,{'workspace_root':'/repo'},{'state':'Paused','model_state':'missing'},None)
-        self.assertEqual(v['tabs'],['Resume','Overview','Memory'])
+        self.assertEqual(v['tabs'],['Overview','Memory'])
         self.assertIn('keyword',v['message'].lower())
         self.assertEqual(v['periods'],['Last 2 days','Last 7 days','All retained'])
     def test_a_missing_optional_model_is_not_a_warning(self):

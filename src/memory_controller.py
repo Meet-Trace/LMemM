@@ -92,7 +92,7 @@ class MemoryController:
         changed=self.ui_project!=ui_project;self.ui_project=ui_project
         if changed:self.ask_serial+=1;self.ask=None
         self.state=memory_reduce(self.state,'select_project',{'project_id':ui_project})
-        if changed and self.binding and self.state['tab'] in {'Memory','Resume'}:self.action('submit',{})
+        if changed and self.binding and self.state['tab'] in {'Memory','Overview'}:self.action('submit',{})
     def set_notice(self,text,error=False,kind=None):
         self.notice=(text,error,kind) if text else None;self.notice_version+=1;self.notice_at=time.monotonic()
     def install_extension(self):
@@ -197,6 +197,7 @@ class MemoryController:
         view=memory_view(self.state,self.binding,status,self.state['result'])
         view['notice']=self.notice;view['accessibility']=self.ax_trusted;view['codex_connected']=bool(self.binding and self.agent)
         view['last_completed']=getattr(self,'last_completed',{}).get(self.ui_project)
+        view['related']=getattr(self,'related',{}).get(self.ui_project,[])
         view['retained_binding']=self.retained_binding
         view['ask']=self.ask if self.ask and self.binding and self.agent and self.ask.get('grant_id')==self.agent['grant_id'] and self.ask.get('project_id')==self.binding['project_id'] and self.ask.get('serial')==self.ask_serial else None
         connection=(view.get('preview') or {}).get('connection')
@@ -222,6 +223,7 @@ class MemoryController:
         if action in {'save_excerpt','record_claim','remove_relationship','set_task_state','delete_saved_source'}:
             if not self.binding:raise ValueError('Enable Memory first')
             data=dict(payload)
+            if action=='set_task_state' and not payload.get('done'):getattr(self,'last_completed',{}).pop(self.ui_project,None)        # undone
             if action=='set_task_state' and payload.get('done'):
                 if not hasattr(self,'last_completed'):self.last_completed={}
                 self.last_completed[self.ui_project]=(action,dict(payload,done=False))
@@ -232,6 +234,7 @@ class MemoryController:
             for item in self.items().values():
                 for note in item.get('notes',[]):
                     if note.get('memory_id')==payload['note_id'] and note.get('memory_project_id')==self.ui_project:
+                        if not payload['done']:getattr(self,'last_completed',{}).pop(self.ui_project,None)
                         if payload['done']:
                             if not hasattr(self,'last_completed'):self.last_completed={}
                             self.last_completed[self.ui_project]=(action,dict(payload,done=False))
@@ -272,7 +275,10 @@ class MemoryController:
         if action=='open_original':
             if self.binding:self.send('resolve_citation',{'project_id':self.binding['project_id'],'citation_id':payload['citation_id']},'open_original',{'project_id':self.ui_project})
             return
-        if action=='close_source':self.state['source']=None;return
+        if action=='close_source':
+            self.state['source']=None
+            if self.binding:self.action('submit',{})        # opened from Overview: reload the Memory list
+            return
         if action=='close_preview':self.state['preview']=None;return
         if action=='ask_codex':self.ask_codex(payload.get('text'));return
         if action=='close_ask':self.ask_serial+=1;self.ask=None;return
@@ -286,7 +292,7 @@ class MemoryController:
                     self.send('revoke_agent',{'grant_id':grant_id},'revoke_agent');self.agents.pop(grant_id,None);self.remove_from_codex(connection);self.ask_serial+=1;self.ask=None
             return
         self.state=memory_reduce(self.state,action,payload)
-        if action=='tab' and payload['tab'] in {'Memory','Resume'}:self.last_poll=0;self.action('submit',{})
+        if action=='tab' and payload['tab'] in {'Memory','Overview'}:self.last_poll=0;self.action('submit',{})
         elif action=='time_filter':self.action('submit',{})
         elif action in {'submit','source','preview'} and self.binding:
             params={'project_id':self.binding['project_id']}
@@ -294,7 +300,7 @@ class MemoryController:
             else:
                 params.update(period_args(self.state['period']))
                 method='get_project_context'
-                if action=='submit' and self.state['tab']=='Resume' and not self.state['query'].strip():method='resume_project';params={'project_id':self.binding['project_id']}
+                if action=='submit' and self.state['tab']=='Overview':method='resume_project';params={'project_id':self.binding['project_id']}
                 elif action=='submit' and self.state['query'].strip():method='search_project_memory';params['query']=self.state['query'].strip()
                 if action=='preview':
                     method='preview_agent_context';params['client_id']='Codex'
@@ -315,7 +321,12 @@ class MemoryController:
             if not entry:continue
             kind,token=entry;changed=True
             if kind=='enroll':self.busy=None
-            if kind=='read':self.state=memory_reduce(self.state,'response',dict(request=token,result=event.get('result'),error=event.get('error')))
+            if kind=='read':
+                self.state=memory_reduce(self.state,'response',dict(request=token,result=event.get('result'),error=event.get('error')))
+                got=event.get('result')
+                if isinstance(got,dict) and 'related_sources' in got and token and token.get('project_id')==self.ui_project:
+                    if not hasattr(self,'related'):self.related={}
+                    self.related[self.ui_project]=got['related_sources']        # the source view offers Remove connection from these
             elif event.get('error'):
                 if kind=='install_model':self.set_notice('Could not start the model install. Refresh Memory and try again.',True,kind)
                 else:self.state['error']=event['error']
@@ -323,7 +334,7 @@ class MemoryController:
                 prior=self.binding
                 self.bindings=event['result']
                 if not self.binding:self.state=memory_reduce(self.state,'revoke',{})
-                elif prior is None and self.state['tab'] in {'Memory','Resume'}:self.action('submit',{})
+                elif prior is None and self.state['tab'] in {'Memory','Overview'}:self.action('submit',{})
             elif kind=='status':
                 previous=(self.status.get('service_epoch'),self.status.get('policy_revision'),self.status.get('index_generation'))
                 self.status=event['result']
@@ -332,7 +343,7 @@ class MemoryController:
                 current=(self.status.get('service_epoch'),self.status.get('policy_revision'),self.status.get('index_generation'))
                 if current!=previous:
                     self.state=memory_reduce(self.state,'generation',{'generation':current})
-                    if self.binding and self.state['tab'] in {'Memory','Resume'}:self.action('submit',{})
+                    if self.binding and self.state['tab'] in {'Memory','Overview'}:self.action('submit',{})
             elif kind=='agents':self.agents={a['grant_id']:a for a in event['result']}
             elif kind=='copy_context':
                 if token['project_id']==self.ui_project:

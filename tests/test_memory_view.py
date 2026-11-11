@@ -188,3 +188,23 @@ class SourceProvenanceTests(unittest.TestCase):
         self.assertEqual(p['kind'], 'Project note')
         self.assertTrue(any('standalone saved note' in v for _l, v in p['facts']))
         self.assertEqual(p['url'], '')
+
+
+class ResumeItemTests(unittest.TestCase):
+    def test_priority_is_task_then_decision_then_note(self):
+        from memory_view import resume_item
+        note = dict(text='a note', at='2026-11-10T09:00:00Z', citation_id='n')
+        dec = dict(statement='We chose X', at='2026-11-09T09:00:00Z', citations=['d'])
+        t_old = dict(id='t1', statement='Old task', at='2026-11-01T09:00:00Z', citations=['t1c'], native_note_id=None)
+        t_new = dict(id='t2', statement='New task\nsecond line', at='2026-11-05T09:00:00Z', citations=['t2c'], native_note_id=None)
+        item = resume_item(dict(open_tasks=[t_old, t_new], decisions=[dec], saved_activity=[note]))
+        self.assertEqual((item['kind'], item['title'], item['citation_id']), ('Next action', 'New task', 't2c'))
+        self.assertEqual(item['done'], ('set_task_state', {'claim_id': 't2', 'done': True}))
+        self.assertEqual(resume_item(dict(decisions=[dec], saved_activity=[note]))['kind'], 'Decision')
+        self.assertEqual(resume_item(dict(saved_activity=[note]))['kind'], 'Note')
+        self.assertIsNone(resume_item(dict()))
+
+    def test_a_native_note_task_is_completed_as_a_note(self):
+        from memory_view import resume_item
+        item = resume_item(dict(open_tasks=[dict(id='t', statement='Do it', at='x', citations=['c'], native_note_id='nn')]))
+        self.assertEqual(item['done'], ('complete_native_note', {'note_id': 'nn', 'done': True}))

@@ -19,6 +19,10 @@ folder you name (outside the repo). Standard library only. Local only: the model
    Do not continue unless it prints `VERDICT: CPU-only confirmed`.
 5. Candidate retrieval and candidate recall (no model):
    `python3 -I experiments/llm_activity/llm_activity.py retrieve ~/Desktop/annot-nov11/dataset ~/Desktop/llm-exp`
+5b. Retrieval diagnosis (no model; read-only; baseline `retrieve` is untouched):
+   `python3 -I experiments/llm_activity/retrieval_diagnosis.py ~/Desktop/annot-nov11/dataset ~/Desktop/llm-exp --private > ~/Desktop/retrieval-diagnosis.txt`
+   Why related pairs were missed, connectivity through intermediate Visits, and six fixed label-free expansions compared with the
+   baseline. Exploratory: one day, labels never used to build candidates, settings fixed in advance.
 6. Timing trial (about 60 pairs), then the full run. Resumable and cached: Ctrl-C is safe, rerun continues.
    `... judge ~/Desktop/annot-nov11/dataset ~/Desktop/llm-exp --model gemma3:1b --max-pairs 60`
    `... judge ~/Desktop/annot-nov11/dataset ~/Desktop/llm-exp --model gemma3:1b`

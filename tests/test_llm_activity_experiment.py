@@ -65,6 +65,20 @@ class Base(unittest.TestCase):
         self.pool, self.potential = la.retrieve(self.day)
 
 
+class TestRetrievalDiagnosis(Base):
+    def test_diagnosis_runs_and_expansions_never_remove_baseline_pairs(self):
+        import retrieval_diagnosis as rd
+        rel, unrel = rd.pure_pairs(self.day)
+        text = "\n".join([rd.section_diagnosis(self.day, self.pool, self.potential, rel, True),
+                          rd.section_connectivity(self.day, self.pool, rel, unrel),
+                          rd.section_expansions(self.day, self.pool, rel, unrel, self.tmp.name)])
+        self.assertIn("BASELINE", text)
+        for name, cfg in rd.CONFIGS.items():
+            extra = rd.expand(self.day, self.pool, cfg)
+            self.assertFalse(extra & set(self.pool), name)
+            self.assertEqual(extra, rd.expand(self.day, self.pool, cfg), name)   # deterministic
+
+
 class TestRetrieval(Base):
     def test_pool_is_deterministic_and_reports_recall(self):
         again, _ = la.retrieve(self.day)

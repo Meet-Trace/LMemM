@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Activity annotation</title>
+<style>
+:root{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e5e5ea;--card:#fafafa;--acc:#0a64f0;--ok:#e8f1ff;--warn:#fff4e0}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f2f2f7;--mut:#98989d;--line:#38383a;--card:#242426;--acc:#4c97ff;--ok:#1b2b44;--warn:#3a2e17}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 -apple-system,system-ui,sans-serif}
+header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px;z-index:5}
+header .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+main{max-width:980px;margin:0 auto;padding:12px 16px 80px}
+button,input{font:inherit;color:inherit}button{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 10px;cursor:pointer}
+button:hover{border-color:var(--acc)}button.p{background:var(--acc);color:#fff;border-color:var(--acc)}
+input[type=text]{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;min-width:200px}
+.card{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;margin:8px 0}
+.card.done{opacity:.75}.card.sel{outline:2px solid var(--acc)}
+.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mut{color:var(--mut)}.grow{flex:1}
+.chip{border-radius:20px;padding:1px 9px;background:var(--ok);font-size:12px}.chip.u{background:var(--warn)}
+.sug{font-size:12px;color:var(--mut);margin-top:4px}.sug a{color:var(--acc);cursor:pointer}
+table{border-collapse:collapse;width:100%;margin-top:8px;font-size:12.5px}td{padding:3px 6px;border-top:1px solid var(--line);vertical-align:top}
+tr.div td{border-top:2px dashed var(--acc);}.small{font-size:11.5px;color:var(--mut)}
+#err{color:#d33;margin-left:8px}h3{margin:18px 0 0;font-size:13px;color:var(--mut);font-weight:600}
+</style></head><body>
+<header><div class="row">
+<strong>Activity annotation</strong><span id="prog" class="mut"></span><span class="grow"></span>
+<span id="selbar" class="row" style="display:none">
+ <span id="nsel" class="mut"></span>
+ <input type="text" id="bulk" list="names" placeholder="Activity name for selected, then Enter">
+ <button id="bmerge">Merge</button><button id="bunrel">Unrelated</button><button id="bunc">Uncertain</button><button id="bclear">Clear</button>
+</span>
+<button id="undo">Undo</button><button id="export" class="p">Export for scoring</button><span id="err"></span>
+</div></header>
+<main><div class="small" style="margin:6px 0">Type a name on a card and press Enter. Two cards with the same name are one Activity, however far apart. Select several cards (tick the box) to name, merge or mark them together. Open "visits" to split a card at any visit. A card is only a unit of review: nothing is assumed to be one Activity until you say so. Project is a separate, optional field and is never scored.</div>
+<div id="list"></div></main><datalist id="names"></datalist>
+<script>
+const K="__TOKEN__";let S=null,sel=new Set(),open=new Set(),showDone=true;
+const $=s=>document.querySelector(s);
+const hm=t=>new Date(t*1000).toTimeString().slice(0,8);
+const mn=s=>s<90?Math.round(s)+"s":Math.round(s/60)+" min";
+async function call(path,body){
+  const r=await fetch(path,{method:body?"POST":"GET",headers:{"X-Token":K},body:body?JSON.stringify(body):undefined});
+  const j=await r.json();if(!r.ok){$("#err").textContent=j.error||"error";throw 0}
+  $("#err").textContent="";return j}
+const load=async()=>{S=await call("/api/state?k="+K);draw()};
+const ev=async b=>{S=await call("/api/event",b);sel=new Set([...sel].filter(i=>S.cards.some(c=>c.id==i)));draw()};
+function esc(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function cardHTML(c){
+  const lab=c.status=="activity"?`<span class="chip">${esc(c.activity)}</span>`:c.status=="open"?"":`<span class="chip u">${c.status}</span>`;
+  const sug=c.suggest.map(s=>`<a data-pick="${s.block}">${s.block}</a> (${esc(s.why)}, ${mn(s.gap_s)} apart) <a data-mrg="${c.id},${s.block}">merge</a>`).join(" · ");
+  const first=c.visits[0];
+  let h=`<div class="card ${c.status!="open"?"done":""} ${sel.has(c.id)?"sel":""}" data-id="${c.id}">
+  <div class="top"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id)?"checked":""}>
+  <strong>${hm(c.t0)}–${hm(c.t1)}</strong><span class="mut">${c.visits.length} visits · ${mn(c.dwell)} · ${esc(c.apps.join(", "))}</span>${lab}<span class="grow"></span>
+  <input type="text" list="names" data-name="${c.id}" placeholder="${c.kind=="glance"?"glances: usually Unrelated":"Activity name"}" value="${esc(c.activity)}">
+  <button data-unrel="${c.id}">Unrelated</button><button data-unc="${c.id}">Uncertain</button><button data-tog="${c.id}">${open.has(c.id)?"hide":"visits"}</button></div>
+  <div class="small">${esc(first.title||first.where||first.app)}${first.summary?" — "+esc(first.summary):""}</div>
+  ${sug?`<div class="sug">maybe the same Activity: ${sug}</div>`:""}`;
+  if(open.has(c.id)){
+    h+=`<table>`;let prev=null;
+    c.visits.forEach((v,i)=>{
+      const gap=prev?v.t0-prev.t1:0,dip=v.cos_prev!=null&&v.cos_prev<S.divider_cos;
+      const why=prev&&(gap>S.link_gap_s||dip||v.item!=prev.item)?` title="${gap>S.link_gap_s?"gap "+mn(gap):v.item!=prev.item?"different screen item":"text changed"}"`:"";
+      h+=`<tr class="${why?"div":""}"${why}><td>${hm(v.t0)}</td><td>${mn(v.dwell)}</td><td>${esc(v.app)}</td><td>${esc(v.title||v.where)}<div class="small">${esc(v.summary||v.terms.join(" "))}</div></td>
+      <td>${i>0?`<button data-split="${c.id}|${i}">split here</button>`:""}</td></tr>`;prev=v});
+    h+=`</table>`}
+  return h+`</div>`}
+function draw(){
+  const p=S.progress,tot=S.cards.length,done=S.cards.filter(c=>c.status!="open").length;
+  $("#prog").textContent=`${done}/${tot} cards decided · ${S.n_visits} visits`;
+  $("#names").innerHTML=S.names.map(n=>`<option value="${esc(n)}">`).join("");
+  $("#selbar").style.display=sel.size?"flex":"none";$("#nsel").textContent=sel.size+" selected";
+  const op=S.cards.filter(c=>c.status=="open").sort((a,b)=>a.priority-b.priority||a.t0-b.t0),dn=S.cards.filter(c=>c.status!="open");
+  $("#list").innerHTML=(op.length?`<h3>To review (likely related first, glances last)</h3>`:`<h3>Everything is decided. Export when ready.</h3>`)+op.map(cardHTML).join("")+(dn.length?`<h3>Decided</h3>`+dn.map(cardHTML).join(""):"")}
+document.addEventListener("click",async e=>{
+  const t=e.target,g=a=>t.dataset[a];
+  if(g("sel")!==undefined){t.checked?sel.add(g("sel")):sel.delete(g("sel"));return draw()}
+  if(g("tog")){open.has(g("tog"))?open.delete(g("tog")):open.add(g("tog"));return draw()}
+  if(g("unrel"))return ev({op:"label",blocks:[g("unrel")],status:"unrelated"});
+  if(g("unc"))return ev({op:"label",blocks:[g("unc")],status:"uncertain"});
+  if(g("mrg"))return ev({op:"merge",blocks:g("mrg").split(",")});
+  if(g("pick")){sel.add(g("pick"));return draw()}
+  if(g("split")){const[id,i]=g("split").split("|"),c=S.cards.find(c=>c.id==id);return ev({op:"split",block:id,visits:c.visits.slice(+i).map(v=>v.id)})}
+  if(t.id=="bmerge")return ev({op:"merge",blocks:[...sel]}).then(()=>{sel.clear();draw()});
+  if(t.id=="bunrel")return ev({op:"label",blocks:[...sel],status:"unrelated"}).then(()=>{sel.clear();draw()});
+  if(t.id=="bunc")return ev({op:"label",blocks:[...sel],status:"uncertain"}).then(()=>{sel.clear();draw()});
+  if(t.id=="bclear"){sel.clear();return draw()}
+  if(t.id=="undo")return ev({op:"undo"});
+  if(t.id=="export"){const r=await call("/api/export",{});$("#err").style.color="inherit";$("#err").textContent=`exported ${r.activities} activities → ${r.dataset}`}
+});
+document.addEventListener("keydown",e=>{
+  if(e.key!="Enter")return;const t=e.target;if(t.id=="bulk"&&t.value.trim()){ev({op:"label",blocks:[...sel],status:"activity",activity:t.value}).then(()=>{sel.clear();t.value="";draw()})}
+  else if(t.dataset&&t.dataset.name&&t.value.trim())ev({op:"label",blocks:[t.dataset.name],status:"activity",activity:t.value})});
+load();
+</script></body></html>

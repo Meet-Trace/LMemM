@@ -487,15 +487,58 @@ def init_folder(folder, dataset_dir, opts=None):
     return p, True
 
 
+def _headline(vs):
+    """The most recognisable label for a set of visits: the longest-dwelling title that is not just the app's name."""
+    best = {}
+    for v in vs:
+        t = (v["title"] or v["where"] or "").strip()
+        if t and t.lower() != (v["app"] or "").lower():
+            best[t] = best.get(t, 0) + v["dwell"]
+    return max(best, key=lambda t: (best[t], t)) if best else ""
+
+
+def _near(proposal, vid, step):
+    i = proposal["visit_order"].index(vid) + step
+    if 0 <= i < len(proposal["visit_order"]):
+        return proposal["visits"][proposal["visit_order"][i]]
+    return None
+
+
 def view(proposal, state):
-    """What the page shows: cards with their visits resolved."""
+    """What the page shows: cards with their visits resolved, a readable headline, and what was just before and after."""
     cards = []
     pb = {b["id"]: b for b in proposal["blocks"]}
     for b in state["blocks"].values():
         vs = [proposal["visits"][v] for v in b["visits"]]
+        t0, t1 = min(v["t0"] for v in vs), max(v["t1"] for v in vs)
+        words = []
+        for v in vs:
+            for w in v["terms"]:
+                if w not in words:
+                    words.append(w)
+        summary = next((v["summary"] for v in sorted(vs, key=lambda v: -v["dwell"]) if v["summary"]), "")
+        head = _headline(vs)
+        inside = set(b["visits"])
+        before = after = None
+        for v in vs:                              # nearest visits of the day that are not in this card
+            for step in (-1, 1):
+                j, x = step, _near(proposal, v["id"], step)
+                while x is not None and x["id"] in inside:
+                    j += step
+                    x = _near(proposal, v["id"], j)
+                if x is None:
+                    continue
+                if step < 0 and x["t1"] <= t0 and (before is None or x["t1"] > before["t1"]):
+                    before = x
+                if step > 0 and x["t0"] >= t1 and (after is None or x["t0"] < after["t0"]):
+                    after = x
+        ctx = lambda x, d: None if x is None else {"app": x["app"], "title": "" if (x["title"] or "").lower() == (x["app"] or "").lower() else (x["title"] or x["where"]), "t": x["t0"], "gap_s": round(abs(d))}
         card = {"id": b["id"], "status": b["status"], "activity": b["activity"], "project": b["project"], "origin": b["origin"],
-                "t0": vs[0]["t0"], "t1": max(v["t1"] for v in vs), "dwell": round(sum(v["dwell"] for v in vs)),
-                "apps": [a for a, _ in collections.Counter(v["app"] for v in vs).most_common(3)], "visits": vs}
+                "t0": t0, "t1": t1, "dwell": round(sum(v["dwell"] for v in vs)),
+                "apps": [a for a, _ in collections.Counter(v["app"] for v in vs).most_common(3)], "visits": vs,
+                "headline": head, "words": words[:12], "summary": summary,
+                "readable": bool(head or words or summary),
+                "before": ctx(before, t0 - before["t1"]) if before else None, "after": ctx(after, after["t0"] - t1) if after else None}
         if b["id"] in pb and pb[b["id"]]["visits"] == b["visits"]:
             card["kind"], card["priority"], card["suggest"] = pb[b["id"]]["kind"], pb[b["id"]]["priority"], pb[b["id"]]["suggest"]
         else:

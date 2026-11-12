@@ -1,93 +1,155 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Activity annotation</title>
+<title>What were you doing?</title>
 <style>
-:root{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e5e5ea;--card:#fafafa;--acc:#0a64f0;--ok:#e8f1ff;--warn:#fff4e0}
-@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f2f2f7;--mut:#98989d;--line:#38383a;--card:#242426;--acc:#4c97ff;--ok:#1b2b44;--warn:#3a2e17}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 -apple-system,system-ui,sans-serif}
-header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px;z-index:5}
-header .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-main{max-width:980px;margin:0 auto;padding:12px 16px 80px}
-button,input{font:inherit;color:inherit}button{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 10px;cursor:pointer}
-button:hover{border-color:var(--acc)}button.p{background:var(--acc);color:#fff;border-color:var(--acc)}
-input[type=text]{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:4px 8px;min-width:200px}
-.card{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;margin:8px 0}
-.card.done{opacity:.75}.card.sel{outline:2px solid var(--acc)}
-.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.mut{color:var(--mut)}.grow{flex:1}
-.chip{border-radius:20px;padding:1px 9px;background:var(--ok);font-size:12px}.chip.u{background:var(--warn)}
-.sug{font-size:12px;color:var(--mut);margin-top:4px}.sug a{color:var(--acc);cursor:pointer}
-table{border-collapse:collapse;width:100%;margin-top:8px;font-size:12.5px}td{padding:3px 6px;border-top:1px solid var(--line);vertical-align:top}
-tr.div td{border-top:2px dashed var(--acc);}.small{font-size:11.5px;color:var(--mut)}
-#err{color:#d33;margin-left:8px}h3{margin:18px 0 0;font-size:13px;color:var(--mut);font-weight:600}
-</style></head><body>
-<header><div class="row">
-<strong>Activity annotation</strong><span id="prog" class="mut"></span><span class="grow"></span>
-<span id="selbar" class="row" style="display:none">
- <span id="nsel" class="mut"></span>
- <input type="text" id="bulk" list="names" placeholder="Activity name for selected, then Enter">
- <button id="bmerge">Merge</button><button id="bunrel">Unrelated</button><button id="bunc">Uncertain</button><button id="bclear">Clear</button>
-</span>
-<button id="undo">Undo</button><button id="export" class="p">Export for scoring</button><span id="err"></span>
-</div></header>
-<main><div class="small" style="margin:6px 0">Type a name on a card and press Enter. Two cards with the same name are one Activity, however far apart. Select several cards (tick the box) to name, merge or mark them together. Open "visits" to split a card at any visit. A card is only a unit of review: nothing is assumed to be one Activity until you say so. Project is a separate, optional field and is never scored.</div>
-<div id="list"></div></main><datalist id="names"></datalist>
+:root{--bg:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e5e5ea;--card:#f7f7f9;--acc:#0a64f0;--accfg:#fff;--soft:#e8f1ff;--warn:#fff4e0}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f2f2f7;--mut:#98989d;--line:#38383a;--card:#242426;--acc:#4c97ff;--accfg:#0b1b33;--soft:#1b2b44;--warn:#3a2e17}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:18px 18px 80px}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--acc)}button.p{background:var(--acc);color:var(--accfg);border-color:var(--acc);font-weight:600}
+button.link{background:none;border:0;color:var(--acc);padding:2px 4px}
+input[type=text],select{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px;width:100%}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:10px}.grow{flex:1}.mut{color:var(--mut)}.small{font-size:13px}
+.strip{display:flex;gap:3px;margin:8px 0 18px;height:34px}
+.strip div{flex:1;min-width:6px;border-radius:5px;background:var(--line);cursor:pointer;position:relative}
+.strip div.done{background:var(--acc);opacity:.45}.strip div.unrel{background:var(--mut);opacity:.35}.strip div.cur{outline:2px solid var(--fg);outline-offset:1px;opacity:1}
+.panel{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:18px 20px;margin-bottom:14px}
+.when{font-size:13px;color:var(--mut)}h1{font-size:22px;line-height:1.25;margin:4px 0 6px}
+.ctx{display:flex;gap:10px;margin:12px 0}.ctx div{flex:1;border:1px dashed var(--line);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--mut)}
+.ctx b{display:block;color:var(--fg);font-weight:600;font-size:13.5px}
+.words span{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:1px 10px;margin:2px 4px 2px 0;font-size:13px}
+.q{font-size:17px;font-weight:600;margin:0 0 4px}.chips{margin:8px 0}.chips button{margin:0 6px 6px 0;border-radius:20px;padding:5px 12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row.sp>*{flex:1}
+.note{background:var(--soft);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:14px}
+.warn{background:var(--warn)}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}td{padding:6px 6px;border-top:1px solid var(--line);vertical-align:top}
+tr.cut td{border-top:2px dashed var(--acc)}
+#err{color:#d33;font-size:13px;margin-left:8px}
+.task{display:flex;gap:10px;align-items:baseline;border-top:1px solid var(--line);padding:8px 0}
+</style></head><body><main>
+<div class="bar"><strong>What were you doing?</strong><span id="prog" class="mut small"></span><span class="grow"></span>
+<button id="undo" class="small">Undo</button><span id="err"></span></div>
+<div id="strip" class="strip"></div>
+<div id="view"></div>
+</main>
 <script>
-const K="__TOKEN__";let S=null,sel=new Set(),open=new Set(),showDone=true;
+const K="__TOKEN__";let S=null,cur=null,showVisits=false,showAll=false;
 const $=s=>document.querySelector(s);
-const hm=t=>new Date(t*1000).toTimeString().slice(0,8);
-const mn=s=>s<90?Math.round(s)+"s":Math.round(s/60)+" min";
+const hm=t=>new Date(t*1000).toTimeString().slice(0,5);
+const mn=s=>s<90?Math.round(s)+" sec":Math.round(s/60)+" min";
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 async function call(path,body){
   const r=await fetch(path,{method:body?"POST":"GET",headers:{"X-Token":K},body:body?JSON.stringify(body):undefined});
-  const j=await r.json();if(!r.ok){$("#err").textContent=j.error||"error";throw 0}
+  const j=await r.json();if(!r.ok){$("#err").textContent=j.error||"Something went wrong";throw 0}
   $("#err").textContent="";return j}
-const load=async()=>{S=await call("/api/state?k="+K);draw()};
-const ev=async b=>{S=await call("/api/event",b);sel=new Set([...sel].filter(i=>S.cards.some(c=>c.id==i)));draw()};
-function esc(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function cardHTML(c){
-  const lab=c.status=="activity"?`<span class="chip">${esc(c.activity)}</span>`:c.status=="open"?"":`<span class="chip u">${c.status}</span>`;
-  const sug=c.suggest.map(s=>`<a data-pick="${s.block}">${s.block}</a> (${esc(s.why)}, ${mn(s.gap_s)} apart) <a data-mrg="${c.id},${s.block}">merge</a>`).join(" · ");
-  const first=c.visits[0];
-  let h=`<div class="card ${c.status!="open"?"done":""} ${sel.has(c.id)?"sel":""}" data-id="${c.id}">
-  <div class="top"><input type="checkbox" data-sel="${c.id}" ${sel.has(c.id)?"checked":""}>
-  <strong>${hm(c.t0)}–${hm(c.t1)}</strong><span class="mut">${c.visits.length} visits · ${mn(c.dwell)} · ${esc(c.apps.join(", "))}</span>${lab}<span class="grow"></span>
-  <input type="text" list="names" data-name="${c.id}" placeholder="${c.kind=="glance"?"glances: usually Unrelated":"Activity name"}" value="${esc(c.activity)}">
-  <button data-unrel="${c.id}">Unrelated</button><button data-unc="${c.id}">Uncertain</button><button data-tog="${c.id}">${open.has(c.id)?"hide":"visits"}</button></div>
-  <div class="small">${esc(first.title||first.where||first.app)}${first.summary?" — "+esc(first.summary):""}</div>
-  ${sug?`<div class="sug">maybe the same Activity: ${sug}</div>`:""}`;
-  if(open.has(c.id)){
-    h+=`<table>`;let prev=null;
-    c.visits.forEach((v,i)=>{
-      const gap=prev?v.t0-prev.t1:0,dip=v.cos_prev!=null&&v.cos_prev<S.divider_cos;
-      const why=prev&&(gap>S.link_gap_s||dip||v.item!=prev.item)?` title="${gap>S.link_gap_s?"gap "+mn(gap):v.item!=prev.item?"different screen item":"text changed"}"`:"";
-      h+=`<tr class="${why?"div":""}"${why}><td>${hm(v.t0)}</td><td>${mn(v.dwell)}</td><td>${esc(v.app)}</td><td>${esc(v.title||v.where)}<div class="small">${esc(v.summary||v.terms.join(" "))}</div></td>
-      <td>${i>0?`<button data-split="${c.id}|${i}">split here</button>`:""}</td></tr>`;prev=v});
-    h+=`</table>`}
-  return h+`</div>`}
+async function load(){S=await call("/api/state?k="+K);draw()}
+async function ev(b,next){const before=S.cards.map(c=>c.id);S=await call("/api/event",b);
+  if(next==="advance")cur=nextOpen(cur);draw()}
+const order=()=>[...S.cards].sort((a,b)=>a.priority-b.priority||a.t0-b.t0);
+const openCards=()=>order().filter(c=>c.status=="open");
+const byId=id=>S.cards.find(c=>c.id==id);
+function nextOpen(prev){const o=openCards();if(!o.length)return null;
+  const i=o.findIndex(c=>c.id==prev);return (o.find(c=>c.id!=prev&&(i<0||o.indexOf(c)>i))||o[0]).id}
+function label(c){return c.headline||c.apps.join(", ")}
+
+function cleanup(){
+  const g=S.cards.filter(c=>c.status=="open"&&c.kind=="glance"),
+        u=S.cards.filter(c=>c.status=="open"&&c.kind!="glance"&&!c.readable);
+  let h="";
+  if(g.length&&!skipG)h+=`<div class="note"><b>${g.reduce((n,c)=>n+c.visits.length,0)} very short glances</b> (a few seconds each, ${g.length} groups) are almost certainly not tasks.
+   <div class="row" style="margin-top:8px"><button class="p" data-bulk="unrelated" data-ids="${g.map(c=>c.id)}">Mark them all as "not a task"</button><button data-skipbulk="g">I'll look at them myself</button></div></div>`;
+  if(u.length&&!skipU)h+=`<div class="note warn"><b>${u.length} cards have no readable text</b> (nothing was captured that I can show you).
+   <div class="row" style="margin-top:8px"><button class="p" data-bulk="uncertain" data-ids="${u.map(c=>c.id)}">Mark them "can't tell"</button><button data-skipbulk="u">I'll look at them myself</button></div></div>`;
+  return h}
+let skipG=false,skipU=false;
+
+function cardView(c){
+  const names=S.names,pos=openCards().findIndex(x=>x.id==c.id)+1,left=openCards().length;
+  const others=S.cards.filter(x=>x.id!=c.id).sort((a,b)=>a.t0-b.t0);
+  const sug=new Set(c.suggest.map(s=>s.block));
+  const opt=x=>`<option value="${x.id}">${hm(x.t0)} · ${esc(label(x)).slice(0,60)}${x.activity?" → "+esc(x.activity):""}</option>`;
+  const sel=`<option value="">Same task as another card…</option>`+
+    (c.suggest.length?`<optgroup label="Suggested">${c.suggest.map(s=>byId(s.block)).filter(Boolean).map(opt).join("")}</optgroup>`:"")+
+    `<optgroup label="All other cards">${others.filter(x=>!sug.has(x.id)).map(opt).join("")}</optgroup>`;
+  let h=`<div class="panel"><div class="when">${hm(c.t0)}–${hm(c.t1)} · ${mn(c.dwell)} on screen · ${c.visits.length} visit${c.visits.length>1?"s":""} · ${esc(c.apps.join(", "))}</div>
+  <h1>${esc(c.headline||c.apps.join(", ")||"(no title)")}</h1>
+  ${c.summary?`<div class="small mut">${esc(c.summary)}</div>`:""}
+  ${c.words.length?`<div class="words small" style="margin-top:8px"><span class="mut" style="border:0;padding:0">Words on screen:</span> ${c.words.map(w=>`<span>${esc(w)}</span>`).join("")}</div>`:""}
+  <div class="ctx"><div>Just before<br>${c.before?`<b>${esc(c.before.app)}${c.before.title?" — "+esc(c.before.title):""}</b>${hm(c.before.t)} (${c.before.gap_s<90?"straight before":mn(c.before.gap_s)+" earlier"})`:"<b>start of the recording</b>"}</div>
+  <div>Just after<br>${c.after?`<b>${esc(c.after.app)}${c.after.title?" — "+esc(c.after.title):""}</b>${hm(c.after.t)} (${c.after.gap_s<90?"straight after":mn(c.after.gap_s)+" later"})`:"<b>end of the recording</b>"}</div></div>
+  <button class="link" id="tv">${showVisits?"Hide":"See"} the ${c.visits.length} visit${c.visits.length>1?"s":""}</button>
+  ${showVisits?visitsTable(c):""}</div>`;
+  h+=`<div class="panel"><p class="q">What were you doing here?</p>
+  <div class="mut small">Type a short name you'd recognise, like "design rulebook" or "fix login bug". Use the same name wherever you worked on the same thing, even hours apart.</div>
+  <div class="row" style="margin-top:10px"><input type="text" id="nm" placeholder="Name this task" autofocus><button class="p" id="save">Save and next</button></div>
+  ${names.length?`<div class="chips small mut">Or pick one you already named:<br>${names.map(n=>`<button data-pick="${esc(n)}">${esc(n)}</button>`).join("")}</div>`:""}
+  <div style="margin:8px 0"><select id="same">${sel}</select></div>
+  <div class="row sp"><button data-set="unrelated">Not a task<br><span class="small mut">idle, browsing, messages</span></button>
+  <button data-set="uncertain">I can't tell<br><span class="small mut">leave it out of scoring</span></button>
+  <button data-skip="1">Skip for now<br><span class="small mut">come back later</span></button></div></div>`;
+  const was=c.status=="open"?`Card ${pos} of ${left} still to decide`:`Already decided: <b>${c.status=="activity"?esc(c.activity):c.status=="unrelated"?"not a task":"can't tell"}</b>. You can change it below.`;
+  return `<div class="small mut" style="margin-bottom:6px">${was}</div>`+h}
+
+function visitsTable(c){
+  let h=`<table>`,prev=null;
+  c.visits.forEach((v,i)=>{
+    const gap=prev?v.t0-prev.t1:0,cut=prev&&(gap>S.link_gap_s||v.item!=prev.item||(v.cos_prev!=null&&v.cos_prev<S.divider_cos));
+    h+=`<tr class="${cut?"cut":""}"><td>${hm(v.t0)}</td><td>${mn(v.dwell)}</td><td>${esc(v.app)}</td><td>${esc(v.title||v.where)}<div class="mut">${esc(v.summary||v.terms.join(" "))}</div></td>
+    <td>${i>0?`<button class="link" data-split="${c.id}|${i}">Different task from here</button>`:""}</td></tr>`;prev=v});
+  return h+`</table><div class="small mut">A dashed line marks a pause, a different window or a change of topic. "Different task from here" splits this card in two.</div>`}
+
+function doneView(){
+  const tasks={};S.cards.filter(c=>c.status=="activity").forEach(c=>(tasks[c.activity]=tasks[c.activity]||[]).push(c));
+  const un=S.cards.filter(c=>c.status=="unrelated").length,uc=S.cards.filter(c=>c.status=="uncertain").length;
+  let h=`<div class="panel"><h1>${openCards().length?"Your tasks so far":"All decided"}</h1>
+  <div class="mut small">${Object.keys(tasks).length} task${Object.keys(tasks).length==1?"":"s"} named · ${un} cards not a task · ${uc} can't tell</div>`;
+  Object.keys(tasks).sort().forEach(n=>{const cs=tasks[n].sort((a,b)=>a.t0-b.t0);
+    h+=`<div class="task"><b>${esc(n)}</b><span class="mut small grow">${cs.map(c=>`<a href="#" data-go="${c.id}">${hm(c.t0)}</a>`).join(", ")}</span></div>`});
+  h+=`<div class="row" style="margin-top:14px">${openCards().length?`<button data-resume="1">Back to the cards</button>`:""}<button class="p" id="export">Export for scoring</button></div><div id="exp" class="small mut" style="margin-top:8px"></div></div>`;
+  return h}
+
 function draw(){
-  const p=S.progress,tot=S.cards.length,done=S.cards.filter(c=>c.status!="open").length;
-  $("#prog").textContent=`${done}/${tot} cards decided · ${S.n_visits} visits`;
-  $("#names").innerHTML=S.names.map(n=>`<option value="${esc(n)}">`).join("");
-  $("#selbar").style.display=sel.size?"flex":"none";$("#nsel").textContent=sel.size+" selected";
-  const op=S.cards.filter(c=>c.status=="open").sort((a,b)=>a.priority-b.priority||a.t0-b.t0),dn=S.cards.filter(c=>c.status!="open");
-  $("#list").innerHTML=(op.length?`<h3>To review (likely related first, glances last)</h3>`:`<h3>Everything is decided. Export when ready.</h3>`)+op.map(cardHTML).join("")+(dn.length?`<h3>Decided</h3>`+dn.map(cardHTML).join(""):"")}
+  const o=openCards(),tot=S.cards.length;
+  $("#prog").textContent=`${tot-o.length} of ${tot} cards decided`;
+  if(cur&&!byId(cur))cur=null;
+  if(!cur)cur=o.length?o[0].id:null;
+  $("#strip").innerHTML=[...S.cards].sort((a,b)=>a.t0-b.t0).map(c=>`<div data-go="${c.id}" class="${c.status=="activity"?"done":c.status=="unrelated"?"unrel":""} ${c.id==cur?"cur":""}" title="${hm(c.t0)} ${esc(label(c))}"></div>`).join("");
+  let h="";
+  h+=cleanup();
+  if(showAll||!cur)h+=doneView();
+  else{
+    h+=cardView(byId(cur));
+    h+=`<div class="row" style="margin-top:6px"><button class="link" data-showall="1">See everything I've named so far</button></div>`}
+  $("#view").innerHTML=h;
+  const nm=$("#nm");if(nm)nm.focus()}
+
 document.addEventListener("click",async e=>{
-  const t=e.target,g=a=>t.dataset[a];
-  if(g("sel")!==undefined){t.checked?sel.add(g("sel")):sel.delete(g("sel"));return draw()}
-  if(g("tog")){open.has(g("tog"))?open.delete(g("tog")):open.add(g("tog"));return draw()}
-  if(g("unrel"))return ev({op:"label",blocks:[g("unrel")],status:"unrelated"});
-  if(g("unc"))return ev({op:"label",blocks:[g("unc")],status:"uncertain"});
-  if(g("mrg"))return ev({op:"merge",blocks:g("mrg").split(",")});
-  if(g("pick")){sel.add(g("pick"));return draw()}
-  if(g("split")){const[id,i]=g("split").split("|"),c=S.cards.find(c=>c.id==id);return ev({op:"split",block:id,visits:c.visits.slice(+i).map(v=>v.id)})}
-  if(t.id=="bmerge")return ev({op:"merge",blocks:[...sel]}).then(()=>{sel.clear();draw()});
-  if(t.id=="bunrel")return ev({op:"label",blocks:[...sel],status:"unrelated"}).then(()=>{sel.clear();draw()});
-  if(t.id=="bunc")return ev({op:"label",blocks:[...sel],status:"uncertain"}).then(()=>{sel.clear();draw()});
-  if(t.id=="bclear"){sel.clear();return draw()}
+  const t=e.target.closest("button,a,[data-go]");if(!t)return;const d=t.dataset;
+  if(d.go!==undefined){e.preventDefault();cur=d.go;showAll=false;showVisits=false;return draw()}
+  if(d.skipbulk){d.skipbulk=="g"?skipG=true:skipU=true;return draw()}
+  if(d.bulk){return ev({op:"label",blocks:d.ids.split(","),status:d.bulk}).then(()=>draw())}
+  if(d.pick)return ev({op:"label",blocks:[cur],status:"activity",activity:d.pick},"advance");
+  if(d.set)return ev({op:"label",blocks:[cur],status:d.set},"advance");
+  if(d.skip){cur=nextOpen(cur);showVisits=false;return draw()}
+  if(d.split){const[id,i]=d.split.split("|"),c=byId(id);return ev({op:"split",block:id,visits:c.visits.slice(+i).map(v=>v.id)})}
+  if(d.showall){showAll=true;return draw()}
+  if(d.resume){showAll=false;return draw()}
+  if(t.id=="tv"){showVisits=!showVisits;return draw()}
+  if(t.id=="save")return saveName();
   if(t.id=="undo")return ev({op:"undo"});
-  if(t.id=="export"){const r=await call("/api/export",{});$("#err").style.color="inherit";$("#err").textContent=`exported ${r.activities} activities → ${r.dataset}`}
+  if(t.id=="export"){const r=await call("/api/export",{});
+    $("#exp").innerHTML=`Done. ${r.activities} tasks written. Scoring folder:<br><code>${esc(r.dataset)}</code>`}
 });
-document.addEventListener("keydown",e=>{
-  if(e.key!="Enter")return;const t=e.target;if(t.id=="bulk"&&t.value.trim()){ev({op:"label",blocks:[...sel],status:"activity",activity:t.value}).then(()=>{sel.clear();t.value="";draw()})}
-  else if(t.dataset&&t.dataset.name&&t.value.trim())ev({op:"label",blocks:[t.dataset.name],status:"activity",activity:t.value})});
+document.addEventListener("change",async e=>{
+  if(e.target.id!="same"||!e.target.value)return;
+  const other=byId(e.target.value),me=byId(cur);
+  if(other.status=="activity")return ev({op:"label",blocks:[cur],status:"activity",activity:other.activity},"advance");
+  await ev({op:"merge",blocks:[cur,other.id]});
+  const m=S.cards.filter(c=>c.origin=="merge").pop();cur=m?m.id:cur;draw()});
+document.addEventListener("keydown",e=>{if(e.key=="Enter"&&e.target.id=="nm")saveName()});
+function saveName(){const v=($("#nm").value||"").trim();if(!v){$("#err").textContent="Type a name first, or choose \"Not a task\" / \"I can't tell\".";return}
+  return ev({op:"label",blocks:[cur],status:"activity",activity:v},"advance")}
 load();
 </script></body></html>

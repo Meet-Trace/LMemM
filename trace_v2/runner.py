@@ -424,6 +424,15 @@ class Runner:
                 "event_totals": {k: int(v) for k, v in events}, "db_bytes": db_bytes,
                 "screenshot_scopes": dict(scopes)}
 
+    def _ocr_stats(self):
+        """The OCR reader's own counters (a worker-process client has them; the in-process reader does not)."""
+        probe = getattr(getattr(self.sources, "ocr", None), "stats", None)
+        try:
+            return probe() if callable(probe) else None
+        except Exception:                        # noqa: BLE001 - stats must never break the run
+            log.exception("could not read the OCR worker stats")
+            return None
+
     def stats(self, final=False):
         observer = self.observer.stats if self.observer else {}
         now = self._monotonic()
@@ -446,7 +455,8 @@ class Runner:
                 "input": self.tap.stats() if self.tap else {"state": "disabled"},
                 "lifecycle": self.lifecycle.snapshot() if self.lifecycle else None,
                 "observer_error": self.observer_error, "warmup": self.warmup_result,
-                "permissions": self.permissions_report, "retention_runs": self.retention_runs}
+                "permissions": self.permissions_report, "retention_runs": self.retention_runs,
+                "ocr_worker": self._ocr_stats()}
 
     def write_stats(self, final=False):
         stats = self.stats(final)

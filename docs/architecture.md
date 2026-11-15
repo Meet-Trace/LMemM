@@ -1,5 +1,7 @@
 # Architecture
 
+> **Trace V2** is being built from scratch beside this V1 code, in `trace_v2/`. Its first layer, the Observation store, is described in [v2/observations.md](v2/observations.md). Everything below describes V1.
+
 Normal tracker: one process, two threads, plain files. The experimental pilot is a separate opt-in process.
 
 ```

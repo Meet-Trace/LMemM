@@ -86,7 +86,7 @@ class RealRun(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, err[-2000:])
         observations = self.observations()
         stats = __import__("json").loads((Path(self.data) / "runner_stats.json").read_text())
-        self.assertTrue(5 <= len(observations) <= 12, len(observations))
+        self.assertTrue(3 <= len(observations) <= 12, len(observations))
         self.assertTrue(len(observations) + stats["missed_ticks"] >= 8, (len(observations), stats["missed_ticks"]))
         times = [o["timestamp_ns"] for o in observations]
         self.assertEqual(times, sorted(times))

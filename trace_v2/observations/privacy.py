@@ -10,6 +10,7 @@ gate(context, policy) -> Decision
         private_window     the adapter flagged the window private, or its title matches PRIVATE_TITLE
         excluded_site      the URL matches a built-in sensitive-site pattern or one of the user's patterns
         secure_input       macOS secure keyboard entry is on (a password field has focus)
+        screen_locked      the adapter flagged the screen locked (window["locked"] is True) or a screensaver runs
 
 redact(value) -> (value with secrets replaced, {kind: count})
     Walks reader output and context strings. Each match is replaced with "[REDACTED:<kind>]"; the rest of the
@@ -109,6 +110,8 @@ def gate(context, policy, secure_input=False):
         return Decision(True, "excluded_site")
     if secure_input:
         return Decision(True, "secure_input")
+    if window.get("locked") is True:
+        return Decision(True, "screen_locked")
     return Decision(False)
 
 

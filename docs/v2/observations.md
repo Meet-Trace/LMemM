@@ -92,5 +92,31 @@ removes expired screenshot files oldest first, records each in `screenshot_delet
 Structured evidence is never touched, and it has no automatic expiry: it is kept until the user forgets it.
 Dry runs record what would be deleted.
 
+## macOS adapters: context and screenshot (`trace_v2/macos/`)
+The only package that imports pyobjc (`trace_v2.observations` stays importable on Linux). `MacSources` wires
+context -> display id -> screenshot for the pipeline (`capture_version` `macos-capture/1`); OCR and accessibility
+readers are placeholders that raise `ReaderUnavailable("not implemented in PR A")`.
+- Context (metadata only): frontmost app (NSWorkspace), its front on-screen layer-0 window (CGWindowList), the display
+  holding most of that window (bounds in points, pixel size of the current mode, scale). `window.locked=True` when
+  the session reports a locked screen or loginwindow/ScreenSaverEngine is frontmost -> gate reason `screen_locked`.
+  `secure_input()` is Carbon `IsSecureEventInputEnabled`, and True when unknown.
+- Browsers: URL (and, for Chrome-family, `private` from `mode of front window`) via `osascript` within a 300 ms
+  budget. On refusal, timeout or error `url`/`private` are absent and `window.url_error` says why
+  (`automation_denied`, `automation_timeout`, ...). Safari has no scriptable private flag: `private_error:
+  "unsupported_safari"`, private Safari windows are not detected beyond the title gate.
+- Screenshot: ScreenCaptureKit `SCScreenshotManager` (macOS 14+), original pixels, no downscale, no cursor, lossless
+  PNG via ImageIO. The PyObjC ScreenCaptureKit wrapper is not installed, so the framework is loaded with
+  `objc.loadBundle` and the two block signatures are registered by hand. `CGDisplayCreateImage` is the fallback only
+  when SCK cannot load; `ScreenshotSource.last_path` says which ran.
+- Permissions (never prompted by us): Screen Recording (pixels; without it window titles are empty) and, per browser,
+  Automation (URL/private). A missing Screen Recording grant raises `PermissionError`, recorded as a screenshot failure.
+- Limitations: only the display holding the front window is captured; the PNG can contain anything on that display
+  (other apps' windows, notifications, a second app beside a safe one) that the context gates cannot see; the gates
+  judge the front window only. Chrome's AppleScript "front window" can differ from the CGWindow front window.
+- Interval: setting `capture_interval_s` (default 3.0, 0.5..3600) via `settings.get/set_capture_interval`;
+  `ContinuousObserver` defaults to it. The runner reads it in a later PR.
+- Cost: `scripts/v2_measure_capture.py` (temp store, deleted afterwards).
+
 ## Tests
-`tests/test_v2_observation_{store,retention,migrations,pipeline,privacy,forget}.py`, run with `./scripts/test.sh`.
+`tests/test_v2_observation_{store,retention,migrations,pipeline,privacy,forget,capture_settings}.py` and, on macOS only,
+`tests/test_v2_macos_{context,capture}.py` (screenshot tests skip without Screen Recording), run with `./scripts/test.sh`.

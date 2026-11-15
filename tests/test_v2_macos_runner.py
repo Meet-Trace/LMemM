@@ -96,9 +96,11 @@ class RealRun(unittest.TestCase):
         for o in observations:
             if o not in withheld:
                 status = o["metadata"]["extraction_status"]
-                self.assertIn(status["ocr"]["status"], ("succeeded", "failed"), status)
+                self.assertIn(status["ocr"]["status"], ("succeeded", "failed", "unavailable"), status)
                 if status["ocr"]["status"] == "failed":
                     self.assertEqual(status["ocr"]["error_code"], "Timeout", status)
+                if status["ocr"]["status"] == "unavailable":                       # the OCR worker was still warming up
+                    self.assertEqual(status["ocr"]["error_code"], "WorkerStarting", status)
                 ocr_ok += status["ocr"]["status"] == "succeeded"
                 self.assertIn(status["accessibility"]["status"], ("succeeded", "failed"))      # failed: app without a window
         self.assertGreaterEqual(ocr_ok, 1)

@@ -37,8 +37,10 @@ by anything here.
 
 1. exclusive `flock` on `<data dir>/runner.lock` (a second runner exits 3 with the holder's pid)
 2. permission report
-3. Vision warm-up: one OCR of a small rendered image with a 120 s timeout, on a thread, before the first capture, so the
-   first real read cannot time out (a first recognition on a fresh machine has taken 66 s). A stop request during it is
+3. Vision warm-up. With `ocr_isolation=inprocess`: one OCR of a small rendered image with a 120 s timeout, on a thread,
+   before the first capture, so the first real read cannot time out (a first recognition on a fresh machine has taken
+   66 s). With the default `process` isolation there is no blocking step: the OCR worker starts here and warms up inside
+   itself while capture begins (OCR is `unavailable` / `WorkerStarting` until it reports ready; see "OCR isolation"). A stop request during it is
    honoured at once; a failed warm-up is recorded and capture starts anyway.
 4. event buffer opens at the session start, then the input tap (cursor sampling from `cursor_sample_ms`)
 5. screenshot retention once (a no-op under the default permanent policy), then hourly
@@ -73,10 +75,119 @@ observation tables, read-only.
 ## Reader failure and recovery
 
 A reader that fails is recorded on that observation (`extraction_status.<reader>`: status and error code) and the observation
-is still stored. Both readers are called again on every capture. Accessibility keeps no state between captures. OCR runs on a
-worker thread; a Vision request that times out can keep running, so it is parked and the next capture starts a new request
+is still stored. Both readers are called again on every capture. Accessibility keeps no state between captures. With
+`ocr_isolation=inprocess` OCR runs on a worker thread (with the default `process` isolation Vision is in a killable worker
+process instead: next section); a Vision request that times out can keep running, so it is parked and the next capture starts a new request
 (at most two parked; then reads fail fast with `Timeout` until one returns). A stuck Vision request was measured at over
 20 s on a loaded 8 GB Mac; before the retry change every capture in that time lost its text.
+
+## OCR isolation: Vision in a killable worker process (`ocr_isolation`, default `process`)
+
+Settings (store, with history): `ocr_isolation` (`process` | `inprocess`), `ocr_timeout_s` (default 10, 1 to 120),
+`ocr_worker_max_rss_mb` (default 800, 200 to 16384), `ocr_worker_max_jobs` (default 500, 10 to 100000). Flags for one run:
+`--ocr-isolation process|inprocess`, `--ocr-timeout S`. `inprocess` is the previous behaviour (`VisionOCR` on a thread) and
+is kept as a fallback and for comparison. Stats: `runner_stats.json` has an `ocr_worker` object (below).
+
+- **Shape.** `trace_v2/macos/ocr_client.py` `OcrWorkerClient` has the reader interface of `VisionOCR` (`version`
+  `vision-ocr/1`, `read(screenshot, context) -> (raw, text)`), so `MacSources` and the pipeline are unchanged. The worker
+  (`python -m trace_v2.macos.ocr_worker`, started with `sys.executable`, a subprocess with pipes, never fork) runs the same
+  `VisionOCR`, so `raw`, `text`, languages and error classes are the in-process ones (tested equal on real PNGs, and the
+  stored extraction row is equal). Screenshot bytes go over the pipe in length-prefixed frames
+  (`ocr_protocol.py`); nothing is written to disk. The worker never opens the store or the data directory, its stdout and
+  stderr are `/dev/null`, it logs nothing, and it only ever receives PNG bytes of a capture the gate already allowed. A
+  withheld or failed screenshot never reaches it; redaction and `secret_on_screen` run in the capture process on the result,
+  as before. `trace_v2.macos` now imports its adapters lazily (PEP 562) so that importing the worker or the client does not
+  load AppKit, Quartz or the accessibility code.
+- **Never blocks.** `read` returns or raises within `ocr_timeout_s` plus milliseconds in every state: starting, wedged, dead,
+  garbage, a pipe nobody reads (the pipe write is on its own thread). Failure codes recorded in the extraction row:
+  `failed`: `Timeout`, `WorkerCrashed`, `WorkerProtocolError`, `WorkerBusy`, `ImageTooLarge`, or the worker's own error class
+  (`ValueError`, `RuntimeError`, ...). `unavailable`: `WorkerStarting` (warming up or being replaced), `WorkerCircuitOpen`,
+  `WorkerClosed`, `ReaderUnavailable` (Vision cannot be imported). A failed OCR never stops the capture: the observation is
+  stored with the failure, like every other reader failure. `skipped` stays what the pipeline already uses for "no
+  screenshot".
+- **Timeout and restart.** On timeout the worker is retired at once (the read returns), then killed (SIGTERM, SIGKILL after
+  0.5 s, reaped; every wait bounded) and replaced on the supervisor thread. The next captures see `WorkerStarting` until
+  the new worker is ready (about 1 s warm; cold start can be much longer, see limits).
+- **Association and no duplicates.** The draft is built before `ingest` assigns the observation id, and OCR is read
+  synchronously inside `build_draft` for that capture's screenshot, so the result is part of that draft and is stored with
+  it; nothing is attached later by id. Inside the client each job has an increasing `job_id` and an idempotency key
+  `sha256(png):captured_at_ns`; only a result carrying both for the one job in flight is accepted. A late, duplicate or
+  foreign result (including anything from a killed or replaced worker, whose inbox is dropped with it) is discarded and
+  counted in `late_results_discarded`. Reading the same key again returns the first result without a second Vision run
+  (`idempotent_hits`, the last two keys are remembered).
+- **Bounds.** Queue depth is **1**: one job at a time and no waiting line. The observer is single-threaded and a queued
+  screenshot would be stale by the time it ran, so a second concurrent `read` is refused at once with `WorkerBusy`
+  (`failed`, never queued). Bytes in flight are at most one screenshot, and a screenshot over 64 MB is refused
+  (`ImageTooLarge`); a display-scope 1440x900@2x PNG is a few MB. The worker is replaced between jobs when its RSS
+  (sampled with `ps` every 2 s on the supervisor thread, not on the capture path) exceeds `ocr_worker_max_rss_mb`, or after
+  `ocr_worker_max_jobs` jobs.
+- **Circuit breaker.** Unexpected deaths (crash, garbage, not ready within 180 s) back off 0.25 s doubling to 5 s; 5 of them
+  within 60 s switch OCR off for 60 s (`WorkerCircuitOpen`, `circuit_opens` in stats) instead of a crash loop. Timeouts and
+  planned restarts (memory, job count) do not count: five timeouts in a row are each recovered immediately.
+- **Warm-up.** Inside the worker, asynchronously: it says `hello` at once, warms Vision up on an embedded image, then
+  `ready`. No job is sent before `ready`, so the first capture is never delayed (`WorkerStarting` is recorded for captures
+  that happen first).
+- **Shutdown.** `close()` (run by `trace_v2.run` after the runner stops, so after the final observation): no new jobs, the
+  one in flight gets up to 2 s, then `bye`, SIGTERM, SIGKILL; no worker is left. The worker also exits by itself when its
+  parent dies, SIGKILL included: stdin reaching EOF ends it, and a watchdog thread that polls the parent pid every 0.5 s
+  ends it even while Vision is stuck. It ignores SIGINT (the parent decides what Ctrl-C means).
+- **Stats** (`ocr_worker`): `jobs`, `succeeded`, `reader_errors`, `timeouts`, `crashes`, `protocol_errors`, `spawns`,
+  `restarts` by reason (`timeout`, `crash`, `protocol`, `rss`, `max_jobs`, `ready_timeout`), `busy_refused`,
+  `not_ready_skipped`, `circuit_open_skipped`, `circuit_opens`, `late_results_discarded`, `idempotent_hits`, `too_large`,
+  `queue_depth` (now) and `queue_depth_max` (1), `in_flight_bytes`, `peak_in_flight_bytes`, `peak_worker_rss_mb`,
+  `last_ready_s`, and the current worker (pid, state, jobs, rss, age, warm-up seconds). Evidence tables are unchanged.
+
+Limits, stated plainly:
+- A worker that wedges inside Vision is killed and **loses that job**: that capture's OCR is `failed/Timeout` and the capture
+  waited the full `ocr_timeout_s`. Captures keep their schedule only when the timeout is shorter than the interval; with
+  the default 10 s and a 3 s interval a stall costs about three missed ticks once (counted, not replayed), not an
+  unbounded wait, and the loop is then back on schedule.
+- Cold start after every restart: Vision's first recognition has taken 66 s on a fresh machine (model compilation); a warm
+  restart on this Mac takes about 1 s. While it warms up OCR is `unavailable`.
+- A second process costs memory (about 100 to 200 MB resident for the worker) and a pipe copy of each screenshot
+  (a few MB, milliseconds).
+- RSS is sampled every 2 s, so a burst between samples can overshoot the limit briefly; it is not a hard cap.
+- Test-only: the stalling worker used for the demonstration lives in `scripts/` and is selected only by the demo script
+  passing its path to the client; nothing in `trace_v2` reads an environment variable or a flag to select it.
+
+## Measured: in-process versus worker process (this Mac: 8 cores, 8 GB, load average 4 to 9 from other work)
+
+`scripts/v2_measure_ocr_isolation.py run`: the real runner (`python -m trace_v2.run`, real sources, `front_app`, 3 s), temp
+data dir deleted afterwards, runner and worker sampled with `ps` every 2 s, alternating runs of 2 minutes (the machine was
+in normal use, so the screens and the load differ between runs; read the columns as ranges, not as a controlled test).
+Capture latency = capture start to the later of the OCR and accessibility readers finishing (read back from the store).
+
+| | in-process 1 | worker 1 | in-process 2 | worker 2 |
+|---|---|---|---|---|
+| observations (OCR attempted) | 41 (41) | 42 (39) | 41 (40) | 42 (22; 19 were a private window, withheld) |
+| OCR success of attempted | 41/41 | 38/39 (1 `unavailable/WorkerStarting`, the first capture) | 40/40 | 21/22 (same) |
+| missed ticks / failures | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| capture latency p50 / p95 / max | 646 / 870 / 1072 ms | 778 / 1570 / 1955 ms | 896 / 1464 / 2297 ms | 902 / 1247 / 1580 ms |
+| OCR latency p50 / p95 / max | 197 / 224 / 394 ms | 277 / 691 / 1163 ms | 393 / 665 / 1124 ms | 498 / 740 / 846 ms |
+| CPU s per capture, main / total | 0.44 / 0.44 | 0.20 / 0.60 | 0.91 / 0.91 | 0.14 / 0.68 |
+| CPU, % of one core, total (both processes) | 14.6 | 20.2 | 29.3 | 23.0 |
+| RSS median: main + worker = total | 161 + 0 = 161 MB | 46 + 92 = 156 MB | 144 + 0 = 144 MB | 52 + 60 = 111 MB |
+| RSS peak: main / worker / total | 396 / 0 / 396 MB | 307 / 140 / 433 MB | 309 / 0 / 309 MB | 316 / 226 / 410 MB |
+| worker ready after start | | 1.05 s | | 1.37 s |
+
+Reading it: the CPU moves from the capture process to the worker (main 0.14 to 0.20 s per capture against 0.44 to 0.91
+in-process); total CPU is the same order (0.60 to 0.68 against 0.44 to 0.91, inside the run-to-run noise of this loaded
+machine, no clear cost). Total resident memory is about the same in steady state because Vision's frameworks live in the
+worker instead of the capture process; the peak total is higher by the worker's peak. OCR latency and capture latency in
+the worker runs are somewhat higher in the tails (a pipe copy of the PNG plus a loaded machine); no capture was missed.
+
+**Forced stall** (`scripts/v2_measure_ocr_isolation.py stall`, real Vision in a worker that hangs on its first 3 jobs,
+`scripts/v2_ocr_stalling_worker.py`, a rendered page as the screen, 90 s at 3 s):
+
+| `ocr_timeout_s` | observations | OCR | missed ticks | longest gap between captures | worker |
+|---|---|---|---|---|---|
+| 10 (default) | 21 | 3 `failed/Timeout`, 18 succeeded | 9 (3 per stall) | 12 s (3 times) | 3 timeouts, 3 restarts, 0 crashes, 0 late results; the capture after each stall found a ready worker |
+| 2 (shorter than the interval) | 31 | 3 `failed/Timeout`, 28 succeeded | **0** | 3.0 s (the schedule) | the same, recovered each time |
+
+So a hang costs exactly one capture's wait, bounded by the timeout, and the schedule is only unaffected when the timeout is
+shorter than the capture interval. The default (10 s) keeps OCR latency tolerance for a loaded machine (a stuck request has
+been measured at over 20 s; normal reads here are 0.2 to 1.2 s); a timeout of about 2 s to 2.5 s would remove the missed
+ticks at the cost of failing slow-but-healthy reads on a loaded machine.
 
 ## Measured: real end-to-end runs (this Mac: 8 cores, 8 GB, one 1440x900 display at 2x, load average about 7 from other work)
 
@@ -106,7 +217,7 @@ policy setting (stub), TextEdit with no window, and Finder/Brave switches.
 Reader failures: OCR `Timeout` x 8, all within one 40 s Vision stall (two requests timed out at 10 s, six more failed fast
 while both were parked); the first capture after they returned succeeded and OCR then ran 166 of 166 normal captures.
 Accessibility failed 0 times. That stall is the missed ticks. It happened with the machine under load; whether Vision can
-hang for longer is not known. A killable worker process for Vision would remove that risk; not done here.
+hang for longer is not known. A killable worker process for Vision removes that risk; it is the default now (next section).
 
 Event attribution, checked in the database: every event timestamp is inside its observation's `events_window_ns`, the 195
 windows are contiguous (0 gaps, 0 overlaps), `seq` is gapless in every observation, no event row has a keycode or

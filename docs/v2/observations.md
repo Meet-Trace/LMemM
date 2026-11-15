@@ -118,6 +118,9 @@ context -> display id -> screenshot -> OCR and accessibility for the pipeline (`
   status/error code. OCR runs on a worker thread; a request that times out may keep running inside Vision, so it is
   parked and the next capture starts a new request (at most two parked, then fail-fast `Timeout` until one returns;
   before PR E every later capture failed until the first returned, measured at over 20 s on a loaded Mac).
+- OCR isolation: by default (`ocr_isolation=process`) Vision runs in a separate worker process that the capture process can
+  kill and restart (`ocr_client.py`, `ocr_worker.py`); the reader, its `vision-ocr/1` version, the `raw`/`text` shape and
+  the extraction statuses are the same as in process. Details, bounds and limits: `docs/v2/runner.md` ("OCR isolation").
 - OCR (`ocr.py`, reader `vision-ocr/1`): `VNRecognizeTextRequest` on the exact PNG bytes of this capture (PNG data ->
   CGImageSource -> CGImage; no second capture, no temp file), accurate level, language correction on, automatic
   language detection (macOS 13+). `raw` = `{lines: [{text, confidence, box [x, y, w, h] in image pixels, top-left

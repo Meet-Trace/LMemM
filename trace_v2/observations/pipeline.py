@@ -27,6 +27,7 @@ import uuid
 from . import privacy
 from .models import (READERS, CaptureDraft, Context, ReaderResult, ScreenshotCapture, ScreenshotFailure,
                      ScreenshotWithheld, short_error)
+from .settings import DEFAULT_CAPTURE_INTERVAL_S
 
 log = logging.getLogger("trace_v2.observations")
 
@@ -160,8 +161,8 @@ def observe_once(store, sources, buffer, capture_key, policy=None, clock_ns=time
 
 
 class ContinuousObserver:
-    def __init__(self, store, sources, buffer, interval_s=2.0, clock_ns=time.time_ns, monotonic=time.monotonic,
-                 session_id=None, policy=None):
+    def __init__(self, store, sources, buffer, interval_s=DEFAULT_CAPTURE_INTERVAL_S, clock_ns=time.time_ns,
+                 monotonic=time.monotonic, session_id=None, policy=None):
         if interval_s <= 0:
             raise ValueError("interval_s must be positive")
         self.store, self.sources, self.buffer = store, sources, buffer

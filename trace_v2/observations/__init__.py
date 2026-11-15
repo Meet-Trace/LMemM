@@ -6,6 +6,8 @@ Public interface:
     store.get / list / events / screenshot_bytes / extractions / audit
     store.add_extraction(...)           append a reader re-run (the original is kept)
     retention.set_policy / get_policy / run
+    forget.forget / resume_pending      user-requested, audited deletion (the only way evidence is deleted)
+    privacy.gate / redact / load_policy / save_policy   applied before ingestion by the pipeline
     events.EventBuffer                  validated, privacy-safe raw interaction events
     pipeline.build_draft / observe_once / ContinuousObserver
 Independent of any inference layer: nothing here reads Moments, Visits, Activities or Projects.

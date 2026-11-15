@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 
 READERS = ("ocr", "accessibility")
-READER_STATUSES = ("succeeded", "failed", "unavailable", "skipped")
+READER_STATUSES = ("succeeded", "failed", "unavailable", "skipped", "withheld")
 SCREENSHOT_FORMATS = ("png", "jpeg", "heic", "tiff")
 MAX_ERROR_CHARS = 500
 _KEY = re.compile(r"[A-Za-z0-9:_.\-]{1,200}")
@@ -76,6 +76,13 @@ class ScreenshotFailure:
 
 
 @dataclass(frozen=True)
+class ScreenshotWithheld:
+    """No pixels were kept, on purpose (privacy gate or a secret on screen). `reason` says which."""
+    reason: str
+    captured_at_ns: int = 0
+
+
+@dataclass(frozen=True)
 class ReaderResult:
     reader_version: str
     status: str
@@ -125,6 +132,7 @@ class CaptureDraft:
     events: tuple = ()                     # InteractionEvent, already sanitised (events.py), arrival order
     events_window: tuple = (None, None)    # (start_ns exclusive, end_ns inclusive)
     event_stats: dict = field(default_factory=dict)
+    privacy: dict = field(default_factory=lambda: {"withheld": False})
 
     def validate(self):
         if not isinstance(self.capture_key, str) or not _KEY.fullmatch(self.capture_key):
@@ -135,8 +143,18 @@ class CaptureDraft:
         self.context.validate()
         if isinstance(self.screenshot, ScreenshotCapture):
             self.screenshot.validate()
+        elif isinstance(self.screenshot, ScreenshotWithheld):
+            if not self.screenshot.reason:
+                raise InvalidCapture("a withheld screenshot needs a reason")
         elif not (isinstance(self.screenshot, ScreenshotFailure) and self.screenshot.error_code):
-            raise InvalidCapture("screenshot must be a ScreenshotCapture or a ScreenshotFailure with an error_code")
+            raise InvalidCapture("screenshot must be a ScreenshotCapture, ScreenshotWithheld or a ScreenshotFailure "
+                                 "with an error_code")
+        _json_object("privacy", self.privacy)
+        if not isinstance(self.privacy.get("withheld"), bool):
+            raise InvalidCapture("privacy.withheld must be true or false")
+        if self.privacy["withheld"] and (self.events or isinstance(self.screenshot, ScreenshotCapture)
+                                         or any(getattr(self, r).raw is not None for r in READERS)):
+            raise InvalidCapture("a withheld observation cannot carry a screenshot, reader output or events")
         self.ocr.validate("ocr")
         self.accessibility.validate("accessibility")
         _json_object("event_stats", self.event_stats)

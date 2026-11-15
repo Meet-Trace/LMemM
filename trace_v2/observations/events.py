@@ -81,21 +81,37 @@ def validate(event):
 class EventBuffer:
     """Thread-safe holding area between the input source and the next Observation.
 
-    add() validates and keeps accepted events in arrival order. drain(until_ns) removes and returns every
-    held event with occurred_at_ns <= until_ns (arrival order preserved), the window it covers, and counts.
-    Events after until_ns stay for the next Observation, so each event belongs to exactly one Observation.
+    Attribution rule: every accepted event belongs to exactly one Observation, the first one whose capture
+    time is >= the event's timestamp among those taken after the event arrived.
+    - Startup: the buffer opens at `start_ns` (the session start). Events stamped before it are rejected and
+      counted (`before_start`), so nothing from before the session is attributed to its first Observation.
+    - Boundaries: an Observation's window is (previous capture time, its capture time]: an event exactly at a
+      capture time belongs to that capture.
+    - Late arrivals: an event stamped at or before the window start (delivered after the previous Observation
+      was taken) goes to the next Observation and is counted as `late`; its timestamp is never altered.
+    - Missed or failed captures: take() hands out a Batch; the caller commit()s it once the Observation is
+      stored, or restore()s it on failure, so no event is lost and the window does not advance.
+    - Clock steps backwards: a capture time before the window start takes nothing new, keeps the window start,
+      and is counted (`clock_regression`).
+    - Shutdown: the observer takes one final Observation when stopped; events after that are counted by
+      pending() and reported, never silently dropped.
     """
 
-    def __init__(self, max_events=200_000, start_ns=None):
+    def __init__(self, start_ns, max_events=200_000):
+        if isinstance(start_ns, bool) or not isinstance(start_ns, int) or start_ns < 0:
+            raise ValueError("start_ns (the session start) is required")
         self.max_events = max_events
         self._lock = threading.Lock()
         self._held = deque()
         self._since = start_ns
+        self._start = start_ns
         self._stats = self._zero()
+        self._out = None
 
     @staticmethod
     def _zero():
-        return {"received": 0, "rejected": 0, "suppressed_secure_input": 0, "dropped_overflow": 0}
+        return {"received": 0, "rejected": 0, "suppressed_secure_input": 0, "dropped_overflow": 0,
+                "before_start": 0}
 
     def add(self, event, secure_input=False):
         with self._lock:
@@ -108,20 +124,57 @@ class EventBuffer:
             except InvalidEvent:
                 self._stats["rejected"] += 1
                 return False
+            if event.occurred_at_ns < self._start:
+                self._stats["before_start"] += 1
+                return False
             if len(self._held) >= self.max_events:
                 self._stats["dropped_overflow"] += 1
                 return False
             self._held.append(event)
             return True
 
-    def drain(self, until_ns):
+    def take(self, until_ns):
+        """Remove the events for an Observation captured at until_ns. Returns a Batch to commit or restore."""
         with self._lock:
+            if self._out is not None:
+                raise RuntimeError("the previous batch was neither committed nor restored")
+            regression = until_ns < self._since
+            end = self._since if regression else until_ns
             out, keep = [], deque()
             for e in self._held:
-                (out if e.occurred_at_ns <= until_ns else keep).append(e)
+                (out if e.occurred_at_ns <= end else keep).append(e)
             self._held = keep
-            window = (self._since, until_ns)
-            self._since = until_ns
             stats, self._stats = self._stats, self._zero()
-            stats["stored"] = len(out)
-            return tuple(out), window, stats
+            stats.update(stored=len(out), late=sum(1 for e in out if e.occurred_at_ns <= self._since),
+                         clock_regression=int(regression))
+            batch = Batch(self, tuple(out), (self._since, end), stats)
+            self._out = batch
+            return batch
+
+    def _commit(self, batch):
+        with self._lock:
+            self._since = batch.window[1]
+            self._out = None
+
+    def _restore(self, batch):
+        with self._lock:
+            self._held = deque(batch.events) + self._held
+            for k, v in batch.stats.items():
+                if k in self._stats:
+                    self._stats[k] += v
+            self._out = None
+
+    def pending(self):
+        with self._lock:
+            return len(self._held)
+
+
+class Batch:
+    def __init__(self, buffer, events, window, stats):
+        self.buffer, self.events, self.window, self.stats = buffer, events, window, stats
+
+    def commit(self):
+        self.buffer._commit(self)
+
+    def restore(self):
+        self.buffer._restore(self)

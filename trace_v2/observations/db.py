@@ -72,6 +72,7 @@ def connect(path):
     connection.execute("PRAGMA journal_mode=WAL")
     connection.execute("PRAGMA synchronous=FULL")
     connection.execute("PRAGMA busy_timeout=5000")
+    connection.execute("PRAGMA secure_delete=ON")      # deleted evidence (forget) is overwritten, not left in free pages
     return connection
 
 

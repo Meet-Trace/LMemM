@@ -8,7 +8,7 @@ from .models import READERS
 
 
 class ScreenshotUnavailable(LookupError):
-    """The screenshot cannot be returned; `reason` is 'failed', 'deleted', 'missing' or 'corrupt'."""
+    """The screenshot cannot be returned; `reason` is 'failed', 'withheld', 'deleted', 'missing' or 'corrupt'."""
 
     def __init__(self, reason, detail=""):
         super().__init__(f"{reason}{': ' + detail if detail else ''}")
@@ -72,11 +72,11 @@ def _screenshot(store, oid):
 
 def get(store, oid, include_raw=True, include_events=True):
     row = store.db.execute("SELECT captured_at_ns, context_json, capture_status_json, capture_version, capture_key, "
-                           "events_window_start_ns, events_window_end_ns, recorded_at FROM observations "
+                           "events_window_start_ns, events_window_end_ns, recorded_at, privacy_json FROM observations "
                            "WHERE observation_id=?", (oid,)).fetchone()
     if row is None:
         raise KeyError(f"no observation {oid}")
-    t, ctx, status, version, key, w0, w1, recorded = row
+    t, ctx, status, version, key, w0, w1, recorded, privacy = row
     status = json.loads(status)
     shot = _screenshot(store, oid)
     revisions = {r: extractions(store, oid, r, include_raw) for r in READERS}
@@ -88,7 +88,7 @@ def get(store, oid, include_raw=True, include_events=True):
         "metadata": {
             "reader_versions": {r: original[r]["reader_version"] for r in READERS},
             "capture_version": version, "capture_key": key, "recorded_at": recorded,
-            "events_window_ns": [w0, w1],
+            "events_window_ns": [w0, w1], "privacy": json.loads(privacy),
             "extraction_status": {
                 "context": status["context"], "events": status["events"],
                 "screenshot": {"status": shot["status"], "error_code": shot["error_code"]},
@@ -128,7 +128,7 @@ def screenshot_bytes(store, oid):
         raise KeyError(f"no observation {oid}")
     status, rel, digest, deleted = row
     if status != "stored":
-        raise ScreenshotUnavailable("failed")
+        raise ScreenshotUnavailable(status)              # 'failed' or 'withheld'
     if deleted:
         raise ScreenshotUnavailable("deleted")
     try:

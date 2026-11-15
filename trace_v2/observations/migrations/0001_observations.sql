@@ -17,6 +17,7 @@ CREATE TABLE observations(
     events_window_start_ns INTEGER,                  -- interaction events attributed to this observation
     events_window_end_ns   INTEGER,                  --   happened in (start, end]
     capture_status_json   TEXT NOT NULL,             -- context status and interaction-event counts
+    privacy_json          TEXT NOT NULL,             -- {withheld, reason, redactions{kind:n}, policy_version}
     capture_version       TEXT NOT NULL,
     recorded_at           TEXT NOT NULL
 );
@@ -25,7 +26,7 @@ CREATE INDEX observations_app_time ON observations(app_bundle_id, captured_at_ns
 
 CREATE TABLE screenshots(
     observation_id  TEXT PRIMARY KEY REFERENCES observations(observation_id),
-    status          TEXT NOT NULL CHECK (status IN ('stored', 'failed')),
+    status          TEXT NOT NULL CHECK (status IN ('stored', 'failed', 'withheld')),
     relative_path   TEXT UNIQUE,
     format          TEXT CHECK (format IN ('png', 'jpeg', 'heic', 'tiff')),
     width           INTEGER CHECK (width > 0),
@@ -46,7 +47,7 @@ CREATE TABLE extractions(
     revision        INTEGER NOT NULL CHECK (revision >= 1),
     supersedes      TEXT REFERENCES extractions(extraction_id),
     reader_version  TEXT NOT NULL,
-    status          TEXT NOT NULL CHECK (status IN ('succeeded', 'failed', 'unavailable', 'skipped')),
+    status          TEXT NOT NULL CHECK (status IN ('succeeded', 'failed', 'unavailable', 'skipped', 'withheld')),
     error_code      TEXT,
     error_message   TEXT,
     started_at_ns   INTEGER,
@@ -115,22 +116,56 @@ CREATE TABLE settings_history(
     changed_at  TEXT NOT NULL
 );
 
+-- User-controlled forgetting. The only way evidence rows can be deleted: a forget request grants deletion of
+-- named observations inside one transaction; the DELETE triggers below refuse any row without a grant.
+CREATE TABLE forget_requests(
+    request_id     TEXT PRIMARY KEY CHECK (length(request_id) = 36),
+    requested_at   TEXT NOT NULL,
+    requested_by   TEXT NOT NULL CHECK (requested_by IN ('user')),
+    selector_json  TEXT NOT NULL,                    -- what was asked for (time range, app, ids, or everything)
+    matched        INTEGER NOT NULL
+);
+CREATE TABLE deletion_grants(
+    observation_id TEXT PRIMARY KEY,
+    request_id     TEXT NOT NULL REFERENCES forget_requests(request_id)
+);
+-- Proof that an observation existed and was forgotten on request; holds no evidence.
+CREATE TABLE forget_tombstones(
+    observation_id  TEXT PRIMARY KEY,
+    request_id      TEXT NOT NULL REFERENCES forget_requests(request_id),
+    screenshot_path TEXT                              -- file still to remove, until forget_finishes says done
+);
+CREATE TABLE forget_finishes(
+    request_id     TEXT PRIMARY KEY REFERENCES forget_requests(request_id),
+    finished_at    TEXT NOT NULL,
+    files_removed  INTEGER NOT NULL,
+    files_missing  INTEGER NOT NULL
+);
+
 CREATE TRIGGER observations_immutable_u BEFORE UPDATE ON observations BEGIN SELECT RAISE(ABORT, 'immutable: observations'); END;
-CREATE TRIGGER observations_immutable_d BEFORE DELETE ON observations BEGIN SELECT RAISE(ABORT, 'immutable: observations'); END;
+CREATE TRIGGER observations_immutable_d BEFORE DELETE ON observations WHEN NOT EXISTS (SELECT 1 FROM deletion_grants g WHERE g.observation_id = OLD.observation_id) BEGIN SELECT RAISE(ABORT, 'immutable: observations'); END;
 CREATE TRIGGER screenshots_immutable_u BEFORE UPDATE ON screenshots BEGIN SELECT RAISE(ABORT, 'immutable: screenshots'); END;
-CREATE TRIGGER screenshots_immutable_d BEFORE DELETE ON screenshots BEGIN SELECT RAISE(ABORT, 'immutable: screenshots'); END;
+CREATE TRIGGER screenshots_immutable_d BEFORE DELETE ON screenshots WHEN NOT EXISTS (SELECT 1 FROM deletion_grants g WHERE g.observation_id = OLD.observation_id) BEGIN SELECT RAISE(ABORT, 'immutable: screenshots'); END;
 CREATE TRIGGER extractions_immutable_u BEFORE UPDATE ON extractions BEGIN SELECT RAISE(ABORT, 'immutable: extractions'); END;
-CREATE TRIGGER extractions_immutable_d BEFORE DELETE ON extractions BEGIN SELECT RAISE(ABORT, 'immutable: extractions'); END;
+CREATE TRIGGER extractions_immutable_d BEFORE DELETE ON extractions WHEN NOT EXISTS (SELECT 1 FROM deletion_grants g WHERE g.observation_id = OLD.observation_id) BEGIN SELECT RAISE(ABORT, 'immutable: extractions'); END;
 CREATE TRIGGER events_immutable_u BEFORE UPDATE ON interaction_events BEGIN SELECT RAISE(ABORT, 'immutable: interaction_events'); END;
-CREATE TRIGGER events_immutable_d BEFORE DELETE ON interaction_events BEGIN SELECT RAISE(ABORT, 'immutable: interaction_events'); END;
+CREATE TRIGGER events_immutable_d BEFORE DELETE ON interaction_events WHEN NOT EXISTS (SELECT 1 FROM deletion_grants g WHERE g.observation_id = OLD.observation_id) BEGIN SELECT RAISE(ABORT, 'immutable: interaction_events'); END;
 CREATE TRIGGER deletions_immutable_u BEFORE UPDATE ON screenshot_deletions BEGIN SELECT RAISE(ABORT, 'immutable: screenshot_deletions'); END;
-CREATE TRIGGER deletions_immutable_d BEFORE DELETE ON screenshot_deletions BEGIN SELECT RAISE(ABORT, 'immutable: screenshot_deletions'); END;
+CREATE TRIGGER deletions_immutable_d BEFORE DELETE ON screenshot_deletions WHEN NOT EXISTS (SELECT 1 FROM deletion_grants g WHERE g.observation_id = OLD.observation_id) BEGIN SELECT RAISE(ABORT, 'immutable: screenshot_deletions'); END;
 CREATE TRIGGER runs_immutable_u BEFORE UPDATE ON retention_runs BEGIN SELECT RAISE(ABORT, 'immutable: retention_runs'); END;
 CREATE TRIGGER runs_immutable_d BEFORE DELETE ON retention_runs BEGIN SELECT RAISE(ABORT, 'immutable: retention_runs'); END;
 CREATE TRIGGER finishes_immutable_u BEFORE UPDATE ON retention_run_finishes BEGIN SELECT RAISE(ABORT, 'immutable: retention_run_finishes'); END;
 CREATE TRIGGER finishes_immutable_d BEFORE DELETE ON retention_run_finishes BEGIN SELECT RAISE(ABORT, 'immutable: retention_run_finishes'); END;
 CREATE TRIGGER history_immutable_u BEFORE UPDATE ON settings_history BEGIN SELECT RAISE(ABORT, 'immutable: settings_history'); END;
 CREATE TRIGGER history_immutable_d BEFORE DELETE ON settings_history BEGIN SELECT RAISE(ABORT, 'immutable: settings_history'); END;
+CREATE TRIGGER requests_immutable_u BEFORE UPDATE ON forget_requests BEGIN SELECT RAISE(ABORT, 'immutable: forget_requests'); END;
+CREATE TRIGGER requests_immutable_d BEFORE DELETE ON forget_requests BEGIN SELECT RAISE(ABORT, 'immutable: forget_requests'); END;
+CREATE TRIGGER tombstones_immutable_u BEFORE UPDATE ON forget_tombstones BEGIN SELECT RAISE(ABORT, 'immutable: forget_tombstones'); END;
+CREATE TRIGGER tombstones_immutable_d BEFORE DELETE ON forget_tombstones BEGIN SELECT RAISE(ABORT, 'immutable: forget_tombstones'); END;
+CREATE TRIGGER forget_finishes_immutable_u BEFORE UPDATE ON forget_finishes BEGIN SELECT RAISE(ABORT, 'immutable: forget_finishes'); END;
+CREATE TRIGGER forget_finishes_immutable_d BEFORE DELETE ON forget_finishes BEGIN SELECT RAISE(ABORT, 'immutable: forget_finishes'); END;
+-- A forgotten observation id can never be reused.
+CREATE TRIGGER observations_not_forgotten BEFORE INSERT ON observations WHEN EXISTS (SELECT 1 FROM forget_tombstones t WHERE t.observation_id = NEW.observation_id) BEGIN SELECT RAISE(ABORT, 'observation id was forgotten'); END;
 -- A re-run must point at the newest earlier revision of the same reader for the same observation.
 CREATE TRIGGER extractions_revision_chain BEFORE INSERT ON extractions WHEN NEW.revision > 1
 BEGIN

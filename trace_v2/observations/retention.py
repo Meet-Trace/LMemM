@@ -17,9 +17,9 @@ run(store, now_ns, dry_run=False) is deterministic for a given database, policy 
 Observations, OCR, accessibility output, interaction events and the screenshots metadata row are never touched.
 """
 
-import json
 import uuid
 
+from . import settings
 from .store import canonical, now_iso
 
 POLICY_KEY = "screenshot_retention"
@@ -51,26 +51,11 @@ def normalise(policy):
 
 
 def get_policy(store):
-    row = store.db.execute("SELECT value_json FROM settings WHERE key=?", (POLICY_KEY,)).fetchone()
-    return json.loads(row[0]) if row else dict(PERMANENT)
+    return settings.get(store, POLICY_KEY, dict(PERMANENT))
 
 
 def set_policy(store, policy):
-    value = normalise(policy)
-    with store.lock:
-        store.db.execute("BEGIN IMMEDIATE")
-        try:
-            at = now_iso()
-            store.db.execute("INSERT INTO settings VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET "
-                             "value_json=excluded.value_json, updated_at=excluded.updated_at",
-                             (POLICY_KEY, canonical(value), at))
-            store.db.execute("INSERT INTO settings_history VALUES (?,?,?,?)",
-                             (str(uuid.uuid4()), POLICY_KEY, canonical(value), at))
-            store.db.execute("COMMIT")
-        except BaseException:
-            store._rollback()
-            raise
-    return value
+    return settings.put(store, POLICY_KEY, normalise(policy))
 
 
 def candidates(store, cutoff_ns):

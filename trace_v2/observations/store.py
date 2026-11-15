@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from . import queries
 from .assets import AssetError, ScreenshotStore, magic_matches, sha256
 from .db import open_database
-from .models import READERS, InvalidCapture, ReaderResult, ScreenshotCapture, short_error
+from .models import READERS, InvalidCapture, ReaderResult, ScreenshotCapture, ScreenshotWithheld, short_error
 from .. import paths
 
 log = logging.getLogger("trace_v2.observations")
@@ -64,13 +64,13 @@ def content_hash(draft):
     shot = draft.screenshot
     shot_view = ({"sha256": sha256(bytes(shot.data)), "format": shot.format, "w": shot.width, "h": shot.height,
                   "t": shot.captured_at_ns} if isinstance(shot, ScreenshotCapture)
-                 else {"failed": shot.error_code})
+                 else {"withheld": shot.reason} if isinstance(shot, ScreenshotWithheld) else {"failed": shot.error_code})
     readers = {r: {k: getattr(getattr(draft, r), k) for k in ("reader_version", "status", "raw", "text", "error_code")}
                for r in READERS}
     return hashlib.sha256(canonical({
         "t": draft.captured_at_ns, "context": [draft.context.application, draft.context.window, draft.context.display],
         "shot": shot_view, "readers": readers, "capture_version": draft.capture_version,
-        "events": [[e.type, e.occurred_at_ns, e.payload] for e in draft.events],
+        "events": [[e.type, e.occurred_at_ns, e.payload] for e in draft.events], "privacy": draft.privacy,
     }).encode()).hexdigest()
 
 
@@ -80,6 +80,8 @@ class ObservationStore:
         self.db = open_database(paths.database_path(self.root))
         self.assets = ScreenshotStore(paths.assets_dir(self.root))
         self.lock = threading.RLock()
+        from .forget import resume_pending     # finish any forget interrupted after its commit
+        resume_pending(self)
 
     def close(self):
         self.db.close()
@@ -143,6 +145,8 @@ class ObservationStore:
 
     def _store_screenshot(self, oid, shot):
         """-> (row values for the screenshots table, relative path written or None)."""
+        if isinstance(shot, ScreenshotWithheld):
+            return dict(status="withheld", captured_at_ns=shot.captured_at_ns, error_code=shot.reason), None
         if not isinstance(shot, ScreenshotCapture):
             return dict(status="failed", captured_at_ns=shot.captured_at_ns, error_code=shot.error_code,
                         error_message=short_error(shot.error_message)), None
@@ -166,12 +170,12 @@ class ObservationStore:
         status = {"context": {"status": "failed" if ctx.error_code else "succeeded", "error_code": ctx.error_code},
                   "events": draft.event_stats}
         self.db.execute(
-            "INSERT INTO observations VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO observations VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (oid, draft.captured_at_ns, iso(draft.captured_at_ns), draft.capture_key, digest,
              app.get("bundle_id"), app.get("name"), app.get("pid") if isinstance(app.get("pid"), int) else None,
              win.get("title"), None if disp.get("id") is None else str(disp.get("id")),
              canonical({"application": app, "window": win, "display": disp}),
-             draft.events_window[0], draft.events_window[1], canonical(status), draft.capture_version, now_iso()))
+             draft.events_window[0], draft.events_window[1], canonical(status), canonical(draft.privacy), draft.capture_version, now_iso()))
         cols = ("status", "relative_path", "format", "width", "height", "byte_size", "sha256",
                 "captured_at_ns", "error_code", "error_message")
         self.db.execute(f"INSERT INTO screenshots(observation_id,{','.join(cols)}) VALUES (?{',?' * len(cols)})",

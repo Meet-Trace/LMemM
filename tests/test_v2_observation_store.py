@@ -269,6 +269,19 @@ class DataDirGuardTest(unittest.TestCase):
             (v1 / "memory" / "memory.json").write_text("{}")
             with self.assertRaises(paths.LegacyDataError):
                 ObservationStore(v1, legacy_archive=legacy)
+            with self.assertRaises(paths.LegacyDataError):
+                ObservationStore(paths.REPO_ROOT / "data", legacy_archive=legacy)    # V1's default folder
+
+    def test_v2_has_its_own_default_data_directory(self):
+        mac = paths.default_data_dir("darwin", {})
+        self.assertEqual(mac.parts[-3:], ("Application Support", "Trace", "V2"))
+        self.assertEqual(mac.name, "V2")
+        self.assertEqual(mac.parent.name, "Trace")
+        self.assertNotEqual(mac, paths.LEGACY_ARCHIVE)
+        self.assertNotIn(paths.LEGACY_ARCHIVE, mac.parents)
+        self.assertEqual(paths.default_data_dir("linux", {"XDG_DATA_HOME": "/x"}), paths.Path("/x/trace/v2"))
+        self.assertEqual(paths.data_dir({"TRACE_V2_DATA_DIR": "/y"}), paths.Path("/y"))
+        self.assertNotEqual(paths.data_dir({}), paths.REPO_ROOT / "data")
 
 
 if __name__ == "__main__":

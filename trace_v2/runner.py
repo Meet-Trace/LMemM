@@ -37,6 +37,7 @@ from pathlib import Path
 from .inputs import InputGate
 from .observations import privacy, retention, settings
 from .observations.events import EventBuffer
+from .observations.ocr_processor import OcrProcessor
 from .observations.pipeline import ContinuousObserver
 
 log = logging.getLogger("trace_v2.runner")
@@ -214,7 +215,7 @@ class Runner:
     def __init__(self, store, sources, interval_s, *, tap_factory=None, cursor_sample_ms=None, warmup=None,
                  permissions=None, pump=None, stats_every_s=DEFAULT_STATS_EVERY_S, stats_path=None,
                  monotonic=time.monotonic, clock_ns=time.time_ns, rss=_current_rss_mb, observer_factory=ContinuousObserver,
-                 settings_refresh_s=SETTINGS_REFRESH_S, front_app=None):
+                 settings_refresh_s=SETTINGS_REFRESH_S, front_app=None, ocr_mode="sync", ocr_queue_policy=None):
         self.store, self.sources, self.interval_s = store, sources, interval_s
         self._tap_factory, self._cursor_ms = tap_factory, cursor_sample_ms
         self._warmup, self._permissions = warmup, permissions
@@ -223,6 +224,7 @@ class Runner:
         self.stats_path = Path(stats_path) if stats_path else Path(store.root) / STATS_FILE
         self._monotonic, self._clock_ns, self._rss = monotonic, clock_ns, rss
         self._observer_factory = observer_factory
+        self.ocr_mode, self._ocr_queue_policy, self.ocr_processor = ocr_mode, ocr_queue_policy, None
         self._front_app = front_app                  # () -> bundle id of the front app; reconciles missed notifications
         self._stop = threading.Event()
         self.tap = self.observer = self.lifecycle = self.buffer = self.gate = None
@@ -327,9 +329,16 @@ class Runner:
         self.gate = InputGate()
         self._refresh_settings()
         self._start_tap()
+        extra = {}
+        if self.ocr_mode == "async" and not once:
+            extra["ocr_mode"] = "async"
+            self.ocr_processor = OcrProcessor(
+                self.store, self.sources.ocr, getattr(self.sources.ocr, "timeout_s", 10.0),
+                **({"policy": self._ocr_queue_policy} if self._ocr_queue_policy else {}), clock_ns=self._clock_ns)
+            self.ocr_processor.start()
         self.observer = self._observer_factory(self.store, self.sources, self.buffer, interval_s=self.interval_s,
                                                clock_ns=self._clock_ns, on_decision=self._on_decision,
-                                               policy=self.policy, final_always=True)
+                                               policy=self.policy, final_always=True, **extra)
         self.lifecycle = Lifecycle(self.observer, self.tap.resync_clock if self.tap else None, self.buffer, self.gate)
         try:
             self._run_retention()
@@ -340,6 +349,8 @@ class Runner:
                 self._loop(started, duration_s)
         finally:
             self._stop.set()
+            if self.ocr_processor is not None:
+                self.ocr_processor.stop()
             if self.tap is not None:
                 try:
                     self.tap.stop()
@@ -405,7 +416,8 @@ class Runner:
                                "FROM screenshots WHERE captured_at_ns >= ? GROUP BY 1, 2", (since,)).fetchall()
             readers = db.execute("SELECT e.reader, e.status, coalesce(e.error_code, ''), count(*) FROM extractions e "
                                  "JOIN observations o USING (observation_id) WHERE o.captured_at_ns >= ? AND "
-                                 "e.revision = 1 AND e.status IN ('failed', 'unavailable') GROUP BY 1, 2, 3",
+                                 "e.revision = (SELECT max(m.revision) FROM extractions m WHERE m.observation_id = e.observation_id AND "
+                                 "m.reader = e.reader) AND e.status IN ('failed', 'unavailable') GROUP BY 1, 2, 3",
                                  (since,)).fetchall()
             events = db.execute("SELECT j.key, sum(j.value) FROM observations o, json_each(o.capture_status_json, "
                                 "'$.events') j WHERE o.captured_at_ns >= ? AND j.type = 'integer' GROUP BY j.key",
@@ -433,6 +445,13 @@ class Runner:
             log.exception("could not read the OCR worker stats")
             return None
 
+    def _ocr_queue_stats(self):
+        try:
+            return {**self.store.ocr_queue_stats(), "processor": self.ocr_processor.stats() if self.ocr_processor else None}
+        except Exception:                        # noqa: BLE001 - stats must never break the run
+            log.exception("could not read the OCR queue stats")
+            return None
+
     def stats(self, final=False):
         observer = self.observer.stats if self.observer else {}
         now = self._monotonic()
@@ -456,7 +475,7 @@ class Runner:
                 "lifecycle": self.lifecycle.snapshot() if self.lifecycle else None,
                 "observer_error": self.observer_error, "warmup": self.warmup_result,
                 "permissions": self.permissions_report, "retention_runs": self.retention_runs,
-                "ocr_worker": self._ocr_stats()}
+                "ocr_worker": self._ocr_stats(), "ocr_queue": self._ocr_queue_stats()}
 
     def write_stats(self, final=False):
         stats = self.stats(final)

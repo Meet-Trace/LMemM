@@ -122,7 +122,7 @@ def main(argv=None, parts=macos_parts, permissions=macos_permissions):
             settings._valid_ocr_timeout(args.ocr_timeout)
         sources, tap_factory, warmup, report, notification_class, *more = parts(store, **({"ocr": overrides} if overrides else {}))
         runner = Runner(store, sources, interval, tap_factory=tap_factory,
-                        cursor_sample_ms=settings.get_cursor_sample_ms(store), warmup=warmup,
+                        cursor_sample_ms=settings.get_cursor_sample_ms(store), warmup=warmup, ocr_mode=settings.get_ocr_mode(store),
                         permissions=report, front_app=more[0] if more else None, **({} if args.stats_every is None else {"stats_every_s": args.stats_every}))
         notifications = notification_class(runner.notify)
         runner.pump = notifications.pump

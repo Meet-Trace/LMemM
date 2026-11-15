@@ -113,7 +113,7 @@ def _withheld_draft(sources, key, t, context, reason, batch):
                         {"withheld": True, "reason": reason, "policy_version": privacy.POLICY_VERSION}), batch
 
 
-def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns, on_decision=None):
+def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns, on_decision=None, ocr_mode="sync"):
     """-> (CaptureDraft, Batch). Commit the batch once the draft is stored, restore it on failure.
 
     `on_decision(decision, context)` is called with the privacy gate's decision before anything is read or captured, so a
@@ -130,13 +130,13 @@ def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns
             log.exception("on_decision hook failed")
     batch = buffer.take(t)
     try:
-        return _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch)
+        return _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode)
     except BaseException:
         batch.restore()
         raise
 
 
-def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch):
+def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode):
     if decision.withheld:
         return _withheld_draft(sources, capture_key, t, context, decision.reason, batch)
     scope = getattr(sources, "screenshot_scope", None)          # read once: the scope this capture is taken with
@@ -149,7 +149,9 @@ def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch):
     except Exception as e:                       # noqa: BLE001
         code, message = _error(e)
         shot = ScreenshotFailure(code, message, t)
-    if isinstance(shot, ScreenshotCapture):
+    if isinstance(shot, ScreenshotCapture) and ocr_mode == "async":
+        ocr = _not_run(sources.ocr, "pending", None)
+    elif isinstance(shot, ScreenshotCapture):
         ocr = run_reader(sources.ocr, clock_ns, shot, context)
     else:
         ocr = _not_run(sources.ocr, "skipped", "no_screenshot")
@@ -163,6 +165,8 @@ def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch):
     on_screen = {k: v for k, v in reader_counts.items() if k != "secure_field"}
     if on_screen and isinstance(shot, ScreenshotCapture):
         shot = ScreenshotWithheld("secret_on_screen", shot.captured_at_ns)
+        if ocr.status == "pending":
+            ocr = _not_run(sources.ocr, "withheld", "secret_on_screen")
     record = {"withheld": False, "redactions": counts, "policy_version": privacy.POLICY_VERSION}
     if scope:
         record["screenshot_scope"] = scope
@@ -170,8 +174,9 @@ def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch):
                         batch.events, batch.window, batch.stats, record), batch
 
 
-def observe_once(store, sources, buffer, capture_key, policy=None, clock_ns=time.time_ns, on_decision=None):
-    draft, batch = build_draft(sources, buffer, capture_key, policy, clock_ns, on_decision)
+def observe_once(store, sources, buffer, capture_key, policy=None, clock_ns=time.time_ns, on_decision=None,
+                 ocr_mode="sync"):
+    draft, batch = build_draft(sources, buffer, capture_key, policy, clock_ns, on_decision, ocr_mode)
     try:
         result = store.ingest(draft)
     except BaseException:
@@ -183,13 +188,14 @@ def observe_once(store, sources, buffer, capture_key, policy=None, clock_ns=time
 
 class ContinuousObserver:
     def __init__(self, store, sources, buffer, interval_s=DEFAULT_CAPTURE_INTERVAL_S, clock_ns=time.time_ns,
-                 monotonic=time.monotonic, session_id=None, policy=None, on_decision=None, final_always=False):
+                 monotonic=time.monotonic, session_id=None, policy=None, on_decision=None, final_always=False, ocr_mode="sync"):
         if interval_s <= 0:
             raise ValueError("interval_s must be positive")
         self.store, self.sources, self.buffer = store, sources, buffer
         self.interval_s, self.clock_ns, self.monotonic = interval_s, clock_ns, monotonic
         self.session_id = session_id or uuid.uuid4().hex
         self.policy, self.on_decision, self.final_always = policy, on_decision, final_always
+        self.ocr_mode = ocr_mode
         self._paused = threading.Event()
         self._timings = collections.deque(maxlen=5000)       # (process CPU s, wall s) per capture attempt
         self.seq = 0
@@ -200,7 +206,7 @@ class ContinuousObserver:
         self.seq += 1
         cpu0, wall0 = time.process_time(), time.perf_counter()
         try:
-            observe_once(self.store, self.sources, self.buffer, key, self.policy, self.clock_ns, self.on_decision)
+            observe_once(self.store, self.sources, self.buffer, key, self.policy, self.clock_ns, self.on_decision, self.ocr_mode)
             self.stats["observations"] += 1
             return True
         except Exception as e:                   # noqa: BLE001 - keep observing; the failure is counted and logged

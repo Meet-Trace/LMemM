@@ -173,3 +173,41 @@ def get_ocr_worker_max_jobs(store):
 
 def set_ocr_worker_max_jobs(store, jobs):
     return put(store, OCR_WORKER_MAX_JOBS_KEY, _valid_worker_jobs(jobs))
+
+
+OCR_MODE_KEY = "ocr_mode"
+OCR_MODES = ("async", "sync")
+DEFAULT_OCR_MODE = "async"
+
+
+def _valid_ocr_mode(value):
+    if value not in OCR_MODES:
+        raise ValueError(f"ocr_mode must be one of {OCR_MODES}")
+    return value
+
+
+def get_ocr_mode(store):
+    return _valid_ocr_mode(get(store, OCR_MODE_KEY, DEFAULT_OCR_MODE))
+
+
+def set_ocr_mode(store, mode):
+    return put(store, OCR_MODE_KEY, _valid_ocr_mode(mode))
+
+
+OCR_QUEUE_CAP_KEY = "ocr_queue_cap"
+DEFAULT_OCR_QUEUE_CAP = 300
+MIN_OCR_QUEUE_CAP, MAX_OCR_QUEUE_CAP = 1, 100000
+
+
+def _valid_queue_cap(value):
+    if isinstance(value, bool) or not isinstance(value, int) or not MIN_OCR_QUEUE_CAP <= value <= MAX_OCR_QUEUE_CAP:
+        raise ValueError(f"ocr_queue_cap must be a whole number between {MIN_OCR_QUEUE_CAP} and {MAX_OCR_QUEUE_CAP}")
+    return value
+
+
+def get_ocr_queue_cap(store):
+    return _valid_queue_cap(get(store, OCR_QUEUE_CAP_KEY, DEFAULT_OCR_QUEUE_CAP))
+
+
+def set_ocr_queue_cap(store, cap):
+    return put(store, OCR_QUEUE_CAP_KEY, _valid_queue_cap(cap))

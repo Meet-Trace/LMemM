@@ -19,7 +19,7 @@ Observations, OCR, accessibility output, interaction events and the screenshots 
 
 import uuid
 
-from . import settings
+from . import ocr_queue, settings
 from .store import canonical, now_iso
 
 POLICY_KEY = "screenshot_retention"
@@ -63,7 +63,20 @@ def candidates(store, cutoff_ns):
         "SELECT s.observation_id, s.relative_path, s.byte_size FROM screenshots s "
         "LEFT JOIN screenshot_deletions d USING (observation_id) "
         "WHERE s.status='stored' AND d.observation_id IS NULL AND s.captured_at_ns < ? "
+        "AND s.observation_id NOT IN (SELECT observation_id FROM ocr_jobs WHERE state IN ('queued','processing')) "
+        "AND NOT EXISTS (SELECT 1 FROM extractions e WHERE e.observation_id = s.observation_id AND e.reader='ocr' "
+        "AND e.status='pending' AND NOT EXISTS (SELECT 1 FROM extractions n WHERE n.observation_id = e.observation_id "
+        "AND n.reader='ocr' AND n.revision > e.revision)) "
         "ORDER BY s.captured_at_ns, s.observation_id", (cutoff_ns,)).fetchall()
+
+
+def protected(store, cutoff_ns):
+    """Old enough to delete but kept because their OCR has not finished."""
+    held = ocr_queue.protected(store)
+    return [r[0] for r in store.db.execute(
+        "SELECT s.observation_id FROM screenshots s LEFT JOIN screenshot_deletions d USING (observation_id) "
+        "WHERE s.status='stored' AND d.observation_id IS NULL AND s.captured_at_ns < ? ORDER BY s.captured_at_ns, "
+        "s.observation_id", (cutoff_ns,)) if r[0] in held]
 
 
 def run(store, now_ns, dry_run=False):
@@ -74,6 +87,7 @@ def run(store, now_ns, dry_run=False):
         store.db.execute("INSERT INTO retention_runs VALUES (?,?,?,?,?,?)",
                          (run_id, now_iso(), now_ns, canonical(policy), cutoff, int(dry_run)))
         rows = [] if cutoff is None else candidates(store, cutoff)
+        held = [] if cutoff is None else protected(store, cutoff)
         counts = {"examined": len(rows), "deleted": 0, "already_missing": 0, "failed": 0, "bytes_freed": 0}
         affected = []
         for oid, rel, size in rows:
@@ -97,4 +111,4 @@ def run(store, now_ns, dry_run=False):
                          (run_id, now_iso(), counts["examined"], counts["deleted"], counts["already_missing"],
                           counts["failed"], counts["bytes_freed"]))
     return {"run_id": run_id, "policy": policy, "cutoff_ns": cutoff, "dry_run": dry_run,
-            "observation_ids": affected, **counts}
+            "observation_ids": affected, "protected": len(held), "protected_observation_ids": held, **counts}

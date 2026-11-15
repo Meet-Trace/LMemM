@@ -1,12 +1,13 @@
-"""MacSources: the `sources` object for trace_v2.observations.pipeline (context + screenshot in PR A)."""
+"""MacSources: the `sources` object for trace_v2.observations.pipeline (context, screenshot, Vision OCR)."""
 
 import Quartz
 from trace_v2.observations.pipeline import ReaderUnavailable
 
 from .context import ContextSource
+from .ocr import VisionOCR
 from .screenshot import ScreenshotSource
 
-CAPTURE_VERSION = "macos-capture/1"
+CAPTURE_VERSION = "macos-capture/1"   # unchanged: the capture shape is the same, OCR is a reader with its own version
 
 
 class _NotImplementedReader:
@@ -14,16 +15,16 @@ class _NotImplementedReader:
         self.version = version
 
     def read(self, *args):
-        raise ReaderUnavailable("not implemented in PR A")
+        raise ReaderUnavailable("accessibility reader not implemented yet")
 
 
 class MacSources:
     capture_version = CAPTURE_VERSION
 
-    def __init__(self, context_source=None, screenshot_source=None):
+    def __init__(self, context_source=None, screenshot_source=None, ocr=None):
         self._context = context_source or ContextSource()
         self._screenshot = screenshot_source or ScreenshotSource()
-        self.ocr = _NotImplementedReader("ocr-unimplemented/0")
+        self.ocr = ocr or VisionOCR()
         self.accessibility = _NotImplementedReader("ax-unimplemented/0")
         self._display_id = None
 

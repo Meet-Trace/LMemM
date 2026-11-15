@@ -48,6 +48,11 @@ class Context:
             _json_object(name, getattr(self, name))
 
 
+class ScopeUnavailable(RuntimeError):
+    """The configured screenshot scope cannot be honoured (for example the front app has no shareable window).
+    The pipeline withholds the screenshot (reason `scope_unavailable`) instead of falling back to a wider capture."""
+
+
 @dataclass(frozen=True)
 class ScreenshotCapture:
     data: bytes
@@ -55,6 +60,7 @@ class ScreenshotCapture:
     width: int
     height: int
     captured_at_ns: int
+    scope: str = None        # "front_app" | "display": which content the pixels were allowed to contain
 
     def validate(self):
         if not isinstance(self.data, (bytes, bytearray)) or not self.data:

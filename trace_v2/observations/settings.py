@@ -67,3 +67,23 @@ def get_cursor_sample_ms(store):
 
 def set_cursor_sample_ms(store, milliseconds):
     return put(store, CURSOR_SAMPLE_KEY, _valid_sample_ms(milliseconds))
+
+
+SCREENSHOT_SCOPE_KEY = "screenshot_scope"
+SCREENSHOT_SCOPES = ("front_app", "display")
+DEFAULT_SCREENSHOT_SCOPE = "front_app"
+
+
+def _valid_scope(value):
+    if value not in SCREENSHOT_SCOPES:
+        raise ValueError(f"screenshot_scope must be one of {SCREENSHOT_SCOPES}")
+    return value
+
+
+def get_screenshot_scope(store):
+    """front_app (default): only the front application's windows are composited. display: the whole display."""
+    return _valid_scope(get(store, SCREENSHOT_SCOPE_KEY, DEFAULT_SCREENSHOT_SCOPE))
+
+
+def set_screenshot_scope(store, scope):
+    return put(store, SCREENSHOT_SCOPE_KEY, _valid_scope(scope))

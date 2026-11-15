@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  EXAMPLE ONLY. Nothing in this repository installs it. To try it by hand (replace the paths first):
+    cp com.trace.v2.runner.plist.example ~/Library/LaunchAgents/com.trace.v2.runner.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.trace.v2.runner.plist
+  and to remove it:
+    launchctl bootout gui/$(id -u)/com.trace.v2.runner && rm ~/Library/LaunchAgents/com.trace.v2.runner.plist
+
+  Run it as a LaunchAgent (the user's login session), never a LaunchDaemon: screen capture, the accessibility API and
+  the input tap only work inside a logged-in GUI session. macOS attributes Screen Recording, Accessibility and Input
+  Monitoring to the program that is running, so grant them to the Python (or packaged app) named below, not to Terminal.
+  KeepAlive restarts it if it dies; a crashed runner never blocks the restart (the lock is an flock). ThrottleInterval
+  stops a crash loop.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.trace.v2.runner</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/venv/bin/python</string>
+        <string>-m</string>
+        <string>trace_v2.run</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/path/to/LMemM</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/path/to/LMemM</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/trace-v2-runner.log</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/trace-v2-runner.log</string>
+</dict>
+</plist>

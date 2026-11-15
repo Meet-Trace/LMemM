@@ -13,8 +13,11 @@ are ordered left to right. Multi-column layouts therefore interleave columns row
 consumer can re-order. Timestamps come from pipeline.run_reader, which wraps every `read`.
 
 Vision runs on a worker thread so a stuck request cannot stall the capture loop. After `timeout_s` the request is
-cancelled and `Timeout` is raised (recorded as a failed result with error_code "Timeout"); a worker that has not
-finished yet makes the next read fail fast with the same code instead of piling up threads.
+cancelled and `Timeout` is raised (recorded as a failed result with error_code "Timeout"). A cancelled request may keep
+running inside Vision (cancel is a request, not a kill), so that worker is kept in a short "stuck" list and the next
+read starts a fresh recognition: one slow read must not cost every following capture its text. At most MAX_STUCK workers
+may be stuck at once (threads and memory stay bounded); beyond that a read fails fast with the same code until one of
+them finishes. Under heavy load (measured: load average 7 on 8 cores, 8 GB) a request can take over 20 s.
 
 Vision is imported lazily; when it cannot be loaded `read` raises ReaderUnavailable. Only trace_v2.macos imports pyobjc.
 """
@@ -26,6 +29,7 @@ from trace_v2.observations.pipeline import ReaderUnavailable
 
 READER_VERSION = "vision-ocr/1"
 DEFAULT_TIMEOUT_S = 10.0
+MAX_STUCK = 2
 RECOGNITION_LEVEL = "accurate"
 _CONFIDENCE_DIGITS, _BOX_DIGITS = 3, 1
 
@@ -129,6 +133,7 @@ class VisionOCR:
         self._factory = recognizer_factory
         self._os_version = os_version or platform.mac_ver()[0]
         self._worker = None
+        self._stuck = []                             # timed-out workers that have not returned yet
 
     def read(self, screenshot, context=None):
         """-> (raw, text) for the screenshot's own bytes."""
@@ -143,8 +148,9 @@ class VisionOCR:
         return raw, "\n".join(ln["text"] for ln in lines)
 
     def _recognize(self, png):
-        if self._worker is not None and self._worker.is_alive():
-            raise Timeout("a previous recognition is still running")
+        self._stuck = [w for w in self._stuck if w.is_alive()]
+        if len(self._stuck) >= MAX_STUCK:
+            raise Timeout(f"{len(self._stuck)} previous recognitions are still running")
         recognizer, box, done = self._factory(), {}, threading.Event()
 
         def work():
@@ -163,6 +169,7 @@ class VisionOCR:
             cancel = getattr(recognizer, "cancel", None)
             if cancel:
                 cancel()
+            self._stuck.append(self._worker)
             raise Timeout(f"text recognition did not finish in {self.timeout_s}s")
         if "error" in box:
             raise box["error"]

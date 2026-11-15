@@ -29,13 +29,17 @@ class MachClock:
     def to_wall_ns(self, timestamp_ns):
         return timestamp_ns + self.offset_ns
 
+    def resync(self):
+        """Re-capture the offset now (after wake)."""
+        self.resyncs += 1
+        self._sync()
+
     def check(self):
         """-> True when the offset had gone stale and was re-synced."""
         mach_ns, wall = self._mach_now(), self._wall_now()
         drift = (wall - self._last[1]) - (mach_ns - self._last[0])
         if abs(drift) > self.tolerance_ns:
-            self.resyncs += 1
-            self._sync()
+            self.resync()
             return True
         self._last = (mach_ns, wall)
         return False

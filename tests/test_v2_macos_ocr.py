@@ -149,16 +149,38 @@ class RecordedByThePipeline(unittest.TestCase):
         self.assertIsNotNone(result.finished_at_ns)
         self.assertTrue(cancelled.is_set())
 
-    def test_a_stuck_worker_makes_the_next_read_fail_fast_then_recovery_works(self):
-        release = threading.Event()                  # cancel does nothing: the worker stays stuck
-        factory = fake_factory(recognition([observation("later", 0.1, 0.5, 0.2, 0.1)]), block=release, cancel=lambda: None)
+    def test_one_slow_read_does_not_cost_the_following_captures_their_text(self):
+        """Measured on a loaded Mac: after one 10 s timeout every later capture failed with 'still running' until Vision
+        returned (over 20 s). A timed-out worker is now kept aside and the next read starts a fresh recognition."""
+        calls, release = [], threading.Event()
+
+        def factory():                               # the first request hangs and ignores cancel; later ones answer
+            calls.append(1)
+            if len(calls) == 1:
+                def stuck(png):
+                    release.wait(30)
+                    return recognition([])
+                stuck.cancel = lambda: None
+                return stuck
+            return fake_factory(recognition([observation("later", 0.1, 0.5, 0.2, 0.1)]))()
         reader = VisionOCR(timeout_s=0.05, recognizer_factory=factory)
         self.assertEqual(run_reader(reader, clock(), shot(), None).error_code, "Timeout")
         second = run_reader(reader, clock(), shot(), None)
-        self.assertEqual((second.status, second.error_code), ("failed", "Timeout"))
-        self.assertIn("still running", second.error_message)
+        self.assertEqual((second.status, second.text), ("succeeded", "later"))
         release.set()
-        reader._worker.join(5)
+
+    def test_at_most_two_stuck_workers_then_reads_fail_fast_until_one_finishes(self):
+        release = threading.Event()                  # cancel does nothing: the workers stay stuck
+        factory = fake_factory(recognition([observation("later", 0.1, 0.5, 0.2, 0.1)]), block=release, cancel=lambda: None)
+        reader = VisionOCR(timeout_s=0.05, recognizer_factory=factory)
+        self.assertEqual([run_reader(reader, clock(), shot(), None).error_code for _ in range(2)], ["Timeout", "Timeout"])
+        third = run_reader(reader, clock(), shot(), None)
+        self.assertEqual((third.status, third.error_code), ("failed", "Timeout"))
+        self.assertIn("still running", third.error_message)
+        self.assertEqual(len(reader._stuck), 2)                       # bounded: no third thread was started
+        release.set()
+        for worker in list(reader._stuck):
+            worker.join(5)
         self.assertEqual(run_reader(reader, clock(), shot(), None).text, "later")
 
 
@@ -178,7 +200,7 @@ class _Screens:
     def __init__(self, fail=False):
         self.fail, self.calls = fail, 0
 
-    def screenshot(self, display_id):
+    def screenshot(self, display_id, **_scope):
         self.calls += 1
         if self.fail:
             raise PermissionError("Screen Recording is not granted")

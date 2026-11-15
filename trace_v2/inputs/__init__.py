@@ -5,12 +5,14 @@ input_tap) only reads CGEvents into that dict and feeds the results to events.Ev
 Public interface:
     CursorSampler(interval_ns, emit)    at most one cursor_move per interval while moving, plus a final position
     MachClock(...)                      CGEvent uptime timestamp -> wall-clock ns, re-synced after sleep
+    InputGate()                         per-event drop decision (gated app in front, screen locked) for the tap
     decode(raw, clock)                  raw event dict -> InteractionEvent | None
     key_class(keycode)                  coarse class of a macOS virtual keycode; the keycode itself is never stored
 """
 
 from .decode import decode
+from .gating import InputGate
 from .keys import key_class, modifiers_from_flags
 from .sampling import CursorSampler, MachClock
 
-__all__ = ["CursorSampler", "MachClock", "decode", "key_class", "modifiers_from_flags"]
+__all__ = ["CursorSampler", "InputGate", "MachClock", "decode", "key_class", "modifiers_from_flags"]

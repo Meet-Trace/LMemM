@@ -13,10 +13,11 @@ Public interface:
 Independent of any inference layer: nothing here reads Moments, Visits, Activities or Projects.
 """
 
-from .models import (CaptureDraft, Context, InteractionEvent, InvalidCapture, ReaderResult, ScreenshotCapture,
-                     ScreenshotFailure)
+from .models import (CaptureDraft, Context, InteractionEvent, InvalidCapture, ReaderResult, ScopeUnavailable,
+                     ScreenshotCapture, ScreenshotFailure, ScreenshotWithheld)
 from .queries import ScreenshotUnavailable
 from .store import DuplicateObservation, IngestResult, ObservationStore
 
 __all__ = ["CaptureDraft", "Context", "DuplicateObservation", "IngestResult", "InteractionEvent", "InvalidCapture",
-           "ObservationStore", "ReaderResult", "ScreenshotCapture", "ScreenshotFailure", "ScreenshotUnavailable"]
+           "ObservationStore", "ReaderResult", "ScopeUnavailable", "ScreenshotCapture", "ScreenshotFailure",
+           "ScreenshotUnavailable", "ScreenshotWithheld"]

@@ -47,8 +47,9 @@ class TempStore:
 
     def __enter__(self):
         self._dir = tempfile.TemporaryDirectory(prefix="trace-v2-")
-        self.root = Path(self._dir.name) / "data"
-        self.legacy = Path(self._dir.name) / "Legacy-V1"
+        base = Path(self._dir.name).resolve()       # macOS: /var is a symlink to /private/var
+        self.root = base / "data"
+        self.legacy = base / "Legacy-V1"
         self.store = ObservationStore(self.root, legacy_archive=self.legacy)
         return self
 

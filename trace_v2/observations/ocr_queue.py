@@ -260,6 +260,32 @@ def sweep(store, now_ns, policy=QueuePolicy()):
     return out
 
 
+def recover_after_restart(store, now_ns, policy=QueuePolicy()):
+    """Invalidate claims owned by the previous process before starting a new worker.
+
+    A lease alone is insufficient here: the old process may still return while the
+    lease is live. Clearing its claim token makes that result stale immediately.
+    """
+    out = {"reclaimed": 0, "lease_failed": 0}
+    with _Txn(store) as db:
+        rows = db.execute(
+            "SELECT job_id, observation_id, target_revision, attempts, max_attempts FROM ocr_jobs "
+            "WHERE state='processing' ORDER BY job_id"
+        ).fetchall()
+        for jid, oid, target, attempts, max_attempts in rows:
+            if attempts >= max_attempts:
+                _terminal(store, db, jid, oid, target, "WorkerRestarted",
+                          "the OCR worker restarted after exhausting its attempts", now_ns)
+                out["lease_failed"] += 1
+            else:
+                db.execute(
+                    "UPDATE ocr_jobs SET state='queued', claim_token=NULL, claimed_at_ns=NULL, "
+                    "lease_expires_ns=NULL, not_before_ns=?, last_error_code='WorkerRestarted' WHERE job_id=?",
+                    (now_ns, jid))
+                out["reclaimed"] += 1
+    return out
+
+
 def stats(store, now_ns):
     with store.lock:
         states = dict(store.db.execute("SELECT state, count(*) FROM ocr_jobs GROUP BY state").fetchall())

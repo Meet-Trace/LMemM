@@ -38,6 +38,10 @@ class OcrProcessor:
             return {**self.counts, "abandoned_alive": len([t for t in self._abandoned if t.is_alive()])}
 
     def start(self):
+        restarted = ocr_queue.recover_after_restart(self.store, self.clock_ns(), self.policy)
+        for key in ("reclaimed", "lease_failed"):
+            if restarted[key]:
+                self._count(key, restarted[key])
         self.recover()
         if self._thread is None:
             self._thread = threading.Thread(target=self._run, name="trace-v2-ocr-processor", daemon=True)

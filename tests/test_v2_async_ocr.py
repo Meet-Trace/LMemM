@@ -155,6 +155,17 @@ class CompletionTest(unittest.TestCase):
 
 
 class DurabilityTest(unittest.TestCase):
+    def test_restart_invalidates_a_live_claim_before_the_old_worker_can_commit(self):
+        with TempStore() as ts:
+            env = Env(ts)
+            oid = ts.store.ingest(pdraft()).observation_id
+            old = ocr_queue.claim(ts.store, env.clock(), 10, POLICY)
+            self.assertEqual(ocr_queue.recover_after_restart(ts.store, env.clock(), POLICY)["reclaimed"], 1)
+            late = ReaderResult("vision-ocr/1", "succeeded", {"lines": []}, "late result")
+            self.assertEqual(ocr_queue.finish(ts.store, old, late, T0, POLICY), "stale")
+            self.assertEqual(env.ocr(oid)["status"], "pending")
+            self.assertEqual(env.job(oid)[0], "queued")
+
     def test_backlog_survives_a_restart_and_a_dead_processing_job_is_recovered(self):
         with TempStore() as ts:
             env = Env(ts)

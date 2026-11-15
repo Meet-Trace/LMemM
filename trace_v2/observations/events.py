@@ -4,7 +4,9 @@ Privacy rule: a keypress records only its phase, a coarse key class, modifiers a
 character, the key name or the keycode (a keycode sequence reconstructs typed text). Keypresses while
 macOS secure input is on (password fields) are not stored at all, only counted.
 
-Events are never summarised or coalesced: every accepted event is stored, in arrival order.
+Events are never summarised here: every accepted event is stored, in arrival order. The only reduction happens
+upstream and is explicit: the input source samples cursor movement (trace_v2.inputs.CursorSampler) and says how many
+raw moves each stored `cursor_move` stands for (`coalesced`). Clicks, scrolls and keypresses are never reduced.
 """
 
 import threading
@@ -37,13 +39,18 @@ def _count(v):
     return isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 10
 
 
+def _coalesced(v):
+    return isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 1_000_000
+
+
 def _mods(v):
     return isinstance(v, list) and len(set(v)) == len(v) and all(m in MODIFIERS for m in v)
 
 
 # type -> (required fields, {field: validator})
 SCHEMAS = {
-    "cursor_move": ({"x", "y"}, {"x": _num, "y": _num, "display_id": _str}),
+    "cursor_move": ({"x", "y"}, {"x": _num, "y": _num, "display_id": _str, "coalesced": _coalesced,
+                                  "final": lambda v: v is True}),
     "click": ({"x", "y", "button", "phase"},
               {"x": _num, "y": _num, "button": _enum("left", "right", "middle", "other"),
                "phase": _enum("down", "up"), "click_count": _count, "display_id": _str}),

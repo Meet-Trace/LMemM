@@ -47,3 +47,23 @@ def get_capture_interval(store):
 
 def set_capture_interval(store, seconds):
     return put(store, CAPTURE_INTERVAL_KEY, _valid_interval(seconds))
+
+
+CURSOR_SAMPLE_KEY = "cursor_sample_ms"
+DEFAULT_CURSOR_SAMPLE_MS = 150
+MIN_CURSOR_SAMPLE_MS, MAX_CURSOR_SAMPLE_MS = 100, 200
+
+
+def _valid_sample_ms(value):
+    if isinstance(value, bool) or not isinstance(value, int) or not MIN_CURSOR_SAMPLE_MS <= value <= MAX_CURSOR_SAMPLE_MS:
+        raise ValueError(f"cursor sample interval must be a whole number of milliseconds between "
+                         f"{MIN_CURSOR_SAMPLE_MS} and {MAX_CURSOR_SAMPLE_MS}")
+    return value
+
+
+def get_cursor_sample_ms(store):
+    return _valid_sample_ms(get(store, CURSOR_SAMPLE_KEY, DEFAULT_CURSOR_SAMPLE_MS))
+
+
+def set_cursor_sample_ms(store, milliseconds):
+    return put(store, CURSOR_SAMPLE_KEY, _valid_sample_ms(milliseconds))

@@ -78,8 +78,10 @@ capture fails, and takes one final Observation when stopped. Interaction events 
 
 ## Interaction events (`events.py`)
 Types: `cursor_move`, `click`, `keypress`, `scroll`, each with an allow-listed payload; anything else is rejected
-and counted. Keypresses keep phase, key class, modifiers and repeat only, and are dropped (counted) while secure
-input is on. Events are stored one row each, in arrival order (`seq`), never summarised. Each event belongs to the
+and counted. `cursor_move` may carry `coalesced` (how many raw moves the stored sample stands for, 1..1,000,000) and
+`final` (true: the position where the cursor stopped); the buffer itself never reduces anything, the sampling happens in
+`trace_v2.inputs` before events reach it. Keypresses keep phase, key class, modifiers and repeat only, and are dropped (counted) while secure
+input is on. Events are stored one row each, in arrival order (`seq`); a trailing cursor sample can carry a timestamp up to one sample interval later than a click or key that arrived just before it (the cursor stayed put, so the position is still true). Each event belongs to the
 Observation whose capture time closes its interval:
 - windows are (previous capture, this capture]; the first window starts at the session start, and events stamped
   before it are rejected and counted;
@@ -159,8 +161,44 @@ context -> display id -> screenshot -> OCR and accessibility for the pipeline (`
   ~1 CPU-second per OCR (about a third of a core), 0 missed ticks, ~7 KB/capture structured (0.07 GB per 8 h) against
   ~786 KB/capture PNG (7.5 GB per 8 h).
 
+## Input events (`trace_v2/inputs/`, `trace_v2/macos/input_tap.py`)
+`InputTap(buffer, cursor_sample_ms=150)` is a listen-only session `CGEventTap` (head insert) on its own thread and run
+loop, feeding `EventBuffer.add`. It is separate from `MacSources`; the runner (a later PR) starts it with the same buffer
+the observer uses, so attribution is unchanged. The decision logic is platform independent and lives in `trace_v2.inputs`
+(`CursorSampler`, `MachClock`, key classes, `decode`); the tap only reads CGEvent fields into a plain dict.
+- Cursor: moves and drags are sampled, never stored raw: at most one `cursor_move` per `cursor_sample_ms` (setting
+  `cursor_sample_ms`, 100..200, default 150, `settings.get/set_cursor_sample_ms`) while moving, plus one `final` position
+  once the cursor has been still for an interval (stamped no earlier than the last sample + interval, so samples are never
+  closer than the interval). `coalesced` records how many raw moves each sample replaces.
+- Clicks (per button, down and up, click count), scrolls (every event: deltas, pixel or line unit, phase incl. momentum)
+  and keypresses (down/up, repeat) are stored individually with their own timestamps. Modifier changes are keypresses of
+  class `modifier`. A keypress keeps `phase`, `key_class`, `modifiers`, `is_repeat` only; the virtual keycode is read to
+  pick the class and dropped, characters are never read (`keys.py` is the class table). The implicit `fn` flag macOS sets
+  on arrows and function keys is not reported.
+- Time: `CGEventGetTimestamp` is already nanoseconds on the uptime clock (measured: it matches `mach_absolute_time() *
+  timebase`, so no tick conversion). Wall time = timestamp + offset captured at start. Uptime stops while the Mac
+  sleeps, so a 75 ms housekeeping timer compares wall and uptime progress and re-syncs the offset when they diverge by over a second
+  (after wake or a clock step); already converted events keep their timestamps. `stats()["clock_resyncs"]` counts them.
+- Privacy: keypresses are passed with `secure_input=IsSecureEventInputEnabled()` (True when unknown) so they are
+  suppressed and counted while a password field has focus (macOS also stops delivering key events to taps then).
+  `tap.keyboard_blocked` (set by the runner from each context decision) drops every keyboard event while a gated app
+  is in front, counted as `dropped_gated`; independently the capture-level gate withholds all events of a gated capture.
+- Permission: Input Monitoring only. `CGPreflightListenEventAccess()` is checked, `CGRequestListenEventAccess()` is never
+  called. Without it (or if the tap cannot be created) `start()` returns `unavailable` with `reason`
+  (`input_monitoring_not_granted`, `tap_create_failed`, `tap_start_timeout`) and capture continues without events.
+  macOS disabling the tap (timeout, user input) is answered by re-enabling it, counted as `tap_reenabled`.
+- The callback does no I/O: a few integer reads, the sampler, one validated `EventBuffer.add`. `stats()` has raw counts
+  per type, stored counts, cursor raw/samples/finals, re-enables, callback errors, callback CPU and clock re-syncs.
+- Measured (3 min, 3 s captures, stub capture sources, synthetic bursts of 125 Hz cursor motion and 60 Hz zero-delta
+  scrolls: about 2,200 raw moves/min and 555 scrolls/min): callback CPU 49 us per event (0.4 s over 3 min), process 2% of
+  one core including the poster, 6,534 raw moves stored as 485 samples (164/min), all 1,638 scrolls stored,
+  39 rows per observation on average (max 99), ~173 logical bytes per row, 0 missed ticks. At that continuous rate
+  event rows are about 0.06 GB per 8 h; real use is far quieter except while scrolling a trackpad (kept one-to-one by decision).
+- Limits: the cursor position and every click/scroll position are screen coordinates in global points; they say nothing
+  about which window was hit. Scroll events from a trackpad are frequent (about 60-120 per second while scrolling).
+
 ## Tests
 `tests/test_v2_observation_{store,retention,migrations,pipeline,privacy,forget,capture_settings}.py` and, on macOS only,
-`tests/test_v2_macos_{context,capture,ocr,ocr_vision,accessibility,accessibility_real}.py` (screenshot tests skip without Screen Recording; `ocr` uses
+`tests/test_v2_inputs.py` (platform independent: sampler, clock, key classes, decoding) and `tests/test_v2_macos_{context,capture,ocr,ocr_vision,accessibility,accessibility_real,input}.py` (screenshot tests skip without Screen Recording; `ocr` uses
 a fake recognizer, `ocr_vision` renders synthetic PNGs and runs real Vision through `build_draft`, `accessibility` uses
-fake elements, `accessibility_real` reads a window owned by a subprocess and skips without Accessibility permission), run with `./scripts/test.sh`.
+fake elements, `accessibility_real` reads a window owned by a subprocess and skips without Accessibility permission, `input` posts harmless synthetic events and skips without Input Monitoring; its key test also skips while secure keyboard entry is on), run with `./scripts/test.sh`.

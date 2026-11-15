@@ -3,7 +3,8 @@
 context() -> trace_v2.observations.Context
     application  {bundle_id, name, pid}
     window       {id, title, bounds [x,y,w,h]}  + url / private (browsers, see browser.py) + url_error /
-                 private_error codes + locked=True when the screen is locked. {} when the app has no on-screen window.
+                 private_error codes. Exactly {"locked": True} when the screen is locked (nothing else is read).
+                 {} when the app has no on-screen window.
     display      {id, bounds, pixel_size, scale} of the display holding most of the window (main display if none)
 """
 
@@ -18,13 +19,13 @@ class ContextSource:
 
     def context(self):
         app = windows.frontmost_application()
+        if session.screen_locked(app["bundle_id"]):
+            # Nothing about the window behind the lock screen is read: no title, bounds or URL.
+            return Context(app, {"locked": True}, displays.display_info(displays.main_display()))
         window = windows.front_window(app["pid"]) or {}
-        locked = session.screen_locked(app["bundle_id"])
-        if locked:
-            window["locked"] = True
-        elif window:
+        if window:
             window.update(self._browser_state(app["bundle_id"]))
-        display_id = displays.display_for_rect(window["bounds"]) if window else displays.display_for_rect([0, 0, 0, 0])
+        display_id = displays.display_for_rect(window["bounds"]) if "bounds" in window else displays.main_display()
         return Context(app, window, displays.display_info(display_id))
 
     def secure_input(self):

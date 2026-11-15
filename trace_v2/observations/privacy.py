@@ -11,6 +11,7 @@ gate(context, policy) -> Decision
         excluded_site      the URL matches a built-in sensitive-site pattern or one of the user's patterns
         secure_input       macOS secure keyboard entry is on (a password field has focus)
         screen_locked      the adapter flagged the screen locked (window["locked"] is True) or a screensaver runs
+        context_unavailable  the context adapter failed, so no other gate can judge what is in front: fail closed
 
 redact(value) -> (value with secrets replaced, {kind: count})
     Walks reader output and context strings. Each match is replaced with "[REDACTED:<kind>]"; the rest of the
@@ -100,6 +101,8 @@ class Decision:
 
 
 def gate(context, policy, secure_input=False):
+    if context.error_code:
+        return Decision(True, "context_unavailable")
     app, window = context.application or {}, context.window or {}
     if app.get("bundle_id") in policy.all_excluded_apps():
         return Decision(True, "excluded_app")

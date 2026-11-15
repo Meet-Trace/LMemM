@@ -94,10 +94,9 @@ removes expired screenshot files oldest first, records each in `screenshot_delet
 Structured evidence is never touched, and it has no automatic expiry: it is kept until the user forgets it.
 Dry runs record what would be deleted.
 
-## macOS adapters: context, screenshot, OCR (`trace_v2/macos/`)
+## macOS adapters: context, screenshot, OCR, accessibility (`trace_v2/macos/`)
 The only package that imports pyobjc (`trace_v2.observations` stays importable on Linux). `MacSources` wires
-context -> display id -> screenshot -> OCR for the pipeline (`capture_version` `macos-capture/1`); the accessibility
-reader is still a placeholder that raises `ReaderUnavailable`.
+context -> display id -> screenshot -> OCR and accessibility for the pipeline (`capture_version` `macos-capture/1`).
 - Context (metadata only): frontmost app (NSWorkspace), its front on-screen layer-0 window (CGWindowList), the display
   holding most of that window (bounds in points, pixel size of the current mode, scale). `window.locked=True` when
   the session reports a locked screen or loginwindow/ScreenSaverEngine is frontmost -> gate reason `screen_locked`.
@@ -127,6 +126,26 @@ reader is still a placeholder that raises `ReaderUnavailable`.
   `aws_access_key_id` was read as `awS_...`. `confidence` is often exactly 1.0 even for garbled text, so it must not
   be used as a quality signal. Vision may misread look-alike characters (0/O, I/l); a secret misread that way no
   longer matches the redaction patterns, so redaction and the `secret_on_screen` withhold are best effort, not a guarantee.
+- Accessibility (`accessibility.py`, reader `ax-tree/1`): `AccessibilityReader.read(context)` -> `(raw, text)` for the
+  front app (`context.application.pid`). `AXIsProcessTrusted()` is checked first and never prompts; untrusted or
+  `kAXErrorAPIDisabled` -> `unavailable` ("accessibility not trusted"); any other failure to reach the window (hung app,
+  invalid element, no window) -> `failed` (`Unresponsive`, `NoWindow`, `AXError`). Window: `AXFocusedWindow`, else the
+  `AXWindows` entry titled like `context.window.title`, else `AXMainWindow`. Breadth-first walk under hard budgets,
+  all recorded in `raw.limits` and `raw.truncated {nodes, depth, time}`: 3000 nodes, depth 40, 2000 chars per value
+  (`value_truncated`/`title_truncated` hold the original length), 1.5 s wall clock, and a 0.25 s AX messaging timeout on
+  the app element (eight consecutive timeouts also end the walk as `time`). Per node: role, subrole, title, value
+  (strings as strings, numbers as numbers), description, identifier, frame `[x, y, w, h]` in global points, focused,
+  selected text (focused nodes only), `url` on `AXWebArea`, children; `raw.document` is the window's `AXDocument`.
+  Values of `AXSecureTextField` (by role or subrole), and its selected text, are never requested: the node carries
+  `value_omitted: "secure"`. This is in addition to the pipeline redaction, which still runs on raw and text, and a
+  secret in AX text withholds the screenshot (`secret_on_screen`). `text` = titles and string values in tree order,
+  consecutive duplicates removed.
+  Browsers: the page URL is recorded (`AXURL`, `AXDocument`) but no new gate is applied; `excluded_site` already ran
+  on the context URL. Electron/Chromium apps (Claude, Slack, VS Code) expose only a shell tree (about 9 nodes) until
+  the app turns accessibility on (`AXManualAccessibility`); the reader never sets that, because it changes another
+  app's behaviour and cost. For those apps AX adds little and OCR carries the content.
+  Permission: Accessibility must be granted to the process that runs the reader (the app hosting Trace; in
+  development the terminal or Python that runs the tests).
 - Permissions (never prompted by us): Screen Recording (pixels; without it window titles are empty) and, per browser,
   Automation (URL/private). A missing Screen Recording grant raises `PermissionError`, recorded as a screenshot failure.
 - Limitations: only the display holding the front window is captured; the PNG can contain anything on that display
@@ -142,5 +161,6 @@ reader is still a placeholder that raises `ReaderUnavailable`.
 
 ## Tests
 `tests/test_v2_observation_{store,retention,migrations,pipeline,privacy,forget,capture_settings}.py` and, on macOS only,
-`tests/test_v2_macos_{context,capture,ocr,ocr_vision}.py` (screenshot tests skip without Screen Recording; `ocr` uses
-a fake recognizer, `ocr_vision` renders synthetic PNGs and runs real Vision through `build_draft`), run with `./scripts/test.sh`.
+`tests/test_v2_macos_{context,capture,ocr,ocr_vision,accessibility,accessibility_real}.py` (screenshot tests skip without Screen Recording; `ocr` uses
+a fake recognizer, `ocr_vision` renders synthetic PNGs and runs real Vision through `build_draft`, `accessibility` uses
+fake elements, `accessibility_real` reads a window owned by a subprocess and skips without Accessibility permission), run with `./scripts/test.sh`.

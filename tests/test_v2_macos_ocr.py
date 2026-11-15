@@ -216,12 +216,10 @@ class OcrOnlyRunsWhenAllowed(unittest.TestCase):
         draft, ocr = self.draft(fail_screenshot=True)
         self.assertEqual((ocr.calls, draft.ocr.status, draft.ocr.error_code), (0, "skipped", "no_screenshot"))
 
-    def test_default_ocr_is_vision_and_accessibility_is_still_unavailable(self):
+    def test_default_ocr_is_vision(self):
         sources = MacSources(context_source=_Context("com.example.editor"), screenshot_source=_Screens())
         self.assertIsInstance(sources.ocr, VisionOCR)
         self.assertEqual(sources.ocr.version, "vision-ocr/1")
-        with self.assertRaises(ReaderUnavailable):
-            sources.accessibility.read(None)
 
 
 if __name__ == "__main__":

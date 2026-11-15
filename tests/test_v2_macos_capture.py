@@ -47,12 +47,12 @@ class RealScreenshot(unittest.TestCase):
             self.assertTrue(data.startswith(PNG_SIGNATURE))
             self.assertEqual(obs["metadata"]["capture_version"], "macos-capture/1")
 
-    def test_ocr_runs_on_the_stored_screenshot_and_accessibility_is_unavailable(self):
+    def test_ocr_and_accessibility_run_on_a_real_capture(self):
         sources = real_sources()
         with TempStore() as t:
             result = observe_once(t.store, sources, EventBuffer(start_ns=T0), "mac:1")
             status = t.store.get(result.observation_id)["metadata"]["extraction_status"]
-            self.assertEqual((status["ocr"]["status"], status["accessibility"]["status"]), ("succeeded", "unavailable"))
+            self.assertEqual((status["ocr"]["status"], status["accessibility"]["status"]), ("succeeded", "succeeded"))
 
 
 @unittest.skipUnless(ON_MAC, "macOS only")

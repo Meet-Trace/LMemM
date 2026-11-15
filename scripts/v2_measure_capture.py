@@ -4,6 +4,12 @@ and the accessibility reader.
     .venv/bin/python scripts/v2_measure_capture.py [--count 40] [--interval 3.0] [--ocr-timeout 10] [--keep]
     .venv/bin/python scripts/v2_measure_capture.py --ax-apps com.apple.finder,com.microsoft.VSCode [--count 10]
 
+--input also runs the listen-only event tap (Input Monitoring) into the same buffer; --synthetic-input additionally posts
+harmless events for the whole run (cursor wiggle bursts, zero-delta scrolls) so there is load without a user.
+
+--stub-capture replaces context, screenshot and the readers with cheap fakes (an ungated app, a tiny PNG), so the event
+path can be measured while the screen is locked or without screen permissions; the OCR/AX numbers are then not real.
+
 --ax-apps skips the pipeline and times AccessibilityReader alone on the named running apps' windows (front or not),
 for per-app numbers when the frontmost app cannot be chosen. Everything else is the full pipeline.
 
@@ -20,6 +26,7 @@ evidence, and missed ticks.
 
 import argparse
 import resource
+import threading
 import shutil
 import statistics
 import sys
@@ -29,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from trace_v2.macos import AccessibilityReader, MacSources, VisionOCR  # noqa: E402
+from trace_v2.macos import AccessibilityReader, InputTap, MacSources, VisionOCR  # noqa: E402
 from trace_v2.macos.ocr import DEFAULT_TIMEOUT_S           # noqa: E402
 from trace_v2.observations import Context, ObservationStore  # noqa: E402
 from trace_v2.observations.events import EventBuffer       # noqa: E402
@@ -100,12 +107,64 @@ def collect(store, observation_ids):
     return rows
 
 
-def run(count, interval, root, ocr_timeout):
+class StubCapture:
+    """Cheap fake capture sources for --stub-capture."""
+    version = "stub/1"
+
+    def context(self):
+        return Context({"bundle_id": "com.example.stub", "name": "Stub", "pid": 1}, {"title": "stub", "id": 1},
+                       {"id": 1, "bounds": [0, 0, 100, 100], "scale": 1.0})
+
+    def secure_input(self):
+        return False
+
+    def screenshot(self, display_id):
+        from trace_v2.observations import ScreenshotCapture
+        return ScreenshotCapture(b"\x89PNG\r\n\x1a\n" + bytes(64), "png", 8, 8, time.time_ns())
+
+    def read(self, *args):
+        return {"lines": [], "stats": None}, ""
+
+
+def synthetic_input(stop):
+    """Bursts that look like use: 4 s of small cursor movement at ~125 Hz, 2 s of 60 Hz scroll events (zero deltas, so
+    nothing on screen moves), 4 s idle. Nothing is clicked and no key is pressed."""
+    import Quartz
+    here = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+    phase = 0
+    while not stop.is_set():
+        started = time.monotonic()
+        while not stop.is_set() and time.monotonic() - started < (4 if phase % 3 == 0 else 2 if phase % 3 == 1 else 4):
+            if phase % 3 == 0:
+                point = Quartz.CGPointMake(here.x + (time.monotonic() * 40) % 3, here.y)
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap,
+                                   Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, point, 0))
+                stop.wait(0.008)
+            elif phase % 3 == 1:
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap,
+                                   Quartz.CGEventCreateScrollWheelEvent(None, Quartz.kCGScrollEventUnitLine, 2, 0, 0))
+                stop.wait(1 / 60)
+            else:
+                stop.wait(0.1)
+        phase += 1
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, here, 0))
+
+
+def run(count, interval, root, ocr_timeout, use_input=False, synthetic=False, stub=False):
     store = ObservationStore(root / "data", legacy_archive=root / "Legacy-V1")
     ocr, ax = Measured(VisionOCR(timeout_s=ocr_timeout)), Measured(AccessibilityReader())
-    sources, buffer = MacSources(ocr=ocr, accessibility=ax), EventBuffer(start_ns=time.time_ns())
-    warmup = warm_up(sources)
+    stubs = StubCapture()
+    sources = (MacSources(context_source=stubs, screenshot_source=stubs, ocr=stubs, accessibility=stubs) if stub
+               else MacSources(ocr=ocr, accessibility=ax))
+    buffer = EventBuffer(start_ns=time.time_ns())
+    warmup = None if stub else warm_up(sources)
     observer = ContinuousObserver(store, sources, buffer, interval_s=interval)
+    tap, stop_synthetic = (InputTap(buffer) if use_input or synthetic else None), threading.Event()
+    if tap:
+        print(f"input tap: {tap.start()} {tap.reason or ''}")
+        if synthetic and tap.state == "running":
+            threading.Thread(target=synthetic_input, args=(stop_synthetic,), daemon=True).start()
+    cpu_before, wall_before = time.process_time(), time.perf_counter()
     ticks, tick = [], observer.tick
 
     def timed_tick():
@@ -115,9 +174,52 @@ def run(count, interval, root, ocr_timeout):
         return ok
     observer.tick = timed_tick
     stats = observer.run(max_ticks=count)
-    rows = collect(store, [r["observation_id"] for r in store.list(limit=1000)])
+    stop_synthetic.set()
+    if tap:
+        tap.stop()
+    total_cpu, total_wall = time.process_time() - cpu_before, time.perf_counter() - wall_before
+    ids = [r["observation_id"] for r in store.list(limit=1000)]
+    rows = collect(store, ids)
+    events = event_rows(store) if tap else None
     store.close()
-    return {"warmup": warmup, "ticks": ticks, "ocr": ocr, "ax": ax, "rows": rows, "stats": stats, "api": sources._screenshot.last_path}
+    return {"stub": stub, "input": tap.stats() if tap else None, "events": events, "total_cpu": total_cpu, "total_wall": total_wall,
+            "warmup": warmup, "ticks": ticks, "ocr": ocr, "ax": ax, "rows": rows, "stats": stats, "api": getattr(sources._screenshot, "last_path", "stub")}
+
+
+def event_rows(store):
+    """Stored interaction events: counts per type, per observation, and logical bytes per row."""
+    db = store.db
+    per_type = dict(db.execute("SELECT type, count(*) FROM interaction_events GROUP BY type").fetchall())
+    per_obs = [n for (n,) in db.execute("SELECT count(*) FROM interaction_events GROUP BY observation_id")]
+    bytes_total = db.execute("SELECT coalesce(sum(length(observation_id) + length(event_id) + 8 + 8 + length(type) "
+                             "+ length(payload_json)), 0) FROM interaction_events").fetchone()[0]
+    return {"per_type": per_type, "per_obs": per_obs, "rows": sum(per_type.values()), "bytes": bytes_total}
+
+
+def report_input(m, count, interval, per_day):
+    tap, ev = m["input"], m["events"]
+    minutes = m["total_wall"] / 60
+    print(f"input tap: {tap['state']} {tap['reason'] or ''}  clock resyncs {tap['clock_resyncs']}  tap re-enabled "
+          f"{tap['tap_reenabled']}  callback errors {tap['callback_errors']}")
+    if tap["state"] == "stopped" or tap["raw"]:
+        callbacks = sum(tap["raw"].values())
+        print(f"tap callback cpu  total {tap['callback_cpu_ns'] / 1e9:.3f} s over {minutes:.1f} min "
+              f"({tap['callback_cpu_ns'] / max(callbacks, 1) / 1000:.1f} us per event, {callbacks} events); "
+              f"process cpu total {m['total_cpu']:.1f} s = {m['total_cpu'] / m['total_wall'] * 100:.0f}% of one core")
+        for kind in sorted(tap["raw"]):
+            print(f"  {kind}: raw {tap['raw'][kind] / minutes:,.0f}/min")
+        for kind in sorted(tap["stored"]):
+            print(f"  stored {kind}: {tap['stored'][kind] / minutes:,.0f}/min")
+        print(f"  cursor: {tap['cursor_raw_moves']} raw moves -> {tap['cursor_samples']} samples "
+              f"({tap['cursor_finals']} final)")
+    obs = ev["per_obs"]
+    if ev["rows"]:
+        print(f"event rows: {ev['rows']} in {len(obs)} observations with events (of {count}); per observation "
+              f"mean {statistics.mean(obs):.1f} max {max(obs)}; by type {ev['per_type']}")
+        per_row = ev["bytes"] / ev["rows"]
+        per_minute = ev["rows"] / minutes
+        print(f"event bytes/row (logical) {per_row:.0f}; {per_minute:,.0f} rows/min -> "
+              f"{per_minute * 60 * 8 * per_row / 1e9:.4f} GB per 8 h at this activity level (continuous use)")
 
 
 def ms(values):
@@ -137,6 +239,12 @@ def report(count, interval, m):
           f"({'3 s keeps up' if not stats['missed_ticks'] else 'the interval is NOT kept'} at {interval}s)")
     print(f"capture latency ms  {ms([w for w, _ in ticks])}")
     print(f"cpu s/capture  mean {statistics.mean(c for _, c in ticks):.3f}  max {max(c for _, c in ticks):.3f}")
+    if m["stub"]:
+        print("(stub capture: OCR, AX and PNG figures are not real and are not shown)")
+        if m["input"]:
+            report_input(m, count, interval, per_day)
+        print(f"peak RSS    {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.0f} MB")
+        return
     outcomes = {}
     for r in rows:
         key = r["ocr"] + (f"/{r['ocr_code']}" if r["ocr_code"] else "")
@@ -156,6 +264,8 @@ def report(count, interval, m):
         print(f"structured evidence  {structured:,.0f} B/capture (compressed raw + text)  ->  "
               f"{structured * per_day / 1e9:.2f} GB per 8 h at {interval}s")
     report_ax(rows, m, interval, per_day)
+    if m["input"]:
+        report_input(m, count, interval, per_day)
     if stored:
         sizes = [r["shot_bytes"] for r in stored]
         print(f"PNG bytes   mean {statistics.mean(sizes):,.0f}  min {min(sizes):,}  max {max(sizes):,}  ->  "
@@ -234,6 +344,9 @@ def main():
     parser.add_argument("--count", type=int, default=40)
     parser.add_argument("--interval", type=float, default=DEFAULT_CAPTURE_INTERVAL_S)
     parser.add_argument("--ocr-timeout", type=float, default=DEFAULT_TIMEOUT_S)
+    parser.add_argument("--input", action="store_true", help="also run the input event tap")
+    parser.add_argument("--synthetic-input", action="store_true", help="--input plus harmless synthetic events")
+    parser.add_argument("--stub-capture", action="store_true", help="fake context/screenshot/readers (event path only)")
     parser.add_argument("--ax-apps", help="comma-separated bundle ids: time the AX reader alone on these running apps")
     parser.add_argument("--keep", action="store_true", help="keep the temp directory")
     args = parser.parse_args()
@@ -241,7 +354,8 @@ def main():
         return measure_apps(args.ax_apps.split(","), args.count, min(args.interval, 1.0))
     root = Path(tempfile.mkdtemp(prefix="trace-v2-measure-")).resolve()
     try:
-        report(args.count, args.interval, run(args.count, args.interval, root, args.ocr_timeout))
+        report(args.count, args.interval, run(args.count, args.interval, root, args.ocr_timeout, args.input,
+                                                       args.synthetic_input, args.stub_capture))
     finally:
         if args.keep:
             print(f"kept: {root}")

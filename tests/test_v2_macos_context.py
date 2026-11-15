@@ -4,9 +4,10 @@ import json
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 try:
-    from trace_v2.macos import ContextSource, browser
+    from trace_v2.macos import ContextSource, browser, session, windows
     ON_MAC = sys.platform == "darwin"
 except ImportError:                                  # not macOS, or pyobjc is not installed in this interpreter
     ON_MAC = False
@@ -31,6 +32,21 @@ class RealContext(unittest.TestCase):
 
     def test_secure_input_is_a_bool(self):
         self.assertIsInstance(ContextSource().secure_input(), bool)
+
+
+@unittest.skipUnless(ON_MAC, "macOS with pyobjc only")
+class LockedContext(unittest.TestCase):
+    def test_locked_screen_reads_nothing_about_the_window(self):
+        front_window = mock.Mock(return_value={"id": 1, "title": "secret.txt", "bounds": [0, 0, 10, 10]})
+        browser_state = mock.Mock(return_value={"url": "https://a.example"})
+        with mock.patch.object(session, "screen_locked", return_value=True), \
+                mock.patch.object(windows, "front_window", front_window):
+            ctx = ContextSource(browser_state=browser_state).context()
+        ctx.validate()
+        self.assertEqual(ctx.window, {"locked": True})
+        front_window.assert_not_called()
+        browser_state.assert_not_called()
+        self.assertGreater(ctx.display["pixel_size"][0], 0)
 
 
 def _run(stdout="", stderr="", code=0, timeout=False):

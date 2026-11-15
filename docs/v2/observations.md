@@ -52,7 +52,9 @@ existing Observation; different content raises `DuplicateObservation`.
 Order: context -> gate -> screenshot and readers -> redaction -> store. A gated context is never captured.
 - Withheld (an Observation with only time, reason and bundle id; no screenshot, reader output, title, URL or
   events): built-in excluded apps (password managers, Keychain) plus the user's list, private windows (adapter
-  flag or title), built-in sensitive sites plus the user's patterns, and secure keyboard input (unknown = on).
+  flag or title), built-in sensitive sites plus the user's patterns, secure keyboard input (unknown = on), a
+  locked screen (`screen_locked`, nothing behind the lock is read) and a failed context read
+  (`context_unavailable`: when the front app is unknown no other gate can judge it, so the capture fails closed).
 - Redacted: API keys, GitHub/Slack/AWS tokens, JWTs, private keys, `password: x` assignments and Luhn-valid card
   numbers are replaced with `[REDACTED:kind]` in OCR, accessibility, window title and URL. Values of
   `AXSecureTextField` nodes are removed. If OCR or accessibility text held a secret, the screenshot is withheld

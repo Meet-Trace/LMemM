@@ -71,5 +71,20 @@ class ScreenLockedGate(unittest.TestCase):
             self.assertEqual(obs["metadata"]["privacy"]["reason"], "screen_locked")
 
 
+class ContextUnavailableGate(unittest.TestCase):
+    def test_unknown_context_is_withheld_fail_closed(self):
+        decision = privacy.gate(Context({}, {}, {}, error_code="KeyError"), privacy.PrivacyPolicy())
+        self.assertEqual((decision.withheld, decision.reason), (True, "context_unavailable"))
+
+    def test_failed_context_never_captures_pixels(self):
+        sources = Sources(context_error=KeyError("bounds"))
+        with TempStore() as t:
+            result = observe_once(t.store, sources, EventBuffer(start_ns=T0 - 10 * SEC), "s:0")
+            self.assertEqual(sources.screenshots, 0)
+            obs = t.store.get(result.observation_id)
+            self.assertEqual(obs["metadata"]["privacy"]["reason"], "context_unavailable")
+            self.assertEqual(obs["metadata"]["extraction_status"]["context"]["status"], "failed")
+
+
 if __name__ == "__main__":
     unittest.main()

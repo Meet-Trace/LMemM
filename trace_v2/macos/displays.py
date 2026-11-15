@@ -22,12 +22,16 @@ def _overlap(a, b):
     return w * h if w > 0 and h > 0 else 0
 
 
+def main_display():
+    return int(Quartz.CGMainDisplayID())
+
+
 def display_for_rect(rect):
     """The active display sharing the most area with `rect` ([x,y,w,h] points); the main display when none does."""
     err, ids, _count = Quartz.CGGetActiveDisplayList(16, None, None)
     if err or not ids:
-        return int(Quartz.CGMainDisplayID())
+        return main_display()
     best = max(ids, key=lambda d: _overlap(rect, _rect(Quartz.CGDisplayBounds(d))))
     if _overlap(rect, _rect(Quartz.CGDisplayBounds(best))) == 0:
-        return int(Quartz.CGMainDisplayID())
+        return main_display()
     return int(best)

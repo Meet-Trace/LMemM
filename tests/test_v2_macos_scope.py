@@ -15,7 +15,7 @@ from pathlib import Path
 from trace_v2.observations import Context, ScopeUnavailable, ScreenshotCapture
 from trace_v2.observations.events import EventBuffer
 from trace_v2.observations.pipeline import observe_once
-from v2_observation_helpers import SEC, TempStore, context
+from v2_observation_helpers import TempStore
 
 try:
     import Quartz
@@ -162,7 +162,7 @@ class RealScope(unittest.TestCase):
         return self.source.screenshot(self.display, scope=scope, pid=pid, bundle_id=bundle_id)
 
     def test_front_app_scope_leaves_out_another_apps_window_that_floats_over_it(self):
-        with Window(MAGENTA, 60, 60, 500, 400) as front, Window(CYAN, 260, 160, 500, 400, "floating") as banner:
+        with Window(MAGENTA, 60, 60, 500, 400) as front, Window(CYAN, 260, 160, 500, 400, "floating"):
             wide = self.shoot("display", front.pid)
             narrow = self.shoot("front_app", front.pid)
         self.assertEqual((wide.scope, narrow.scope), ("display", "front_app"))

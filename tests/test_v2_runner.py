@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 from trace_v2 import run as run_module
-from trace_v2.observations import Context, InteractionEvent, ObservationStore, settings
+from trace_v2.observations import Context, ObservationStore, settings
 from trace_v2.runner import (AlreadyRunning, InstanceLock, Lifecycle, Runner, read_status, resolve_interval)
 from test_v2_observation_pipeline import Sources
 from v2_observation_helpers import TempStore, click, context
@@ -315,7 +315,7 @@ class StatsRecord(unittest.TestCase):
     def test_periodic_stats_are_written_outside_the_evidence_tables(self):
         with TempStore() as t:
             runner = make_runner(t.store, interval=0.1, stats_every_s=0.2)
-            with InFlight(runner) as flight:
+            with InFlight(runner):
                 path = Path(t.store.root) / "runner_stats.json"
                 self.assertTrue(wait_for(path.exists))
                 record = json.loads(path.read_text())

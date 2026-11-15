@@ -50,6 +50,9 @@ existing Observation; different content raises `DuplicateObservation`.
 
 ## Privacy gates (`privacy.py`), before ingestion
 Order: context -> gate -> screenshot and readers -> redaction -> store. A gated context is never captured.
+Gate order (first that applies is recorded): `context_unavailable` (fail closed), `screen_locked`, `excluded_app`,
+`private_window`, `excluded_site`, `secure_input`. A locked screen is decided before secure input because the lock
+screen itself turns secure keyboard entry on (PR E fixed an order that recorded a locked screen as `secure_input`).
 - Withheld (an Observation with only time, reason and bundle id; no screenshot, reader output, title, URL or
   events): built-in excluded apps (password managers, Keychain) plus the user's list, private windows (adapter
   flag or title), built-in sensitive sites plus the user's patterns, secure keyboard input (unknown = on), a
@@ -108,9 +111,13 @@ context -> display id -> screenshot -> OCR and accessibility for the pipeline (`
   (`automation_denied`, `automation_timeout`, ...). Safari has no scriptable private flag: `private_error:
   "unsupported_safari"`, private Safari windows are not detected beyond the title gate.
 - Screenshot: ScreenCaptureKit `SCScreenshotManager` (macOS 14+), original pixels, no downscale, no cursor, lossless
-  PNG via ImageIO. The PyObjC ScreenCaptureKit wrapper is not installed, so the framework is loaded with
+  PNG via ImageIO. What the pixels may contain is the setting `screenshot_scope` (below). The PyObjC ScreenCaptureKit wrapper is not installed, so the framework is loaded with
   `objc.loadBundle` and the two block signatures are registered by hand. `CGDisplayCreateImage` is the fallback only
   when SCK cannot load; `ScreenshotSource.last_path` says which ran.
+- Reader recovery: both readers are retried on every capture and each failure is recorded as that capture's reader
+  status/error code. OCR runs on a worker thread; a request that times out may keep running inside Vision, so it is
+  parked and the next capture starts a new request (at most two parked, then fail-fast `Timeout` until one returns;
+  before PR E every later capture failed until the first returned, measured at over 20 s on a loaded Mac).
 - OCR (`ocr.py`, reader `vision-ocr/1`): `VNRecognizeTextRequest` on the exact PNG bytes of this capture (PNG data ->
   CGImageSource -> CGImage; no second capture, no temp file), accurate level, language correction on, automatic
   language detection (macOS 13+). `raw` = `{lines: [{text, confidence, box [x, y, w, h] in image pixels, top-left
@@ -150,11 +157,23 @@ context -> display id -> screenshot -> OCR and accessibility for the pipeline (`
   development the terminal or Python that runs the tests).
 - Permissions (never prompted by us): Screen Recording (pixels; without it window titles are empty) and, per browser,
   Automation (URL/private). A missing Screen Recording grant raises `PermissionError`, recorded as a screenshot failure.
-- Limitations: only the display holding the front window is captured; the PNG can contain anything on that display
-  (other apps' windows, notifications, a second app beside a safe one) that the context gates cannot see; the gates
-  judge the front window only. Chrome's AppleScript "front window" can differ from the CGWindow front window.
+- Screenshot scope (setting `screenshot_scope`, `settings.get/set_screenshot_scope`, default `front_app`, picked up
+  while running): `front_app` uses `SCContentFilter(display, includingApplications=[the front app], exceptingWindows=[])`,
+  so only windows of the application the gates judged are composited: other apps' windows, notification banners,
+  Notification Center, the Dock and the menu bar are not in the image. The canvas stays the full display size and
+  everything that is not the front app is fully transparent (alpha 0), so the PNG is still lossless and un-scaled.
+  The app is the one `context()` reported (matched by pid, else a unique bundle id), so the image and the gate always
+  concern the same app even if the user switched apps in between. If no running application matches, or
+  ScreenCaptureKit is unavailable, the screenshot is withheld as `scope_unavailable`; it never falls back to the whole
+  display. `display` is the weaker-privacy mode: the whole display, every visible window and banner on it. Each
+  observation records the scope in `metadata.privacy.screenshot_scope`.
+  Residual limits of `front_app`: other windows of the SAME app are included (a second window, a floating panel or
+  picture-in-picture it owns, its own menus and tooltips); sensitive content of the front app that no gate recognises
+  is still captured; a banner belongs to Notification Center, so it is excluded only because it is a different process;
+  an app whose pid ScreenCaptureKit cannot see yields `scope_unavailable` (no pixels, but AX and events continue).
+  Chrome's AppleScript "front window" can differ from the CGWindow front window.
 - Interval: setting `capture_interval_s` (default 3.0, 0.5..3600) via `settings.get/set_capture_interval`;
-  `ContinuousObserver` defaults to it. The runner reads it in a later PR.
+  `ContinuousObserver` defaults to it. The runner (`docs/v2/runner.md`) reads it; `--interval` overrides it for one run.
 - Cost: `scripts/v2_measure_capture.py` (temp store, deleted afterwards): capture and OCR latency p50/p95/max, CPU per
   OCR, peak RSS, text chars, compressed raw bytes and projected GB per 8 h, missed ticks (it drives
   `ContinuousObserver`). Measured at 3 s on one MacBook display (40 captures, a mostly static screen): OCR p50 0.45 s,
@@ -181,8 +200,14 @@ the observer uses, so attribution is unchanged. The decision logic is platform i
   (after wake or a clock step); already converted events keep their timestamps. `stats()["clock_resyncs"]` counts them.
 - Privacy: keypresses are passed with `secure_input=IsSecureEventInputEnabled()` (True when unknown) so they are
   suppressed and counted while a password field has focus (macOS also stops delivering key events to taps then).
-  `tap.keyboard_blocked` (set by the runner from each context decision) drops every keyboard event while a gated app
-  is in front, counted as `dropped_gated`; independently the capture-level gate withholds all events of a gated capture.
+  The tap also asks an `inputs.InputGate` for every event (PR E): while a gated app is in front or the screen is locked
+  it drops EVERY event type (keys, clicks, scrolls and cursor positions, since click positions inside a password manager
+  are as sensitive as its keys), counted as `dropped_gated` on the tap and on the buffer (so the next Observation's
+  `event_stats.dropped_gated` shows it). The gate is fed by the capture-level decision, by NSWorkspace
+  app-activation notifications (an excluded app blocks at once, not at the next capture), by lock/unlock notifications and
+  by a front-app re-read every 5 s (repairs a lost notification); it starts blocked. `tap.keyboard_blocked` stays as an
+  alias. Independently the capture-level gate withholds all events of a gated capture (`discarded_privacy`).
+  Residual: the few milliseconds between a front-app change and its notification are not covered.
 - Permission: Input Monitoring only. `CGPreflightListenEventAccess()` is checked, `CGRequestListenEventAccess()` is never
   called. Without it (or if the tap cannot be created) `start()` returns `unavailable` with `reason`
   (`input_monitoring_not_granted`, `tap_create_failed`, `tap_start_timeout`) and capture continues without events.
@@ -198,7 +223,7 @@ the observer uses, so attribution is unchanged. The decision logic is platform i
   about which window was hit. Scroll events from a trackpad are frequent (about 60-120 per second while scrolling).
 
 ## Tests
-`tests/test_v2_observation_{store,retention,migrations,pipeline,privacy,forget,capture_settings}.py` and, on macOS only,
+`tests/test_v2_observation_{store,retention,migrations,pipeline,privacy,forget,capture_settings}.py`, PR E's `tests/test_v2_{runner,integration_review}.py` (platform independent) and `tests/test_v2_macos_{runner,scope,input_gate}.py` (real run, real screenshot scope, per-event input gate), and, on macOS only,
 `tests/test_v2_inputs.py` (platform independent: sampler, clock, key classes, decoding) and `tests/test_v2_macos_{context,capture,ocr,ocr_vision,accessibility,accessibility_real,input}.py` (screenshot tests skip without Screen Recording; `ocr` uses
 a fake recognizer, `ocr_vision` renders synthetic PNGs and runs real Vision through `build_draft`, `accessibility` uses
 fake elements, `accessibility_real` reads a window owned by a subprocess and skips without Accessibility permission, `input` posts harmless synthetic events and skips without Input Monitoring; its key test also skips while secure keyboard entry is on), run with `./scripts/test.sh`.

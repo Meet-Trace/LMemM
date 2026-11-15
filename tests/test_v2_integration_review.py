@@ -19,7 +19,7 @@ from pathlib import Path
 
 from trace_v2 import run as run_module
 from trace_v2.inputs import InputGate
-from trace_v2.observations import (Context, InteractionEvent, ObservationStore, ScopeUnavailable, ScreenshotCapture,
+from trace_v2.observations import (Context, ObservationStore, ScopeUnavailable, ScreenshotCapture,
                                    privacy, settings)
 from trace_v2.observations.events import EventBuffer
 from trace_v2.observations.pipeline import ContinuousObserver, ReaderUnavailable, observe_once
@@ -379,7 +379,7 @@ class InstanceLockRules(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "runner.lock").write_text("999999\n")                     # what a crashed runner leaves behind
             self.assertEqual(InstanceLock.held(d), (False, None))
-            with InstanceLock(d) as lock:
+            with InstanceLock(d):
                 self.assertEqual(int((Path(d) / "runner.lock").read_text()), os.getpid())
 
     def test_a_killed_holder_releases_the_lock_because_it_is_an_flock(self):

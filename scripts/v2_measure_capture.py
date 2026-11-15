@@ -1,9 +1,14 @@
-"""Measure real V2 capture cost: N observations at the capture interval through the real pipeline, with Vision OCR.
+"""Measure real V2 capture cost: N observations at the capture interval through the real pipeline, with Vision OCR
+and the accessibility reader.
 
     .venv/bin/python scripts/v2_measure_capture.py [--count 40] [--interval 3.0] [--ocr-timeout 10] [--keep]
+    .venv/bin/python scripts/v2_measure_capture.py --ax-apps com.apple.finder,com.microsoft.VSCode [--count 10]
+
+--ax-apps skips the pipeline and times AccessibilityReader alone on the named running apps' windows (front or not),
+for per-app numbers when the frontmost app cannot be chosen. Everything else is the full pipeline.
 
 Writes only to a fresh temp directory, deleted at the end unless --keep. Never touches V1 data or the real V2 store.
-The run is driven by ContinuousObserver, so missed ticks (a capture that overran its interval) are counted exactly as
+The run is driven by ContinuousObserver, so missed ticks (a capture that overran its interval; OCR and AX together) are counted exactly as
 they would be in production. One unmeasured warm-up OCR runs first, with a long timeout, because the first Vision call
 on a machine can take a minute or more (model compilation) and would otherwise be recorded as a Timeout.
 
@@ -24,9 +29,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from trace_v2.macos import MacSources, VisionOCR           # noqa: E402
+from trace_v2.macos import AccessibilityReader, MacSources, VisionOCR  # noqa: E402
 from trace_v2.macos.ocr import DEFAULT_TIMEOUT_S           # noqa: E402
-from trace_v2.observations import ObservationStore         # noqa: E402
+from trace_v2.observations import Context, ObservationStore  # noqa: E402
 from trace_v2.observations.events import EventBuffer       # noqa: E402
 from trace_v2.observations.pipeline import ContinuousObserver  # noqa: E402
 from trace_v2.observations.settings import DEFAULT_CAPTURE_INTERVAL_S  # noqa: E402
@@ -40,17 +45,24 @@ def percentile(values, p):
     return ordered[min(len(ordered) - 1, round(p * (len(ordered) - 1)))]
 
 
-class MeasuredOCR:
-    """Wraps the OCR reader and records process CPU and wall time per read (the pipeline thread waits while it runs)."""
+class Measured:
+    """Wraps a reader; records process CPU and wall time per read (the pipeline thread waits while it runs), and for
+    AX the node count, truncation flags and frontmost app of each successful read."""
 
     def __init__(self, reader):
         self._reader, self.version = reader, reader.version
-        self.cpu, self.wall = [], []
+        self.cpu, self.wall, self.reads = [], [], []
 
     def read(self, *args):
         wall, proc = time.perf_counter(), time.process_time()
         try:
-            return self._reader.read(*args)
+            raw, text = self._reader.read(*args)
+            stats = raw.get("stats") if isinstance(raw, dict) else None
+            if stats:
+                self.reads.append({"app": raw["app"]["bundle_id"], "nodes": stats["nodes"],
+                                   "truncated": sorted(k for k, v in raw["truncated"].items() if v),
+                                   "ms": (time.perf_counter() - wall) * 1000, "chars": len(text)})
+            return raw, text
         finally:
             self.cpu.append(time.process_time() - proc)
             self.wall.append(time.perf_counter() - wall)
@@ -74,9 +86,15 @@ def collect(store, observation_ids):
         ocr, shot = obs["evidence"]["ocr"], obs["evidence"]["screenshot"]
         blob = store.db.execute("SELECT length(raw) FROM extractions WHERE observation_id=? AND reader='ocr'",
                                 (oid,)).fetchone()[0]
+        ax = obs["evidence"]["accessibility"]
+        ax_blob = store.db.execute("SELECT length(raw) FROM extractions WHERE observation_id=? AND reader='accessibility'",
+                                   (oid,)).fetchone()[0]
         started, finished = ocr["started_at_ns"], ocr["finished_at_ns"]
         rows.append({"shot": shot["status"], "shot_bytes": shot["byte_size"], "ocr": ocr["status"],
                      "ocr_code": ocr["error_code"], "chars": len(ocr["text"] or ""), "raw_zlib": blob or 0,
+                     "ax": ax["status"], "ax_code": ax["error_code"], "ax_zlib": ax_blob or 0,
+                     "ax_chars": len(ax["text"] or ""),
+                     "ax_s": (ax["finished_at_ns"] - ax["started_at_ns"]) / 1e9 if ax["started_at_ns"] and ax["finished_at_ns"] else None,
                      "ocr_s": (finished - started) / 1e9 if started and finished else None,
                      "withheld": bool(obs["metadata"].get("privacy", {}).get("withheld"))})
     return rows
@@ -84,8 +102,8 @@ def collect(store, observation_ids):
 
 def run(count, interval, root, ocr_timeout):
     store = ObservationStore(root / "data", legacy_archive=root / "Legacy-V1")
-    ocr = MeasuredOCR(VisionOCR(timeout_s=ocr_timeout))
-    sources, buffer = MacSources(ocr=ocr), EventBuffer(start_ns=time.time_ns())
+    ocr, ax = Measured(VisionOCR(timeout_s=ocr_timeout)), Measured(AccessibilityReader())
+    sources, buffer = MacSources(ocr=ocr, accessibility=ax), EventBuffer(start_ns=time.time_ns())
     warmup = warm_up(sources)
     observer = ContinuousObserver(store, sources, buffer, interval_s=interval)
     ticks, tick = [], observer.tick
@@ -99,7 +117,7 @@ def run(count, interval, root, ocr_timeout):
     stats = observer.run(max_ticks=count)
     rows = collect(store, [r["observation_id"] for r in store.list(limit=1000)])
     store.close()
-    return {"warmup": warmup, "ticks": ticks, "ocr": ocr, "rows": rows, "stats": stats, "api": sources._screenshot.last_path}
+    return {"warmup": warmup, "ticks": ticks, "ocr": ocr, "ax": ax, "rows": rows, "stats": stats, "api": sources._screenshot.last_path}
 
 
 def ms(values):
@@ -137,6 +155,7 @@ def report(count, interval, m):
         print(f"raw OCR zlib bytes/capture  mean {statistics.mean(raw):,.0f}  min {min(raw):,}  max {max(raw):,}")
         print(f"structured evidence  {structured:,.0f} B/capture (compressed raw + text)  ->  "
               f"{structured * per_day / 1e9:.2f} GB per 8 h at {interval}s")
+    report_ax(rows, m, interval, per_day)
     if stored:
         sizes = [r["shot_bytes"] for r in stored]
         print(f"PNG bytes   mean {statistics.mean(sizes):,.0f}  min {min(sizes):,}  max {max(sizes):,}  ->  "
@@ -144,13 +163,82 @@ def report(count, interval, m):
     print(f"peak RSS    {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.0f} MB")
 
 
+def report_ax(rows, m, interval, per_day):
+    ax_ok = [r for r in rows if r["ax"] == "succeeded"]
+    outcomes = {}
+    for r in rows:
+        key = r["ax"] + (f"/{r['ax_code']}" if r["ax_code"] else "")
+        outcomes[key] = outcomes.get(key, 0) + 1
+    print(f"AX outcomes: {outcomes}")
+    if not ax_ok:
+        return
+    print(f"AX latency ms  {ms([r['ax_s'] for r in ax_ok])}")
+    cpu, reads = m["ax"].cpu, m["ax"].reads
+    print(f"AX cpu s/read  mean {statistics.mean(cpu):.3f}  max {max(cpu):.3f}")
+    nodes = [r["nodes"] for r in reads]
+    print(f"AX nodes/read  mean {statistics.mean(nodes):,.0f}  min {min(nodes)}  max {max(nodes)}  "
+          f"truncated reads: {sum(bool(r['truncated']) for r in reads)}")
+    raw = [r["ax_zlib"] for r in ax_ok]
+    both = statistics.mean(r["ax_zlib"] + r["ax_chars"] + r["raw_zlib"] + r["chars"] for r in ax_ok)
+    print(f"AX raw zlib bytes/capture  mean {statistics.mean(raw):,.0f}  max {max(raw):,}  "
+          f"->  {statistics.mean(raw) * per_day / 1e9:.3f} GB per 8 h; OCR + AX structured "
+          f"{both * per_day / 1e9:.3f} GB per 8 h")
+    apps = {}
+    for r in reads:
+        apps.setdefault(r["app"], []).append(r)
+    for app, items in sorted(apps.items()):
+        print(f"  {app}: {len(items)} reads, nodes mean {statistics.mean(i['nodes'] for i in items):,.0f}, "
+              f"p50 {percentile([i['ms'] for i in items], .5):.0f} ms, max {max(i['ms'] for i in items):.0f} ms, "
+              f"text {statistics.mean(i['chars'] for i in items):,.0f} chars, "
+              f"truncated {sum(bool(i['truncated']) for i in items)}")
+
+
+def running_app(bundle_id):
+    import AppKit
+    for app in AppKit.NSWorkspace.sharedWorkspace().runningApplications():
+        if app.bundleIdentifier() == bundle_id:
+            return app.processIdentifier()
+    return None
+
+
+def measure_apps(bundle_ids, count, interval):
+    """Time AccessibilityReader alone on each running app's window (works for apps that are not frontmost)."""
+    reader = Measured(AccessibilityReader())
+    for bundle_id in bundle_ids:
+        pid = running_app(bundle_id)
+        if pid is None:
+            print(f"{bundle_id}: not running")
+            continue
+        context = Context({"bundle_id": bundle_id, "name": bundle_id, "pid": pid}, {}, {})
+        errors = {}
+        for _ in range(count):
+            try:
+                reader.read(context)
+            except Exception as e:                          # noqa: BLE001 - reported per app
+                errors[type(e).__name__] = errors.get(type(e).__name__, 0) + 1
+            time.sleep(interval)
+        mine = [r for r in reader.reads if r["app"] == bundle_id]
+        if mine:
+            print(f"{bundle_id}: {len(mine)}/{count} ok, nodes mean {statistics.mean(r['nodes'] for r in mine):,.0f} "
+                  f"max {max(r['nodes'] for r in mine)}, {ms([r['ms'] / 1000 for r in mine])}, text "
+                  f"{statistics.mean(r['chars'] for r in mine):,.0f} chars, truncated "
+                  f"{sum(bool(r['truncated']) for r in mine)}, errors {errors or '-'}")
+        else:
+            print(f"{bundle_id}: no successful read, errors {errors}")
+    print(f"cpu s/read  mean {statistics.mean(reader.cpu):.3f}  max {max(reader.cpu):.3f}  "
+          f"peak RSS {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6:.0f} MB")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--count", type=int, default=40)
     parser.add_argument("--interval", type=float, default=DEFAULT_CAPTURE_INTERVAL_S)
     parser.add_argument("--ocr-timeout", type=float, default=DEFAULT_TIMEOUT_S)
+    parser.add_argument("--ax-apps", help="comma-separated bundle ids: time the AX reader alone on these running apps")
     parser.add_argument("--keep", action="store_true", help="keep the temp directory")
     args = parser.parse_args()
+    if args.ax_apps:
+        return measure_apps(args.ax_apps.split(","), args.count, min(args.interval, 1.0))
     root = Path(tempfile.mkdtemp(prefix="trace-v2-measure-")).resolve()
     try:
         report(args.count, args.interval, run(args.count, args.interval, root, args.ocr_timeout))

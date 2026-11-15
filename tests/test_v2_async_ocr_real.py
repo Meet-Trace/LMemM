@@ -16,6 +16,8 @@ from v2_observation_helpers import draft
 from test_v2_async_ocr import view
 
 try:
+    import Quartz  # noqa: F401
+    import Vision  # noqa: F401
     from trace_v2.macos.ocr_client import OcrWorkerClient
     from v2_macos_render import render_png
     ON_MAC = sys.platform == "darwin"

@@ -6,12 +6,15 @@ gate(context, policy) -> Decision
     Runs on context metadata only, before any pixel or text is read. A withheld context produces an Observation
     that records only that time passed and why (reason, the app's bundle id), with no screenshot, no reader
     output, no window title or URL, and no interaction events. Reasons:
+    Reasons, in the order they are decided (the first that applies is recorded):
+        context_unavailable  the context adapter failed, so no other gate can judge what is in front: fail closed
+        screen_locked      the adapter flagged the screen locked (window["locked"] is True), or the lock screen /
+                           screensaver is in front while secure keyboard entry is on. Decided before secure_input
+                           because the lock screen itself enables secure keyboard entry.
         excluded_app       bundle id in the built-in list (password managers, Keychain) or the user's list
         private_window     the adapter flagged the window private, or its title matches PRIVATE_TITLE
         excluded_site      the URL matches a built-in sensitive-site pattern or one of the user's patterns
         secure_input       macOS secure keyboard entry is on (a password field has focus)
-        screen_locked      the adapter flagged the screen locked (window["locked"] is True) or a screensaver runs
-        context_unavailable  the context adapter failed, so no other gate can judge what is in front: fail closed
 
 redact(value) -> (value with secrets replaced, {kind: count})
     Walks reader output and context strings. Each match is replaced with "[REDACTED:<kind>]"; the rest of the
@@ -29,6 +32,7 @@ BUILTIN_EXCLUDED_APPS = frozenset({
     "com.apple.Passwords", "com.lastpass.LastPass", "com.dashlane.dashlanephonefinal", "org.keepassxc.keepassxc",
     "com.nordpass.macos.NordPass",
 })
+LOCK_SCREEN_BUNDLES = frozenset({"com.apple.loginwindow", "com.apple.ScreenSaver.Engine"})
 PRIVATE_TITLE = re.compile(r"private browsing|incognito|inprivate|\bprivate (?:tab|window)\b|\(private\)", re.I)
 BUILTIN_SITE_PATTERNS = (
     r"accounts\.google\.com", r"appleid\.apple\.com", r"/(?:login|signin|sign-in|password|2fa|mfa)\b",
@@ -101,9 +105,14 @@ class Decision:
 
 
 def gate(context, policy, secure_input=False):
+    # Order matters. A context that could not be read fails closed first. The locked screen comes next: the lock screen
+    # itself turns secure keyboard entry on, so judging secure_input first would record a locked screen as
+    # `secure_input` and hide that the screen was locked.
     if context.error_code:
         return Decision(True, "context_unavailable")
     app, window = context.application or {}, context.window or {}
+    if window.get("locked") is True or (secure_input and (app.get("bundle_id") in LOCK_SCREEN_BUNDLES)):
+        return Decision(True, "screen_locked")
     if app.get("bundle_id") in policy.all_excluded_apps():
         return Decision(True, "excluded_app")
     if window.get("private") is True or PRIVATE_TITLE.search(str(window.get("title") or "")):
@@ -113,8 +122,6 @@ def gate(context, policy, secure_input=False):
         return Decision(True, "excluded_site")
     if secure_input:
         return Decision(True, "secure_input")
-    if window.get("locked") is True:
-        return Decision(True, "screen_locked")
     return Decision(False)
 
 

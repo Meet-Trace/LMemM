@@ -102,6 +102,15 @@ class EventBuffer:
       and is counted (`clock_regression`).
     - Shutdown: the observer takes one final Observation when stopped; events after that are counted by
       pending() and reported, never silently dropped.
+    - Pauses (sleep, fast user switching): between begin_pause() and end_pause() every arriving event is refused and
+      counted (`discarded_paused`). Arrival decides, not the timestamp: right after wake the input clock can still be
+      stale (re-synced by the wake notification), so an event stamped from it must not be trusted. The window is not
+      cut: the first Observation after the pause spans the gap, which is true (nothing was recorded in it).
+    - Gated input: the input tap drops events while a gated app is in front or the screen is locked and reports each
+      with note_dropped("gated"); the count (`dropped_gated`) rides on the next Observation's event_stats.
+    Every event that arrives is therefore stored in exactly one Observation or counted: before_start, rejected,
+    suppressed_secure_input, dropped_overflow, discarded_paused, dropped_gated (not stored), or discarded_privacy (a
+    withheld Observation's events, counted by the pipeline).
     """
 
     def __init__(self, start_ns, max_events=200_000):
@@ -114,15 +123,35 @@ class EventBuffer:
         self._start = start_ns
         self._stats = self._zero()
         self._out = None
+        self._paused = False
 
     @staticmethod
     def _zero():
         return {"received": 0, "rejected": 0, "suppressed_secure_input": 0, "dropped_overflow": 0,
-                "before_start": 0}
+                "before_start": 0, "discarded_paused": 0, "dropped_gated": 0}
+
+    def begin_pause(self):
+        with self._lock:
+            self._paused = True
+
+    def end_pause(self):
+        with self._lock:
+            self._paused = False
+
+    def note_dropped(self, reason="gated"):
+        """The input source dropped an event on purpose before it reached the buffer (gated app, locked screen)."""
+        key = f"dropped_{reason}"
+        with self._lock:
+            if key not in self._stats:
+                raise KeyError(key)
+            self._stats[key] += 1
 
     def add(self, event, secure_input=False):
         with self._lock:
             self._stats["received"] += 1
+            if self._paused:
+                self._stats["discarded_paused"] += 1
+                return False
             if secure_input and getattr(event, "type", None) == "keypress":
                 self._stats["suppressed_secure_input"] += 1
                 return False

@@ -235,7 +235,7 @@ class _Source:
     def secure_input(self):
         return False
 
-    def screenshot(self, display_id):
+    def screenshot(self, display_id, **_scope):
         from trace_v2.observations import ScreenshotCapture
         return ScreenshotCapture(PNG, "png", 32, 32, T0)
 

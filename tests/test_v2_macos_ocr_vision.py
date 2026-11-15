@@ -38,7 +38,7 @@ class _Screen:
     def __init__(self, png):
         self.png = png
 
-    def screenshot(self, display_id):
+    def screenshot(self, display_id, **_scope):
         return ScreenshotCapture(self.png, "png", WIDTH, HEIGHT, T0)
 
 

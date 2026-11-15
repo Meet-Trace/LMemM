@@ -178,7 +178,7 @@ class _Screens:
     def __init__(self, fail=False):
         self.fail, self.calls = fail, 0
 
-    def screenshot(self, display_id):
+    def screenshot(self, display_id, **_scope):
         self.calls += 1
         if self.fail:
             raise PermissionError("Screen Recording is not granted")

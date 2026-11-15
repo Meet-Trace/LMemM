@@ -18,9 +18,12 @@ uptime now, the latter being mach_absolute_time() * timebase). Mach time stops d
 wall and mach clocks disagree by over a second (after wake, or a clock step); `stats()["clock_resyncs"]` counts them.
 
 Privacy: keypresses are passed with secure_input=IsSecureEventInputEnabled() (True when unknown), so the buffer
-suppresses and counts them while a password field has focus. `keyboard_blocked` (set by the runner from each context
-decision) drops every keyboard event while a gated app is in front; these are counted as `dropped_gated`. Without that
-wiring the capture-level gate still withholds the whole capture's events for a gated context.
+suppresses and counts them while a password field has focus. `gate` (an inputs.InputGate, fed by the runner from each
+capture's privacy decision, from NSWorkspace app-activation notifications and from screen lock notifications) is asked
+for every event: while it is blocked (a gated app is in front, or the screen is locked) EVERY event type is dropped,
+cursor positions and clicks included, and counted (`dropped_gated`, and on the buffer so the next Observation's
+event_stats shows it). A tap built without a gate gets an open one; `keyboard_blocked` stays as a compatibility alias.
+The capture-level gate still withholds a whole capture's events for a gated context.
 
 If macOS disables the tap (timeout or user input) the callback re-enables it and counts `tap_reenabled`.
 """
@@ -30,7 +33,7 @@ import threading
 import time
 
 import Quartz
-from trace_v2.inputs import CursorSampler, MachClock, decode
+from trace_v2.inputs import CursorSampler, InputGate, MachClock, decode
 from trace_v2.inputs.sampling import DEFAULT_SAMPLE_MS
 from trace_v2.observations.models import InteractionEvent
 
@@ -73,17 +76,26 @@ def input_monitoring_granted():
 
 
 class InputTap:
-    def __init__(self, buffer, cursor_sample_ms=DEFAULT_SAMPLE_MS, secure_input=session.secure_input, clock=None):
+    def __init__(self, buffer, cursor_sample_ms=DEFAULT_SAMPLE_MS, secure_input=session.secure_input, clock=None,
+                 gate=None):
         self.buffer, self._secure_input = buffer, secure_input
+        self.gate = gate if gate is not None else InputGate(start_blocked=False)
         self.clock = clock or _mach_clock()
         self.sampler = CursorSampler(self._cursor_sample, cursor_sample_ms)
-        self.keyboard_blocked = False
         self.state, self.reason = "stopped", None
         self._thread = self._runloop = self._tap = None
         self._counts, self._stored = {}, {}
         self._dropped_gated = self._reenabled = self._errors = self._callback_ns = 0
 
     # ---- lifecycle ----
+
+    @property
+    def keyboard_blocked(self):
+        return self.gate.blocked
+
+    @keyboard_blocked.setter
+    def keyboard_blocked(self, blocked):
+        self.gate.force(blocked)
 
     def start(self):
         """-> "running" or "unavailable" (see `reason`). Idempotent while running."""
@@ -110,40 +122,60 @@ class InputTap:
         if self.state == "running":
             self.state = "stopped"
 
+    def resync_clock(self):
+        """After wake: uptime stood still while asleep, so the wall/uptime offset is re-captured."""
+        self.clock.resync()
+
     def stats(self):
         return {"state": self.state, "reason": self.reason, "raw": dict(self._counts), "stored": dict(self._stored),
                 "cursor_raw_moves": self.sampler.raw_moves, "cursor_samples": self.sampler.samples,
                 "cursor_finals": self.sampler.finals, "tap_reenabled": self._reenabled,
-                "dropped_gated": self._dropped_gated, "callback_errors": self._errors,
+                "dropped_gated": self._dropped_gated, "gate_blocked": self.gate.reason(), "callback_errors": self._errors,
                 "callback_cpu_ns": self._callback_ns, "clock_resyncs": self.clock.resyncs}
 
     # ---- run loop thread ----
 
     def _run(self, ready, failure):
-        tap = Quartz.CGEventTapCreate(Quartz.kCGSessionEventTap, Quartz.kCGHeadInsertEventTap,
-                                      Quartz.kCGEventTapOptionListenOnly, _mask(), self._callback, None)
-        if tap is None:
-            failure.append("tap_create_failed")
+        tap = source = timer = None
+        try:
+            tap = Quartz.CGEventTapCreate(Quartz.kCGSessionEventTap, Quartz.kCGHeadInsertEventTap,
+                                          Quartz.kCGEventTapOptionListenOnly, _mask(), self._callback, None)
+            if tap is None:
+                failure.append("tap_create_failed")
+                return
+            self._tap, self._runloop = tap, Quartz.CFRunLoopGetCurrent()
+            source = Quartz.CFMachPortCreateRunLoopSource(None, tap, 0)
+            Quartz.CFRunLoopAddSource(self._runloop, source, Quartz.kCFRunLoopCommonModes)
+            period = max(0.05, self.sampler.interval_ns / 2e9)
+            timer = Quartz.CFRunLoopTimerCreate(None, Quartz.CFAbsoluteTimeGetCurrent() + period, period, 0, 0,
+                                                self._housekeeping, None)
+            Quartz.CFRunLoopAddTimer(self._runloop, timer, Quartz.kCFRunLoopCommonModes)
+            Quartz.CGEventTapEnable(tap, True)
             ready.set()
-            return
-        self._tap, self._runloop = tap, Quartz.CFRunLoopGetCurrent()
-        source = Quartz.CFMachPortCreateRunLoopSource(None, tap, 0)
-        Quartz.CFRunLoopAddSource(self._runloop, source, Quartz.kCFRunLoopCommonModes)
-        period = max(0.05, self.sampler.interval_ns / 2e9)
-        timer = Quartz.CFRunLoopTimerCreate(None, Quartz.CFAbsoluteTimeGetCurrent() + period, period, 0, 0,
-                                            self._housekeeping, None)
-        Quartz.CFRunLoopAddTimer(self._runloop, timer, Quartz.kCFRunLoopCommonModes)
-        Quartz.CGEventTapEnable(tap, True)
-        ready.set()
-        Quartz.CFRunLoopRun()
-        self.sampler.tick(time.time_ns() + 2 * self.sampler.interval_ns)        # flush the final position
-        Quartz.CGEventTapEnable(tap, False)
-        Quartz.CFRunLoopTimerInvalidate(timer)
-        Quartz.CFMachPortInvalidate(tap)
+            Quartz.CFRunLoopRun()
+            self.sampler.tick(time.time_ns() + 2 * self.sampler.interval_ns)        # flush the final position
+        except BaseException as e:                            # noqa: BLE001 - this thread must end quietly, never hang exit
+            self._errors += 1
+            if not ready.is_set():
+                failure.append(f"tap_thread_{type(e).__name__}")
+            else:
+                self.state, self.reason = "failed", f"tap_thread_{type(e).__name__}"
+        finally:
+            for cleanup in (lambda: tap is not None and Quartz.CGEventTapEnable(tap, False),
+                            lambda: timer is not None and Quartz.CFRunLoopTimerInvalidate(timer),
+                            lambda: tap is not None and Quartz.CFMachPortInvalidate(tap)):
+                try:
+                    cleanup()
+                except Exception:                             # noqa: BLE001
+                    self._errors += 1
+            ready.set()                                       # never leave start() waiting
 
     def _housekeeping(self, timer, info):
-        self.sampler.tick(time.time_ns())
-        self.clock.check()
+        try:
+            self.sampler.tick(time.time_ns())
+            self.clock.check()
+        except Exception:                                     # noqa: BLE001 - an exception out of a CF callback must not escape
+            self._errors += 1
 
     def _callback(self, proxy, event_type, event, refcon):
         started = time.thread_time_ns()
@@ -163,12 +195,13 @@ class InputTap:
         if kind is None:
             return
         self._counts[kind] = self._counts.get(kind, 0) + 1
+        if self.gate.blocked:                               # gated app in front or screen locked: nothing is kept
+            self._dropped_gated += 1
+            self.buffer.note_dropped("gated")
+            return
         ticks, where = Quartz.CGEventGetTimestamp(event), Quartz.CGEventGetLocation(event)
         if kind == "mouse_moved":
             self.sampler.move(self.clock.to_wall_ns(ticks), where.x, where.y)
-            return
-        if kind in ("key_down", "key_up", "flags_changed") and self.keyboard_blocked:
-            self._dropped_gated += 1
             return
         decoded = decode(self._raw(kind, event_type, event, ticks, where), self.clock)
         if decoded is not None:

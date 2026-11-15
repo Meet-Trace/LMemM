@@ -11,7 +11,7 @@ from v2_observation_helpers import SEC, T0, TempStore
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 try:
     import Quartz
-    from trace_v2.macos import ContextSource, MacSources, ScreenshotSource
+    from trace_v2.macos import ContextSource, MacSources, ScreenshotSource, VisionOCR
     ON_MAC = sys.platform == "darwin"
     GRANTED = bool(Quartz.CGPreflightScreenCaptureAccess())
 except ImportError:                                  # not macOS, or pyobjc is not installed in this interpreter
@@ -20,7 +20,8 @@ NEED = "Screen Recording is not granted to the process running the tests (System
 
 
 def real_sources():
-    return MacSources(context_source=ContextSource(browser_state=lambda bundle_id: {}))
+    # a long OCR timeout: the first Vision call on a fresh OS can take over a minute (see test_v2_macos_ocr_vision)
+    return MacSources(context_source=ContextSource(browser_state=lambda bundle_id: {}), ocr=VisionOCR(timeout_s=180.0))
 
 
 @unittest.skipUnless(ON_MAC, "macOS only")
@@ -46,12 +47,12 @@ class RealScreenshot(unittest.TestCase):
             self.assertTrue(data.startswith(PNG_SIGNATURE))
             self.assertEqual(obs["metadata"]["capture_version"], "macos-capture/1")
 
-    def test_readers_report_unavailable_not_failed(self):
+    def test_ocr_runs_on_the_stored_screenshot_and_accessibility_is_unavailable(self):
         sources = real_sources()
         with TempStore() as t:
             result = observe_once(t.store, sources, EventBuffer(start_ns=T0), "mac:1")
             status = t.store.get(result.observation_id)["metadata"]["extraction_status"]
-            self.assertEqual((status["ocr"]["status"], status["accessibility"]["status"]), ("unavailable", "unavailable"))
+            self.assertEqual((status["ocr"]["status"], status["accessibility"]["status"]), ("succeeded", "unavailable"))
 
 
 @unittest.skipUnless(ON_MAC, "macOS only")

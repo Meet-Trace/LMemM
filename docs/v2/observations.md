@@ -94,10 +94,10 @@ removes expired screenshot files oldest first, records each in `screenshot_delet
 Structured evidence is never touched, and it has no automatic expiry: it is kept until the user forgets it.
 Dry runs record what would be deleted.
 
-## macOS adapters: context and screenshot (`trace_v2/macos/`)
+## macOS adapters: context, screenshot, OCR (`trace_v2/macos/`)
 The only package that imports pyobjc (`trace_v2.observations` stays importable on Linux). `MacSources` wires
-context -> display id -> screenshot for the pipeline (`capture_version` `macos-capture/1`); OCR and accessibility
-readers are placeholders that raise `ReaderUnavailable("not implemented in PR A")`.
+context -> display id -> screenshot -> OCR for the pipeline (`capture_version` `macos-capture/1`); the accessibility
+reader is still a placeholder that raises `ReaderUnavailable`.
 - Context (metadata only): frontmost app (NSWorkspace), its front on-screen layer-0 window (CGWindowList), the display
   holding most of that window (bounds in points, pixel size of the current mode, scale). `window.locked=True` when
   the session reports a locked screen or loginwindow/ScreenSaverEngine is frontmost -> gate reason `screen_locked`.
@@ -110,6 +110,23 @@ readers are placeholders that raise `ReaderUnavailable("not implemented in PR A"
   PNG via ImageIO. The PyObjC ScreenCaptureKit wrapper is not installed, so the framework is loaded with
   `objc.loadBundle` and the two block signatures are registered by hand. `CGDisplayCreateImage` is the fallback only
   when SCK cannot load; `ScreenshotSource.last_path` says which ran.
+- OCR (`ocr.py`, reader `vision-ocr/1`): `VNRecognizeTextRequest` on the exact PNG bytes of this capture (PNG data ->
+  CGImageSource -> CGImage; no second capture, no temp file), accurate level, language correction on, automatic
+  language detection (macOS 13+). `raw` = `{lines: [{text, confidence, box [x, y, w, h] in image pixels, top-left
+  origin}], image_size, recognition_level, languages, os_version}`; `text` = lines joined with `\n`, ordered row by
+  row (top to bottom, left to right inside a row; columns interleave, boxes are kept so a consumer can re-order).
+  `started_at_ns`/`finished_at_ns` come from `run_reader`. Vision runs on a worker thread with a 10 s timeout
+  (`VisionOCR(timeout_s=)`): on expiry the request is cancelled and the result is `failed` with `error_code`
+  `Timeout`; while a cancelled worker has not finished, the next read fails fast with `Timeout` instead of starting
+  another. If Vision cannot be imported the result is `unavailable`. OCR is skipped when the screenshot is withheld or
+  failed, and never runs for a withheld context. Redaction and `secret_on_screen` apply to OCR output unchanged.
+  The first Vision call on a machine can take over a minute (model compilation; seen: 66 s, then <1 s), which a 10 s
+  timeout records as `Timeout`; later captures succeed.
+- OCR accuracy (synthetic renders): clean 13 pt+ text, dark mode, and Japanese/Chinese/Korean/Cyrillic
+  lines were read correctly with automatic detection; 9-11 pt text is unreliable (words garbled); a mixed-case
+  `aws_access_key_id` was read as `awS_...`. `confidence` is often exactly 1.0 even for garbled text, so it must not
+  be used as a quality signal. Vision may misread look-alike characters (0/O, I/l); a secret misread that way no
+  longer matches the redaction patterns, so redaction and the `secret_on_screen` withhold are best effort, not a guarantee.
 - Permissions (never prompted by us): Screen Recording (pixels; without it window titles are empty) and, per browser,
   Automation (URL/private). A missing Screen Recording grant raises `PermissionError`, recorded as a screenshot failure.
 - Limitations: only the display holding the front window is captured; the PNG can contain anything on that display
@@ -117,8 +134,13 @@ readers are placeholders that raise `ReaderUnavailable("not implemented in PR A"
   judge the front window only. Chrome's AppleScript "front window" can differ from the CGWindow front window.
 - Interval: setting `capture_interval_s` (default 3.0, 0.5..3600) via `settings.get/set_capture_interval`;
   `ContinuousObserver` defaults to it. The runner reads it in a later PR.
-- Cost: `scripts/v2_measure_capture.py` (temp store, deleted afterwards).
+- Cost: `scripts/v2_measure_capture.py` (temp store, deleted afterwards): capture and OCR latency p50/p95/max, CPU per
+  OCR, peak RSS, text chars, compressed raw bytes and projected GB per 8 h, missed ticks (it drives
+  `ContinuousObserver`). Measured at 3 s on one MacBook display (40 captures, a mostly static screen): OCR p50 0.45 s,
+  ~1 CPU-second per OCR (about a third of a core), 0 missed ticks, ~7 KB/capture structured (0.07 GB per 8 h) against
+  ~786 KB/capture PNG (7.5 GB per 8 h).
 
 ## Tests
 `tests/test_v2_observation_{store,retention,migrations,pipeline,privacy,forget,capture_settings}.py` and, on macOS only,
-`tests/test_v2_macos_{context,capture}.py` (screenshot tests skip without Screen Recording), run with `./scripts/test.sh`.
+`tests/test_v2_macos_{context,capture,ocr,ocr_vision}.py` (screenshot tests skip without Screen Recording; `ocr` uses
+a fake recognizer, `ocr_vision` renders synthetic PNGs and runs real Vision through `build_draft`), run with `./scripts/test.sh`.

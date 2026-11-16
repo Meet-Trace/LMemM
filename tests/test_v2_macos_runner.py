@@ -92,10 +92,13 @@ class RealRun(unittest.TestCase):
         self.assertEqual(times, sorted(times))
         self.assertEqual(len(set(times)), len(times))
         withheld = [o for o in observations if o["metadata"]["privacy"].get("withheld")]
-        ocr_ok = 0
+        ocr_ok, queued = 0, []
         for o in observations:
             if o not in withheld:
                 status = o["metadata"]["extraction_status"]
+                if status["ocr"]["status"] == "pending":       # async OCR: only the last captures can still be queued at exit
+                    queued.append(o["observation_id"])
+                    continue
                 self.assertIn(status["ocr"]["status"], ("succeeded", "failed", "unavailable"), status)
                 if status["ocr"]["status"] == "failed":
                     self.assertEqual(status["ocr"]["error_code"], "Timeout", status)
@@ -104,6 +107,14 @@ class RealRun(unittest.TestCase):
                 ocr_ok += status["ocr"]["status"] == "succeeded"
                 self.assertIn(status["accessibility"]["status"], ("succeeded", "failed"))      # failed: app without a window
         self.assertGreaterEqual(ocr_ok, 1)
+        self.assertLessEqual(len(queued), 2, queued)
+        store = ObservationStore(Path(self.data))
+        try:
+            for oid in queued:
+                self.assertEqual(store.db.execute("SELECT state FROM ocr_jobs WHERE observation_id=?", (oid,)).fetchone()[0],
+                                 "queued", oid)
+        finally:
+            store.close()
         self.assertGreater(sum(len(o["interaction_events"]) for o in observations), 0)
         self.assertEqual((stats["final"], stats["failures"]), (True, 0))
         self.assertEqual(stats["input"]["state"], "stopped")

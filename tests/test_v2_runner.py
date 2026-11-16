@@ -4,14 +4,18 @@ Platform independent (fcntl is POSIX); the real macOS run is in test_v2_macos_ru
 import contextlib
 import io
 import json
+import subprocess
+import sys
 import tempfile
 import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from trace_v2 import run as run_module
 from trace_v2.observations import Context, ObservationStore, settings
+from trace_v2 import runner as runner_module
 from trace_v2.runner import (AlreadyRunning, InstanceLock, Lifecycle, Runner, read_status, resolve_interval)
 from test_v2_observation_pipeline import Sources
 from v2_observation_helpers import TempStore, click, context
@@ -325,6 +329,21 @@ class StatsRecord(unittest.TestCase):
                 self.assertIn(key, record)
             self.assertEqual(read_status(t.store.root)["stats"]["final"], True)
             self.assertEqual(read_status(t.store.root)["running"], False)
+
+    def test_stats_survive_a_missing_ps_and_report_no_rss(self):
+        denied = PermissionError(1, "Operation not permitted")
+        with TempStore() as t:
+            runner = make_runner(t.store)
+            with mock.patch.object(runner_module, "native_rss_mb", return_value=None), \
+                    mock.patch.object(subprocess, "run", side_effect=denied):
+                self.assertIsNone(runner_module._current_rss_mb())
+                runner.write_stats()
+            self.assertIsNone(json.loads((Path(t.store.root) / "runner_stats.json").read_text())["rss_mb"])
+
+    @unittest.skipUnless(sys.platform == "darwin", "proc_pidinfo is macOS only")
+    def test_own_rss_is_read_without_ps_on_macos(self):
+        with mock.patch.object(subprocess, "run", side_effect=PermissionError(1, "Operation not permitted")):
+            self.assertGreater(runner_module._current_rss_mb(), 1)
 
     def test_status_prints_without_changing_anything(self):
         with TempStore() as t:

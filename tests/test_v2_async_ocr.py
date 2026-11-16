@@ -186,6 +186,114 @@ class DurabilityTest(unittest.TestCase):
             self.assertEqual([store.get(i)["evidence"]["ocr"]["status"] for i in ids], ["succeeded"] * 3)
             self.assertEqual(env2.reader.calls, 3)
 
+    def test_crash_restart_rejects_the_old_workers_late_result_and_keeps_the_new_one(self):
+        with TempStore() as ts:
+            gate_a, gate_b = threading.Event(), threading.Event()
+            started_a, started_b = threading.Event(), threading.Event()
+
+            def slow(started, gate, text):
+                def step():
+                    started.set()
+                    gate.wait(10)
+                    return {"lines": [{"text": text, "confidence": 0.9, "box": [0, 0, 1, 1]}]}, text
+                return step
+            clock = FakeClock()
+            store_a = ts.store
+            store_a.clock_ns = clock
+            oid = store_a.ingest(pdraft()).observation_id
+            original = view(store_a.get(oid))
+            proc_a = OcrProcessor(store_a, FakeReader(slow(started_a, gate_a, "result of A")), 30, POLICY, clock)
+            worker_a = threading.Thread(target=proc_a.run_once, daemon=True)
+            worker_a.start()
+            self.assertTrue(started_a.wait(5))                                   # (a) A holds the claim
+            store_b = ObservationStore(ts.root, legacy_archive=ts.legacy)        # (b) restart: A is abandoned, never released
+            self.addCleanup(store_b.close)
+            store_b.clock_ns = clock
+            proc_b = OcrProcessor(store_b, FakeReader(slow(started_b, gate_b, "result of B")), 30, POLICY, clock)
+            self.assertEqual(ocr_queue.recover_after_restart(store_b, clock(), POLICY), {"reclaimed": 1, "lease_failed": 0})   # (c)
+            self.assertEqual(store_b.db.execute("SELECT state, claim_token FROM ocr_jobs").fetchone(), ("queued", None))
+            worker_b = threading.Thread(target=proc_b.run_once, daemon=True)
+            worker_b.start()
+            self.assertTrue(started_b.wait(5))                                   # (d) B claims the same job
+            self.assertEqual(store_b.db.execute("SELECT state, attempts FROM ocr_jobs").fetchone(), ("processing", 2))
+            gate_a.set()                                                         # (e) A answers late
+            worker_a.join(5)
+            self.assertEqual(proc_a.stats().get("stale"), 1)                     # (f) rejected and counted, nothing appended
+            self.assertNotIn("completed", proc_a.stats())
+            self.assertEqual(store_b.db.execute("SELECT count(*) FROM extractions WHERE reader='ocr' AND status='succeeded'").fetchone()[0], 0)
+            gate_b.set()                                                         # (g) B's result is the one that lands
+            worker_b.join(5)
+            self.assertEqual(proc_b.stats().get("completed"), 1)
+            rows = store_b.db.execute("SELECT observation_id, revision, text FROM extractions WHERE reader='ocr' "
+                                      "AND status='succeeded'").fetchall()
+            self.assertEqual(rows, [(oid, 2, "result of B")])
+            self.assertEqual(store_b.db.execute("SELECT state, attempts, claim_token FROM ocr_jobs").fetchone(), ("done", 2, None))
+            self.assertEqual(store_b.db.execute("SELECT count(*) FROM observations").fetchone()[0], 1)
+            self.assertEqual(view(store_b.get(oid)), original)
+            self.assertEqual(store_b.get(oid)["observation_id"], oid)
+
+    def _crash_cycle(self, ts, clock, n_jobs):
+        store = ts.store
+        store.clock_ns = clock
+        while ocr_queue.claim(store, clock(), 10, POLICY) is not None:
+            pass
+        store = ts.reopen()
+        store.clock_ns = clock
+        return ocr_queue.recover_after_restart(store, clock(), POLICY)
+
+    def test_repeated_restarts_keep_every_job_recoverable_until_it_finishes(self):
+        with TempStore() as ts:
+            clock = FakeClock()
+            ts.store.clock_ns = clock
+            ts.store.ocr_max_attempts = POLICY.max_attempts
+            ids = [ts.store.ingest(pdraft(key=f"s:{i}", t=T0 + i)).observation_id for i in range(3)]
+            for crash in (1, 2):                      # POLICY.max_attempts == 3: each crash consumes one attempt
+                self.assertEqual(self._crash_cycle(ts, clock, 3), {"reclaimed": 3, "lease_failed": 0})
+                rows = ts.store.db.execute("SELECT state, attempts, claim_token, last_error_code FROM ocr_jobs").fetchall()
+                self.assertEqual(rows, [("queued", crash, None, "WorkerRestarted")] * 3)
+                self.assertEqual(ts.store.ocr_queue_stats()["processing"], 0)
+            env = Env(ts)
+            env.clock.ns = clock.ns
+            while env.proc.run_once():
+                pass
+            self.assertEqual(ts.store.db.execute("SELECT state, attempts FROM ocr_jobs").fetchall(), [("done", 3)] * 3)
+            for oid in ids:
+                self.assertEqual(ts.store.db.execute(
+                    "SELECT count(*) FROM extractions WHERE observation_id=? AND reader='ocr' AND status='succeeded'",
+                    (oid,)).fetchone()[0], 1)
+                self.assertEqual(env.ocr(oid)["status"], "succeeded")
+            self.assertEqual(env.reader.calls, 3)
+
+    def test_a_job_that_crashes_every_attempt_ends_terminal_at_the_last_restart(self):
+        with TempStore() as ts:
+            clock = FakeClock()
+            ts.store.clock_ns = clock
+            ts.store.ocr_max_attempts = POLICY.max_attempts
+            ids = [ts.store.ingest(pdraft(key=f"s:{i}", t=T0 + i)).observation_id for i in range(3)]
+            for _ in range(2):
+                self.assertEqual(self._crash_cycle(ts, clock, 3)["reclaimed"], 3)
+            self.assertEqual(self._crash_cycle(ts, clock, 3), {"reclaimed": 0, "lease_failed": 3})    # attempts == max
+            self.assertEqual(ts.store.db.execute("SELECT state, attempts, claim_token, last_error_code FROM ocr_jobs").fetchall(),
+                             [("failed", 3, None, "WorkerRestarted")] * 3)
+            for oid in ids:
+                ocr = ts.store.get(oid)["evidence"]["ocr"]
+                self.assertEqual((ocr["status"], ocr["error_code"], ocr["revision"]), ("failed", "WorkerRestarted", 2))
+            self.assertEqual(ts.store.ocr_queue_stats()["processing"] + ts.store.ocr_queue_stats()["queued"], 0)
+            self.assertEqual(self._crash_cycle(ts, clock, 3), {"reclaimed": 0, "lease_failed": 0})    # nothing left to recover
+
+    def test_recovery_leaves_a_live_unexpired_claim_to_the_lease_sweep(self):
+        with TempStore() as ts:
+            env = Env(ts)
+            oid = ts.store.ingest(pdraft()).observation_id
+            live = ocr_queue.claim(ts.store, env.clock(), 10, POLICY)
+            env.clock.advance(5)
+            self.assertEqual(ocr_queue.sweep(ts.store, env.clock(), POLICY)["reclaimed"], 0)
+            self.assertEqual(env.job(oid)[0], "processing")
+            ok = ReaderResult("vision-ocr/1", "succeeded", {"lines": []}, "fine")
+            self.assertEqual(ocr_queue.finish(ts.store, live, ok, env.clock(), POLICY), "completed")
+            old = ocr_queue.claim(ts.store, env.clock(), 10, POLICY)
+            self.assertIsNone(old)
+
     def test_threaded_processor_drains_the_queue(self):
         with TempStore() as ts:
             env = Env(ts)

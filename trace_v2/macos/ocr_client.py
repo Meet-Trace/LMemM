@@ -29,6 +29,7 @@ Error codes (the class name, as for in-process readers): Timeout, WorkerCrashed,
 ImageTooLarge, WorkerStarting, WorkerCircuitOpen, WorkerClosed, plus the worker's own class names (ValueError, ...).
 """
 
+import ctypes
 import hashlib
 import logging
 import os
@@ -105,6 +106,29 @@ def ps_rss_mb(pid):
         return None
 
 
+class _TaskInfo(ctypes.Structure):
+    _fields_ = [(n, ctypes.c_uint64) for n in ("virtual_size", "resident_size", "user", "system", "threads_user",
+                                                "threads_system")] + [(f"i{i}", ctypes.c_int32) for i in range(12)]
+
+
+def native_rss_mb(pid):
+    if sys.platform != "darwin":
+        return None
+    try:
+        info = _TaskInfo()
+        lib = ctypes.CDLL("/usr/lib/libproc.dylib")
+        if lib.proc_pidinfo(int(pid), 4, 0, ctypes.byref(info), ctypes.sizeof(info)) != ctypes.sizeof(info):
+            return None
+        return round(info.resident_size / 1048576, 1)
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def rss_mb(pid):
+    value = native_rss_mb(pid)
+    return value if value is not None else ps_rss_mb(pid)
+
+
 def worker_command():
     return [sys.executable, "-m", "trace_v2.macos.ocr_worker"]
 
@@ -127,7 +151,7 @@ class OcrWorkerClient:
     def __init__(self, timeout_s=DEFAULT_TIMEOUT_S, *, command=None, env=None, max_rss_mb=DEFAULT_MAX_RSS_MB,
                  max_jobs=DEFAULT_MAX_JOBS, max_image_bytes=MAX_IMAGE_BYTES, grace_s=GRACE_S,
                  ready_timeout_s=READY_TIMEOUT_S, breaker=(BREAKER_CRASHES, BREAKER_WINDOW_S, BREAKER_COOLOFF_S),
-                 rss_probe=ps_rss_mb, rss_check_s=RSS_CHECK_S, clock=time.monotonic, start=True):
+                 rss_probe=rss_mb, rss_check_s=RSS_CHECK_S, clock=time.monotonic, start=True):
         if timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
         self.timeout_s, self.max_rss_mb, self.max_jobs = timeout_s, max_rss_mb, max_jobs

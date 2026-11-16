@@ -35,6 +35,7 @@ import time
 from pathlib import Path
 
 from .inputs import InputGate
+from .macos.ocr_client import native_rss_mb
 from .observations import privacy, retention, settings
 from .observations.events import EventBuffer
 from .observations.ocr_processor import OcrProcessor
@@ -193,6 +194,9 @@ class Lifecycle:
 
 
 def _current_rss_mb(pid=None):
+    native = native_rss_mb(pid or os.getpid())
+    if native is not None:
+        return native
     try:
         out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid or os.getpid())], capture_output=True, text=True,
                              timeout=2).stdout

@@ -140,6 +140,8 @@ class KillAndResume(unittest.TestCase):
             finally:
                 if child.poll() is None:
                     child.kill()
+                    child.wait(10)
+                child.stdout.close()
             store = ObservationStore(data, legacy)
             worker = OcrWorkerClient(timeout_s=30.0)
             try:

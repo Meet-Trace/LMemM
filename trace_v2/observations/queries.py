@@ -30,7 +30,7 @@ def _decode(encoding, blob):
 
 EXTRACTION_COLS = ("extraction_id", "revision", "supersedes", "reader_version", "status", "error_code",
                    "error_message", "started_at_ns", "finished_at_ns", "text", "raw_encoding", "raw",
-                   "raw_sha256", "raw_bytes", "recorded_at", "privacy_json")
+                   "raw_sha256", "raw_bytes", "recorded_at", "source_extraction_id", "privacy_json")
 
 
 def extractions(store, oid, reader, include_raw=True):

@@ -35,6 +35,7 @@ def build_parser():
     parser.add_argument("--ocr-isolation", choices=settings.OCR_ISOLATIONS)
     parser.add_argument("--ocr-timeout", type=float)
     parser.add_argument("--stats-every", type=float, default=None, help="seconds between runner_stats.json updates")
+    parser.add_argument("--structure", action="store_true")
     return parser
 
 
@@ -123,7 +124,7 @@ def main(argv=None, parts=macos_parts, permissions=macos_permissions):
         sources, tap_factory, warmup, report, notification_class, *more = parts(store, **({"ocr": overrides} if overrides else {}))
         runner = Runner(store, sources, interval, tap_factory=tap_factory,
                         cursor_sample_ms=settings.get_cursor_sample_ms(store), warmup=warmup, ocr_mode=settings.get_ocr_mode(store),
-                        permissions=report, front_app=more[0] if more else None, **({} if args.stats_every is None else {"stats_every_s": args.stats_every}))
+                        permissions=report, front_app=more[0] if more else None, structure=args.structure, **({} if args.stats_every is None else {"stats_every_s": args.stats_every}))
         notifications = notification_class(runner.notify)
         runner.pump = notifications.pump
         for signum in (signal.SIGINT, signal.SIGTERM):

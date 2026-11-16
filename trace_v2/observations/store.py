@@ -207,14 +207,16 @@ class ObservationStore:
             ((oid, seq, e.event_id or str(uuid.uuid4()), e.occurred_at_ns, e.type, canonical(e.payload))
              for seq, e in enumerate(draft.events)))
 
-    def _insert_extraction(self, oid, reader, r, revision, supersedes, privacy_json=None):
+    def _insert_extraction(self, oid, reader, r, revision, supersedes, privacy_json=None, source_extraction_id=None):
         eid = str(uuid.uuid4())
         encoding, blob, raw_sha, raw_bytes = encode_raw(r.raw)
         self.db.execute(
-            "INSERT INTO extractions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO extractions(extraction_id, observation_id, reader, revision, supersedes, reader_version, status, "
+            "error_code, error_message, started_at_ns, finished_at_ns, text, raw_encoding, raw, raw_sha256, raw_bytes, "
+            "recorded_at, privacy_json, source_extraction_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (eid, oid, reader, revision, supersedes, r.reader_version, r.status, r.error_code,
              short_error(r.error_message), r.started_at_ns, r.finished_at_ns, r.text, encoding, blob,
-             raw_sha, raw_bytes, now_iso(), privacy_json))
+             raw_sha, raw_bytes, now_iso(), privacy_json, source_extraction_id))
         return eid
 
     # ---------------------------------------------------------------- reads (queries.py)

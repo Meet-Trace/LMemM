@@ -129,10 +129,11 @@ class ForgetTest(unittest.TestCase):
             fill(ts.store)
             backup = ts.root / "observations.sqlite3.pre-v2.bak"
             backup.write_bytes(b"old copy")
+            backups = sorted(str(p) for p in ts.root.glob("observations.sqlite3.pre-v*.bak"))
             partial = forget.forget(ts.store, {"app_bundle_id": "com.c"})
-            self.assertEqual(partial["backups_remaining"], [str(backup)])
+            self.assertEqual(sorted(partial["backups_remaining"]), backups)
             full = forget.forget(ts.store, {"everything": True})
-            self.assertEqual((full["backups_removed"], backup.exists()), ([str(backup)], False))
+            self.assertEqual((sorted(full["backups_removed"]), backup.exists()), (backups, False))
 
 
 class RetentionIndependenceTest(unittest.TestCase):

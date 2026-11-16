@@ -39,6 +39,7 @@ from .macos.ocr_client import native_rss_mb
 from .observations import privacy, retention, settings
 from .observations.events import EventBuffer
 from .observations.ocr_processor import OcrProcessor
+from .structure.processor import StructureProcessor
 from .observations.pipeline import ContinuousObserver
 
 log = logging.getLogger("trace_v2.runner")
@@ -219,7 +220,7 @@ class Runner:
     def __init__(self, store, sources, interval_s, *, tap_factory=None, cursor_sample_ms=None, warmup=None,
                  permissions=None, pump=None, stats_every_s=DEFAULT_STATS_EVERY_S, stats_path=None,
                  monotonic=time.monotonic, clock_ns=time.time_ns, rss=_current_rss_mb, observer_factory=ContinuousObserver,
-                 settings_refresh_s=SETTINGS_REFRESH_S, front_app=None, ocr_mode="sync", ocr_queue_policy=None):
+                 settings_refresh_s=SETTINGS_REFRESH_S, front_app=None, ocr_mode="sync", ocr_queue_policy=None, structure=False):
         self.store, self.sources, self.interval_s = store, sources, interval_s
         self._tap_factory, self._cursor_ms = tap_factory, cursor_sample_ms
         self._warmup, self._permissions = warmup, permissions
@@ -229,6 +230,7 @@ class Runner:
         self._monotonic, self._clock_ns, self._rss = monotonic, clock_ns, rss
         self._observer_factory = observer_factory
         self.ocr_mode, self._ocr_queue_policy, self.ocr_processor = ocr_mode, ocr_queue_policy, None
+        self.structure, self.structure_processor = structure, None
         self._front_app = front_app                  # () -> bundle id of the front app; reconciles missed notifications
         self._stop = threading.Event()
         self.tap = self.observer = self.lifecycle = self.buffer = self.gate = None
@@ -340,6 +342,9 @@ class Runner:
                 self.store, self.sources.ocr, getattr(self.sources.ocr, "timeout_s", 10.0),
                 **({"policy": self._ocr_queue_policy} if self._ocr_queue_policy else {}), clock_ns=self._clock_ns)
             self.ocr_processor.start()
+        if self.structure and not once:
+            self.structure_processor = StructureProcessor(self.store, clock_ns=self._clock_ns)
+            self.structure_processor.start()
         self.observer = self._observer_factory(self.store, self.sources, self.buffer, interval_s=self.interval_s,
                                                clock_ns=self._clock_ns, on_decision=self._on_decision,
                                                policy=self.policy, final_always=True, **extra)
@@ -355,6 +360,8 @@ class Runner:
             self._stop.set()
             if self.ocr_processor is not None:
                 self.ocr_processor.stop()
+            if self.structure_processor is not None:
+                self.structure_processor.stop()
             if self.tap is not None:
                 try:
                     self.tap.stop()
@@ -479,7 +486,8 @@ class Runner:
                 "lifecycle": self.lifecycle.snapshot() if self.lifecycle else None,
                 "observer_error": self.observer_error, "warmup": self.warmup_result,
                 "permissions": self.permissions_report, "retention_runs": self.retention_runs,
-                "ocr_worker": self._ocr_stats(), "ocr_queue": self._ocr_queue_stats()}
+                "ocr_worker": self._ocr_stats(), "ocr_queue": self._ocr_queue_stats(),
+                "structure": self.structure_processor.stats() if self.structure_processor else None}
 
     def write_stats(self, final=False):
         stats = self.stats(final)

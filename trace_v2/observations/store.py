@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import threading
+import time
 import uuid
 import zlib
 from dataclasses import dataclass
@@ -24,7 +25,7 @@ from datetime import datetime, timezone
 from . import queries
 from .assets import AssetError, ScreenshotStore, magic_matches, sha256
 from .db import open_database
-from .models import READERS, InvalidCapture, ReaderResult, ScreenshotCapture, ScreenshotWithheld, short_error
+from .models import (READERS, InvalidCapture, ReaderResult, ScreenshotCapture, ScreenshotWithheld, short_error)
 from .. import paths
 
 log = logging.getLogger("trace_v2.observations")
@@ -80,6 +81,8 @@ class ObservationStore:
         self.db = open_database(paths.database_path(self.root))
         self.assets = ScreenshotStore(paths.assets_dir(self.root))
         self.lock = threading.RLock()
+        self.clock_ns = time.time_ns
+        self.ocr_max_attempts = 4
         from .forget import resume_pending     # finish any forget interrupted after its commit
         resume_pending(self)
 
@@ -99,7 +102,7 @@ class ObservationStore:
             shot_row, written = self._store_screenshot(oid, draft.screenshot)
             try:
                 self.db.execute("BEGIN IMMEDIATE")
-                self._insert(oid, draft, digest, shot_row)
+                self._insert(oid, draft, digest, shot_row, self._ocr_plan(draft, shot_row))
                 self.db.execute("COMMIT")
             except BaseException:
                 self._rollback()
@@ -164,7 +167,20 @@ class ObservationStore:
         return dict(status="stored", relative_path=rel, format=shot.format, width=shot.width, height=shot.height,
                     byte_size=len(data), sha256=sha256(data), captured_at_ns=shot.captured_at_ns), rel
 
-    def _insert(self, oid, draft, digest, shot_row):
+    def _ocr_plan(self, draft, shot_row):
+        """-> (OCR result for revision 1, enqueue a job). Only a stored screenshot is queued; a full queue skips OCR."""
+        ocr = draft.ocr
+        if ocr.status != "pending":
+            return ocr, False
+        if shot_row["status"] != "stored":
+            return ReaderResult(ocr.reader_version, "skipped", error_code="no_screenshot"), False
+        from . import ocr_queue
+        from .settings import get_ocr_queue_cap
+        if ocr_queue.depth(self) >= get_ocr_queue_cap(self):
+            return ReaderResult(ocr.reader_version, "skipped", error_code="QueueFull"), False
+        return ocr, True
+
+    def _insert(self, oid, draft, digest, shot_row, plan):
         ctx = draft.context
         app, win, disp = ctx.application, ctx.window, ctx.display
         status = {"context": {"status": "failed" if ctx.error_code else "succeeded", "error_code": ctx.error_code},
@@ -180,21 +196,25 @@ class ObservationStore:
                 "captured_at_ns", "error_code", "error_message")
         self.db.execute(f"INSERT INTO screenshots(observation_id,{','.join(cols)}) VALUES (?{',?' * len(cols)})",
                         (oid, *(shot_row.get(c) for c in cols)))
-        for reader in READERS:
-            self._insert_extraction(oid, reader, getattr(draft, reader), 1, None)
+        ocr, enqueue = plan
+        self._insert_extraction(oid, "ocr", ocr, 1, None)
+        self._insert_extraction(oid, "accessibility", draft.accessibility, 1, None)
+        if enqueue:
+            from . import ocr_queue
+            ocr_queue.enqueue(self, oid, self.clock_ns(), self.ocr_max_attempts)
         self.db.executemany(
             "INSERT INTO interaction_events VALUES (?,?,?,?,?,?)",
             ((oid, seq, e.event_id or str(uuid.uuid4()), e.occurred_at_ns, e.type, canonical(e.payload))
              for seq, e in enumerate(draft.events)))
 
-    def _insert_extraction(self, oid, reader, r, revision, supersedes):
+    def _insert_extraction(self, oid, reader, r, revision, supersedes, privacy_json=None):
         eid = str(uuid.uuid4())
         encoding, blob, raw_sha, raw_bytes = encode_raw(r.raw)
         self.db.execute(
-            "INSERT INTO extractions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO extractions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (eid, oid, reader, revision, supersedes, r.reader_version, r.status, r.error_code,
              short_error(r.error_message), r.started_at_ns, r.finished_at_ns, r.text, encoding, blob,
-             raw_sha, raw_bytes, now_iso()))
+             raw_sha, raw_bytes, now_iso(), privacy_json))
         return eid
 
     # ---------------------------------------------------------------- reads (queries.py)
@@ -223,3 +243,7 @@ class ObservationStore:
     def audit(self):
         with self.lock:
             return queries.audit(self)
+
+    def ocr_queue_stats(self):
+        from . import ocr_queue
+        return ocr_queue.stats(self, self.clock_ns())

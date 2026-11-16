@@ -119,10 +119,11 @@ class ReaderEvidenceTest(unittest.TestCase):
             oid = ts.store.ingest(draft(ocr=failed("vision-ocr/1"))).observation_id
             eid = ts.store.add_extraction(oid, "ocr", ocr_ok("second pass"))
             o = ts.store.get(oid)
-            self.assertEqual((o["evidence"]["ocr"]["revision"], o["evidence"]["ocr"]["status"]), (1, "failed"))
-            later = o["metadata"]["later_extractions"]["ocr"]
-            self.assertEqual([(x["extraction_id"], x["revision"], x["text"]) for x in later], [(eid, 2, "second pass")])
-            self.assertEqual(later[0]["supersedes"], o["evidence"]["ocr"]["extraction_id"])
+            self.assertEqual((o["evidence"]["ocr"]["revision"], o["evidence"]["ocr"]["status"], o["evidence"]["ocr"]["extraction_id"]),
+                             (2, "succeeded", eid))
+            earlier = o["metadata"]["later_extractions"]["ocr"]
+            self.assertEqual([(x["revision"], x["status"]) for x in earlier], [(1, "failed")])
+            self.assertEqual(o["evidence"]["ocr"]["supersedes"], earlier[0]["extraction_id"])
 
     def test_revision_chain_cannot_be_forged(self):
         with TempStore() as ts:

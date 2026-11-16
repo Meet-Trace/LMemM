@@ -90,7 +90,7 @@ def forget(store, selector, dry_run=False):
                 "LEFT JOIN screenshot_deletions d USING (observation_id) WHERE g.request_id=?",
                 (request_id, request_id))
             granted = "observation_id IN (SELECT observation_id FROM deletion_grants WHERE request_id=?)"
-            for table in ("interaction_events", "extractions", "screenshot_deletions", "screenshots", "observations"):
+            for table in ("ocr_jobs", "interaction_events", "extractions", "screenshot_deletions", "screenshots", "observations"):
                 store.db.execute(f"DELETE FROM {table} WHERE {granted}", (request_id,))
             store.db.execute("DELETE FROM deletion_grants WHERE request_id=?", (request_id,))
             store.db.execute("COMMIT")

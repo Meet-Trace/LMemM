@@ -551,6 +551,30 @@ class ThroughTheRunner(ClientTest):
                 run_module.main(["--data-dir", d, "--once", "--ocr-isolation", "thread"], parts=self.parts(client, seen))
 
 
+class RssProbe(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "darwin", "proc_pidinfo is macOS only")
+    def test_native_rss_matches_ps_and_survives_a_missing_ps(self):
+        child = subprocess.Popen([sys.executable, "-c", "x = bytearray(60 * 2**20); import time; time.sleep(30)"])
+        try:
+            self.assertTrue(until(lambda: (ocr_client.native_rss_mb(child.pid) or 0) > 55, 10))
+            native, via_ps = ocr_client.native_rss_mb(child.pid), ocr_client.ps_rss_mb(child.pid)
+            self.assertIsNotNone(via_ps)
+            self.assertLess(abs(native - via_ps), 8)
+            original = subprocess.run
+            subprocess.run = lambda *a, **k: (_ for _ in ()).throw(PermissionError(1, "Operation not permitted"))
+            try:
+                self.assertIsNone(ocr_client.ps_rss_mb(child.pid))
+                self.assertGreater(ocr_client.rss_mb(child.pid), 55)
+            finally:
+                subprocess.run = original
+        finally:
+            child.kill()
+            child.wait()
+
+    def test_a_missing_process_has_no_rss(self):
+        self.assertIsNone(ocr_client.native_rss_mb(2 ** 22 + 12345))
+
+
 class Protocol(unittest.TestCase):
     def pipe_with(self, data):
         r, w = os.pipe()

@@ -30,7 +30,7 @@ def _decode(encoding, blob):
 
 EXTRACTION_COLS = ("extraction_id", "revision", "supersedes", "reader_version", "status", "error_code",
                    "error_message", "started_at_ns", "finished_at_ns", "text", "raw_encoding", "raw",
-                   "raw_sha256", "raw_bytes", "recorded_at")
+                   "raw_sha256", "raw_bytes", "recorded_at", "privacy_json")
 
 
 def extractions(store, oid, reader, include_raw=True):
@@ -40,6 +40,7 @@ def extractions(store, oid, reader, include_raw=True):
     for row in rows:
         r = dict(zip(EXTRACTION_COLS, row))
         enc, blob = r.pop("raw_encoding"), r.pop("raw")
+        r["privacy"] = None if r.pop("privacy_json") is None else json.loads(row[-1])
         if include_raw:
             r["raw"] = _decode(enc, blob)
         out.append(r)
@@ -80,7 +81,8 @@ def get(store, oid, include_raw=True, include_events=True):
     status = json.loads(status)
     shot = _screenshot(store, oid)
     revisions = {r: extractions(store, oid, r, include_raw) for r in READERS}
-    original = {r: revisions[r][0] for r in READERS}
+    original = {"ocr": revisions["ocr"][-1], "accessibility": revisions["accessibility"][0]}
+    earlier = {"ocr": revisions["ocr"][:-1], "accessibility": revisions["accessibility"][1:]}
     record = {
         "observation_id": oid, "timestamp": _iso(t), "timestamp_ns": t,
         "context": json.loads(ctx),
@@ -93,7 +95,7 @@ def get(store, oid, include_raw=True, include_events=True):
                 "context": status["context"], "events": status["events"],
                 "screenshot": {"status": shot["status"], "error_code": shot["error_code"]},
                 **{r: {"status": original[r]["status"], "error_code": original[r]["error_code"]} for r in READERS}},
-            "later_extractions": {r: revisions[r][1:] for r in READERS},
+            "later_extractions": earlier,
         },
     }
     if include_events:

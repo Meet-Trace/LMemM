@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 
 READERS = ("ocr", "accessibility")
-READER_STATUSES = ("succeeded", "failed", "unavailable", "skipped", "withheld")
+READER_STATUSES = ("pending", "succeeded", "failed", "unavailable", "skipped", "withheld")
 SCREENSHOT_FORMATS = ("png", "jpeg", "heic", "tiff")
 MAX_ERROR_CHARS = 500
 _KEY = re.compile(r"[A-Za-z0-9:_.\-]{1,200}")
@@ -106,8 +106,10 @@ class ReaderResult:
             raise InvalidCapture(f"{reader} status must be one of {READER_STATUSES}")
         if self.status == "succeeded" and self.raw is None:
             raise InvalidCapture(f"{reader} succeeded without raw output")
-        if self.status != "succeeded" and not self.error_code:
+        if self.status not in ("succeeded", "pending") and not self.error_code:
             raise InvalidCapture(f"{reader} status {self.status} needs an error_code")
+        if self.status == "pending" and (self.raw is not None or self.text is not None):
+            raise InvalidCapture(f"{reader} pending result cannot carry output")
         if self.text is not None and not isinstance(self.text, str):
             raise InvalidCapture(f"{reader} text must be a string")
         try:

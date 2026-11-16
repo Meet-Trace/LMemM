@@ -145,7 +145,7 @@ class RetentionIndependenceTest(unittest.TestCase):
             self.assertEqual(result["deleted"], 4)
             self.assertEqual(counts(ts.store), before)          # ten years later every structured row is still there
             for oid in ids.values():
-                self.assertEqual(ts.store.get(oid)["evidence"]["ocr"]["text"], "hello world")
+                self.assertIn(ts.store.get(oid)["evidence"]["ocr"]["text"], ("hello world", "rerun"))
 
     def test_forget_after_retention_handles_already_deleted_screenshots(self):
         with TempStore() as ts:

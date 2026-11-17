@@ -21,6 +21,9 @@ Open http://127.0.0.1:4174.
 
 ## Deploy
 
+Cloudflare Pages: root directory `trace-landing`, build command `python3 build.py`, output directory `dist`. The build copies only runtime files into `dist/`.
+
+
 Production deploys from `main` only. `vercel.json` has an `ignoreCommand` that skips builds on every other branch. In Vercel, set the project's Root Directory to `trace-landing` and the Production Branch to `main`.
 
 ## Notes

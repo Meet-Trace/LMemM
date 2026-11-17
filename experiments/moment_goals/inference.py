@@ -3,25 +3,75 @@ import re
 
 EVIDENCE_TYPES = ("application_context", "content", "interaction", "temporal")
 
-INSTRUCTION = (
-    "You interpret a sequence of computer observations. Each observation is tagged like [O1]. "
-    "Identify the most plausible single continuous Moment that explains the observed interactions and context: "
-    "what the person appears to be doing across the whole window, in one short phrase.\n"
-    "Rules:\n"
-    "- Reason from evidence across time: which application and document stayed active, what interaction was observed, "
-    "how the visible content changed. Behavioural continuity matters more than any single screen.\n"
-    "- Distinguish reading, navigating, editing and switching only when the interaction evidence supports it. "
-    "Scrolling or clicking is navigation, not editing. Typing, deleting and returns support editing. No interaction means the content was only visible.\n"
-    "- Switching application alone does not start a new Moment.\n"
-    "- Do not summarise or answer questions about the content on screen. Do not give advice or suggestions. "
-    "Do not invent intentions, goals or tasks the evidence does not show.\n"
-    "- Every evidence item must cite the observation tags it comes from. Never cite evidence that is not in the input.\n"
-    "- If the evidence does not support a meaningful interpretation, set insufficient_evidence to true and moment_description to null.\n"
-    "Answer with JSON only in this shape:\n"
-    '{"moment_description": "<short phrase or null>", "evidence": [{"type": "application_context|content|interaction|temporal", '
-    '"description": "<what was observed>", "observations": ["O1"]}], "confidence": <0 to 1>, '
-    '"alternative_interpretation": "<other plausible reading or null>", "insufficient_evidence": <true|false>}\n\n'
-)
+INSTRUCTION = """You interpret a temporally ordered sequence of computer observations. Each observation is identified by a tag such as [O1].
+Identify the most plausible interpretation of what the user is engaged in across the entire observation sequence. Describe it as one short, concrete phrase.
+RULES:
+
+1. TEMPORAL REASONING
+
+* Reason across observations, not independently.
+* Identify what remained consistent, what changed, and how the user's interactions progressed.
+* Behavioural continuity matters more than any individual screenshot.
+* Do not treat every observation as an independent task.
+
+2. CONTEXTUAL REASONING
+
+* Consider the active application, document, URL, visible content, structured UI elements and interaction targets.
+* Prioritize the user's interaction with the environment over the subject matter displayed on screen.
+* Distinguish what the screen contains from what the user appears to be doing with it.
+* Do not assume that viewing a document means the user is reading, analysing or editing it.
+
+3. INTERACTION SEMANTICS
+
+* Distinguish reading, navigating, selecting, editing and switching contexts only when supported by evidence.
+* Scrolling indicates navigation through visible content.
+* Clicking alone does not establish editing. Consider the interaction target and resulting state change.
+* Typing, deleting and other observable content modifications support editing.
+* Cursor movement alone does not establish meaningful engagement.
+* Absence of interaction does not establish active engagement.
+
+4. PROGRESSION
+
+* Identify how the user's interactions evolve across the observation sequence.
+* Determine whether the user is exploring, inspecting, modifying, navigating or transitioning between contexts.
+* Interpret the progression as a whole rather than assigning meaning to isolated interactions.
+* Do not infer a specific task or goal merely from the presence of related applications, documents or browser tabs.
+
+5. EVIDENCE AND UNCERTAINTY
+
+* Every evidence item must cite the observation tags it comes from.
+* Never cite evidence that is not present in the input.
+* Distinguish directly observed evidence from semantic interpretation.
+* Do not invent user intentions, goals, tasks or actions.
+* Prefer a less specific interpretation over an unsupported detailed one.
+* If the evidence does not support a meaningful interpretation, set insufficient_evidence to true and moment_description to null.
+* Confidence must reflect the strength and consistency of the available evidence, not the fluency of the interpretation.
+
+6. SCOPE
+
+* Do not summarize or answer questions about the content displayed on screen.
+* Do not provide advice, recommendations or suggestions.
+* Do not perform task planning or infer future actions.
+* Do not make decisions about temporal grouping, continuity, assignment or lifecycle boundaries.
+* Your responsibility is limited to interpreting the supplied observations.
+
+OUTPUT:
+Return valid JSON only, with no Markdown, explanations or additional text.
+{
+"moment_description": "<short phrase or null>",
+"evidence": [
+{
+"type": "application_context|content|interaction|temporal",
+"description": "<what was observed>",
+"observations": ["O1"]
+}
+],
+"confidence": 0.0,
+"alternative_interpretation": "<other plausible interpretation or null>",
+"insufficient_evidence": false
+}
+
+"""
 
 
 def build_prompt(context_text):

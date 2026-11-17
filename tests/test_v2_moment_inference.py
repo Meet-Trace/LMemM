@@ -137,8 +137,8 @@ class PromptTests(unittest.TestCase):
     def test_prompt_contains_task_rules_and_context(self):
         built = C.serialize([obs("O1", T0), obs("O2", T0 + 10 * S)])
         prompt = I.build_prompt(built["text"])
-        for phrase in ("Switching application alone does not start a new Moment", "Do not invent intentions",
-                       "insufficient_evidence", "Scrolling or clicking is navigation, not editing", "[O1]"):
+        for phrase in ("Do not invent user intentions", "Do not make decisions about temporal grouping",
+                       "insufficient_evidence", "Scrolling indicates navigation through visible content", "Clicking alone does not establish editing", "[O1]"):
             self.assertIn(phrase, prompt)
         self.assertTrue(prompt.endswith(built["text"]))
 

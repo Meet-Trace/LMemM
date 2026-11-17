@@ -90,6 +90,14 @@ def forget(store, selector, dry_run=False):
                 "LEFT JOIN screenshot_deletions d USING (observation_id) WHERE g.request_id=?",
                 (request_id, request_id))
             granted = "observation_id IN (SELECT observation_id FROM deletion_grants WHERE request_id=?)"
+            affected = "moment_id IN (SELECT moment_id FROM moment_member_index WHERE " + granted + ")"
+            former = [r[0] for r in store.db.execute(
+                "SELECT DISTINCT observation_id FROM moment_member_index WHERE " + affected, (request_id,))]
+            for table in ("moment_revisions", "moments", "moment_member_index"):
+                store.db.execute(f"DELETE FROM {table} WHERE {affected}", (request_id,))
+            store.db.executemany("DELETE FROM observation_features WHERE observation_id=?", ((i,) for i in former))
+            store.db.execute(f"DELETE FROM observation_features WHERE {granted}", (request_id,))
+            store.db.execute(f"DELETE FROM moment_skips WHERE {granted}", (request_id,))
             for table in ("ocr_jobs", "interaction_events", "extractions", "screenshot_deletions", "screenshots", "observations"):
                 store.db.execute(f"DELETE FROM {table} WHERE {granted}", (request_id,))
             store.db.execute("DELETE FROM deletion_grants WHERE request_id=?", (request_id,))

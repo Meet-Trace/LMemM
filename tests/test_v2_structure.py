@@ -395,7 +395,7 @@ class MigrationTest(unittest.TestCase):
             conn.close()
             store = ObservationStore(root, legacy)
             try:
-                self.assertEqual(store.db.execute("PRAGMA user_version").fetchone()[0], 3)
+                self.assertEqual(store.db.execute("PRAGMA user_version").fetchone()[0], db.LATEST_VERSION)
                 self.assertTrue(list(path.parent.glob("*.pre-v3.bak")))
                 after = store.db.execute("SELECT * FROM extractions ORDER BY revision").fetchall()
                 self.assertEqual([r[:-1] for r in after], before)

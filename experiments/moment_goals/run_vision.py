@@ -228,11 +228,27 @@ def summarize(entries, baseline_probe, start, end, models_loaded):
     }
 
 
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "moment_description": {"type": ["string", "null"]},
+        "evidence": {"type": "array", "maxItems": 3, "items": {"type": "object", "properties": {
+            "type": {"type": "string", "enum": ["application_context", "content", "interaction", "temporal"]},
+            "description": {"type": "string"},
+            "observations": {"type": "array", "maxItems": 4, "items": {"type": "string", "pattern": "^O[0-9]+$"}}},
+            "required": ["type", "description", "observations"]}},
+        "confidence": {"type": "number"},
+        "alternative_interpretation": {"type": ["string", "null"]},
+        "insufficient_evidence": {"type": "boolean"}},
+    "required": ["moment_description", "evidence", "confidence", "alternative_interpretation", "insufficient_evidence"]}
+
+
 def chat(host, model, message, args):
-    options = {"temperature": 0, "num_ctx": args.num_ctx, "num_predict": args.num_predict, "num_thread": args.threads}
+    options = {"temperature": 0, "num_ctx": args.num_ctx, "num_predict": args.num_predict, "num_thread": args.threads,
+               "repeat_penalty": args.repeat_penalty}
     if not args.gpu:
         options["num_gpu"] = 0
-    return call(host, "/api/chat", {"model": model, "messages": [message], "stream": False, "format": "json", "keep_alive": "10m", "options": options},
+    return call(host, "/api/chat", {"model": model, "messages": [message], "stream": False, "format": "json" if args.no_schema else SCHEMA, "keep_alive": "10m", "options": options},
                 args.timeout)
 
 
@@ -295,6 +311,8 @@ def main(argv=None):
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--gpu", action="store_true")
+    parser.add_argument("--no-schema", action="store_true")
+    parser.add_argument("--repeat-penalty", type=float, default=1.15)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--fresh", action="store_true")
     args = parser.parse_args(argv)
@@ -317,7 +335,7 @@ def main(argv=None):
     start = snapshot()
     entries = []
     for index, moment in enumerate(moments):
-        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.gpu}".encode()).hexdigest()[:20]
+        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.gpu}|{args.no_schema}|{args.repeat_penalty}".encode()).hexdigest()[:20]
         if key not in cache:
             cache[key] = one_moment(conn, str(paths.assets_dir(directory)), args.host, model, moment, args)
             json.dump(cache, open(cache_path, "w"))

@@ -76,7 +76,7 @@ class PureTests(unittest.TestCase):
 
 
 class MomentCallTests(unittest.TestCase):
-    ARGS = SimpleNamespace(max_images=2, image_side=32, num_ctx=2048, num_predict=100, threads=2, timeout=10, gpu=False, format="none", repeat_penalty=1.15)
+    ARGS = SimpleNamespace(max_images=2, image_side=32, num_ctx=2048, num_predict=100, threads=0, timeout=10, cpu=True, format="none", repeat_penalty=None, temperature=None)
 
     def test_each_moment_is_one_fresh_single_message_chat_with_screenshots(self):
         calls = []
@@ -113,7 +113,9 @@ class MomentCallTests(unittest.TestCase):
         self.assertEqual(body["messages"][0]["role"], "user")
         self.assertEqual(len(body["messages"][0]["images"]), 2)
         self.assertEqual(body["options"]["num_gpu"], 0)
-        self.assertEqual(body["options"]["repeat_penalty"], 1.15)
+        self.assertNotIn("repeat_penalty", body["options"])
+        self.assertNotIn("temperature", body["options"])
+        self.assertNotIn("num_thread", body["options"])
         self.assertNotIn("format", body)
         self.assertIn("THE PROMPT", body["messages"][0]["content"])
         self.assertEqual(entry["parsed"]["status"], "ok")

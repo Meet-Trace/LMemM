@@ -244,9 +244,14 @@ SCHEMA = {
 
 
 def chat(host, model, message, args):
-    options = {"temperature": 0, "num_ctx": args.num_ctx, "num_predict": args.num_predict, "num_thread": args.threads,
-               "repeat_penalty": args.repeat_penalty}
-    if not args.gpu:
+    options = {"num_ctx": args.num_ctx, "num_predict": args.num_predict}
+    if args.temperature is not None:
+        options["temperature"] = args.temperature
+    if args.repeat_penalty is not None:
+        options["repeat_penalty"] = args.repeat_penalty
+    if args.threads:
+        options["num_thread"] = args.threads
+    if args.cpu:
         options["num_gpu"] = 0
     body = {"model": model, "messages": [message], "stream": False, "keep_alive": "10m", "options": options}
     if args.format == "json":
@@ -312,11 +317,12 @@ def main(argv=None):
     parser.add_argument("--image-side", type=int, default=896)
     parser.add_argument("--num-ctx", type=int, default=6144)
     parser.add_argument("--num-predict", type=int, default=450)
-    parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--threads", type=int, default=0)
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--timeout", type=int, default=900)
-    parser.add_argument("--gpu", action="store_true")
     parser.add_argument("--format", choices=("none", "json", "schema"), default="none")
-    parser.add_argument("--repeat-penalty", type=float, default=1.15)
+    parser.add_argument("--repeat-penalty", type=float, default=None)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--fresh", action="store_true")
     args = parser.parse_args(argv)
@@ -339,13 +345,15 @@ def main(argv=None):
     start = snapshot()
     entries = []
     for index, moment in enumerate(moments):
-        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.gpu}|{args.format}|{args.repeat_penalty}".encode()).hexdigest()[:20]
+        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.cpu}|{args.format}|{args.repeat_penalty}|{args.temperature}|{args.threads}".encode()).hexdigest()[:20]
         if key not in cache:
             cache[key] = one_moment(conn, str(paths.assets_dir(directory)), args.host, model, moment, args)
             json.dump(cache, open(cache_path, "w"))
         entry = cache[key]
         entries.append(entry)
         print(f"  M{index:<3} {entry['parsed']['status'][:4]} {entry.get('seconds')} s  {entry['goal'][:100]}", flush=True)
+        if entry["parsed"]["status"] == "invalid":
+            print("       raw reply starts: " + repr(entry["raw"][:300]), flush=True)
     end = snapshot()
     loaded = ps_models(args.host)
     summary = summarize(entries, baseline_probe, start, end, loaded)

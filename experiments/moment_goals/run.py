@@ -6,7 +6,6 @@ import os
 import sys
 import time
 import urllib.request
-from collections import Counter
 
 import numpy as np
 
@@ -15,18 +14,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..")))
 
 from trace_v2 import paths
 from trace_v2.moments.builder import ALGORITHM
+from trace_v2.moments.inference import OUTPUT_SCHEMA, build_context, build_prompt, parse_interpretation, serialize
+from trace_v2.moments.inference.load import load_window
 from trace_v2.moments.similarity import S
 from trace_v2.observations import ObservationStore
 from trace_v2.observations.queries import _decode
 from trace_v2.structure.processor import read_connection
-
-PROMPT = (
-    "Below is what was visible on a person's computer screen during a few minutes of work. "
-    "Say what the person is trying to accomplish, as one specific sentence naming the actual task, "
-    "files, error or subject. Do not describe the apps. Answer with JSON only: "
-    '{"goal": "<one sentence>", "keywords": ["<up to 5 distinctive terms>"]}\n\n'
-)
-
 
 def call(host, path, body, timeout=300):
     data = None if body is None else json.dumps(body).encode()
@@ -49,89 +42,18 @@ def moments(conn):
     return out
 
 
-def ax_strings(node, out, depth=0):
-    if not isinstance(node, dict) or depth > 12 or len(out) > 400:
-        return
-    for key in ("title", "value", "description", "label", "help"):
-        value = node.get(key)
-        if isinstance(value, str) and len(value.strip()) >= 4:
-            out.append(value.strip()[:300])
-    for child in node.get("children") or []:
-        ax_strings(child, out, depth + 1)
-
-
-def lines_of(conn, oid):
-    row = conn.execute("SELECT raw_encoding, raw FROM extractions WHERE observation_id=? AND reader='ocr' AND status='succeeded' "
-                       "ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
-    out = []
-    if row:
-        raw = _decode(*row) or {}
-        height = (raw.get("image_size") or [0, 0])[1] or 0
-        for line in raw.get("lines", []):
-            text = line.get("text", "").strip()
-            box = line.get("box")
-            if not text:
-                continue
-            if height and box and (box[1] < 0.04 * height or box[1] > 0.95 * height):
-                continue
-            out.append(text)
-    ax = conn.execute("SELECT raw_encoding, raw FROM extractions WHERE observation_id=? AND reader='accessibility' "
-                      "AND status='succeeded' ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
-    if ax:
-        found = []
-        ax_strings(_decode(*ax), found)
-        out.extend(found)
-    return out
-
-
-def titles_of(conn, oid):
-    row = conn.execute("SELECT app_name, window_title FROM observations WHERE observation_id=?", (oid,)).fetchone()
-    return row if row else (None, None)
-
-
-def packet(conn, moment, budget, sample):
-    members = moment["members"]
-    picks = sorted({members[int(i * (len(members) - 1) / max(1, sample - 1))] for i in range(sample)})
-    per = {oid: lines_of(conn, oid) for oid in members}
-    frequency = Counter()
-    for lines in per.values():
-        frequency.update(set(lines))
-    repeated = {k for k, v in frequency.items() if v / len(members) > 0.6 and len(members) >= 3}
-    chosen, seen, size = [], set(), 0
-    for oid in picks:
-        for line in per[oid]:
-            if line in seen or line in repeated or len(line) < 4:
-                continue
-            seen.add(line)
-            if size + len(line) > budget:
-                break
-            chosen.append(line)
-            size += len(line) + 1
-    apps = Counter()
-    trail = []
-    for oid in members:
-        app, title = titles_of(conn, oid)
-        if app:
-            apps[app] += 1
-        label = f"{app}: {title}" if title else app
-        if label and (not trail or trail[-1] != label):
-            trail.append(label)
-    head = "Apps: " + ", ".join(k for k, _ in apps.most_common(3)) + "\nWindows in order: " + " | ".join(trail[:8])
-    return head + "\nText on screen:\n" + "\n".join(chosen)
-
-
-def goal(host, model, text, threads):
+def interpret(host, model, prompt, valid_ids, threads):
     started = time.perf_counter()
     reply = call(host, "/api/generate", {
-        "model": model, "prompt": PROMPT + text, "stream": False, "format": "json", "keep_alive": "5m",
-        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "num_ctx": 3072, "num_predict": 120}})
+        "model": model, "prompt": prompt, "stream": False, "format": OUTPUT_SCHEMA, "keep_alive": "5m",
+        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "repeat_penalty": 1.15, "num_ctx": 4096, "num_predict": 400}})
     elapsed = time.perf_counter() - started
-    try:
-        parsed = json.loads(reply.get("response", ""))
-    except ValueError:
-        parsed = {}
-    return {"goal": str(parsed.get("goal", "")).strip(), "keywords": [str(k) for k in parsed.get("keywords", [])][:5],
-            "raw": reply.get("response", ""), "seconds": round(elapsed, 2), "eval_count": reply.get("eval_count"), "prompt_eval_count": reply.get("prompt_eval_count")}
+    raw = reply.get("response", "")
+    parsed = parse_interpretation(raw, valid_ids)
+    return {"goal": parsed.description or "", "status": parsed.status, "confidence": parsed.confidence,
+            "evidence": list(parsed.evidence), "alternative": parsed.alternative, "unassigned": list(parsed.unassigned),
+            "problems": list(parsed.problems), "keywords": [], "raw": raw, "seconds": round(elapsed, 2),
+            "eval_count": reply.get("eval_count"), "prompt_eval_count": reply.get("prompt_eval_count")}
 
 
 def embed(host, model, texts, threads):
@@ -181,8 +103,8 @@ def main():
     parser.add_argument("--host", default="http://127.0.0.1:11434")
     parser.add_argument("--models", default="gemma3:1b,qwen2.5:0.5b")
     parser.add_argument("--embed-model", default="embeddinggemma")
-    parser.add_argument("--budget", type=int, default=2000)
-    parser.add_argument("--sample", type=int, default=6)
+    parser.add_argument("--budget", type=int, default=1400)
+    parser.add_argument("--sample", type=int, default=16)
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--threshold", type=float, default=0.72)
     parser.add_argument("--limit", type=int, default=0)
@@ -197,9 +119,12 @@ def main():
     if args.limit:
         items = items[:args.limit]
     for m in items:
-        m["packet"] = packet(conn, m, args.budget, args.sample)
-        m["prompt"] = PROMPT + m["packet"]
-        m["packet_sha"] = hashlib.sha256(m["packet"].encode()).hexdigest()[:16]
+        records, before, after = load_window(conn, m["members"])
+        context = build_context(records, before, after, max_observations=args.sample)
+        m["packet"] = serialize(context, args.budget)
+        m["prompt"] = build_prompt(m["packet"])
+        m["ids"] = context["ids"]
+        m["packet_sha"] = hashlib.sha256(m["prompt"].encode()).hexdigest()[:16]
     result = {"data_dir": str(directory), "settings": {k: v for k, v in vars(args).items()}, "models": {}, "ps": []}
     result["settings"] = {k: str(v) if not isinstance(v, (int, float, str)) else v for k, v in vars(args).items()}
     packets_vec = embed(args.host, args.embed_model, [m["packet"] for m in items], args.threads) if items else np.zeros((0, 1))
@@ -207,9 +132,9 @@ def main():
     for model in args.models.split(","):
         goals, times = [], []
         for m in items:
-            key = f"{model}|{m['id']}|{m['packet_sha']}"
+            key = f"{model}|{m['id']}|{m['packet_sha']}|v3"
             if key not in cache:
-                cache[key] = goal(args.host, model, m["packet"], args.threads)
+                cache[key] = interpret(args.host, model, m["prompt"], m["ids"], args.threads)
                 json.dump(cache, open(cache_path, "w"))
             goals.append(cache[key])
             times.append(cache[key]["seconds"])
@@ -224,7 +149,7 @@ def main():
             "seconds_median": times[len(times) // 2] if times else None,
             "seconds_max": times[-1] if times else None,
         }
-    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet", "prompt")} for m in items]
+    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "ids", "packet", "prompt")} for m in items]
     json.dump(result, open(os.path.join(args.out, "moment_goals.json"), "w"), indent=1)
     conn.close()
     store.close()
@@ -233,7 +158,7 @@ def main():
         print(f"\n== {model}  median {data['seconds_median']} s  max {data['seconds_max']} s  empty {data['empty_goals']}")
         for i, g in enumerate(data["goals"]):
             m = items[i]
-            print(f"  M{i:<3} {stamp(m['start_ns'])}-{stamp(m['end_ns'])}  {g['goal'][:110]}")
+            print(f"  M{i:<3} {stamp(m['start_ns'])}-{stamp(m['end_ns'])}  [{g['status']} {g['confidence']:.2f}] {g['goal'][:100]}")
         print("  groups by goal meaning:", [c for c in data["groups"] if len(c) > 1])
     print("\nbaseline groups by raw screen text:", [c for c in result["baseline_packet_groups"] if len(c) > 1])
     print("loaded models:", json.dumps(result["ps"]))

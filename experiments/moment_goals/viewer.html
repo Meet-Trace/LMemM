@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Moment goals viewer</title>
+<style>
+:root{color-scheme:light dark;--b:#fff;--f:#1d1d1f;--m:#6e6e73;--l:#d2d2d7;--c:#f5f5f7;--a:#0a66d6}
+@media(prefers-color-scheme:dark){:root{--b:#1c1c1e;--f:#f5f5f7;--m:#98989d;--l:#3a3a3c;--c:#2c2c2e;--a:#4da3ff}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 -apple-system,system-ui,sans-serif;background:var(--b);color:var(--f);display:grid;grid-template-columns:300px 1fr;height:100vh}
+@media(max-width:760px){body{grid-template-columns:1fr;height:auto}}
+nav{border-right:1px solid var(--l);overflow:auto;padding:8px}main{overflow:auto;padding:16px 20px}
+.mi{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;color:inherit;font:inherit;cursor:pointer}
+.mi:hover{background:var(--c)}.mi[aria-current=true]{background:var(--c);outline:2px solid var(--a)}.mi small{display:block;color:var(--m)}
+h2{margin:0 0 4px;font-size:18px}h3{font-size:13px;color:var(--m);margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+pre{white-space:pre-wrap;background:var(--c);border-radius:8px;padding:10px;font-size:12px;max-height:320px;overflow:auto;margin:0}
+.r{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.r>div{background:var(--c);border-radius:8px;padding:10px}
+.r b{display:block;font-size:12px;color:var(--m)}.e{color:var(--m);font-style:italic}
+.o{border:1px solid var(--l);border-radius:10px;padding:10px;margin:10px 0;display:grid;grid-template-columns:minmax(220px,380px) 1fr;gap:12px}
+@media(max-width:760px){.o{grid-template-columns:1fr}}
+.o img{width:100%;border-radius:6px;border:1px solid var(--l);cursor:zoom-in}.o img.big{position:fixed;inset:2vh 2vw;width:96vw;height:96vh;object-fit:contain;background:#000;z-index:9;cursor:zoom-out}
+.nos{background:var(--c);border-radius:6px;padding:30px 8px;text-align:center;color:var(--m)}
+.h{color:var(--m);font-size:12px}summary{cursor:pointer;color:var(--a)}
+button:focus-visible,summary:focus-visible,img:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+</style>
+<nav id="nav" aria-label="Moments"></nav>
+<main id="main"><p class="h">Select a Moment.</p></main>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tm=ns=>new Date(ns/1e6).toLocaleTimeString();
+let M=[];
+async function init(){M=await (await fetch("/api/moments")).json();
+$("#nav").innerHTML=M.map(m=>`<button class="mi" data-i="${m.index}">M${m.index} · ${tm(m.start_ns)}–${tm(m.end_ns)}<small>${m.count} observations · ${esc(m.state)}</small></button>`).join("");
+$("#nav").onclick=e=>{const b=e.target.closest(".mi");if(b)show(+b.dataset.i)}}
+async function show(i){const m=M[i];document.querySelectorAll(".mi").forEach(b=>b.setAttribute("aria-current",b.dataset.i==i));
+const res=Object.entries(m.responses).map(([k,g])=>`<div><b>${esc(k)} · ${g.seconds}s · ${esc(g.status||"")} ${g.confidence!=null?g.confidence.toFixed(2):""}</b>${g.goal?esc(g.goal):'<span class="e">no description</span>'}${(g.evidence||[]).map(e=>`<br><span class="e">${esc(e.type)} [${esc((e.observations||[]).join(", "))}]: ${esc(e.description)}</span>`).join("")}${g.alternative?`<br><span class="e">Alternative: ${esc(g.alternative)}</span>`:""}${(g.problems||[]).length?`<br><span class="e">Parser: ${esc(g.problems.join(", "))}</span>`:""}<details><summary>Raw response</summary><pre>${esc(g.raw||JSON.stringify({goal:g.goal,keywords:g.keywords},null,1))}</pre></details></div>`).join("");
+$("#main").innerHTML=`<h2>M${i} · ${tm(m.start_ns)}–${tm(m.end_ns)}</h2><div class="h">${m.count} observations · ${esc(m.state)}</div>
+<h3>Prompt sent to the LLM</h3><pre>${esc(m.prompt)}</pre><h3>Responses</h3><div class="r">${res}</div>
+<h3>Observations in this Moment</h3><div id="obs" class="h">Loading…</div>`;
+const list=await Promise.all(m.members.map(id=>fetch("/api/obs/"+id).then(r=>r.ok?r.json():null)));
+if($("#obs")&&M.indexOf(m)===i)$("#obs").innerHTML=list.filter(Boolean).map(o=>{
+const t=Object.entries(o.texts).map(([k,v])=>`<details><summary>${esc(k)} (${esc(v.status)})</summary><pre>${esc(v.text)||"(no text)"}</pre></details>`).join("");
+const img=o.screenshot==="stored"?`<img src="/shot/${o.id}" loading="lazy" alt="Screenshot ${tm(o.at_ns)}" tabindex="0">`:`<div class="nos">No screenshot (${esc(o.screenshot||"none")})</div>`;
+return `<div class="o"><div>${img}</div><div><b>${esc(o.app||"?")}</b><div class="h">${tm(o.at_ns)} · ${esc(o.window||"")}</div>${t}</div></div>`}).join("")}
+document.addEventListener("click",e=>{if(e.target.tagName==="IMG")e.target.classList.toggle("big")});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll("img.big").forEach(i=>i.classList.remove("big"));if(e.key==="Enter"&&e.target.tagName==="IMG")e.target.classList.toggle("big")});
+init();
+</script>

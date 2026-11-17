@@ -135,7 +135,7 @@ def goal(host, model, text, tags, threads):
     prompt = build_prompt(text)
     reply = call(host, "/api/generate", {
         "model": model, "prompt": prompt, "stream": False, "format": "json", "keep_alive": "5m",
-        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "num_ctx": 4096, "num_predict": 320}})
+        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "num_ctx": 4096, "num_predict": 450}})
     elapsed = time.perf_counter() - started
     parsed = parse_output(reply.get("response", ""), tags)
     return {"goal": parsed["description"] or "", "keywords": [], "parsed": parsed, "raw": reply.get("response", ""),

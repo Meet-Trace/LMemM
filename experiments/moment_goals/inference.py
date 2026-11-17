@@ -44,6 +44,19 @@ def _json_of(text):
     return None
 
 
+def tag_refs(value, tags):
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return []
+    found = []
+    for item in value:
+        for tag in re.findall(r"O\d+", str(item)):
+            if tag in tags and tag not in found:
+                found.append(tag)
+    return found
+
+
 def empty(status, errors):
     return {"status": status, "description": None, "evidence": [], "confidence": 0.0, "alternative": None,
             "insufficient_evidence": status == "insufficient", "dropped_evidence": 0, "errors": errors, "observation_ids": []}
@@ -75,7 +88,7 @@ def parse_output(text, tags):
             continue
         kind, note = item.get("type"), item.get("description")
         refs = item.get("observations")
-        refs = [r for r in (refs if isinstance(refs, list) else []) if isinstance(r, str) and r in tags]
+        refs = tag_refs(refs, tags)
         if kind not in EVIDENCE_TYPES or not isinstance(note, str) or not note.strip() or not refs:
             dropped += 1
             continue
@@ -92,6 +105,7 @@ def parse_output(text, tags):
         return out
     if not evidence:
         out = empty("insufficient", errors + ["no traceable evidence for the description"])
+        out["unsupported_description"] = description
         out["dropped_evidence"] = dropped
         return out
     ids = []

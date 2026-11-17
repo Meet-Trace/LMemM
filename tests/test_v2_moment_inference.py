@@ -181,6 +181,16 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(out["dropped_evidence"], 4)
         self.assertEqual(out["observation_ids"], ["d"])
 
+    def test_loose_observation_references_are_normalised(self):
+        out = I.parse_output(self.good(evidence=[{"type": "content", "description": "Tracker open", "observations": "[O1], O3"},
+                                                 {"type": "interaction", "description": "Scrolling", "observations": ["[O2]"]}]), self.TAGS)
+        self.assertEqual(out["status"], "ok")
+        self.assertEqual(out["observation_ids"], ["a", "b", "d", "c"])
+
+    def test_unsupported_description_is_kept_for_inspection(self):
+        out = I.parse_output(self.good(evidence=[{"type": "content", "description": "invented", "observations": ["O9"]}]), self.TAGS)
+        self.assertEqual(out["unsupported_description"], "Reviewing outreach status in the tracker")
+
     def test_description_without_traceable_evidence_becomes_insufficient(self):
         out = I.parse_output(self.good(evidence=[{"type": "content", "description": "invented", "observations": ["O9"]}]), self.TAGS)
         self.assertEqual(out["status"], "insufficient")

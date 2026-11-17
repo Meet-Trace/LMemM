@@ -15,6 +15,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..")))
 
 from context import serialize
+from normalise import normalise
 from inference import build_prompt, parse_output
 from trace_v2 import paths
 from trace_v2.moments.builder import ALGORITHM
@@ -79,17 +80,31 @@ def lines_of(conn, oid):
     return out
 
 
+def latest_raw(conn, oid, reader):
+    row = conn.execute("SELECT raw_encoding, raw FROM extractions WHERE observation_id=? AND reader=? AND status='succeeded' "
+                       "ORDER BY revision DESC LIMIT 1", (oid, reader)).fetchone()
+    return _decode(*row) if row else None
+
+
+def ocr_of(conn, oid):
+    raw = latest_raw(conn, oid, "ocr") or {}
+    return {"lines": [{"text": l.get("text", ""), "box": l.get("box")} for l in raw.get("lines", [])], "image_size": raw.get("image_size")}
+
+
 def record_of(conn, oid):
-    row = conn.execute("SELECT captured_at_ns, app_name, window_title, context_json FROM observations WHERE observation_id=?", (oid,)).fetchone()
+    row = conn.execute("SELECT captured_at_ns, app_name, window_title, context_json, app_bundle_id FROM observations WHERE observation_id=?", (oid,)).fetchone()
     if row is None:
         return None
+    scale = 1.0
     try:
-        url = ((json.loads(row[3]) or {}).get("window") or {}).get("url")
-    except ValueError:
+        context = json.loads(row[3]) or {}
+        url = (context.get("window") or {}).get("url")
+        scale = float((context.get("display") or {}).get("scale") or 1.0)
+    except (ValueError, TypeError):
         url = None
     events = [{"type": kind, "t_ns": t, "payload": json.loads(payload)} for t, kind, payload in conn.execute(
         "SELECT occurred_at_ns, type, payload_json FROM interaction_events WHERE observation_id=? ORDER BY seq", (oid,))]
-    return {"t_ns": row[0], "app": row[1] or "unknown", "title": row[2], "url": url, "events": events}
+    return {"t_ns": row[0], "app": row[1] or "unknown", "title": row[2], "url": url, "events": events, "bundle": row[4], "scale": scale}
 
 
 def neighbours(conn, start_ns, end_ns, members, count=1):
@@ -117,7 +132,8 @@ def steps(conn, members, sample):
         rep = record_of(conn, middle) or records[0]
         events = [e for r in records for e in r["events"]]
         out.append({"tag": f"O{len(out) + 1}", "ids": chunk, "t_ns": records[0]["t_ns"], "app": rep["app"], "title": rep["title"],
-                    "url": rep["url"], "events": events, "lines": lines_of(conn, middle)})
+                    "url": rep["url"], "events": events, "lines": lines_of(conn, middle), "bundle": rep["bundle"], "scale": rep["scale"],
+                    "ocr": ocr_of(conn, middle), "ax": latest_raw(conn, middle, "accessibility")})
     return out
 
 
@@ -126,8 +142,10 @@ def packet(conn, moment, budget, sample):
     sequence = steps(conn, members, sample)
     before_ids, after_ids = neighbours(conn, moment["start_ns"], moment["end_ns"], members)
     context = lambda ids: [dict(r, tag="B", lines=[]) for r in (record_of(conn, i) for i in ids) if r]
-    built = serialize(sequence, context(before_ids), context(after_ids), budget)
-    return built["text"], built["tags"]
+    before, after = context(before_ids), context(after_ids)
+    built = normalise(sequence, before, after, budget)
+    old = serialize(sequence, before, after, budget)
+    return built["text"], built["tags"], old["text"]
 
 
 def goal(host, model, text, tags, threads):
@@ -194,6 +212,7 @@ def main():
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--threshold", type=float, default=0.72)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--no-model", action="store_true")
     args = parser.parse_args()
     directory = paths.check_data_dir(os.path.abspath(os.path.expanduser(args.data_dir)))
     store = ObservationStore(directory)
@@ -205,14 +224,16 @@ def main():
     if args.limit:
         items = items[:args.limit]
     for m in items:
-        m["packet"], m["tags"] = packet(conn, m, args.budget, args.sample)
+        m["packet"], m["tags"], m["packet_old"] = packet(conn, m, args.budget, args.sample)
         m["prompt"] = build_prompt(m["packet"])
+        m["prompt_old"] = build_prompt(m["packet_old"])
         m["packet_sha"] = hashlib.sha256(m["prompt"].encode()).hexdigest()[:16]
     result = {"data_dir": str(directory), "settings": {k: v for k, v in vars(args).items()}, "models": {}, "ps": []}
     result["settings"] = {k: str(v) if not isinstance(v, (int, float, str)) else v for k, v in vars(args).items()}
-    packets_vec = embed(args.host, args.embed_model, [m["packet"] for m in items], args.threads) if items else np.zeros((0, 1))
-    result["baseline_packet_groups"] = group(packets_vec, args.threshold) if items else []
-    for model in args.models.split(","):
+    models = [] if args.no_model else args.models.split(",")
+    packets_vec = embed(args.host, args.embed_model, [m["packet"] for m in items], args.threads) if items and not args.no_model else np.zeros((0, 1))
+    result["baseline_packet_groups"] = group(packets_vec, args.threshold) if items and not args.no_model else []
+    for model in models:
         goals, times = [], []
         for m in items:
             key = f"{model}|{m['id']}|{m['packet_sha']}"
@@ -232,7 +253,7 @@ def main():
             "seconds_median": times[len(times) // 2] if times else None,
             "seconds_max": times[-1] if times else None,
         }
-    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet", "prompt", "tags")} for m in items]
+    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet", "prompt", "tags", "packet_old", "prompt_old")} for m in items]
     json.dump(result, open(os.path.join(args.out, "moment_goals.json"), "w"), indent=1)
     conn.close()
     store.close()
@@ -243,6 +264,8 @@ def main():
             m = items[i]
             print(f"  M{i:<3} {stamp(m['start_ns'])}-{stamp(m['end_ns'])}  {g['parsed']['status'][:4]} {g['parsed']['confidence']:.2f}  {g['goal'][:100]}")
         print("  groups by goal meaning:", [c for c in data["groups"] if len(c) > 1])
+    if args.no_model:
+        print(f"{len(items)} prompts written to {os.path.join(args.out, 'moment_goals.json')} (no model was called)")
     print("\nbaseline groups by raw screen text:", [c for c in result["baseline_packet_groups"] if len(c) > 1])
     print("loaded models:", json.dumps(result["ps"]))
 

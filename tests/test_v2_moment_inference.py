@@ -239,11 +239,13 @@ class StoreLoadTests(unittest.TestCase):
             try:
                 members = ids[1:5]
                 moment = {"members": members, "start_ns": T0 + 10 * S, "end_ns": T0 + 40 * S}
-                text, tags = run.packet(conn, moment, 4500, 3)
+                text, tags, old = run.packet(conn, moment, 4500, 3)
+                self.assertIn("OBSERVATION SEQUENCE", text)
+                self.assertIn("WINDOW:", old)
                 self.assertEqual(sorted(tags), ["O1", "O2", "O3"])
                 self.assertEqual(sorted(i for v in tags.values() for i in v), sorted(members))
                 self.assertIn("Outreach Tracker", text)
-                self.assertIn("clicks left x", text)
+                self.assertIn("Click", text)
                 self.assertIn("https://sheets.example/outreach", text)
                 self.assertIn("BEFORE THE WINDOW", text)
                 self.assertIn("AFTER THE WINDOW", text)

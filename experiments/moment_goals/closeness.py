@@ -1,8 +1,10 @@
 import argparse
 import json
 import os
+import re
 import statistics
 import sys
+import time
 from itertools import combinations
 
 import numpy as np
@@ -45,6 +47,56 @@ def separation(sim, indexes, labels, ids):
     for a, b in combinations(range(len(indexes)), 2):
         (same if labels[ids[indexes[a]]] == labels[ids[indexes[b]]] else different).append(float(sim[a, b]))
     return same, different
+
+
+STOP = frozenset("the and for with that this from user users into over through while using their they them its are was were has have will can".split())
+
+
+def words_of(text):
+    return {w for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in STOP}
+
+
+def clock(ns):
+    return time.strftime("%H:%M", time.localtime(ns / S))
+
+
+def reasons(groups, moments, texts, sim, threshold):
+    out = {}
+    number = 0
+    position = {m: k for k, m in enumerate(sorted({i for g in groups for i in g}))}
+    for g in groups:
+        if len(g) < 2:
+            continue
+        number += 1
+        pairs = [(float(sim[position[a], position[b]]), a, b) for a, b in combinations(g, 2)]
+        values = [p[0] for p in pairs]
+        best = max(pairs)
+        share = [words_of(texts[i]) for i in g]
+        need = max(2, -(-len(g) * 6 // 10))
+        counts = {}
+        for ws in share:
+            for w in ws:
+                counts[w] = counts.get(w, 0) + 1
+        common = sorted((w for w, c in counts.items() if c >= need), key=lambda w: -counts[w])[:6]
+        ordered = sorted(g, key=lambda i: moments[i]["start_ns"])
+        lines = [f"Linked because the descriptions mean almost the same thing: average similarity {statistics.fmean(values):.2f}, "
+                 f"weakest link {min(values):.2f} (a Moment joins only above {threshold:.2f}).",
+                 f"Closest pair {clock(moments[best[1]]['start_ns'])} and {clock(moments[best[2]]['start_ns'])} at {best[0]:.2f}: "
+                 f"'{texts[best[1]][:90]}' / '{texts[best[2]][:90]}'"]
+        if common:
+            lines.append("Words they share: " + ", ".join(common))
+        lines.append(f"Time (supporting evidence only): {clock(moments[ordered[0]]['start_ns'])} to {clock(moments[ordered[-1]]['end_ns'])}")
+        outside = [(float(sim[position[a], position[b]]), b) for a in g for b in position if b not in g and (a in position and b in position)]
+        if outside:
+            top = max(outside)
+            lines.append(f"Nearest Moment left out: {clock(moments[top[1]]['start_ns'])} at {top[0]:.2f}: '{texts[top[1]][:90]}'")
+        out[str(number)] = lines
+    return out
+
+
+def index_sim_adapter(matrix, described):
+    keep = sorted(described)
+    return matrix[np.ix_(keep, keep)]
 
 
 def fmt(value):
@@ -106,6 +158,12 @@ def main(argv=None):
     chosen = args.threshold if args.threshold is not None else (best[1] if truth else 0.7)
     groups = [[described[j] for j in g] for g in group(vectors, chosen)]
     result["models"][args.model]["groups"] = groups
+    texts = {i: entries[ids[i]]["goal"] for i in described}
+    index_sim = np.zeros((len(moments), len(moments)), dtype=np.float32)
+    for a, i in enumerate(described):
+        for b, j in enumerate(described):
+            index_sim[i, j] = sim[a, b]
+    result["models"][args.model]["group_reasons"] = reasons(groups, moments, texts, index_sim_adapter(index_sim, described), chosen)
     result["models"][args.model]["group_threshold"] = chosen
     with open(path, "w") as handle:
         json.dump(result, handle, indent=1)

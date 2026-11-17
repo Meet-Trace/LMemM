@@ -74,6 +74,12 @@ class EndToEndTests(unittest.TestCase):
             saved = json.load(open(os.path.join(d, "moment_goals.json")))
         self.assertEqual(saved["models"]["vlm"]["groups"], [[0, 1], [2, 3]])
         self.assertEqual(saved["models"]["vlm"]["group_threshold"], 0.8)
+        reasons = saved["models"]["vlm"]["group_reasons"]
+        self.assertEqual(sorted(reasons), ["1", "2"])
+        self.assertIn("average similarity", reasons["1"][0])
+        self.assertIn("Closest pair", reasons["1"][1])
+        self.assertTrue(any(line.startswith("Time (supporting evidence only)") for line in reasons["1"]))
+        self.assertTrue(any(line.startswith("Nearest Moment left out") for line in reasons["1"]))
 
     def test_moments_without_a_description_stay_unassigned(self):
         moments = [{"id": f"m{i}", "start_ns": i * S, "end_ns": i * S + S} for i in range(3)]

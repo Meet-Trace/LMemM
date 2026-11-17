@@ -188,6 +188,8 @@ def main(argv=None):
                 error = f"stopped: {exc}"
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
+            if error:
+                status.update(describe_counts(goals_dir, args.model)[0])
             status.update({"updated": time.time(), "cycles": status["cycles"] + 1, "cycle_s": round(time.time() - began, 1),
                            "observer": observer.state() if observer else {"running": "not managed"}, "paused": paused, "last_error": error})
             write_json(os.path.join(goals_dir, STATUS), status)

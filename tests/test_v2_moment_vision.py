@@ -76,7 +76,7 @@ class PureTests(unittest.TestCase):
 
 
 class MomentCallTests(unittest.TestCase):
-    ARGS = SimpleNamespace(max_images=2, image_side=32, num_ctx=2048, num_predict=100, threads=0, timeout=10, cpu=True, format="none", repeat_penalty=None, temperature=None)
+    ARGS = SimpleNamespace(max_images=2, image_side=32, num_ctx=2048, num_predict=100, threads=0, timeout=10, cpu=True, format="none", repeat_penalty=None, temperature=None, think="off")
 
     def test_each_moment_is_one_fresh_single_message_chat_with_screenshots(self):
         calls = []
@@ -117,6 +117,7 @@ class MomentCallTests(unittest.TestCase):
         self.assertNotIn("temperature", body["options"])
         self.assertNotIn("num_thread", body["options"])
         self.assertNotIn("format", body)
+        self.assertIs(body["think"], False)
         self.assertIn("THE PROMPT", body["messages"][0]["content"])
         self.assertEqual(entry["parsed"]["status"], "ok")
         self.assertEqual(entry["goal"], "Navigating the tracker")
@@ -135,6 +136,24 @@ class MomentCallTests(unittest.TestCase):
             V.call = original
         self.assertEqual(seen[0]["format"], "json")
         self.assertEqual(seen[1]["format"]["properties"]["evidence"]["maxItems"], 3)
+
+    def test_reasoning_only_reply_is_explained(self):
+        original = V.call
+        V.call = lambda host, path, body, timeout=900: {"message": {"content": "", "thinking": "Let me look at the screenshots..."}, "eval_count": 450}
+        try:
+            with TempStore() as ts:
+                t = T0
+                ids = [ts.store.ingest(replace(draft(key="k", t=t), screenshot=ScreenshotCapture(png_bytes(), "png", 64, 48, t))).observation_id]
+                conn = read_connection(ts.store)
+                try:
+                    entry = V.one_moment(conn, str(ts.store.assets.root), "http://x", "lfm", {"id": "m", "prompt": "P", "tags": {"O1": ids}}, self.ARGS)
+                finally:
+                    conn.close()
+        finally:
+            V.call = original
+        self.assertEqual(entry["parsed"]["status"], "invalid")
+        self.assertTrue(entry["raw"].startswith("[reasoning only]"))
+        self.assertTrue(any("only reasoning" in e for e in entry["parsed"]["errors"]))
 
     def test_moment_without_stored_screenshots_is_reported_not_sent(self):
         with TempStore() as ts:

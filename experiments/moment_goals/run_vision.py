@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -258,7 +259,15 @@ def chat(host, model, message, args):
         body["format"] = "json"
     elif args.format == "schema":
         body["format"] = SCHEMA
-    return call(host, "/api/chat", body, args.timeout)
+    if args.think != "default":
+        body["think"] = args.think == "on"
+    try:
+        return call(host, "/api/chat", body, args.timeout)
+    except urllib.error.HTTPError as exc:
+        if "think" in body and exc.code == 400:
+            body.pop("think")
+            return call(host, "/api/chat", body, args.timeout)
+        raise
 
 
 def metrics_of(reply, sampled, seconds):
@@ -298,10 +307,14 @@ def one_moment(conn, root, host, model, moment, args):
         reply, error = {}, str(exc)
     seconds = round(time.perf_counter() - started, 2)
     sampled = sampler.stop()
-    parsed = parse_output(reply.get("message", {}).get("content", ""), tags)
+    content = (reply.get("message") or {}).get("content", "") or ""
+    thinking = (reply.get("message") or {}).get("thinking", "") or ""
+    parsed = parse_output(content, tags)
+    if not content.strip() and thinking.strip():
+        parsed["errors"].append("the model produced only reasoning text and no answer")
     if error:
         parsed["errors"].append("request failed: " + error)
-    return {"goal": parsed["description"] or "", "keywords": [], "parsed": parsed, "raw": reply.get("message", {}).get("content", "") or (error or ""),
+    return {"goal": parsed["description"] or "", "keywords": [], "parsed": parsed, "raw": content or (("[reasoning only] " + thinking) if thinking else (error or "")), "thinking": thinking,
             "seconds": seconds, "eval_count": reply.get("eval_count"), "prompt_eval_count": reply.get("prompt_eval_count"),
             "metrics": {**metrics_of(reply, sampled, seconds), "image_count": len(images), "image_kb": round(sum(sizes) / 1024)},
             "images": ids, "image_tags": kept, "prompt_sent": message["content"]}
@@ -320,6 +333,7 @@ def main(argv=None):
     parser.add_argument("--threads", type=int, default=0)
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument("--cpu", action="store_true")
+    parser.add_argument("--think", choices=("default", "off", "on"), default="off")
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--format", choices=("none", "json", "schema"), default="none")
     parser.add_argument("--repeat-penalty", type=float, default=None)
@@ -345,7 +359,7 @@ def main(argv=None):
     start = snapshot()
     entries = []
     for index, moment in enumerate(moments):
-        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.cpu}|{args.format}|{args.repeat_penalty}|{args.temperature}|{args.threads}".encode()).hexdigest()[:20]
+        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.cpu}|{args.format}|{args.think}|{args.repeat_penalty}|{args.temperature}|{args.threads}".encode()).hexdigest()[:20]
         if key not in cache:
             cache[key] = one_moment(conn, str(paths.assets_dir(directory)), args.host, model, moment, args)
             json.dump(cache, open(cache_path, "w"))

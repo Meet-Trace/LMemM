@@ -11,22 +11,17 @@ from collections import Counter
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..")))
 
+from context import serialize
+from inference import build_prompt, parse_output
 from trace_v2 import paths
 from trace_v2.moments.builder import ALGORITHM
 from trace_v2.moments.similarity import S
 from trace_v2.observations import ObservationStore
 from trace_v2.observations.queries import _decode
 from trace_v2.structure.processor import read_connection
-
-PROMPT = (
-    "Below is what was visible on a person's computer screen during a few minutes of work. "
-    "Say what the person is trying to accomplish, as one specific sentence naming the actual task, "
-    "files, error or subject. Do not describe the apps. Answer with JSON only: "
-    '{"goal": "<one sentence>", "keywords": ["<up to 5 distinctive terms>"]}\n\n'
-)
-
 
 def call(host, path, body, timeout=300):
     data = None if body is None else json.dumps(body).encode()
@@ -84,54 +79,67 @@ def lines_of(conn, oid):
     return out
 
 
-def titles_of(conn, oid):
-    row = conn.execute("SELECT app_name, window_title FROM observations WHERE observation_id=?", (oid,)).fetchone()
-    return row if row else (None, None)
+def record_of(conn, oid):
+    row = conn.execute("SELECT captured_at_ns, app_name, window_title, context_json FROM observations WHERE observation_id=?", (oid,)).fetchone()
+    if row is None:
+        return None
+    try:
+        url = ((json.loads(row[3]) or {}).get("window") or {}).get("url")
+    except ValueError:
+        url = None
+    events = [{"type": kind, "t_ns": t, "payload": json.loads(payload)} for t, kind, payload in conn.execute(
+        "SELECT occurred_at_ns, type, payload_json FROM interaction_events WHERE observation_id=? ORDER BY seq", (oid,))]
+    return {"t_ns": row[0], "app": row[1] or "unknown", "title": row[2], "url": url, "events": events}
+
+
+def neighbours(conn, start_ns, end_ns, members, count=1):
+    marks = ",".join("?" * len(members))
+    before = conn.execute(f"SELECT observation_id FROM observations WHERE captured_at_ns<? AND observation_id NOT IN ({marks}) "
+                          "ORDER BY captured_at_ns DESC LIMIT ?", (start_ns, *members, count)).fetchall()
+    after = conn.execute(f"SELECT observation_id FROM observations WHERE captured_at_ns>? AND observation_id NOT IN ({marks}) "
+                         "ORDER BY captured_at_ns LIMIT ?", (end_ns, *members, count)).fetchall()
+    return [r[0] for r in reversed(before)], [r[0] for r in after]
+
+
+def steps(conn, members, sample):
+    n = len(members)
+    k = max(1, min(sample, n))
+    out = []
+    for i in range(k):
+        chunk = members[i * n // k:(i + 1) * n // k]
+        if not chunk:
+            continue
+        records = [record_of(conn, oid) for oid in chunk]
+        records = [r for r in records if r]
+        if not records:
+            continue
+        middle = chunk[len(chunk) // 2]
+        rep = record_of(conn, middle) or records[0]
+        events = [e for r in records for e in r["events"]]
+        out.append({"tag": f"O{len(out) + 1}", "ids": chunk, "t_ns": records[0]["t_ns"], "app": rep["app"], "title": rep["title"],
+                    "url": rep["url"], "events": events, "lines": lines_of(conn, middle)})
+    return out
 
 
 def packet(conn, moment, budget, sample):
     members = moment["members"]
-    picks = sorted({members[int(i * (len(members) - 1) / max(1, sample - 1))] for i in range(sample)})
-    per = {oid: lines_of(conn, oid) for oid in members}
-    frequency = Counter()
-    for lines in per.values():
-        frequency.update(set(lines))
-    repeated = {k for k, v in frequency.items() if v / len(members) > 0.6 and len(members) >= 3}
-    chosen, seen, size = [], set(), 0
-    for oid in picks:
-        for line in per[oid]:
-            if line in seen or line in repeated or len(line) < 4:
-                continue
-            seen.add(line)
-            if size + len(line) > budget:
-                break
-            chosen.append(line)
-            size += len(line) + 1
-    apps = Counter()
-    trail = []
-    for oid in members:
-        app, title = titles_of(conn, oid)
-        if app:
-            apps[app] += 1
-        label = f"{app}: {title}" if title else app
-        if label and (not trail or trail[-1] != label):
-            trail.append(label)
-    head = "Apps: " + ", ".join(k for k, _ in apps.most_common(3)) + "\nWindows in order: " + " | ".join(trail[:8])
-    return head + "\nText on screen:\n" + "\n".join(chosen)
+    sequence = steps(conn, members, sample)
+    before_ids, after_ids = neighbours(conn, moment["start_ns"], moment["end_ns"], members)
+    context = lambda ids: [dict(r, tag="B", lines=[]) for r in (record_of(conn, i) for i in ids) if r]
+    built = serialize(sequence, context(before_ids), context(after_ids), budget)
+    return built["text"], built["tags"]
 
 
-def goal(host, model, text, threads):
+def goal(host, model, text, tags, threads):
     started = time.perf_counter()
+    prompt = build_prompt(text)
     reply = call(host, "/api/generate", {
-        "model": model, "prompt": PROMPT + text, "stream": False, "format": "json", "keep_alive": "5m",
-        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "num_ctx": 3072, "num_predict": 120}})
+        "model": model, "prompt": prompt, "stream": False, "format": "json", "keep_alive": "5m",
+        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "num_ctx": 4096, "num_predict": 320}})
     elapsed = time.perf_counter() - started
-    try:
-        parsed = json.loads(reply.get("response", ""))
-    except ValueError:
-        parsed = {}
-    return {"goal": str(parsed.get("goal", "")).strip(), "keywords": [str(k) for k in parsed.get("keywords", [])][:5],
-            "raw": reply.get("response", ""), "seconds": round(elapsed, 2), "eval_count": reply.get("eval_count"), "prompt_eval_count": reply.get("prompt_eval_count")}
+    parsed = parse_output(reply.get("response", ""), tags)
+    return {"goal": parsed["description"] or "", "keywords": [], "parsed": parsed, "raw": reply.get("response", ""),
+            "seconds": round(elapsed, 2), "eval_count": reply.get("eval_count"), "prompt_eval_count": reply.get("prompt_eval_count")}
 
 
 def embed(host, model, texts, threads):
@@ -181,8 +189,8 @@ def main():
     parser.add_argument("--host", default="http://127.0.0.1:11434")
     parser.add_argument("--models", default="gemma3:1b,qwen2.5:0.5b")
     parser.add_argument("--embed-model", default="embeddinggemma")
-    parser.add_argument("--budget", type=int, default=2000)
-    parser.add_argument("--sample", type=int, default=6)
+    parser.add_argument("--budget", type=int, default=4500)
+    parser.add_argument("--sample", type=int, default=8)
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--threshold", type=float, default=0.72)
     parser.add_argument("--limit", type=int, default=0)
@@ -197,9 +205,9 @@ def main():
     if args.limit:
         items = items[:args.limit]
     for m in items:
-        m["packet"] = packet(conn, m, args.budget, args.sample)
-        m["prompt"] = PROMPT + m["packet"]
-        m["packet_sha"] = hashlib.sha256(m["packet"].encode()).hexdigest()[:16]
+        m["packet"], m["tags"] = packet(conn, m, args.budget, args.sample)
+        m["prompt"] = build_prompt(m["packet"])
+        m["packet_sha"] = hashlib.sha256(m["prompt"].encode()).hexdigest()[:16]
     result = {"data_dir": str(directory), "settings": {k: v for k, v in vars(args).items()}, "models": {}, "ps": []}
     result["settings"] = {k: str(v) if not isinstance(v, (int, float, str)) else v for k, v in vars(args).items()}
     packets_vec = embed(args.host, args.embed_model, [m["packet"] for m in items], args.threads) if items else np.zeros((0, 1))
@@ -209,12 +217,12 @@ def main():
         for m in items:
             key = f"{model}|{m['id']}|{m['packet_sha']}"
             if key not in cache:
-                cache[key] = goal(args.host, model, m["packet"], args.threads)
+                cache[key] = goal(args.host, model, m["packet"], m["tags"], args.threads)
                 json.dump(cache, open(cache_path, "w"))
             goals.append(cache[key])
             times.append(cache[key]["seconds"])
         result["ps"].append({"after": model, "loaded": ps(args.host)})
-        texts = [g["goal"] or "unknown" for g in goals]
+        texts = [g["goal"] or f"unassigned moment {i}" for i, g in enumerate(goals)]
         vectors = embed(args.host, args.embed_model, texts, args.threads) if items else np.zeros((0, 1))
         times.sort()
         result["models"][model] = {
@@ -224,7 +232,7 @@ def main():
             "seconds_median": times[len(times) // 2] if times else None,
             "seconds_max": times[-1] if times else None,
         }
-    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet", "prompt")} for m in items]
+    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet", "prompt", "tags")} for m in items]
     json.dump(result, open(os.path.join(args.out, "moment_goals.json"), "w"), indent=1)
     conn.close()
     store.close()
@@ -233,7 +241,7 @@ def main():
         print(f"\n== {model}  median {data['seconds_median']} s  max {data['seconds_max']} s  empty {data['empty_goals']}")
         for i, g in enumerate(data["goals"]):
             m = items[i]
-            print(f"  M{i:<3} {stamp(m['start_ns'])}-{stamp(m['end_ns'])}  {g['goal'][:110]}")
+            print(f"  M{i:<3} {stamp(m['start_ns'])}-{stamp(m['end_ns'])}  {g['parsed']['status'][:4]} {g['parsed']['confidence']:.2f}  {g['goal'][:100]}")
         print("  groups by goal meaning:", [c for c in data["groups"] if len(c) > 1])
     print("\nbaseline groups by raw screen text:", [c for c in result["baseline_packet_groups"] if len(c) > 1])
     print("loaded models:", json.dumps(result["ps"]))

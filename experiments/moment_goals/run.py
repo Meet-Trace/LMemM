@@ -267,16 +267,18 @@ def main(argv=None):
     conn.close()
     store.close()
     stamp = lambda ns: time.strftime("%H:%M:%S", time.localtime(ns / S))
-    for model, data in result["models"].items():
+    for model, data in ((k, v) for k, v in result["models"].items() if k in models):
         print(f"\n== {model}  median {data['seconds_median']} s  max {data['seconds_max']} s  empty {data['empty_goals']}")
         for i, g in enumerate(data["goals"]):
             m = items[i]
             print(f"  M{i:<3} {stamp(m['start_ns'])}-{stamp(m['end_ns'])}  {g['parsed']['status'][:4]} {g['parsed']['confidence']:.2f}  {g['goal'][:100]}")
         print("  groups by goal meaning:", [c for c in data["groups"] if len(c) > 1])
-    if args.no_model:
+    if args.no_model and not args.keep:
         print(f"{len(items)} prompts written to {os.path.join(args.out, 'moment_goals.json')} (no model was called)")
-    print("\nbaseline groups by raw screen text:", [c for c in result["baseline_packet_groups"] if len(c) > 1])
-    print("loaded models:", json.dumps(result["ps"]))
+    if not args.keep:
+        print("\nbaseline groups by raw screen text:", [c for c in result["baseline_packet_groups"] if len(c) > 1])
+    if not args.keep:
+        print("loaded models:", json.dumps(result["ps"]))
 
 
 if __name__ == "__main__":

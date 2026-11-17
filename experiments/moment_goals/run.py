@@ -31,7 +31,7 @@ def call(host, path, body, timeout=300):
         return json.loads(response.read())
 
 
-def moments(conn):
+def moments(conn, stable_only=False):
     rows = conn.execute(
         "SELECT r.moment_id, r.revision, r.state, r.start_ns, r.end_ns, r.members_encoding, r.members FROM moment_revisions r "
         "JOIN moments m USING (moment_id) WHERE m.algorithm=? AND r.state!='merged' AND r.revision=("
@@ -39,7 +39,7 @@ def moments(conn):
     out = []
     for moment_id, revision, state, start, end, enc, blob in rows:
         members = [m["o"] for m in _decode(enc, blob) if m["role"] == "core"]
-        if len(members) >= 2:
+        if len(members) >= 2 and (state == 'stable' or not stable_only):
             out.append({"id": moment_id, "revision": revision, "state": state, "start_ns": start, "end_ns": end,
                         "members": members})
     return out
@@ -200,7 +200,7 @@ def ps(host):
         return []
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--out", required=True)
@@ -213,14 +213,16 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.72)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--no-model", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument("--keep", action="store_true")
+    parser.add_argument("--stable-only", action="store_true")
+    args = parser.parse_args(argv)
     directory = paths.check_data_dir(os.path.abspath(os.path.expanduser(args.data_dir)))
     store = ObservationStore(directory)
     conn = read_connection(store)
     os.makedirs(args.out, exist_ok=True)
     cache_path = os.path.join(args.out, "goal_cache.json")
     cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}
-    items = moments(conn)
+    items = moments(conn, args.stable_only)
     if args.limit:
         items = items[:args.limit]
     for m in items:
@@ -228,6 +230,10 @@ def main():
         m["prompt"] = build_prompt(m["packet"])
         m["prompt_old"] = build_prompt(m["packet_old"])
         m["packet_sha"] = hashlib.sha256(m["prompt"].encode()).hexdigest()[:16]
+    previous = {}
+    previous_path = os.path.join(args.out, "moment_goals.json")
+    if args.keep and os.path.exists(previous_path):
+        previous = json.load(open(previous_path))
     result = {"data_dir": str(directory), "settings": {k: v for k, v in vars(args).items()}, "models": {}, "ps": []}
     result["settings"] = {k: str(v) if not isinstance(v, (int, float, str)) else v for k, v in vars(args).items()}
     models = [] if args.no_model else args.models.split(",")
@@ -253,6 +259,9 @@ def main():
             "seconds_median": times[len(times) // 2] if times else None,
             "seconds_max": times[-1] if times else None,
         }
+    if args.keep:
+        for name, entry in previous.get("models", {}).items():
+            result["models"].setdefault(name, entry)
     result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet", "prompt", "tags", "packet_old", "prompt_old")} for m in items]
     json.dump(result, open(os.path.join(args.out, "moment_goals.json"), "w"), indent=1)
     conn.close()

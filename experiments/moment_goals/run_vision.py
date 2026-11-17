@@ -278,6 +278,10 @@ def metrics_of(reply, sampled, seconds):
             "gen_tokens_per_s": round(reply["eval_count"] / eval_s, 1) if reply.get("eval_count") and eval_s else None}
 
 
+def cache_key(model, moment, args):
+    return hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.cpu}|{args.format}|{args.think}|{args.repeat_penalty}|{args.temperature}|{args.threads}".encode()).hexdigest()[:20]
+
+
 def one_moment(conn, root, host, model, moment, args):
     tags = moment.get("tags") or {}
     used = choose_tags(tags, args.max_images)
@@ -339,6 +343,7 @@ def main(argv=None):
     parser.add_argument("--repeat-penalty", type=float, default=None)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--fresh", action="store_true")
+    parser.add_argument("--only-new", action="store_true")
     args = parser.parse_args(argv)
     sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..")))
     from trace_v2 import paths
@@ -354,12 +359,17 @@ def main(argv=None):
     store = ObservationStore(directory)
     conn = read_connection(store)
     moments = result["moments"][:args.limit] if args.limit else result["moments"]
+    if args.only_new and not args.fresh:
+        have = {g["moment_id"] for g in result["models"].get(model, {}).get("goals", [])}
+        if all(m["id"] in have and cache_key(model, m, args) in cache for m in moments):
+            print("  nothing new to describe", flush=True)
+            return 0
     baseline = [probe_ms() for _ in range(7)]
     baseline_probe = round(statistics.median(baseline), 2)
     start = snapshot()
     entries = []
     for index, moment in enumerate(moments):
-        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.cpu}|{args.format}|{args.think}|{args.repeat_penalty}|{args.temperature}|{args.threads}".encode()).hexdigest()[:20]
+        key = cache_key(model, moment, args)
         if key not in cache:
             cache[key] = one_moment(conn, str(paths.assets_dir(directory)), args.host, model, moment, args)
             json.dump(cache, open(cache_path, "w"))

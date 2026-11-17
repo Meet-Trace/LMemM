@@ -131,7 +131,7 @@ def goal(host, model, text, threads):
     except ValueError:
         parsed = {}
     return {"goal": str(parsed.get("goal", "")).strip(), "keywords": [str(k) for k in parsed.get("keywords", [])][:5],
-            "seconds": round(elapsed, 2), "eval_count": reply.get("eval_count"), "prompt_eval_count": reply.get("prompt_eval_count")}
+            "raw": reply.get("response", ""), "seconds": round(elapsed, 2), "eval_count": reply.get("eval_count"), "prompt_eval_count": reply.get("prompt_eval_count")}
 
 
 def embed(host, model, texts, threads):
@@ -198,6 +198,7 @@ def main():
         items = items[:args.limit]
     for m in items:
         m["packet"] = packet(conn, m, args.budget, args.sample)
+        m["prompt"] = PROMPT + m["packet"]
         m["packet_sha"] = hashlib.sha256(m["packet"].encode()).hexdigest()[:16]
     result = {"data_dir": str(directory), "settings": {k: v for k, v in vars(args).items()}, "models": {}, "ps": []}
     result["settings"] = {k: str(v) if not isinstance(v, (int, float, str)) else v for k, v in vars(args).items()}
@@ -223,7 +224,7 @@ def main():
             "seconds_median": times[len(times) // 2] if times else None,
             "seconds_max": times[-1] if times else None,
         }
-    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet")} for m in items]
+    result["moments"] = [{k: m[k] for k in ("id", "revision", "state", "start_ns", "end_ns", "members", "packet", "prompt")} for m in items]
     json.dump(result, open(os.path.join(args.out, "moment_goals.json"), "w"), indent=1)
     conn.close()
     store.close()

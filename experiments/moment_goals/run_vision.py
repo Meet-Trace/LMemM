@@ -248,8 +248,12 @@ def chat(host, model, message, args):
                "repeat_penalty": args.repeat_penalty}
     if not args.gpu:
         options["num_gpu"] = 0
-    return call(host, "/api/chat", {"model": model, "messages": [message], "stream": False, "format": "json" if args.no_schema else SCHEMA, "keep_alive": "10m", "options": options},
-                args.timeout)
+    body = {"model": model, "messages": [message], "stream": False, "keep_alive": "10m", "options": options}
+    if args.format == "json":
+        body["format"] = "json"
+    elif args.format == "schema":
+        body["format"] = SCHEMA
+    return call(host, "/api/chat", body, args.timeout)
 
 
 def metrics_of(reply, sampled, seconds):
@@ -311,7 +315,7 @@ def main(argv=None):
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--timeout", type=int, default=900)
     parser.add_argument("--gpu", action="store_true")
-    parser.add_argument("--no-schema", action="store_true")
+    parser.add_argument("--format", choices=("none", "json", "schema"), default="none")
     parser.add_argument("--repeat-penalty", type=float, default=1.15)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--fresh", action="store_true")
@@ -335,7 +339,7 @@ def main(argv=None):
     start = snapshot()
     entries = []
     for index, moment in enumerate(moments):
-        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.gpu}|{args.no_schema}|{args.repeat_penalty}".encode()).hexdigest()[:20]
+        key = hashlib.sha256(f"{model}|{moment['id']}|{moment['prompt']}|{args.max_images}|{args.image_side}|{args.gpu}|{args.format}|{args.repeat_penalty}".encode()).hexdigest()[:20]
         if key not in cache:
             cache[key] = one_moment(conn, str(paths.assets_dir(directory)), args.host, model, moment, args)
             json.dump(cache, open(cache_path, "w"))

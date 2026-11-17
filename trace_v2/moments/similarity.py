@@ -11,7 +11,7 @@ PARAMS = {
     "tau_s": 120.0,
     "recent": 3,
     "centroid_share": 0.5,
-    "min_members": 2,
+    "min_members": 3,
     "stabilise_s": 900.0,
     "candidate_horizon_s": 1800.0,
     "ready_wait_s": 45.0,

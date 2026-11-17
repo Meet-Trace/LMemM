@@ -356,6 +356,7 @@ def main(argv=None):
     model = pick_model(args.host, args.model)
     cache_path = os.path.join(goals_dir, "vision_cache.json")
     cache = {} if args.fresh or not os.path.exists(cache_path) else json.load(open(cache_path))
+    cache = {k: e for k, e in cache.items() if not any(str(x).startswith("request failed") for x in e.get("parsed", {}).get("errors", []))}
     store = ObservationStore(directory)
     conn = read_connection(store)
     moments = result["moments"][:args.limit] if args.limit else result["moments"]
@@ -368,10 +369,19 @@ def main(argv=None):
     baseline_probe = round(statistics.median(baseline), 2)
     start = snapshot()
     entries = []
+    failures = 0
     for index, moment in enumerate(moments):
         key = cache_key(model, moment, args)
         if key not in cache:
-            cache[key] = one_moment(conn, str(paths.assets_dir(directory)), args.host, model, moment, args)
+            fresh = one_moment(conn, str(paths.assets_dir(directory)), args.host, model, moment, args)
+            if any(str(e).startswith("request failed") for e in fresh["parsed"]["errors"]):
+                failures += 1
+                if failures >= 2:
+                    raise SystemExit("Ollama is not answering (is the Ollama app running?); nothing was cached for the failed Moments")
+                entries.append(fresh)
+                continue
+            failures = 0
+            cache[key] = fresh
             json.dump(cache, open(cache_path, "w"))
         entry = cache[key]
         entries.append(entry)

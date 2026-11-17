@@ -49,6 +49,15 @@ def pause_reason(min_battery, min_free_pct):
     return None
 
 
+def ollama_down(host):
+    import urllib.request
+    try:
+        urllib.request.urlopen(host + "/api/tags", timeout=5).read()
+    except Exception as exc:
+        return f"Ollama is not reachable at {host} ({type(exc).__name__}); open the Ollama app"
+    return None
+
+
 def describe_counts(goals_dir, model):
     result = read_json(os.path.join(goals_dir, "moment_goals.json"), {})
     moments = result.get("moments", [])
@@ -113,7 +122,7 @@ def interpret(args, goals_dir):
     current = signature(moments)
     if current == state.get("signature") or not moments:
         return counts, False
-    reason = pause_reason(args.min_battery, args.min_free_pct)
+    reason = pause_reason(args.min_battery, args.min_free_pct) or ollama_down(args.host)
     if reason:
         return counts, reason
     run_vision.main(["--data-dir", args.data_dir, "--goals", goals_dir, "--host", args.host, "--model", args.model, "--only-new"])

@@ -71,6 +71,11 @@ class ObserverTests(unittest.TestCase):
             observer.log.close()
 
 
+class OllamaTests(unittest.TestCase):
+    def test_unreachable_host_is_reported(self):
+        self.assertIn("not reachable", ambient.ollama_down("http://127.0.0.1:9"))
+
+
 class PauseTests(unittest.TestCase):
     def test_low_battery_pauses(self):
         with mock.patch("run_vision.run", side_effect=["Now drawing from 'Battery Power'\n 10%; discharging", "free 50%"]):

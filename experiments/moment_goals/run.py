@@ -49,12 +49,39 @@ def moments(conn):
     return out
 
 
+def ax_strings(node, out, depth=0):
+    if not isinstance(node, dict) or depth > 12 or len(out) > 400:
+        return
+    for key in ("title", "value", "description", "label", "help"):
+        value = node.get(key)
+        if isinstance(value, str) and len(value.strip()) >= 4:
+            out.append(value.strip()[:300])
+    for child in node.get("children") or []:
+        ax_strings(child, out, depth + 1)
+
+
 def lines_of(conn, oid):
     row = conn.execute("SELECT raw_encoding, raw FROM extractions WHERE observation_id=? AND reader='ocr' AND status='succeeded' "
                        "ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
-    if not row:
-        return []
-    return [l["text"].strip() for l in (_decode(*row) or {}).get("lines", []) if l.get("text", "").strip()]
+    out = []
+    if row:
+        raw = _decode(*row) or {}
+        height = (raw.get("image_size") or [0, 0])[1] or 0
+        for line in raw.get("lines", []):
+            text = line.get("text", "").strip()
+            box = line.get("box")
+            if not text:
+                continue
+            if height and box and (box[1] < 0.04 * height or box[1] > 0.95 * height):
+                continue
+            out.append(text)
+    ax = conn.execute("SELECT raw_encoding, raw FROM extractions WHERE observation_id=? AND reader='accessibility' "
+                      "AND status='succeeded' ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
+    if ax:
+        found = []
+        ax_strings(_decode(*ax), found)
+        out.extend(found)
+    return out
 
 
 def titles_of(conn, oid):
@@ -81,14 +108,15 @@ def packet(conn, moment, budget, sample):
             chosen.append(line)
             size += len(line) + 1
     apps = Counter()
-    titles = Counter()
+    trail = []
     for oid in members:
         app, title = titles_of(conn, oid)
         if app:
             apps[app] += 1
-        if title:
-            titles[title] += 1
-    head = "Apps: " + ", ".join(k for k, _ in apps.most_common(3)) + "\nWindows: " + " | ".join(k for k, _ in titles.most_common(4))
+        label = f"{app}: {title}" if title else app
+        if label and (not trail or trail[-1] != label):
+            trail.append(label)
+    head = "Apps: " + ", ".join(k for k, _ in apps.most_common(3)) + "\nWindows in order: " + " | ".join(trail[:8])
     return head + "\nText on screen:\n" + "\n".join(chosen)
 
 
@@ -96,7 +124,7 @@ def goal(host, model, text, threads):
     started = time.perf_counter()
     reply = call(host, "/api/generate", {
         "model": model, "prompt": PROMPT + text, "stream": False, "format": "json", "keep_alive": "5m",
-        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "num_ctx": 2048, "num_predict": 120}})
+        "options": {"num_gpu": 0, "num_thread": threads, "temperature": 0, "num_ctx": 3072, "num_predict": 120}})
     elapsed = time.perf_counter() - started
     try:
         parsed = json.loads(reply.get("response", ""))
@@ -153,8 +181,8 @@ def main():
     parser.add_argument("--host", default="http://127.0.0.1:11434")
     parser.add_argument("--models", default="gemma3:1b,qwen2.5:0.5b")
     parser.add_argument("--embed-model", default="embeddinggemma")
-    parser.add_argument("--budget", type=int, default=1200)
-    parser.add_argument("--sample", type=int, default=4)
+    parser.add_argument("--budget", type=int, default=2000)
+    parser.add_argument("--sample", type=int, default=6)
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--threshold", type=float, default=0.72)
     parser.add_argument("--limit", type=int, default=0)

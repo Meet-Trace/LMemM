@@ -144,27 +144,37 @@
       return d + ` L${last[0].toFixed(2)} ${last[1].toFixed(2)}`;
     };
     let tLast = tObj;
-    links.forEach((f, i) => {
-      const A = pos(anchors[f.dataset.link], vis), F = pos(f.querySelector('.box') || f, vis);
-      const sx = (F.x + F.w) * k, bx = N.x * k - 2.2, ex = N.x * k, ey = (A.y + A.h / 2) * k;
-      // other cards between this one and the Now window (labels included)
-      const others = boxes.filter(o => o.el !== f && o.x >= F.x + F.w - 4 && o.x < N.x);
-      const blocked = y => others.some(o => y > o.lab.y - 4 && y < o.y + o.h + 4);
-      let sy = null;
-      for (let d = 0; d <= F.h / 2 - 6; d += 3) {
-        const up = F.y + F.h / 2 - d, dn = F.y + F.h / 2 + d;
-        if (!blocked(up)) { sy = up * k; break; }
-        if (!blocked(dn)) { sy = dn * k; break; }
+    // group the past cards into columns (left to right); the last column sits next to the Now window
+    const cards = links.map(f => ({ f, F: pos(f.querySelector('.box') || f, vis) }));
+    const cols = [];
+    cards.sort((p, q) => p.F.x - q.F.x).forEach(c => {
+      const col = cols.find(g => Math.abs(g.x - c.F.x) < 6);
+      if (col) col.items.push(c); else cols.push({ x: c.F.x, items: [c] });
+    });
+    cols.forEach(g => { g.items.sort((p, q) => p.F.y - q.F.y); g.right = Math.max(...g.items.map(c => c.F.x + c.F.w)) * k; });
+    const bx = N.x * k - 2.2, ex = N.x * k;
+    cols.forEach((g, i) => { g.rail = i === cols.length - 1 ? bx : (g.right + cols[i + 1].x * k) / 2; });
+    // a horizontal channel through the gap between two cards of the next column
+    cols.forEach((g, i) => {
+      if (i === cols.length - 1) return;
+      const nxt = cols[i + 1].items, mean = g.items.reduce((s, c) => s + (c.F.y + c.F.h / 2), 0) / g.items.length * k;
+      const gaps = nxt.slice(1).map((c, n) => (nxt[n].F.y + nxt[n].F.h) * k + 1.7);
+      g.chan = gaps.length ? gaps.reduce((best, y) => Math.abs(y - mean) < Math.abs(best - mean) ? y : best, gaps[0]) : (nxt[0].F.y * k - 4.6);
+    });
+    const tidy = pts => pts.filter((p, n) => n === 0 || Math.hypot(p[0] - pts[n - 1][0], p[1] - pts[n - 1][1]) > .05)
+      .filter((p, n, arr) => n === 0 || n === arr.length - 1 || !((arr[n - 1][0] === p[0] && p[0] === arr[n + 1][0]) || (arr[n - 1][1] === p[1] && p[1] === arr[n + 1][1])));
+    cards.forEach(({ f, F }, i) => {
+      const gi = cols.findIndex(g => g.items.some(c => c.f === f)), ey = (pos(anchors[f.dataset.link], vis).y + pos(anchors[f.dataset.link], vis).h / 2) * k;
+      const sx = (F.x + F.w) * k, cy = (F.y + F.h / 2) * k;
+      let pts = [[sx, cy]], cur = cy;
+      for (let j = gi; j < cols.length - 1; j++) {
+        pts.push([cols[j].rail, cur], [cols[j].rail, cols[j].chan], [cols[j + 1].rail, cols[j].chan]);
+        cur = cols[j].chan;
       }
-      let pts;
-      if (sy !== null) {
-        pts = Math.abs(sy - ey) < .3 ? [[sx, sy], [ex, ey]] : [[sx, sy], [bx, sy], [bx, ey], [ex, ey]];
-      } else {
-        // boxed in: leave through the gutter, run along the top lane, come down the shared line
-        const gx = sx + 1.6, mid = (F.y + F.h / 2) * k;
-        pts = [[sx, mid], [gx, mid], [gx, laneY], [bx, laneY], [bx, ey], [ex, ey]];
-      }
-      const d = rounded(pts);
+      const lastRail = cols[cols.length - 1].rail;
+      if (gi === cols.length - 1) pts.push([lastRail, cur]);
+      pts.push([lastRail, ey], [ex, ey]);
+      const d = rounded(tidy(pts));
       const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); svg.appendChild(p);
       const dv = parseFloat(f.style.getPropertyValue('--d')) || 0;
       const t0 = .1 + dv * .12 + .4, t1 = t0 + .7;
@@ -172,12 +182,14 @@
       if (animate) p.animate([{ clipPath: 'inset(-10% 100% -10% 0)' }, { clipPath: 'inset(-10% -10% -10% 0)' }], { duration: 700, delay: t0 * 1000, easing: EASE, fill: 'both' });
       ends[f.dataset.link] = { ey, ex, t: Math.max(ends[f.dataset.link]?.t || 0, t1) };
       if (animate) {
-        const c = document.createElementNS(NS, 'circle'); c.setAttribute('class', 'pulse'); c.setAttribute('r', '.55'); c.style.opacity = '0';
+        const c = document.createElementNS(NS, 'circle'); c.setAttribute('class', 'pulse'); c.setAttribute('r', '.5'); c.style.opacity = '0';
         const m = document.createElementNS(NS, 'animateMotion');
-        m.setAttribute('dur', '1.4s'); m.setAttribute('begin', 'indefinite'); m.setAttribute('fill', 'freeze'); m.setAttribute('path', d);
+        m.setAttribute('dur', '1.6s'); m.setAttribute('begin', 'indefinite'); m.setAttribute('fill', 'freeze'); m.setAttribute('path', d);
         c.appendChild(m); svg.appendChild(c);
-        vis._timers.push(setTimeout(() => { c.style.opacity = '1'; try { m.beginElement(); } catch (e) {} }, (t1 + .05) * 1000));
-        vis._timers.push(setTimeout(() => { c.style.opacity = '0'; }, (t1 + .05 + 1.4) * 1000));
+        const ts = t1 + .1 + i * .3;
+        vis._timers.push(setTimeout(() => { c.style.opacity = '1'; try { m.beginElement(); } catch (e) {} }, ts * 1000));
+        vis._timers.push(setTimeout(() => { c.style.opacity = '0'; }, (ts + 1.6) * 1000));
+        tLast = Math.max(tLast, t1);
       }
     });
     Object.values(ends).forEach(o => {

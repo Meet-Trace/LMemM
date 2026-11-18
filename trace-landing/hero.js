@@ -113,7 +113,8 @@
   const draw = (vis, replay) => {
     const svg = vis.querySelector('.cx'); if (!svg || !vis.offsetWidth) return;
     const nowBox = vis.querySelector('.blk.now .box'); if (!nowBox) return;
-    const sig = vis.offsetWidth + 'x' + vis.offsetHeight + ':' + nowBox.offsetLeft;
+    const phone = matchMedia('(max-width:899px)').matches;
+    const sig = (phone ? 'p' : '') + vis.offsetWidth + 'x' + vis.offsetHeight + ':' + nowBox.offsetLeft;
     if (replay) vis._sig = null;
     if (vis._sig === sig) return;
     const animate = !reduce && !vis._sig && !vis._static;
@@ -126,6 +127,14 @@
     vis.querySelectorAll('[data-anchor]').forEach(a => { anchors[a.dataset.anchor] = a; });
     const maxD = Math.max(...[...vis.querySelectorAll('.blk')].map(b => parseFloat(b.style.getPropertyValue('--d')) || 0));
     const tObj = .1 + maxD * .12 + .6;               // when every object has arrived
+    if (phone) {
+      const n = vis.querySelectorAll('.blk:not(.now)').length;
+      const shown = [...vis.querySelectorAll('.blk:not(.now)')].filter(x => x.offsetParent !== null).length;
+      const pillP = document.createElement('span');
+      pillP.className = 'tr-pill'; pillP.textContent = `Trace reconnected ${shown} ${shown === 1 ? 'moment' : 'moments'}`;
+      vis.appendChild(pillP); vis._static = false;
+      return;
+    }
     const N = pos(nowBox, vis), r = 1.2, ends = {};
     const links = [...vis.querySelectorAll('[data-link]')].filter(f => anchors[f.dataset.link]);
     const blks = [...vis.querySelectorAll('.blk')].filter(x => !x.classList.contains('now'));

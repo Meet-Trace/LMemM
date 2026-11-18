@@ -9,7 +9,7 @@ FILES = (
     "trace-launch.mp4", "trace-launch-poster.jpg",
     "_headers", "robots.txt", "sitemap.xml",
 )
-DIRS = ("icons",)
+DIRS = ("icons", "moodboard")
 
 
 def build():

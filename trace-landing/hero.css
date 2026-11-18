@@ -228,14 +228,7 @@ body::after{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;opa
 .v-create .wm{display:inline-block;font:italic 400 9cqw/1 var(--serif);letter-spacing:-.04em;color:var(--ink);padding:0 .6cqw}
 .v-create .sws{display:flex;gap:1cqw;margin:3cqw 0 2.4cqw;padding:.8cqw;width:max-content}.v-create .sws i{display:block;width:5.2cqw;height:5.2cqw;border-radius:1cqw;box-shadow:inset 0 0 0 .1cqw rgba(25,26,32,.12)}
 .v-create .cv small{letter-spacing:.02em;font-size:1.3cqw;font-weight:500;color:var(--soft)}
-.v-create .ph{width:100%;height:100%;position:relative;overflow:hidden}
-.v-create .dusk{background:radial-gradient(circle at 70% 38%,#fff3d6 0 5%,#f7c9a0 12%,transparent 32%),linear-gradient(#f2c9a0,#e9a08a 48%,#8a5f78 70%,#2d2a3d)}
-.v-create .dusk::before{content:"";position:absolute;left:-10%;right:-10%;bottom:0;height:42%;background:#2d2a3d;clip-path:polygon(0 60%,18% 25%,34% 50%,52% 15%,70% 48%,86% 28%,100% 55%,100% 100%,0 100%)}
-.v-create .dusk::after{content:"";position:absolute;left:-10%;right:-10%;bottom:0;height:26%;background:#1c1a28;clip-path:polygon(0 50%,25% 20%,48% 60%,74% 25%,100% 55%,100% 100%,0 100%)}
-.v-create .life{background:linear-gradient(#efe4d2,#e6d6bf)}
-.v-create .life::before{content:"";position:absolute;left:14%;bottom:14%;width:34%;height:58%;border-radius:45% 45% 38% 38%/60% 60% 40% 40%;background:radial-gradient(circle at 35% 30%,#f6efe4,#cdb394);box-shadow:.8cqw .6cqw 1.6cqw rgba(60,40,20,.25)}
-.v-create .life::after{content:"";position:absolute;right:12%;bottom:14%;width:28%;height:34%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e8b995,#b8734d);box-shadow:.8cqw .6cqw 1.6cqw rgba(60,40,20,.25)}
-.v-create .linen{background:repeating-linear-gradient(0deg,rgba(255,255,255,.35) 0 .15cqw,transparent .15cqw .5cqw),repeating-linear-gradient(90deg,rgba(120,100,80,.1) 0 .15cqw,transparent .15cqw .5cqw),#d8c9b4}
+.v-create .ph{display:block;width:100%;height:100%;object-fit:cover}
 .v-create .shot .mini{display:flex;gap:.5cqw;margin-bottom:1cqw}.v-create .shot .mini i{width:.7cqw;height:.7cqw;border-radius:50%;background:rgba(25,26,32,.16)}
 .v-create .shot h5{font:italic 400 2.2cqw/1.1 var(--serif)}.v-create .shot .gb{margin-top:.9cqw}
 .v-create .tp .box{display:flex;flex-direction:column;justify-content:center}

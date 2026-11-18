@@ -174,7 +174,7 @@
       const lastRail = cols[cols.length - 1].rail;
       if (gi === cols.length - 1) pts.push([lastRail, cur]);
       pts.push([lastRail, ey], [ex, ey]);
-      const d = rounded(tidy(pts));
+      const d = 'M' + tidy(pts).map(p => p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join(' L');
       const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); svg.appendChild(p);
       const dv = parseFloat(f.style.getPropertyValue('--d')) || 0;
       const t0 = .1 + dv * .12 + .4, t1 = t0 + .7;

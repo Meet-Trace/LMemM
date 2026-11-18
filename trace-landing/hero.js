@@ -131,7 +131,16 @@
     let tLast = tObj;
     links.forEach((f, i) => {
       const A = pos(anchors[f.dataset.link], vis), F = pos(f.querySelector('.box') || f, vis);
-      const sx = (F.x + F.w) * k, sy = (F.y + F.h / 2) * k;
+      const sx = (F.x + F.w) * k;
+      // start the line at a height that does not run through another card's label
+      const labels = [...vis.querySelectorAll('.blk .src')].filter(l => l.parentElement !== f && !f.contains(l)).map(l => pos(l, vis));
+      const clear = y => !labels.some(L => y > L.y - 6 && y < L.y + L.h + 6 && (F.x + F.w) < L.x + L.w && N.x > L.x);
+      let sy = (F.y + F.h / 2) * k;
+      for (let d = 0; d <= F.h / 2 - 8; d += 4) {
+        const up = F.y + F.h / 2 - d, dn = F.y + F.h / 2 + d;
+        if (clear(up)) { sy = up * k; break; }
+        if (clear(dn)) { sy = dn * k; break; }
+      }
       const bx = N.x * k - 2.2, ex = N.x * k, ey = (A.y + A.h / 2) * k;
       const dy = ey - sy, sgn = dy >= 0 ? 1 : -1, rr = Math.min(r, Math.abs(dy) / 2);
       const d = Math.abs(dy) < .3

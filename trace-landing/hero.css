@@ -157,7 +157,7 @@ body::after{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;opa
 .vis .blk{position:absolute;opacity:0;transform:translateY(1.4cqw) rotate(var(--r,0deg));animation:fin .6s calc(.1s + var(--d)*.12s) var(--ease) forwards;z-index:2}
 .vis .blk.now{z-index:2;animation-delay:.05s}
 @keyframes fin{from{opacity:0;transform:translateY(1.4cqw) rotate(var(--r,0deg))}to{opacity:1;transform:rotate(var(--r,0deg))}}
-.vis .src{position:absolute;left:0;top:-2.7cqw;display:flex;align-items:center;gap:.6cqw;font:600 1.1cqw/1 var(--sans);color:#6b6e79;white-space:nowrap}
+.vis .src{position:absolute;left:-.5cqw;top:-2.9cqw;display:flex;align-items:center;gap:.6cqw;padding:.45cqw .6cqw;border-radius:.6cqw;background:rgba(243,236,224,.94);font:600 1.1cqw/1 var(--sans);color:#6b6e79;white-space:nowrap;z-index:2}
 .vis .src svg{width:1.7cqw;height:1.7cqw}.vis .src em{font-style:normal;font-weight:500;color:#9a9ca6}
 .vis .src.nowtag{color:var(--blue-deep)}.vis .src.nowtag em{color:var(--blue)}
 .vis .box{position:relative;width:100%;height:100%;overflow:hidden}

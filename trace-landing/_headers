@@ -5,3 +5,9 @@
 
 /icons/*
   Cache-Control: public, max-age=3600
+
+/hero.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+/hero.js
+  Cache-Control: public, max-age=0, must-revalidate

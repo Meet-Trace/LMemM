@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parent
 DEST = ROOT / "dist"
 FILES = (
     "index.html", "hero.css", "hero.js", "brain.svg", "favicon.svg",
-    "trace-launch.mp4", "trace-launch-poster.jpg",
+    "trace-launch.mp4", "trace-launch-poster.jpg", "og.jpg",
     "_headers", "robots.txt", "sitemap.xml",
 )
 DIRS = ("icons", "moodboard")

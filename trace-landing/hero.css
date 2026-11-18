@@ -427,3 +427,52 @@ html.no-snap{scroll-snap-type:none!important;scroll-behavior:auto!important}
   .cta .sec-h{font-size:clamp(42px,12.6vw,60px)}
   .foot{padding:24px var(--pad);flex-direction:column;align-items:flex-start;gap:14px}
 }
+
+/* ——— phones only (under 700px): compact timelines instead of the desktop scenes ——— */
+.m-scene,.apps-m,.apps-cap{display:none}
+@media (max-width:699px){
+  html{overflow-x:hidden}
+  :root{--h1:clamp(44px,13.4vw,90px)}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .copy,.nav{min-width:0}
+  .join{max-width:none}
+  .vis,.legend{display:none}
+  .uc-head{margin-bottom:28px}
+  .m-scene{display:block;position:relative;list-style:none;margin:0;padding:0}
+  .m-scene::before{content:"";position:absolute;left:13.25px;top:16px;bottom:34px;width:1.5px;background:linear-gradient(#cdd6f5,#8196e0)}
+  .mr{position:relative;padding:0 0 22px 46px;min-height:28px}
+  .mi{position:absolute;left:0;top:0;width:28px;height:28px;border-radius:8px;background:#fbfaf6;display:grid;place-items:center;box-shadow:0 0 0 1px rgba(25,26,32,.08)}
+  .mi svg{width:17px;height:17px}
+  .ms{margin:0;font:600 12.5px/1.3 var(--sans);color:#6b6e79}
+  .ms em{font-style:normal;font-weight:500;color:#9a9ca6}
+  .mt{margin:4px 0 0;font:400 15.5px/1.4 var(--sans);color:var(--ink)}
+  .mt mark{background:rgba(40,86,217,.16);color:inherit;box-shadow:0 2px 0 var(--blue);padding:0 3px;margin:0 -3px;border-radius:3px}
+  .mt code{font:500 13px ui-monospace,"SF Mono",Menlo,monospace;background:rgba(25,26,32,.07);padding:1px 5px;border-radius:5px}
+  .mpill{position:relative;list-style:none;padding:0 0 22px 46px}
+  .mpill span{display:inline-block;padding:7px 13px;border-radius:99px;background:var(--blue);color:#fff;font:600 12px/1 var(--sans)}
+  .mnow>div{background:#fff;border-radius:14px;padding:13px 15px;box-shadow:0 14px 30px rgba(42,54,94,.12),0 0 0 1px rgba(25,26,32,.07)}
+  .mnow{padding-bottom:0}
+  .mnow .ms{color:var(--blue-deep)}.mnow .ms em{color:var(--blue)}
+  .mcode{display:block;font:400 11.4px/1.75 ui-monospace,"SF Mono",Menlo,monospace!important;background:#16181f!important;color:#e6e2d8;padding:11px 13px!important;border-radius:9px!important;white-space:normal}
+  .mcode .hl{display:block;background:rgba(90,125,255,.22);margin:0 -13px;padding:0 13px;box-shadow:inset 3px 0 0 #6f8cff}
+  .mq{font:400 24px/1.15 var(--serif);letter-spacing:-.01em}
+  .mbrand{display:block;font:italic 400 46px/1 var(--serif);letter-spacing:-.04em;color:var(--ink)}
+  .mdesc{display:block;margin-top:6px;font:600 10.5px/1 var(--sans);letter-spacing:.22em;color:var(--soft)}
+  .mpal{display:flex;gap:7px;margin-top:12px}.mpal i{flex:1;aspect-ratio:1;max-width:40px;border-radius:9px;box-shadow:inset 0 0 0 1px rgba(25,26,32,.12)}
+  .mthumbs{display:flex;gap:8px;margin-top:8px}.mthumbs img{width:calc((100% - 16px)/3);aspect-ratio:1;object-fit:cover;border-radius:11px;box-shadow:0 8px 18px rgba(42,54,94,.14)}
+  /* effortless: a drifting wall of apps */
+  .apps{display:none}
+  .apps-m{display:grid;gap:12px;width:calc(100% + var(--pad)*2);margin:34px calc(var(--pad)*-1) 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);opacity:0;transition:opacity 1s ease .5s}
+  .effortless.in .apps-m{opacity:1}
+  .mrow{overflow:hidden}
+  .mtrack{display:flex;gap:12px;width:max-content;animation:mq-l 46s linear infinite}
+  .mrow:nth-child(2) .mtrack{animation-name:mq-r;animation-duration:52s}
+  .mt-i{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:14px;background:#fbfaf6;box-shadow:0 8px 20px rgba(42,54,94,.09),0 0 0 1px rgba(25,26,32,.06)}
+  .mt-i img{width:28px;height:28px;object-fit:contain}
+  @keyframes mq-l{to{transform:translateX(calc(-50% - 6px))}}
+  @keyframes mq-r{from{transform:translateX(calc(-50% - 6px))}to{transform:none}}
+  .apps-cap{display:block;margin:20px 0 28px;font:500 15px/1 var(--sans);color:var(--soft);opacity:0;transition:opacity 1s ease 1.2s}
+  .effortless.in .apps-cap{opacity:1}
+  .effortless.in .e2{transition-delay:1.9s}
+}
+@media (max-width:699px) and (prefers-reduced-motion:reduce){.mtrack{animation:none}}

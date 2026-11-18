@@ -226,6 +226,7 @@ body::after{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;opa
 /* create */
 .v-create .cv{position:relative;height:calc(100% - 2.8cqw);padding:3.4cqw 3.6cqw;background:#faf6ee}
 .v-create .wm{display:inline-block;font:italic 400 9cqw/1 var(--serif);letter-spacing:-.04em;color:var(--ink);padding:0 .6cqw}
+.v-create .desc{display:block;margin:.4cqw 0 0 .6cqw;font:600 1.3cqw/1 var(--sans);letter-spacing:.22em;color:var(--soft)}
 .v-create .sws{display:flex;gap:1cqw;margin:3cqw 0 2.4cqw;padding:.8cqw;width:max-content}.v-create .sws i{display:block;width:5.2cqw;height:5.2cqw;border-radius:1cqw;box-shadow:inset 0 0 0 .1cqw rgba(25,26,32,.12)}
 .v-create .cv small{letter-spacing:.02em;font-size:1.3cqw;font-weight:500;color:var(--soft)}
 .v-create .ph{display:block;width:100%;height:100%;object-fit:cover}

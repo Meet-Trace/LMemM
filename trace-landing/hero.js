@@ -128,24 +128,43 @@
     const tObj = .1 + maxD * .12 + .6;               // when every object has arrived
     const N = pos(nowBox, vis), r = 1.2, ends = {};
     const links = [...vis.querySelectorAll('[data-link]')].filter(f => anchors[f.dataset.link]);
+    const blks = [...vis.querySelectorAll('.blk')].filter(x => !x.classList.contains('now'));
+    const boxes = blks.map(x => ({ el: x, ...pos(x.querySelector('.box') || x, vis), lab: pos(x.querySelector('.src'), vis) }));
+    const topCqw = Math.min(...boxes.map(o => (o.lab.y) * k));
+    const laneY = Math.max(topCqw - 2.4, 1);
+    const rounded = pts => {
+      let d = `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const [px, py] = pts[i - 1], [x, y] = pts[i], [nx, ny] = pts[i + 1];
+        const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(nx - x, ny - y), rr = Math.min(r, l1 / 2, l2 / 2);
+        const ax = x - (x - px) / l1 * rr, ay = y - (y - py) / l1 * rr, bx2 = x + (nx - x) / l2 * rr, by2 = y + (ny - y) / l2 * rr;
+        d += ` L${ax.toFixed(2)} ${ay.toFixed(2)} Q${x.toFixed(2)} ${y.toFixed(2)} ${bx2.toFixed(2)} ${by2.toFixed(2)}`;
+      }
+      const last = pts[pts.length - 1];
+      return d + ` L${last[0].toFixed(2)} ${last[1].toFixed(2)}`;
+    };
     let tLast = tObj;
     links.forEach((f, i) => {
       const A = pos(anchors[f.dataset.link], vis), F = pos(f.querySelector('.box') || f, vis);
-      const sx = (F.x + F.w) * k;
-      // start the line at a height that does not run through another card's label
-      const labels = [...vis.querySelectorAll('.blk .src')].filter(l => l.parentElement !== f && !f.contains(l)).map(l => pos(l, vis));
-      const clear = y => !labels.some(L => y > L.y - 6 && y < L.y + L.h + 6 && (F.x + F.w) < L.x + L.w && N.x > L.x);
-      let sy = (F.y + F.h / 2) * k;
-      for (let d = 0; d <= F.h / 2 - 8; d += 4) {
+      const sx = (F.x + F.w) * k, bx = N.x * k - 2.2, ex = N.x * k, ey = (A.y + A.h / 2) * k;
+      // other cards between this one and the Now window (labels included)
+      const others = boxes.filter(o => o.el !== f && o.x >= F.x + F.w - 4 && o.x < N.x);
+      const blocked = y => others.some(o => y > o.lab.y - 4 && y < o.y + o.h + 4);
+      let sy = null;
+      for (let d = 0; d <= F.h / 2 - 6; d += 3) {
         const up = F.y + F.h / 2 - d, dn = F.y + F.h / 2 + d;
-        if (clear(up)) { sy = up * k; break; }
-        if (clear(dn)) { sy = dn * k; break; }
+        if (!blocked(up)) { sy = up * k; break; }
+        if (!blocked(dn)) { sy = dn * k; break; }
       }
-      const bx = N.x * k - 2.2, ex = N.x * k, ey = (A.y + A.h / 2) * k;
-      const dy = ey - sy, sgn = dy >= 0 ? 1 : -1, rr = Math.min(r, Math.abs(dy) / 2);
-      const d = Math.abs(dy) < .3
-        ? `M${f2(sx)} ${f2(sy)} L${f2(ex)} ${f2(ey)}`
-        : `M${f2(sx)} ${f2(sy)} L${f2(bx - rr)} ${f2(sy)} Q${f2(bx)} ${f2(sy)} ${f2(bx)} ${f2(sy + sgn * rr)} L${f2(bx)} ${f2(ey - sgn * rr)} Q${f2(bx)} ${f2(ey)} ${f2(bx + rr)} ${f2(ey)} L${f2(ex)} ${f2(ey)}`;
+      let pts;
+      if (sy !== null) {
+        pts = Math.abs(sy - ey) < .3 ? [[sx, sy], [ex, ey]] : [[sx, sy], [bx, sy], [bx, ey], [ex, ey]];
+      } else {
+        // boxed in: leave through the gutter, run along the top lane, come down the shared line
+        const gx = sx + 1.6, mid = (F.y + F.h / 2) * k;
+        pts = [[sx, mid], [gx, mid], [gx, laneY], [bx, laneY], [bx, ey], [ex, ey]];
+      }
+      const d = rounded(pts);
       const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); svg.appendChild(p);
       const dv = parseFloat(f.style.getPropertyValue('--d')) || 0;
       const t0 = .1 + dv * .12 + .4, t1 = t0 + .7;

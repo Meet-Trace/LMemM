@@ -960,19 +960,19 @@ class Widget:
         elif self.mode == "pause":
             y = self._pause_menu(body, y)
         elif self.mode == "suggest":
-            y = self._suggest(body, y)
+            y = self._history_row(body, self._suggest(body, y))       # work history is one press away from every card
         elif self.mode == "pick":
             y = self._pick(body, y)
         elif self.mode == "done":
             y = self._done(body, y)
         elif self.mode == "finished":
-            y = self._finished(body, y)
+            y = self._history_row(body, self._finished(body, y))
         elif self.mode == "here" and self._mark() in ("screen_off", "private", "unwatched"):
-            y = self._problem(body, y)
+            y = self._history_row(body, self._problem(body, y))
         elif view.get("empty"):
             y = self._history_row(body, self._empty(body, y))
         elif view["mode"] == "project":
-            y = self._project(body, view, y)
+            y = self._history_row(body, self._project(body, view, y))
         else:
             y = self._here(body, view, y)
         y += 8

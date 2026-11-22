@@ -55,5 +55,51 @@ class SourceFace(unittest.TestCase):
         self.assertIn("quote_height=bh_", pane)
 
 
+SRC = os.path.join(os.path.dirname(__file__), "..", "src")
+
+
+def _read(name):
+    with open(os.path.join(SRC, name)) as handle:
+        return handle.read()
+
+
+class OneImplementationEach(unittest.TestCase):
+    """The same component is drawn by one primitive wherever it appears (spec criteria 5, 6, 9)."""
+
+    def test_the_source_button_and_decided_tag_are_shared_by_memory_and_resume(self):
+        for name in ("memory_pane.py", "window.py"):
+            self.assertIn("kit.source_button(", _read(name), name)
+            self.assertNotIn('"Source  \\u203a"', _read(name), name + " draws its own Source button")
+        self.assertIn('kit.tag(host, "decided"', _read("window.py"))
+        self.assertIn("kit.tag(host,'decided'", _read("memory_pane.py"))
+
+    def test_no_window_field_is_a_bare_native_text_field(self):
+        window = _read("window.py")
+        self.assertNotIn("NSTextField.alloc()", window)
+        self.assertIn("kit._KitInput.alloc()", window)
+        self.assertIn("kit.input_field(accessory", window)
+
+    def test_the_pill_card_buttons_come_from_the_shared_button(self):
+        widget = _read("widget.py")
+        body = widget[widget.index("    def _button(self"):widget.index("    def _suggest(self")]
+        self.assertIn("kit.button(", body)
+        self.assertNotIn("_Tap.alloc()", body)
+
+    def test_memory_with_nothing_kept_uses_the_empty_state(self):
+        self.assertIn("Nothing kept for this period yet", _read("memory_pane.py"))
+        self.assertNotIn("para(view['empty']", _read("memory_pane.py"))
+
+
+@unittest.skipIf(kit is None, "needs AppKit")
+class SourceButton(unittest.TestCase):
+    def test_it_sits_at_the_right_edge_and_names_what_it_opens(self):
+        host = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, 400, 100))
+        width = kit.source_button(host, 0, 10, "main.py", lambda: None, right=380)
+        button = host.subviews()[0]
+        self.assertEqual(button.frame().origin.x + button.frame().size.width, 380)
+        self.assertEqual(button.frame().size.width, width)
+        self.assertEqual(button.ax_label, "Source for: main.py")
+
+
 if __name__ == "__main__":
     unittest.main()

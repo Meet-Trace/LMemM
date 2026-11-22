@@ -16,7 +16,7 @@ import traceback
 import objc
 from Foundation import NSData, NSObject
 from AppKit import (NSApplication, NSBezierPath, NSColor, NSImage, NSImageView, NSMakePoint, NSMakeRect, NSMenu, NSMenuItem, NSScrollView, NSTextView,
-                    NSTextField, NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
+                    NSStrikethroughStyleAttributeName, NSWindow, NSWorkspace)
 
 import ambient
 import apps
@@ -371,7 +371,7 @@ class MainWindow:
         self.composing = False                                         # there are words in the note field that are not saved yet
         self.note_typing = _Fields.alloc().initWithChange_submit_cancel_(
             self._note_typed, self._submit_note, self._cancel_note)
-        self.note_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 200, 22))   # drawn inside the thing page (_composer)
+        self.note_field = kit._KitInput.alloc().initWithFrame_(NSMakeRect(0, 0, 200, 22))   # drawn inside the thing page (_composer), on the shared field outline
         self.note_field.setPlaceholderString_("Add a note, then press Return")
         self.note_field.setBordered_(False)
         self.note_field.setBezeled_(False)
@@ -750,9 +750,8 @@ class MainWindow:
         self._note_edge()
 
     def _note_edge(self):
-        surface = getattr(self, "note_surface", None)
+        surface = getattr(self, "note_surface", None)                 # the shared field outline: it lights itself while the field has the cursor
         if surface is not None:
-            surface.edge = kit.accent_text() if self.composing else kit.warm("edge")
             surface.setNeedsDisplay_(True)
 
     def _cancel_note(self):
@@ -1416,14 +1415,16 @@ class MainWindow:
                 self.window.makeKeyAndOrderFront_(None)
                 panel.beginSheetModalForWindow_completionHandler_(self.window,chosen);return
             if action=='show_excerpt_form':
-                from AppKit import NSAlert,NSView,NSTextField,NSMakeRect
+                from AppKit import NSAlert,NSView,NSMakeRect
                 import secrets
                 alert=NSAlert.alloc().init();alert.setMessageText_('Save project context')
                 alert.setInformativeText_('Paste an excerpt with an optional source URL. This is saved as user-supplied text.')
                 accessory=NSView.alloc().initWithFrame_(NSMakeRect(0,0,420,180))
                 fields=[]
                 for placeholder,y,h in [('Title',146,24),('Source URL (optional)',110,24),('Text to remember',0,98)]:
-                    field=NSTextField.alloc().initWithFrame_(NSMakeRect(0,y,420,h));field.setPlaceholderString_(placeholder);field.setAccessibilityLabel_(placeholder);accessory.addSubview_(field);fields.append(field)
+                    box,field=kit.input_field(accessory,placeholder,0,y,420,h,size=SZ["ui"]);field.setAccessibilityLabel_(placeholder)       # the shared field, not a bezeled native one
+                    if h>30:field.setFrame_(NSMakeRect(10,y+8,400,h-16));field.cell().setWraps_(True);field.cell().setScrollable_(False);field.setUsesSingleLineMode_(False)
+                    fields.append(field)
                 alert.setAccessoryView_(accessory);alert.addButtonWithTitle_('Save excerpt');alert.addButtonWithTitle_('Save note');alert.addButtonWithTitle_('Cancel')
                 def saved(response):
                     if response==1000:
@@ -2003,20 +2004,18 @@ class MainWindow:
             stamp = friendly(item["at"]) if item["at"] else ""
             kit.put_text(host, item["title"], left, top, max(right - left - 16, 80), SZ["body"], 600, wrap=False, height=22, middle=True, track=-0.004)
             cx = left
-            kw = int(kit.text_width(item["kind"], SZ["small"], 600)) + 2
-            kit.put_text(host, item["kind"], cx, top + 24, kw, SZ["small"], 600, kit.accent_text(), wrap=False, height=18, middle=True)
-            cx += kw + 8
+            if item["kind"] == "Decision":                                            # a decision looks the same here as in Memory
+                cx += kit.tag(host, "decided", "Decided", cx, top + 24, height=18) + 8
+            else:
+                kw = int(kit.text_width(item["kind"], SZ["small"], 600)) + 2
+                kit.put_text(host, item["kind"], cx, top + 24, kw, SZ["small"], 600, kit.accent_text(), wrap=False, height=18, middle=True)
+                cx += kw + 8
             if stamp:
                 tw_ = int(kit.text_width(stamp, SZ["small"], 400)) + 2
                 kit.put_text(host, "\u00b7  " + stamp, cx, top + 24, tw_ + 16, SZ["small"], 400, kit.mute(), wrap=False, height=18, middle=True)
                 cx += tw_ + 22
             if item["citation_id"]:
-                sw_ = int(kit.text_width("Source", SZ["small"], 600)) + 30
-                pill = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(cx, top + 21, sw_, 24), lambda c=item["citation_id"]: self._memory_action("view_source", {"citation_id": c}))
-                pill.fill, pill.radius, pill.ax_label = kit.accent(0.10), 8, "Source for: " + item["title"][:60]
-                host.addSubview_(pill)
-                kit.put_text(pill, "Source  \u203a", 0, 0, sw_, SZ["small"], 600, kit.accent_text(), align=kit.CENTER, wrap=False, height=24, middle=True)
-                cx += sw_ + gap
+                cx += kit.source_button(host, cx, top + 21, item["title"], lambda c=item["citation_id"]: self._memory_action("view_source", {"citation_id": c})) + gap
             if item["done"]:
                 dw_ = int(kit.text_width("Mark done", SZ["small"], 600)) + 22
                 kit.button(host, "Mark done", cx, top + 21, dw_, 24, lambda d=item["done"]: self._memory_action(d[0], d[1]), kind="outline", size=SZ["small"], weight=600)
@@ -2322,8 +2321,9 @@ class MainWindow:
     def _composer(self, doc, x, y, w):
         """The note field, drawn into the page: an inset that brightens its edge while you are writing. Return saves;
         Esc clears. It is the only way to add a note, so there is one interaction. Returns its bottom edge."""
-        field = self.note_surface = kit.surface(doc, x, y, w, FIELD_H, "inset", radius=RADIUS_FIELD)
-        self._note_edge()
+        self.note_surface = kit.field(doc, x, y, w, FIELD_H)         # the one field style (hairline, accent ring on focus)
+        self.note_field.box = self.note_surface
+        self.note_surface.focus = self.note_field.currentEditor() is not None
         self.note_field.setFrame_(NSMakeRect(x + 14, y + (FIELD_H - 20) / 2, w - 28, 20))
         self.note_field.setTextColor_(kit.warm("ink"))
         self.note_field.setHidden_(False)

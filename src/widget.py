@@ -1348,18 +1348,12 @@ class Widget:
         self._finish(f"Added to {name}" + (f" with {others} other{'s' * (others != 1)}." if others else "."))
 
     def _button(self, body, frame, text, callback, primary=False):
-        tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(*frame), callback)
-        dark = _dark()
-        if primary:
-            tap.tint = NSColor.colorWithWhite_alpha_(palette.PILL_LIGHT[0] if dark else palette.PILL_DARK[0], 1.0)
-            color = NSColor.colorWithWhite_alpha_(palette.PILL_DARK[0] if dark else 1.0, 1.0)
-        else:
-            color = NSColor.secondaryLabelColor()
-        label = _label(text, SZ["label"], bold=primary, color=color, frame=(0, 8, frame[2], 17))[0]
-        label.setAlignment_(1)                      # centre
-        tap.addSubview_(label)
-        body.addSubview_(tap)
-        return tap
+        """A card button: the shared one (setup_kit.button), so the pill's card and the window have one primary (the
+        accent fill, white words) and one quiet secondary. Imported late: setup_kit imports this module."""
+        import setup_kit as kit
+        x, y, w, h = frame
+        return kit.button(body, text, x, y, w, h, callback, kind="primary" if primary else "ghost",
+                          size=SZ["label"], weight=600 if primary else 500)
 
     def _suggest(self, body, y):
         sug = self.sug

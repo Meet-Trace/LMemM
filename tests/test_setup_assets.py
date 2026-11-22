@@ -42,14 +42,14 @@ class SetupAssets(unittest.TestCase):
         self.assertIn("ACCENT = palette.ACCENT", kit)      # one accent, not a copy of its numbers
 
     def test_alignment_values_match_the_existing_widget_code(self):
-        """widget.py (running on a Mac) uses setAlignment_(1) for centre; the kit must agree, or every
-        line of text lands on the wrong side."""
+        """widget.py (running on a Mac) uses setAlignment_(2) for right; the kit must agree, or every
+        line of text lands on the wrong side. (Its centred card buttons now come from the kit's own button.)"""
         import re
         kit = open(os.path.join(ROOT, "src", "setup_kit.py")).read()
         self.assertIn("LEFT, CENTER, RIGHT = 0, 1, 2", kit)
         widget = open(os.path.join(ROOT, "src", "widget.py")).read()
-        self.assertRegex(widget, r"setAlignment_\(1\)")
-        self.assertIn("# centre", widget)
+        self.assertRegex(widget, r"setAlignment_\(2\)")
+        self.assertIn("# right", widget)
 
     def test_every_role_has_an_icon(self):
         import re

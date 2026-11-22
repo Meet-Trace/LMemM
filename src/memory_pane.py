@@ -102,10 +102,7 @@ class MemoryPane:
             if decided:kit.tag(host,'decided','Decided',x+PADX,y+h-32)
             if row['at']:kit.put_text(host,friendly(row['at']),x+w-PADX-RIGHT_W,y+11,RIGHT_W,SZ["small"],400,kit.mute(),align=kit.RIGHT,wrap=False,height=18,track=0.01)
             if row['citation_id']:
-                sw_=int(kit.text_width('Source',SZ["small"],600))+30
-                sb=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+w-PADX-sw_,y+h-28,sw_,24),lambda c=row['citation_id']:self.action('source',{'citation_id':c}))
-                sb.fill=kit.accent(0.10);sb.radius=8;sb.ax_label='Source for: '+lead[:60];host.addSubview_(sb)
-                kit.put_text(sb,'Source  ›',0,0,sw_,SZ["small"],600,kit.accent_text(),align=kit.CENTER,wrap=False,height=24,middle=True)
+                kit.source_button(host,0,y+h-28,lead,lambda c=row['citation_id']:self.action('source',{'citation_id':c}),right=x+w-PADX)
             y+=h
         def para(text,size=SZ["label"],weight=400,color=None,gap=10):
             nonlocal y
@@ -175,7 +172,8 @@ class MemoryPane:
                 if ask['state']!='asking':kit.button(host,'Close',x+PADX,top+bh+(76 if ask['state']=='done' else 58),84,BTN_H,lambda:self.action('close_ask'),kind='ghost',size=SZ["label"],weight=600)
                 y=top+bh+tall+60+16
             if view['loading']:para('Loading permitted evidence…')
-            if view['empty'] and not (view['query'].strip() and view.get('asked')==view['query']):para(view['empty'],14,500)
+            if view['empty'] and not (view['query'].strip() and view.get('asked')==view['query']):
+                y+=kit.empty_state(host,'Nothing kept for this period yet','Notes, decisions and the sources you save for this project appear here, newest first. Try a longer range, or add a note below.',x,y,w)+20
             previous=None;source=view.get('source');rows=[] if source else evidence_rows(view['result'])
             miss=search_note(view['query'],rows) if view['query'].strip() and view.get('asked')==view['query'] and not view['loading'] and not source else None
             if miss:para(miss,14,500,kit.mute() if rows else kit.status_text('orange'))

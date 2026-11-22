@@ -42,7 +42,7 @@ SIZE = types.SimpleNamespace(width=1080, height=720)
 fake_widget._Flipped.frame = lambda self: types.SimpleNamespace(size=SIZE)
 sys.modules["widget"] = fake_widget
 kit = types.ModuleType("setup_kit")
-for n in ("put_text","tile","button","text_width","text_height","ink","mute","accent","accent_text","status_text","card_background","faint","line","icon","first_symbol","note","chip","chip_width","font","warm","display","segmented","empty_state","project_mark","tag","dot","source_line","mono_text","field","soft","serif","mono"):
+for n in ("put_text","tile","button","text_width","text_height","ink","mute","accent","accent_text","status_text","card_background","faint","line","icon","first_symbol","note","chip","chip_width","font","warm","display","segmented","empty_state","project_mark","tag","dot","source_line","mono_text","soft","serif","mono"):
     setattr(kit, n, mock.MagicMock(return_value=20))
 kit._KitRule = type("_KitRule", (Base,), {"initWithFrame_": lambda self, *a: self})
 kit.LEFT, kit.RIGHT, kit.CENTER = 0, 2, 1

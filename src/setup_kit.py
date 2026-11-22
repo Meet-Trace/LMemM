@@ -721,6 +721,20 @@ def source_line(parent, text, x, y, w, quote=None, quote_height=None):
     return h
 
 
+def source_button(parent, x, y, label, callback, height=24, right=None):
+    """The one "Source ›" button that opens a piece of evidence (Memory rows, Resume). Placed at x, or with its right
+    edge at `right`. `label` names what it opens, for VoiceOver. Returns its width."""
+    size = tokens.SIZE["small"]
+    width = int(text_width("Source", size, 600)) + 30
+    if right is not None:
+        x = right - width
+    view = _KitButton.alloc().initWithFrame_callback_(NSMakeRect(x, y, width, height), callback)
+    view.fill, view.radius, view.ax_label = accent(0.10), tokens.RADIUS["m"], "Source for: " + label[:60]
+    parent.addSubview_(view)
+    put_text(view, "Source  \u203a", 0, 0, width, size, 600, accent_text(), align=CENTER, wrap=False, height=height, middle=True)
+    return width
+
+
 def tile(parent, symbol, color, x, y, size=28):
     """A coloured icon square at (x, y). `symbol` is an SF Symbol name or a list to try in order."""
     view = _KitColorTile.alloc().initWithColor_symbol_size_(color, symbol, size)

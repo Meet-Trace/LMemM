@@ -87,10 +87,10 @@ class History(Base):
         self.today()
         self.assertEqual(self.rows(self.view())[1]["span"], "09:30")
 
-    def test_a_thing_returned_to_later_is_a_second_entry(self):
+    def test_a_thing_returned_to_later_is_still_one_entry_in_a_section(self):
         self.session("20261122-090000", [stretch("a", "09:00:00", "09:10:00", 600), stretch("b", "09:10:00", "09:20:00", 600),
                                          stretch("a", "09:20:00", "09:30:00", 600)])
-        self.assertEqual([r["id"] for r in self.rows(self.view())], ["a", "b", "a"])
+        self.assertEqual([r["id"] for r in self.rows(self.view())], ["a", "b"])
 
     def test_duration_only_from_sixty_seconds_and_description_only_when_stored(self):
         self.today()
@@ -286,6 +286,17 @@ class Search(Base):
             source = fh.read()
         for word in ("urllib", "requests", "socket", "narrator", "embedding", "semantic"):
             self.assertNotIn(word, source)
+
+
+    def test_coming_back_to_a_thing_is_one_entry_per_section_with_its_visits_counted(self):
+        self.session("20261122-090000", [stretch("a", "09:00:00", "09:10:00", 600), stretch("b", "09:10:00", "09:12:00", 120),
+                                         stretch("a", "09:12:00", "09:30:00", 1080)])
+        rows = self.view(mode="apps")["groups"][0]["rows"]
+        self.assertEqual([(r["id"], r["span"], r["seconds"], r["visits"], r["duration"]) for r in rows],
+                         [("a", "09:00–09:30", 1680, 2, "28m")])
+        self.assertEqual(len(self.rows(self.view(mode="projects"))), 2)           # a (two visits) and b
+        two_days = self.view(scope="week")
+        self.assertEqual(len([r for r in self.rows(two_days) if r["id"] == "a"]), 1)
 
 
 def mom(item, vid, a, b, seq=0):

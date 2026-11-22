@@ -2584,7 +2584,7 @@ class MainWindow:
         tx = pad + HIST_TIME_W + 24
         room = w + 2 * pad - tx - pad
         kit.put_text(box, r["title"], tx, 8, room, 15, 600, wrap=False, height=20, track=-0.006)
-        where = " · ".join(b for b in (None if mode == "apps" else r["app"], None if mode == "projects" else r["project"], r.get("duration")) if b)
+        where = " · ".join(b for b in (None if mode == "apps" else r["app"], None if mode == "projects" else r["project"], r.get("duration"), f"{r['visits']} visits" if r.get("visits", 1) > 1 else None) if b)
         kit.put_text(box, where, tx, 28, room, 13, 400, kit.mute(), wrap=False, height=18)
         if r["doing"]:
             kit.put_text(box, r["doing"], tx, 47, room, 13, 400, kit.ink(), wrap=False, height=18)

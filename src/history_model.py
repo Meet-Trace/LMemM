@@ -21,6 +21,8 @@ window.py draws it and forwards presses to page_model.press(); it decides nothin
     H8  Apps is the page: a section per app, most recently used first, with that app's entries in time order (newest
         day first, each day earliest first, so it reads top to bottom). Projects regroups the same entries by
         project. There is no separate flat timeline: every entry already carries its time.
+    H12 In a section a thing shows once per day, however many times you came back to it: first start to last end,
+        seconds added, and "N visits" when there were several. Its other visits are not listed apart.
     H9  Earlier pages itself seven days at a time, never reading further than it shows. Search pages by fifty.
     H10 Search looks at thing titles, project names and old names, notes (open and done) and kept excerpt text,
         case and accents ignored, across all of history. No model, no network, no index of its own.
@@ -269,11 +271,33 @@ def entries(reg, items, events, hide=frozenset()):
         if not _visible(item, hide):
             continue
         row = _row(reg, item, f"{e['item']}@{e['start']:%Y%m%d%H%M%S}")
-        span = f"{e['start']:%H:%M}" + (f"–{e['end']:%H:%M}" if f"{e['end']:%H:%M}" != f"{e['start']:%H:%M}" else "")
-        row.update(day=e["start"].date().isoformat(), at=e["start"].isoformat(timespec="seconds"), span=span,
+        row.update(day=e["start"].date().isoformat(), at=e["start"].isoformat(timespec="seconds"),
+                   to=e["end"].isoformat(timespec="seconds"), span=_span(e["start"], e["end"]), visits=1,
                    seconds=e["seconds"], duration=spent(e["seconds"]) if e["seconds"] >= MIN_SECONDS else None)
         rows.append(row)
     return rows
+
+
+def _span(start, end):
+    return f"{start:%H:%M}" + (f"–{end:%H:%M}" if f"{end:%H:%M}" != f"{start:%H:%M}" else "")
+
+
+def collapse(rows):
+    """One entry per thing per day in a section (H12): the visits to it are folded into the first one, from its first
+    start to its last end, seconds added. Order is that of each thing's first visit."""
+    out, seen = [], {}
+    for r in rows:
+        first = seen.get((r["id"], r["day"]))
+        if first is None:
+            seen[(r["id"], r["day"])] = first = dict(r)
+            out.append(first)
+            continue
+        first["to"] = max(first["to"], r["to"])
+        first["seconds"] += r["seconds"]
+        first["visits"] += 1
+        first["span"] = _span(datetime.fromisoformat(first["at"]), datetime.fromisoformat(first["to"]))
+        first["duration"] = spent(first["seconds"]) if first["seconds"] >= MIN_SECONDS else None
+    return out
 
 
 def spent(seconds):
@@ -335,7 +359,7 @@ def _groups(rows, mode, today):
             hue = rs[0]["hue"]
         else:
             title, hue = key or "No app", None
-        sections.append({"title": title, "hue": hue, "rows": _stamped(rs, today),
+        sections.append({"title": title, "hue": hue, "rows": _stamped(collapse(rs), today),
                          "recent": max(r["at"] for r in rs), "none": not key})
     sections.sort(key=lambda s: s["recent"], reverse=True)
     sections.sort(key=lambda s: s["none"])

@@ -95,6 +95,14 @@ class RecordTests(unittest.TestCase):
         self.assertIn("## Report", records.report_from_comment(body))
         self.assertNotIn("Steps taken", records.report_from_comment(body))
 
+    def test_finished_comment_shows_token_total_and_keeps_counts(self):
+        rec = records.RunRecord(id="t", issue=3, stage="spec", agent="spec", model="m", status="succeeded",
+                                decision="done", tokens={"input": 500, "output": 1200, "cache_read": 30000, "cache_write": 0})
+        body = records.render_comment(rec, "Spec", "📝")
+        self.assertIn("31.7k tokens", body)
+        self.assertEqual(records.parse_comment(body)["tokens"]["output"], 1200)
+        self.assertEqual(records.format_tokens(2_500_000), "2.5M")
+
     def test_plain_comments_are_not_records(self):
         self.assertIsNone(records.parse_comment("thanks!"))
 
@@ -116,7 +124,8 @@ class Scripted:
         if agent.workspace == "read":
             Path(cwd, "stray.txt").write_text("should be discarded")
         return runner.AgentResult(decision, f"{agent.name} said {decision}", f"Report from {agent.name}.",
-                                  cost_usd=0.5, turns=3, duration_s=30)
+                                  cost_usd=0.5, turns=3, duration_s=30,
+                                  tokens={"input": 10, "output": 20, "cache_read": 300, "cache_write": 0})
 
 
 class OrchestratorTests(unittest.TestCase):
@@ -160,6 +169,7 @@ class OrchestratorTests(unittest.TestCase):
         runs = records.runs_from_comments(self.gh.comments(7))
         self.assertEqual([r["status"] for r in runs], ["succeeded"] * 5)
         self.assertEqual(runs[-1]["next"], "done")
+        self.assertEqual(runs[0]["tokens"], {"input": 10, "output": 20, "cache_read": 300, "cache_write": 0})
         # Later agents saw earlier reports and the diff.
         review_task = script.calls[3][1]
         self.assertIn("Report from spec.", review_task)
@@ -353,6 +363,8 @@ FAKE_CLAUDE = textwrap.dedent('''\
         {"type": "tool_use", "name": "Bash", "input": {"command": "./scripts/test.sh", "description": "Run the tests"}}]}})
     emit({"type": "result", "subtype": "success", "is_error": False, "num_turns": 4,
           "total_cost_usd": 0.42, "result": "",
+          "usage": {"input_tokens": 120, "output_tokens": 900, "cache_read_input_tokens": 40000,
+                    "cache_creation_input_tokens": 3000},
           "structured_output": {"decision": "approve", "summary": "Fine.", "report": "No problems."}})
 ''')
 
@@ -368,6 +380,7 @@ class RunnerTests(unittest.TestCase):
             result = runner.run(agent, "Review it", {"test_command": "./t"}, Path(tmp), seen.append, claude=str(fake))
             self.assertTrue(result.ok, result.error)
             self.assertEqual((result.decision, result.cost_usd, result.turns), ("approve", 0.42, 4))
+            self.assertEqual(result.tokens, {"input": 120, "output": 900, "cache_read": 40000, "cache_write": 3000})
             self.assertEqual(seen, ["Reading `src/app.py`", "Running: Run the tests"])
             args = json.loads(Path(str(fake) + ".args").read_text())
             self.assertEqual(args[args.index("--model") + 1], agent.model)
@@ -416,6 +429,7 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(data["issues"][0]["state"], "running")
         self.assertEqual(data["issues"][0]["stage"], "review")
         self.assertEqual(len(data["runs"]), 1)
+        self.assertEqual(data["issues"][0]["tokens"], 0)
 
 
 if __name__ == "__main__":

@@ -78,6 +78,7 @@ def collect(f: Factory, gh, repo: str) -> dict:
             "created": issue.get("created_at"), "updated": issue.get("updated_at"),
             "pr": next((r.get("pr") for r in reversed(issue_runs) if r.get("pr")), None),
             "cost_usd": round(sum(float(r.get("cost_usd") or 0) for r in issue_runs), 2),
+            "tokens": sum(sum((r.get("tokens") or {}).values()) for r in issue_runs),
         })
     runs.sort(key=lambda r: r.get("started") or "", reverse=True)
     return {"repo": repo, "generated": records.now_iso(), "agents": agents_data(f), "overnight": overnight_data(f),
@@ -93,6 +94,12 @@ def render(data: dict, standalone: bool = True) -> str:
     return ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             '</head>\n<body>\n' + page + '\n</body>\n</html>\n')
+
+
+def sample_tokens(usd: float) -> dict:
+    """Plausible example token counts for a run that cost `usd`."""
+    return {"input": int(usd * 6000), "output": int(usd * 9000),
+            "cache_read": int(usd * 260000), "cache_write": int(usd * 30000)}
 
 
 def sample(f: Factory) -> dict:
@@ -128,6 +135,7 @@ def sample(f: Factory) -> dict:
                          "agent": a.name, "model": a.model, "status": "succeeded", "decision": decision,
                          "next": nxt, "started": at(ago), "finished": at(ago - minutes),
                          "duration_s": minutes * 60, "cost_usd": usd, "turns": int(minutes * 3),
+                         "tokens": sample_tokens(usd),
                          "summary": f"Example {a.title.lower()} run.", "pr": 52 if st != "triage" and number == 41 else None,
                          "activity": [], "run_url": None})
             cost += usd
@@ -150,6 +158,7 @@ def sample(f: Factory) -> dict:
         runs.append({"id": "exs", "issue": 40, "issue_title": "Overnight scout", "stage": "scout", "agent": s.name,
                      "model": s.model, "status": "succeeded", "decision": "proposed", "next": "proposed",
                      "started": at(560), "finished": at(552), "duration_s": 480, "cost_usd": 0.64, "turns": 20,
+                     "tokens": sample_tokens(0.64),
                      "summary": "Example scout run.", "pr": None, "activity": [], "run_url": None})
         issues.append({"number": 47, "title": "Show a weekly summary of time spent per project", "url": "#",
                        "author": "github-actions[bot]", "stage": None, "state": "proposed", "created": at(552),

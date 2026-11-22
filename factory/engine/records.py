@@ -39,6 +39,7 @@ class RunRecord:
     summary: str = ""
     cost_usd: float = 0.0
     turns: int = 0
+    tokens: dict = field(default_factory=dict)   # input, output, cache_read, cache_write
     duration_s: float = 0.0
     run_url: str | None = None
     pr: int | None = None
@@ -59,6 +60,16 @@ class RunRecord:
         return json.dumps(data, ensure_ascii=False, sort_keys=True).replace("--", "\\u002d\\u002d")
 
 
+def format_tokens(n: int) -> str:
+    """1234 -> 1.2k, 2500000 -> 2.5M."""
+    n = int(n or 0)
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}k"
+    return str(n)
+
+
 def render_comment(record: RunRecord, agent_title: str, icon: str, report: str = "") -> str:
     """The issue comment for a run: hidden record, then what people read."""
     status = STATUS_TEXT.get(record.status, record.status)
@@ -67,6 +78,8 @@ def render_comment(record: RunRecord, agent_title: str, icon: str, report: str =
     if record.status != "running":
         meta.append(f"{record.duration_s / 60:.1f} min")
         meta.append(f"${record.cost_usd:.2f}")
+        if record.tokens:
+            meta.append(f"{format_tokens(sum(record.tokens.values()))} tokens")
     if record.run_url:
         meta.append(f"[logs]({record.run_url})")
     lines = [f"<!-- factory-run {record.to_json()} -->", head, "", " · ".join(meta), ""]

@@ -116,7 +116,8 @@ def cmd_handle(args) -> int:
         return 0
     if not _has_credentials():
         if comment is None or not comment["user"]["login"].endswith("[bot]"):
-            gh.comment(number, "⚠️ The factory cannot run yet: add an `ANTHROPIC_API_KEY` secret under "
+            gh.comment(number, "⚠️ The factory cannot run yet: add a `CLAUDE_CODE_OAUTH_TOKEN` secret (your Claude "
+                               "subscription, from `claude setup-token`) or an `ANTHROPIC_API_KEY` secret under "
                                "Settings → Secrets and variables → Actions, then reply `/factory retry`.")
         return 1
     state = orch.handle_comment(number, comment) if comment else orch.advance(number, start=start)
@@ -132,7 +133,7 @@ def cmd_scout(args) -> int:
         print("no scout configured (overnight.scout in factory.yaml)")
         return 0
     if not _has_credentials():
-        print("ANTHROPIC_API_KEY is not set; skipping the scout")
+        print("no CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY; skipping the scout")
         return 1
     gh = GitHub(_repo())
     created = _orchestrator(f, gh).scout()

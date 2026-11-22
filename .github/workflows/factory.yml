@@ -55,6 +55,8 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Or use your Claude Pro/Max subscription: run `claude setup-token` and save it as this secret.
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       CLAUDE_CODE_VERSION: "2.1.330"
     steps:
       - uses: actions/checkout@v4

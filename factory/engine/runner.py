@@ -152,7 +152,10 @@ HIDDEN_ENV = ("GITHUB_TOKEN", "GH_TOKEN", "ACTIONS_RUNTIME_TOKEN", "ACTIONS_ID_T
 
 
 def agent_env() -> dict[str, str]:
-    return {k: v for k, v in os.environ.items() if k not in HIDDEN_ENV}
+    # A missing Actions secret arrives as an empty string; drop it so Claude Code
+    # falls back to the other credential (API key or subscription token).
+    return {k: v for k, v in os.environ.items()
+            if k not in HIDDEN_ENV and not (k in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN") and not v)}
 
 
 def run(agent: Agent, task: str, values: dict[str, str], cwd: Path,

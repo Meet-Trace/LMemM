@@ -113,7 +113,13 @@ token, and only comments from `intake.allowed_users` reach them.
 
 One-time setup:
 
-1. Add the `ANTHROPIC_API_KEY` repository secret.
+1. Add one repository secret for the agents to run on:
+   - `CLAUDE_CODE_OAUTH_TOKEN` to use your Claude Pro or Max subscription. Create
+     it on your Mac with `claude setup-token`. Agent runs share your plan's usage
+     limits, so heavy days can hit them; a run that hits the limit stops and
+     asks you to reply `/factory retry`. Dollar budgets still apply, using the
+     cost Claude Code estimates for each run.
+   - or `ANTHROPIC_API_KEY` from console.anthropic.com to pay per use.
 2. Settings → Actions → General → Workflow permissions: allow GitHub Actions
    to create pull requests.
 3. Settings → Pages → Source: GitHub Actions (for the dashboard). On a public

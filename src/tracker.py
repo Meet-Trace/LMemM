@@ -809,6 +809,17 @@ class Tracker:
             reg = projects.empty()
         return reg, dict(self.items)               # a copy, so the resolver thread can go on writing
 
+    def history_data(self):
+        """Where Work History reads from: the session files, the running session (not on disk until saved) and the
+        apps you never remember. Read only; the capture loop is not touched."""
+        live = (self.session, [dict(e) for e in list(self.events)])        # copies: the capture thread goes on writing; no lock, so the window never waits on it
+        return {"sessions_dir": config.paths().sessions_dir, "live": live,
+                "skip": apps.clean((store.load_user() or {}).get("skip_apps"))}
+
+    def widget_history(self):
+        self.open_window()
+        self.main_window.open_history()
+
     def adopt_projects(self):
         """Give every project name older versions filed things under a place in the project tree
         (projects.adopt; safe to repeat). Writes only when something changed."""
@@ -829,7 +840,8 @@ class Tracker:
         if self.main_window is None:
             self.main_window = main_window.MainWindow(self.menu_pick, self.page_data, self.widget_tick, self.window_add_note,
                                                    self.window_project, self.window_project_undo, self.sug_view,
-                                                      self.settings_view, on_memory=self.window_memory_action, memory_view=self.window_memory_view)   # its button sends a menu row id
+                                                      self.settings_view, on_memory=self.window_memory_action, memory_view=self.window_memory_view,
+                                                      history=self.history_data)   # its button sends a menu row id
         self.adopt_projects()                       # things filed by name since the last time
         self.main_window.show(self.window_view(self.widget_status()))
 
@@ -1682,7 +1694,8 @@ class Tracker:
                                         suggestion=self.widget_suggestion, on_project=self.widget_project,
                                         on_decline=self.widget_decline, picker=self.widget_picker,
                                         on_unfile=self.widget_unfile, busy=lambda: self.panel.open, status=self.widget_status,
-                                        on_pause=self.widget_pause, on_resume=self.widget_resume)
+                                        on_pause=self.widget_pause, on_resume=self.widget_resume,
+                                        on_history=self.widget_history)
             try:
                 self.menubar = menubar.MenuBar(self.menu_pick)
                 say(f"Menu-bar item: {self.menubar.where()}")

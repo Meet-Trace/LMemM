@@ -548,6 +548,75 @@ class WindowWiringTests(unittest.TestCase):
             self.assertIn(f'"{action}"', model, action)
 
 
+class HistoryPressTests(unittest.TestCase):
+    def go(self, state, action, arg=None):
+        reg, items, _ids = world()
+        return pm.press(reg, state, action, arg, items, now=NOW)
+
+    def test_opening_starts_on_today_in_the_mode_you_left(self):
+        s = self.go(pm.new_state(), "history")
+        self.assertEqual((s["view"], s["hist"]["scope"], s["hist"]["mode"]), ("history", "today", "timeline"))
+        s = self.go(self.go(s, "history_mode", "apps"), "history_day", "week")
+        s = self.go(self.go(s, "home"), "history")
+        self.assertEqual((s["hist"]["scope"], s["hist"]["mode"]), ("today", "apps"))
+
+    def test_back_from_history_returns_to_where_you_came_from(self):
+        s = self.go(self.go(pm.new_state(), "go", "p1"), "history")
+        self.assertEqual(self.go(s, "back")["view"], "project")
+        self.assertEqual(self.go(self.go(pm.new_state(), "history"), "back")["view"], "home")
+
+    def test_the_day_presses_pick_the_expected_days(self):
+        s = self.go(pm.new_state(), "history")
+        s = self.go(s, "history_day", "prev")
+        self.assertEqual(s["hist"]["scope"], "yesterday")
+        s = self.go(s, "history_day", "prev")
+        self.assertEqual((s["hist"]["scope"], s["hist"]["day"]), ("day", "2026-10-07"))
+        s = self.go(s, "history_day", "next")
+        self.assertEqual(s["hist"]["scope"], "yesterday")
+        s = self.go(self.go(s, "history_day", "next"), "history_day", "next")
+        self.assertEqual(s["hist"]["scope"], "today")
+        self.assertEqual(self.go(s, "history_day", "2026-09-30")["hist"]["day"], "2026-09-30")
+        self.assertEqual(self.go(s, "history_day", "2030-01-01")["hist"]["scope"], "today")
+        self.assertEqual(self.go(s, "history_day", "nonsense")["hist"]["scope"], "today")
+        for scope in ("yesterday", "week", "earlier", "today"):
+            self.assertEqual(self.go(s, "history_day", scope)["hist"]["scope"], scope)
+
+    def test_more_search_and_mode(self):
+        s = self.go(pm.new_state(), "history")
+        self.assertEqual(self.go(s, "history_more")["hist"]["n"], 14)
+        s = self.go(s, "history_search", "  deck ")
+        self.assertEqual(s["hist"]["q"], "deck")
+        self.assertEqual(self.go(s, "history_more")["hist"]["lim"], 100)
+        self.assertEqual(self.go(s, "history_day", "week")["hist"]["q"], "")
+        self.assertEqual(self.go(s, "history_mode", "nope")["hist"]["mode"], "timeline")
+        self.assertEqual(self.go(s, "history_mode", "projects")["hist"]["mode"], "projects")
+
+    def test_a_press_never_changes_the_state_it_was_given(self):
+        s = pm.new_state()
+        before = repr(s)
+        self.go(self.go(s, "history"), "history_mode", "apps")
+        self.assertEqual(repr(s), before)
+
+    def test_a_thing_opened_from_history_goes_back_to_it_with_day_and_mode_kept(self):
+        s = self.go(pm.new_state(), "history")
+        s = self.go(self.go(s, "history_mode", "projects"), "history_day", "prev")
+        opened = self.go(s, "thing", "a")
+        self.assertEqual((opened["view"], opened["back"]["view"]), ("thing", "history"))
+        back = self.go(opened, "back")
+        self.assertEqual((back["view"], back["hist"]["scope"], back["hist"]["mode"]), ("history", "yesterday", "projects"))
+
+    def test_a_thing_forgotten_meanwhile_does_not_open(self):
+        reg, items, _ids = world()
+        s = self.go(pm.new_state(), "history")
+        self.assertEqual(pm.press(reg, s, "thing", "gone", items), s)
+
+    def test_the_page_draws_from_the_model(self):
+        reg, items, _ids = world()
+        s = self.go(pm.new_state(), "history")
+        page = pm.view(reg, items, s, NOW)
+        self.assertEqual(page["main"]["kind"], "history")
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -68,5 +68,35 @@ class ShellTests(unittest.TestCase):
             self.assertIn(name, WIDGET)
 
 
+TRACKER = open(os.path.join(SRC, "tracker.py")).read()
+
+
+class HistoryWiringTests(unittest.TestCase):
+    """The pill's "Explore work history" row, and what it opens."""
+
+    def test_the_row_is_on_the_normal_empty_and_paused_cards(self):
+        render = WIDGET.split("    def render(self):")[1].split("self.scroll = scroll")[0]
+        self.assertIn("view.get(\"empty\"):\n            y = self._history_row(body, self._empty(body, y))", render)
+        paused = WIDGET.split("    def _paused(self")[1].split("def _problem")[0]
+        self.assertIn("self._history_row(body, y)", paused)
+        self.assertIn("y = self._history_row(body, y)\n        tap =", WIDGET)
+        self.assertIn('"Explore work history"', WIDGET)
+
+    def test_the_row_puts_the_card_away_then_opens_the_window_on_history(self):
+        self.assertRegex(WIDGET, r"def _history\(self\):\n\s+self\.toggle_card\(\)\n\s+self\.on_history\(\)")
+        self.assertIn("on_history=self.widget_history", TRACKER)
+        self.assertRegex(TRACKER, r"def widget_history\(self\):\n\s+self\.open_window\(\)\n\s+self\.main_window\.open_history\(\)")
+
+    def test_the_window_reads_history_without_touching_the_capture_lock(self):
+        data = TRACKER.split("def history_data(self):")[1].split("def widget_history")[0]
+        self.assertNotIn("self.lock", data)
+        self.assertIn("history=self.history_data", TRACKER)
+
+    def test_back_and_escape_leave_history_and_the_window_keeps_its_place(self):
+        self.assertIn('kind in ("thing", "settings", "search", "history")', WINDOW)
+        self.assertIn('self.nav["view"] == "history" and self.nav["hist"]["q"]', WINDOW)
+        self.assertIn("self.restore_y = self.hist_y", WINDOW)
+
+
 if __name__ == "__main__":
     unittest.main()

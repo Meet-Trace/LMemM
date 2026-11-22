@@ -42,10 +42,13 @@ SIZE = types.SimpleNamespace(width=1080, height=720)
 fake_widget._Flipped.frame = lambda self: types.SimpleNamespace(size=SIZE)
 sys.modules["widget"] = fake_widget
 kit = types.ModuleType("setup_kit")
-for n in ("put_text","tile","button","text_width","text_height","ink","mute","accent","accent_text","status_text","card_background","faint","line","icon","first_symbol","note","chip","chip_width","font"):
+for n in ("put_text","tile","button","text_width","text_height","ink","mute","accent","accent_text","status_text","card_background","faint","line","icon","first_symbol","note","chip","chip_width","font","warm","surface","glyph","pill","accent_wash","meta","display","body"):
     setattr(kit, n, mock.MagicMock(return_value=20))
 kit._KitRule = type("_KitRule", (Base,), {"initWithFrame_": lambda self, *a: self})
+kit._KitSurface = type("_KitSurface", (Base,), {"initWithFrame_fill_edge_radius_": lambda self, *a: self})
 kit.LEFT, kit.RIGHT, kit.CENTER = 0, 2, 1
+kit.button = mock.MagicMock()
+kit.surface = mock.MagicMock()
 kit.text_width = lambda *a, **k: 50
 kit.text_height = lambda *a, **k: 20
 kit._KitButton = type("_KitButton", (Base,), {"initWithFrame_callback_": lambda self, *a: self})
@@ -245,5 +248,28 @@ step('Memory: error card with bound folder',render)
 unbound=dict(memory_view(state,None,{'state':'Disabled'},rich),error='Project memory unavailable')
 w.memory_view=lambda pid,v=unbound:v
 step('Memory: error card on empty state',render)
+import json, tempfile
+hist_dir = tempfile.mkdtemp()
+today = datetime.now()
+with open(os.path.join(hist_dir, today.strftime("%Y%m%d") + "-000001.json"), "w") as fh:
+    json.dump({"timeline": [{"from": "00:00:02", "to": "00:20:00", "seconds": 1198, "item": "a"},
+                            {"from": "00:20:00", "to": "00:21:00", "seconds": 30, "item": "b"}]}, fh)
+w.history = lambda: {"sessions_dir": hist_dir, "live": None, "skip": []}
+w.open_history(); step("history today", render)
+for mode in ("projects", "apps", "timeline"):
+    w.press("history_mode", mode); step("history " + mode, render)
+for scope in ("yesterday", "week", "earlier", "today"):
+    w.press("history_day", scope); step("history " + scope, render)
+w.press("history_day", "prev"); step("history previous day", render)
+w.press("history_search", "q3"); step("history search", render)
+w.press("history_search", "zzzzzz"); step("history search, nothing", render)
+w.press("history_search", ""); w.press("history_day", "today")
+w.press("thing", "a"); step("history entry opens its thing", render)
+w.press("back"); step("back to history", render)
+if w.nav["view"] != "history":
+    FAILED.append("back from a thing did not return to history")
+w.history = lambda: {"sessions_dir": os.path.join(hist_dir, "missing"), "live": None, "skip": []}
+step("history empty", render)
+w.escape(); step("history closed", render)
 print("FAILED:", FAILED) if FAILED else print("all pages drew")
 sys.exit(1 if FAILED else 0)

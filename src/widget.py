@@ -650,7 +650,8 @@ class Widget:
 
     def __init__(self, provider, on_tick, on_add=None, heard=None, hotkey="⌃⌥N",
                  suggestion=None, on_project=None, on_decline=None, picker=None, on_unfile=None,
-                 busy=None, status=None, on_pause=None, on_resume=None):
+                 busy=None, status=None, on_pause=None, on_resume=None, on_history=None):
+        self.on_history = on_history or (lambda: None)
         self.on_pause = on_pause or (lambda kind: None)
         self.on_resume = on_resume or (lambda: None)
         self.status_fn = status or (lambda: {})
@@ -969,7 +970,7 @@ class Widget:
         elif self.mode == "here" and self._mark() in ("screen_off", "private", "unwatched"):
             y = self._problem(body, y)
         elif view.get("empty"):
-            y = self._empty(body, y)
+            y = self._history_row(body, self._empty(body, y))
         elif view["mode"] == "project":
             y = self._project(body, view, y)
         else:
@@ -1167,8 +1168,28 @@ class Widget:
                 y += height
         return self._toast(body, y + 4)
 
+    def _history_row(self, body, y):
+        """The quiet "Explore work history" row: opens the main window on Work History and puts the card away."""
+        tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(6, y + 2, CARD_W - 12, 28), self._history)
+        mute = NSColor.secondaryLabelColor()
+        image = _symbol("clock.arrow.circlepath")
+        if image is not None:
+            holder = NSImageView.alloc().initWithFrame_(NSMakeRect(PAD - 6, 7, 14, 14))
+            holder.setImage_(image)
+            holder.setContentTintColor_(mute)
+            tap.addSubview_(holder)
+        tap.addSubview_(_label("Explore work history", 12, color=mute, frame=(PAD - 6 + 22, 6, CARD_W - 80, 16))[0])
+        tap.addSubview_(_label("→", 13, color=mute, frame=(CARD_W - 12 - PAD - 4, 5, 14, 16))[0])
+        body.addSubview_(tap)
+        return y + 32
+
+    def _history(self):
+        self.toggle_card()
+        self.on_history()
+
     def _pause_row(self, body, y):
         """The plain "Pause LMemM" row at the bottom of the card."""
+        y = self._history_row(body, y)
         tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(6, y + 2, CARD_W - 12, 28), lambda: self._go("pause"))
         mute = NSColor.secondaryLabelColor()
         image = _symbol("pause.fill")
@@ -1220,7 +1241,7 @@ class Widget:
         if view["resume"]:
             self._button(body, (8, y, CARD_W - 16, 33), "Resume", self._resume, primary=True)
             y += 41
-        return y
+        return self._history_row(body, y)
 
     def _problem(self, body, y):
         """Screen access is off, or this window is private."""

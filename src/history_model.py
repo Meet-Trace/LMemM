@@ -234,18 +234,22 @@ def entries(reg, items, events, hide=frozenset()):
         if not _visible(item, hide):
             continue
         row = _row(reg, item, f"{e['item']}@{e['start']:%Y%m%d%H%M%S}")
-        span = f"{e['start']:%H:%M}" + (f"–{e['end']:%H:%M}" if e["end"] > e["start"] else "")
+        span = f"{e['start']:%H:%M}" + (f"–{e['end']:%H:%M}" if f"{e['end']:%H:%M}" != f"{e['start']:%H:%M}" else "")
         row.update(day=e["start"].date().isoformat(), at=e["start"].isoformat(timespec="seconds"), span=span,
-                   seconds=e["seconds"], duration=store.duration(e["seconds"]) if e["seconds"] >= MIN_SECONDS else None)
+                   seconds=e["seconds"], duration=spent(e["seconds"]) if e["seconds"] >= MIN_SECONDS else None)
         rows.append(row)
     return rows
+
+
+def spent(seconds):
+    return f"{seconds // 60}m" if seconds < 3600 else store.duration(seconds)
 
 
 def _summary(rows):
     total = sum(r["seconds"] for r in rows)
     things = len({r["id"] for r in rows})
     apps = len({r["app"] for r in rows if r["app"]})
-    bits = ([store.duration(total)] if total >= MIN_SECONDS else []) + [pm.plural(things, "thing")]
+    bits = ([spent(total)] if total >= MIN_SECONDS else []) + [pm.plural(things, "thing")]
     return " · ".join(bits + ([pm.plural(apps, "app")] if apps else []))
 
 

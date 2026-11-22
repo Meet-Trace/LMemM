@@ -78,6 +78,10 @@ class History(Base):
         self.assertEqual(first["seconds"], 900)
         self.assertEqual(len(self.rows(page)), 3)
 
+    def test_a_stretch_inside_one_minute_shows_only_its_start(self):
+        self.today()
+        self.assertEqual(self.rows(self.view())[1]["span"], "09:30")
+
     def test_a_thing_returned_to_later_is_a_second_entry(self):
         self.session("20261122-090000", [stretch("a", "09:00:00", "09:10:00", 600), stretch("b", "09:10:00", "09:20:00", 600),
                                          stretch("a", "09:20:00", "09:30:00", 600)])
@@ -86,7 +90,7 @@ class History(Base):
     def test_duration_only_from_sixty_seconds_and_description_only_when_stored(self):
         self.today()
         a, b, c = self.rows(self.view())
-        self.assertEqual(a["duration"], "15m 0s")
+        self.assertEqual(a["duration"], "15m")
         self.assertEqual(a["doing"], "Drafting slides")
         self.assertIsNone(b["duration"])
         self.assertIsNone(b["doing"])
@@ -179,7 +183,7 @@ class History(Base):
 
     def test_the_summary_line_is_built_only_from_stored_seconds(self):
         self.today()
-        self.assertEqual(self.view()["summary"], "44m 0s · 3 things · 3 apps")
+        self.assertEqual(self.view()["summary"], "44m · 3 things · 3 apps")
 
     def test_the_running_session_shows_before_it_is_saved(self):
         live = ("20261122-130000", [stretch("c", "13:00:00", "13:10:00", 600)])

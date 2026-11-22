@@ -2550,15 +2550,16 @@ class MainWindow:
         tw = min(kit.text_width(title, 17, 700) + 8, w - lead - 120)
         kit.put_text(doc, title, x + lead, y, tw, 17, 700, wrap=False, height=26, track=-0.014)
         count = len(group["rows"])
-        kit.put_text(doc, f"{count} {'entry' if count == 1 else 'entries'}", x + lead + tw + 6, y + 1, 120, 13, 400, kit.mute(), wrap=False, height=26, track=0.01)
+        if not page["q"]:
+            kit.put_text(doc, f"{count} {'entry' if count == 1 else 'entries'}", x + lead + tw + 6, y + 1, 120, 13, 400, kit.mute(), wrap=False, height=26, track=0.01)
         y += 36
         top = y
         for r in group["rows"]:
-            y = self._history_row(doc, r, x, y, w, many)
+            y = self._history_row(doc, r, x, y, w, many, page["mode"])
         doc.addSubview_(_Rail.alloc().initWithFrame_(NSMakeRect(x + HIST_TIME_W + 4, top, 1, max(y - top - 8, 0))))
         return y + 26
 
-    def _history_row(self, doc, r, x, y, w, many):
+    def _history_row(self, doc, r, x, y, w, many, mode="timeline"):
         """One entry: its time at the left, a dot on the spine, then name, where, and the line the thing already stores."""
         pad = 8
         h = 72 if r["doing"] else 52
@@ -2571,11 +2572,11 @@ class MainWindow:
         if many and r.get("day_label"):
             kit.put_text(box, r["day_label"], pad, 27, HIST_TIME_W - 8, 11, 400, kit.mute(), wrap=False, height=16)
         box.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(
-            NSMakeRect(pad + HIST_TIME_W + 4 - 3, 15, 7, 7), kit.accent_text() if lit else kit.faint(0.38), None, 3.5))
+            NSMakeRect(pad + HIST_TIME_W + 4 - 3, 15, 7, 7), kit.accent_text() if lit else kit.faint(0.6), None, 3.5))
         tx = pad + HIST_TIME_W + 24
         room = w + 2 * pad - tx - pad
         kit.put_text(box, r["title"], tx, 8, room, 15, 600, wrap=False, height=20, track=-0.006)
-        where = " · ".join(b for b in (r["app"], r["project"], r.get("duration")) if b)
+        where = " · ".join(b for b in (None if mode == "apps" else r["app"], None if mode == "projects" else r["project"], r.get("duration")) if b)
         kit.put_text(box, where, tx, 28, room, 13, 400, kit.mute(), wrap=False, height=18)
         if r["doing"]:
             kit.put_text(box, r["doing"], tx, 47, room, 13, 400, kit.ink(), wrap=False, height=18)

@@ -7,31 +7,42 @@ from pathlib import Path
 
 from . import records
 from .config import Factory
-from .pipeline import DONE, RUNNING, STOPPED, WAITING
+from .pipeline import DONE, LOG, PROPOSED, RUNNING, STOPPED, WAITING
 
 TEMPLATE = Path(__file__).with_name("dashboard.html")
 
 
-def agents_data(f: Factory) -> list[dict]:
-    out = []
-    for stage in f.pipeline:
-        a = f.agents[stage.agent]
-        prompt = a.prompt
-        out.append({
-            "stage": stage.stage, "name": a.name, "title": a.title, "color": a.color,
+def _agent(f: Factory, a, stage) -> dict:
+    return {
+            "stage": stage.stage if stage else None, "name": a.name, "title": a.title, "color": a.color,
             "description": a.description, "model": a.model, "effort": a.effort,
             "tools": list(a.tools), "disallowed_tools": list(a.disallowed_tools),
             "workspace": a.workspace, "budget_usd": a.budget_usd, "context": list(a.context),
-            "decisions": [{"name": k, "meaning": v, "next": stage.on.get(k)} for k, v in a.decisions.items()],
-            "prompt": prompt, "file": f"factory/{a.source.relative_to(f.root)}" if a.source else "",
+            "decisions": [{"name": k, "meaning": v, "next": stage.on.get(k) if stage else None}
+                          for k, v in a.decisions.items()],
+            "prompt": a.prompt, "file": f"factory/{a.source.relative_to(f.root)}" if a.source else "",
             "prompt_file": f"factory/{a.prompt_path.relative_to(f.root)}",
-        })
-    return out
+        }
+
+
+def agents_data(f: Factory) -> list[dict]:
+    return [_agent(f, f.agents[s.agent], s) for s in f.pipeline]
+
+
+def overnight_data(f: Factory) -> dict | None:
+    name = f.overnight.get("scout")
+    if not name or name not in f.agents:
+        return None
+    return {"scout": _agent(f, f.agents[name], None), "max_proposals": f.overnight.get("max_proposals", 3),
+            "auto_build": bool(f.overnight.get("auto_build", False)),
+            "per_day_usd": f.budgets.get("per_day_usd"), "schedule": f.overnight.get("schedule", "")}
 
 
 def issue_state(f: Factory, issue: dict) -> tuple[str | None, str]:
     labels = {l["name"] for l in issue.get("labels", [])}
     stage = next((s for s in f.stage_names if f"factory:{s}" in labels), None)
+    if PROPOSED in labels and f.label not in labels and issue.get("state") == "open":
+        return None, "proposed"
     if DONE in labels:
         return None, "done"
     if STOPPED in labels or issue.get("state") == "closed":
@@ -46,7 +57,15 @@ def issue_state(f: Factory, issue: dict) -> tuple[str | None, str]:
 def collect(f: Factory, gh, repo: str) -> dict:
     """Read every factory issue and its run records from GitHub."""
     issues, runs = [], []
-    for issue in sorted(gh.issues(f.label), key=lambda i: i["number"], reverse=True):
+    for log in gh.issues(LOG):
+        for r in records.runs_from_comments(gh.comments(log["number"])):
+            r.pop("report", None)
+            r["issue_title"] = "Overnight scout"
+            runs.append(r)
+    found = {i["number"]: i for i in gh.issues(f.label)}
+    for i in gh.issues(PROPOSED, state="open"):
+        found.setdefault(i["number"], i)
+    for issue in sorted(found.values(), key=lambda i: i["number"], reverse=True):
         stage, state = issue_state(f, issue)
         issue_runs = records.runs_from_comments(gh.comments(issue["number"]))
         for r in issue_runs:
@@ -61,7 +80,7 @@ def collect(f: Factory, gh, repo: str) -> dict:
             "cost_usd": round(sum(float(r.get("cost_usd") or 0) for r in issue_runs), 2),
         })
     runs.sort(key=lambda r: r.get("started") or "", reverse=True)
-    return {"repo": repo, "generated": records.now_iso(), "agents": agents_data(f),
+    return {"repo": repo, "generated": records.now_iso(), "agents": agents_data(f), "overnight": overnight_data(f),
             "issues": issues, "runs": runs, "budget_per_issue": f.budgets.get("per_issue_usd")}
 
 
@@ -126,6 +145,16 @@ def sample(f: Factory) -> dict:
                        "stage": stage, "state": state, "created": at(400), "updated": at(5),
                        "pr": 52 if number == 41 else None, "cost_usd": round(cost, 2)})
     runs.sort(key=lambda r: r["started"], reverse=True)
+    if f.overnight.get("scout") in f.agents:
+        s = f.agents[f.overnight["scout"]]
+        runs.append({"id": "exs", "issue": 40, "issue_title": "Overnight scout", "stage": "scout", "agent": s.name,
+                     "model": s.model, "status": "succeeded", "decision": "proposed", "next": "proposed",
+                     "started": at(560), "finished": at(552), "duration_s": 480, "cost_usd": 0.64, "turns": 20,
+                     "summary": "Example scout run.", "pr": None, "activity": [], "run_url": None})
+        issues.append({"number": 47, "title": "Show a weekly summary of time spent per project", "url": "#",
+                       "author": "github-actions[bot]", "stage": None, "state": "proposed", "created": at(552),
+                       "updated": at(552), "pr": None, "cost_usd": 0})
+    runs.sort(key=lambda r: r["started"], reverse=True)
     return {"repo": "Meet-Trace/LMemM", "generated": records.now_iso(), "sample": True,
-            "agents": agents_data(f), "issues": issues, "runs": runs,
+            "agents": agents_data(f), "overnight": overnight_data(f), "issues": issues, "runs": runs,
             "budget_per_issue": f.budgets.get("per_issue_usd")}

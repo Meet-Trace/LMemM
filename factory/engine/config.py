@@ -37,6 +37,7 @@ class Agent:
     disallowed_tools: tuple[str, ...] = ()
     context: tuple[str, ...] = ("issue",)
     budget_usd: float = 2.0
+    proposes: bool = False   # returns new feature proposals (the overnight scout)
     source: Path | None = None
 
     @property
@@ -72,6 +73,7 @@ class Factory:
     policies: dict
     pipeline: tuple[Stage, ...]
     agents: dict[str, Agent] = field(default_factory=dict)
+    overnight: dict = field(default_factory=dict)
 
     def stage(self, name: str) -> Stage:
         for stage in self.pipeline:
@@ -163,6 +165,7 @@ def _load_agent(path: Path, root: Path, problems: list[str]) -> Agent | None:
         icon=str(data.get("icon", "🤖")), color=str(data.get("color", "#64748b")),
         effort=effort, workspace=workspace, disallowed_tools=tuple(disallowed),
         context=tuple(context), budget_usd=float(budget), source=path,
+        proposes=bool(data.get("proposes", False)),
     )
 
 
@@ -230,6 +233,16 @@ def load(root: Path | str = FACTORY_DIR) -> Factory:
             if s.stage not in seen:
                 problems.append(f"pipeline: stage '{s.stage}' can never be reached")
 
+    overnight = dict(main.get("overnight") or {})
+    scout = overnight.get("scout")
+    if scout:
+        if scout not in agents:
+            problems.append(f"overnight: scout agent '{scout}' has no valid agents/{scout}.yaml")
+        elif not agents[scout].proposes:
+            problems.append(f"overnight: agent '{scout}' needs 'proposes: true' to act as the scout")
+        if not isinstance(overnight.get("max_proposals", 3), int) or overnight.get("max_proposals", 3) < 1:
+            problems.append("overnight: max_proposals must be a whole number of at least 1")
+
     if problems:
         raise ConfigError("\n".join(problems))
     allowed = intake.get("allowed_users") or []
@@ -238,7 +251,7 @@ def load(root: Path | str = FACTORY_DIR) -> Factory:
         allowed_users=tuple(str(u).lower() for u in allowed),
         project=dict(main.get("project") or {}), runner=str(main.get("runner", "ubuntu-latest")),
         budgets=dict(main.get("budgets") or {}), policies=dict(main.get("policies") or {}),
-        pipeline=tuple(stages), agents=agents,
+        pipeline=tuple(stages), agents=agents, overnight=overnight,
     )
 
 

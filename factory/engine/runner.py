@@ -1,7 +1,7 @@
 """Run one agent: Claude Code in headless mode, configured from the agent's YAML."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
@@ -24,7 +24,7 @@ the structured result:
 - `decision`: exactly one of:
 {decisions}
 - `summary`: one plain sentence saying what you concluded or did.
-- `report`: Markdown for the issue thread. The requester and the next agents
+{proposals}- `report`: Markdown for the issue thread. The requester and the next agents
   read it. Lead with the outcome; keep it under about 400 words unless a spec
   or a list of problems needs more.
 """
@@ -39,6 +39,7 @@ class AgentResult:
     turns: int = 0
     duration_s: float = 0.0
     error: str | None = None
+    proposals: list = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -50,8 +51,24 @@ def fill(template: str, values: dict[str, str]) -> str:
     return re.sub(r"\{([a-z_]+)\}", lambda m: str(values.get(m.group(1), m.group(0))), template)
 
 
+PROPOSAL_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["title", "body", "size", "why"],
+        "properties": {
+            "title": {"type": "string"},
+            "body": {"type": "string"},
+            "size": {"type": "string", "enum": ["S", "M", "L"]},
+            "why": {"type": "string"},
+        },
+    },
+}
+
+
 def output_schema(agent: Agent) -> dict:
-    return {
+    schema = {
         "type": "object",
         "additionalProperties": False,
         "required": ["decision", "summary", "report"],
@@ -61,11 +78,18 @@ def output_schema(agent: Agent) -> dict:
             "report": {"type": "string"},
         },
     }
+    if agent.proposes:
+        schema["required"].append("proposals")
+        schema["properties"]["proposals"] = PROPOSAL_SCHEMA
+    return schema
 
 
 def system_prompt(agent: Agent, values: dict[str, str]) -> str:
     decisions = "\n".join(f"  - `{k}`: {v}" for k, v in agent.decisions.items())
-    return fill(agent.prompt, values).rstrip() + "\n" + OUTPUT_CONTRACT.format(decisions=decisions)
+    proposals = ("- `proposals`: the feature requests you propose, each with a short `title`, a `body` "
+                 "written like a good feature request, a `size` (S, M or L) and `why` it matters.\n"
+                 if agent.proposes else "")
+    return fill(agent.prompt, values).rstrip() + "\n" + OUTPUT_CONTRACT.format(decisions=decisions, proposals=proposals)
 
 
 def command(agent: Agent, task: str, values: dict[str, str], claude: str = "claude") -> list[str]:
@@ -183,5 +207,6 @@ def run(agent: Agent, task: str, values: dict[str, str], cwd: Path,
     if not structured or structured.get("decision") not in agent.decisions:
         return AgentResult(None, "", str(final.get("result") or ""), cost, turns, duration,
                            error="The agent did not return a valid decision")
+    proposals = [p for p in structured.get("proposals") or [] if isinstance(p, dict) and p.get("title")]
     return AgentResult(structured["decision"], str(structured.get("summary", "")).strip(),
-                       str(structured.get("report", "")).strip(), cost, turns, duration)
+                       str(structured.get("report", "")).strip(), cost, turns, duration, proposals=proposals)

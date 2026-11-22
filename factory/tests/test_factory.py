@@ -244,6 +244,89 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("factory:stopped", self.gh.labels(7))
 
 
+    def test_status_command_reports_where_it_is(self):
+        self.orch(Scripted({"triage": ["needs_info"]})).advance(7)
+        c = self.gh.comment(7, "/factory status", author="AvniDhir")
+        self.assertEqual(self.orch(Scripted({})).handle_comment(7, c), "skipped")
+        body = self.gh.comments(7)[-1]["body"]
+        self.assertIn("waiting", body)
+        self.assertIn("triage", body)
+
+
+class ProposingScout:
+    def __init__(self, proposals, decision="proposed"):
+        self.proposals, self.decision, self.calls = proposals, decision, []
+
+    def __call__(self, agent, task, values, cwd, on_activity):
+        self.calls.append((agent.name, task))
+        if agent.proposes:
+            return runner.AgentResult(self.decision, "Looked around.", "Read the docs.", 0.6, 10, 60,
+                                      proposals=self.proposals)
+        return runner.AgentResult(list(agent.decisions)[0], "ok", "ok", 0.1, 1, 5)
+
+
+class OvernightTests(OrchestratorTests.__bases__[0]):
+    setUp = OrchestratorTests.setUp
+    orch = OrchestratorTests.orch
+
+    def test_scout_files_proposals_that_wait_for_approval(self):
+        scout = ProposingScout([
+            {"title": "Weekly time summary", "body": "Show it.", "size": "S", "why": "Useful."},
+            {"title": "Add a dark mode toggle", "body": "dup", "size": "S", "why": "dup"},
+            {"title": "Export as CSV", "body": "Export.", "size": "M", "why": "Sharing."},
+        ])
+        orch = self.orch(scout)
+        created = orch.scout()
+        self.assertEqual(len(created), 2)  # the duplicate of open issue #7 is dropped
+        self.assertIn("Add a dark mode toggle", scout.calls[0][1])
+        first = self.gh.issue(created[0])
+        self.assertEqual(self.gh.labels(created[0]), {"factory:proposed"})
+        self.assertIn("add the `factory` label", first["body"])
+        # The scout's run is on the log issue, where the dashboard and daily budget find it.
+        log = self.gh.issues("factory:log")[0]
+        run = records.runs_from_comments(self.gh.comments(log["number"]))[0]
+        self.assertEqual((run["agent"], run["status"], run["cost_usd"]), ("scout", "succeeded", 0.6))
+        # Not built until approved...
+        self.assertEqual(orch.advance(created[0]), "skipped")
+        # ...then adding the factory label lets the bot-authored proposal through.
+        self.gh.add_labels(created[0], ["factory"])
+        self.assertNotEqual(orch.advance(created[0]), "skipped")
+        self.assertNotIn("factory:proposed", self.gh.labels(created[0]))
+
+    def test_auto_build_labels_proposals_for_the_factory(self):
+        self.f.overnight["auto_build"] = True
+        try:
+            created = self.orch(ProposingScout([{"title": "A", "body": "b", "size": "S", "why": "w"}])).scout()
+            self.assertIn("factory", self.gh.labels(created[0]))
+        finally:
+            self.f.overnight["auto_build"] = False
+
+    def test_bot_issues_without_the_proposal_marker_are_ignored(self):
+        self.gh.add_issue(20, "Sneaky", "build me", author="github-actions[bot]")
+        self.assertEqual(self.orch(ProposingScout([])).advance(20), "skipped")
+
+    def test_daily_budget_pauses_everything_once(self):
+        self.f.budgets["per_day_usd"] = 0.5
+        try:
+            orch = self.orch(ProposingScout([{"title": "A", "body": "b", "size": "S", "why": "w"}]))
+            orch.scout()  # spends 0.6
+            self.assertEqual(orch.advance(7), "paused")
+            self.assertEqual(orch.advance(7), "paused")
+            pauses = [c for c in self.gh.comments(7) if c["body"].startswith(pipeline.DAILY_PAUSE)]
+            self.assertEqual(len(pauses), 1)
+            self.assertEqual(orch.scout(), [])
+        finally:
+            self.f.budgets["per_day_usd"] = 40
+
+    def test_sweep_respects_the_parallel_limit(self):
+        for n in range(10, 16):
+            self.gh.add_issue(n, f"Request {n}")
+        self.gh.add_labels(10, ["factory:running"])
+        self.gh.issue(10)["updated_at"] = records.now_iso()
+        self.f.policies["max_parallel_requests"] = 3
+        self.assertEqual(self.orch(ProposingScout([])).sweep(), [7, 11])
+
+
 FAKE_CLAUDE = textwrap.dedent('''\
     #!/usr/bin/env python3
     import json, sys
@@ -303,6 +386,11 @@ class DashboardTests(unittest.TestCase):
         parsed = json.loads(payload)
         self.assertEqual([a["name"] for a in parsed["agents"]], list(f.stage_names))
         self.assertTrue(parsed["sample"])
+
+    def test_sample_includes_the_scout_and_a_proposal(self):
+        data = dashboard.sample(config.load(REAL))
+        self.assertEqual(data["overnight"]["scout"]["name"], "scout")
+        self.assertIn("proposed", [i["state"] for i in data["issues"]])
 
     def test_collect_reads_runs_from_issue_comments(self):
         f = config.load(REAL)

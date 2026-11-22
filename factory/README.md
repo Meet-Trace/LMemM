@@ -3,25 +3,32 @@
 A pipeline of AI agents that takes a feature request from a GitHub issue to a
 tested pull request on its own. You file the request; you test the result.
 
+```mermaid
+flowchart LR
+  subgraph You
+    R[File a request<br/>issue form]
+    AP[Approve a proposal<br/>add the factory label]
+    Q[Answer a question<br/>only when asked]
+    T[Test on your Mac<br/>and merge]
+  end
+  subgraph Agents
+    S[Scout<br/>overnight] -.proposes.-> AP
+    TR[Triage] --> SP[Spec] --> IM[Implement] --> RV[Code review] --> VE[Verify & test]
+    RV -- changes requested --> IM
+    VE -- tests fail --> IM
+  end
+  R --> TR
+  AP --> TR
+  TR -. needs info .-> Q
+  SP -. needs info .-> Q
+  IM -. blocked .-> Q
+  Q -. your reply resumes it .-> TR
+  VE -- pass --> T
 ```
-issue labelled `factory`
-   │
-   ▼
- triage ──needs_info──▶ asks you, waits for your reply
-   │ accept      └─reject──▶ closes the issue with a reason
-   ▼
- spec ──▶ docs/specs/<date>-<slug>.md on branch factory/issue-<n>
-   ▼
- implement ──▶ code + tests, pushed; draft PR opened
-   ▼
- review ──changes_requested──▶ back to implement (at most 3 times)
-   │ approve
-   ▼
- verify ──fail──▶ back to implement
-   │ pass
-   ▼
- PR marked ready, you get a comment with how to test it
-```
+
+GitHub Actions runs every step: it starts the right agent on each issue event,
+commits and pushes for the agents (they never push), opens the draft PR, keeps
+a live status comment on the issue, and marks the PR ready when verify passes.
 
 Everything above is declared, not coded. The engine reads it at run time.
 
@@ -41,8 +48,24 @@ Everything above is declared, not coded. The engine reads it at run time.
 4. When it is done, the issue gets `factory:done` and a link to the pull
    request, with the verify agent's steps for testing it on your Mac.
 
-Commands, as an issue comment: `/factory retry`, `/factory run <stage>`,
-`/factory stop`.
+Commands, as an issue comment: `/factory status`, `/factory retry`,
+`/factory run <stage>` (comment your guidance first), `/factory stop`.
+
+The issue form is `.github/ISSUE_TEMPLATE/factory-request.yml`; it adds the
+label for you. Everything works from the GitHub app on your phone.
+
+## Around the clock
+
+- **02:00 India time** (`factory-scout.yml`): the scout agent reads the code,
+  docs and TODOs and files up to `overnight.max_proposals` requests labelled
+  `factory:proposed`. Add the `factory` label to approve one; close it to say no.
+  Set `overnight.auto_build: true` to build proposals without waiting for you.
+- **Every hour** (`factory.yml` heartbeat): anything approved but not running
+  is started, oldest first, `policies.max_parallel_requests` at a time.
+- **Spending**: per run (`budget_usd` on each agent), per request
+  (`budgets.per_issue_usd`) and per day (`budgets.per_day_usd`). At the daily
+  cap everything pauses until the next UTC day.
+- Merging stays with you: the factory never merges or deploys.
 
 ## Change the agents
 

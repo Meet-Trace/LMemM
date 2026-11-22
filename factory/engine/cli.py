@@ -125,6 +125,25 @@ def cmd_handle(args) -> int:
     return 0
 
 
+def cmd_scout(args) -> int:
+    """Overnight: the scout proposes new requests; auto-built ones start now."""
+    f = _factory()
+    if not f.overnight.get("scout"):
+        print("no scout configured (overnight.scout in factory.yaml)")
+        return 0
+    if not _has_credentials():
+        print("ANTHROPIC_API_KEY is not set; skipping the scout")
+        return 1
+    gh = GitHub(_repo())
+    created = _orchestrator(f, gh).scout()
+    print(f"scout: proposed {created or 'nothing'}")
+    if f.overnight.get("auto_build"):
+        ref = os.environ.get("GITHUB_REF_NAME") or f.project.get("base_branch", "main")
+        for number in created:
+            gh.dispatch(WORKFLOW, ref, {"issue": number, "stage": ""})
+    return 0
+
+
 def cmd_advance(args) -> int:
     f = _factory()
     gh = GitHub(_repo())
@@ -154,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     s.set_defaults(fn=cmd_new_agent)
     sub.add_parser("runner", help="print the Actions runner label").set_defaults(fn=cmd_runner)
     sub.add_parser("handle", help="handle the current GitHub Actions event").set_defaults(fn=cmd_handle)
+    sub.add_parser("scout", help="run the overnight scout now").set_defaults(fn=cmd_scout)
     s = sub.add_parser("advance", help="run one issue through the pipeline now")
     s.add_argument("issue", type=int)
     s.add_argument("--stage")

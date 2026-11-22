@@ -13,7 +13,11 @@ from . import records, runner
 from .config import Agent, Factory
 
 WAITING, RUNNING, DONE, STOPPED = "factory:waiting", "factory:running", "factory:done", "factory:stopped"
-STATUS_LABELS = (WAITING, RUNNING, DONE, STOPPED)
+PROPOSED, LOG = "factory:proposed", "factory:log"
+STATUS_LABELS = (WAITING, RUNNING, DONE, STOPPED, PROPOSED)
+PROPOSAL_MARKER = "<!-- factory-proposal -->"
+LOG_TITLE = "Factory: overnight scout log"
+DAILY_PAUSE = "⏸️ The factory reached today's budget"
 BOTS = ("github-actions[bot]",)
 MAX_DIFF_CHARS = 80_000
 UPDATE_EVERY_S = 15
@@ -121,6 +125,37 @@ class Orchestrator:
 
     def allowed(self, login: str | None) -> bool:
         return not self.f.allowed_users or (login or "").lower() in self.f.allowed_users
+
+    def allowed_issue(self, issue: dict) -> bool:
+        """Filed by an allowed person, or proposed by the factory's own scout.
+
+        A scout proposal only enters the pipeline once someone with permission
+        to label issues adds the factory label (or auto_build is on).
+        """
+        login = issue["user"]["login"]
+        return self.allowed(login) or (login in BOTS and PROPOSAL_MARKER in (issue.get("body") or ""))
+
+    # -- spending ------------------------------------------------------------
+    def spent_today(self, today: str | None = None) -> float:
+        today = today or records.now_iso()[:10]
+        total = 0.0
+        seen = set()
+        for label in (self.f.label, LOG):
+            for issue in self.gh.issues(label, state="all"):
+                if issue["number"] in seen or (issue.get("updated_at") or "")[:10] < today:
+                    continue
+                seen.add(issue["number"])
+                for r in records.runs_from_comments(self.gh.comments(issue["number"])):
+                    if (r.get("started") or "")[:10] == today:
+                        total += float(r.get("cost_usd") or 0)
+        return total
+
+    def over_daily_budget(self) -> float | None:
+        cap = float(self.f.budgets.get("per_day_usd", 0) or 0)
+        if not cap:
+            return None
+        spent = self.spent_today()
+        return spent if spent >= cap else None
 
     # -- context for an agent ------------------------------------------------
     def build_task(self, agent: Agent, issue: dict, comments: list[dict], runs: list[dict]) -> str:
@@ -230,9 +265,16 @@ class Orchestrator:
         labels = self.labels(issue)
         if self.f.label not in labels or issue.get("state") != "open":
             return "skipped"
-        if not self.allowed(issue["user"]["login"]):
+        if not self.allowed_issue(issue):
             self.log(f"#{number}: author not in intake.allowed_users; ignoring")
             return "skipped"
+        spent_today = self.over_daily_budget()
+        if spent_today is not None:
+            last = (self.gh.comments(number) or [{}])[-1].get("body", "")
+            if not last.startswith(DAILY_PAUSE):
+                self.gh.comment(number, f"{DAILY_PAUSE} (${spent_today:.2f} of ${self.f.budgets['per_day_usd']:g}, "
+                                        "`budgets.per_day_usd`). It picks this up again tomorrow (UTC).")
+            return "paused"
         stage = start or self.current_stage(labels) or self.f.first_stage
         max_loops = int(self.f.policy("max_rework_loops", 3))
         budget = float(self.f.budgets.get("per_issue_usd", 0) or 0)
@@ -327,27 +369,108 @@ class Orchestrator:
                 return "stop"
             if cmd == "retry":
                 return self.advance(number)
+            if cmd == "status":
+                self.gh.comment(number, self.status_text(issue))
+                return "skipped"
             if cmd == "run" and arg in self.f.stage_names:
                 self.set_stage(number, labels, arg, None)
                 return self.advance(number, start=arg)
-            self.gh.comment(number, "Commands: `/factory retry`, `/factory run <stage>`, `/factory stop`. "
+            self.gh.comment(number, "Commands: `/factory status`, `/factory retry`, `/factory run <stage>`, `/factory stop`. "
                                     f"Stages: {', '.join(self.f.stage_names)}.")
             return "skipped"
         if WAITING in labels and issue.get("state") == "open":
             return self.advance(number)
         return "skipped"
 
+    def status_text(self, issue: dict) -> str:
+        labels = self.labels(issue)
+        stage = self.current_stage(labels)
+        state = next((l.split(":", 1)[1] for l in (RUNNING, WAITING, DONE, STOPPED) if l in labels), "queued")
+        runs = records.runs_from_comments(self.gh.comments(issue["number"]))
+        spent = sum(float(r.get("cost_usd") or 0) for r in runs)
+        lines = [f"**Status:** {state}" + (f" at **{stage}**" if stage else ""),
+                 f"**Runs so far:** {len(runs)} · ${spent:.2f}"]
+        if runs:
+            last = runs[-1]
+            lines.append(f"**Last:** {last['agent']} → `{last.get('decision') or last.get('status')}`"
+                         + (f": {last['summary']}" if last.get("summary") else ""))
+        pr = self.gh.find_pr(self.branch(issue["number"]))
+        if pr:
+            lines.append(f"**Pull request:** {pr['html_url']}")
+        return "\n".join(lines)
+
     def sweep(self, now: float | None = None) -> list[int]:
-        """Issues that should be running but are not (new, handed off or orphaned)."""
+        """Issues that should be running but are not (new, handed off or orphaned).
+
+        Oldest first, and never more than policies.max_parallel_requests at once.
+        """
         now = now or time.time()
-        due = []
-        for issue in self.gh.issues(self.f.label, state="open"):
+        due, busy = [], 0
+        for issue in sorted(self.gh.issues(self.f.label, state="open"), key=lambda i: i["number"]):
             labels = self.labels(issue)
-            if labels & {WAITING, DONE, STOPPED} or not self.allowed(issue["user"]["login"]):
+            if labels & {WAITING, DONE, STOPPED} or not self.allowed_issue(issue):
                 continue
             if RUNNING in labels:
                 updated = datetime.fromisoformat(issue["updated_at"].replace("Z", "+00:00"))
                 if now - updated.timestamp() < STALE_RUN_S:
+                    busy += 1
                     continue
             due.append(issue["number"])
-        return due
+        room = max(0, int(self.f.policy("max_parallel_requests", 3)) - busy)
+        return due[:room]
+
+    # -- overnight scout -----------------------------------------------------
+    def scout(self) -> list[int]:
+        """Run the scout agent: it reads the codebase and proposes new work.
+
+        Proposals become issues labelled factory:proposed. You approve one by
+        adding the factory label; with overnight.auto_build they start at once.
+        Returns the new issue numbers.
+        """
+        name = self.f.overnight.get("scout")
+        if not name:
+            return []
+        if self.over_daily_budget() is not None:
+            self.log("scout: daily budget reached; skipping")
+            return []
+        agent = self.f.agents[name]
+        open_issues = self.gh.issues(self.f.label, state="open") + self.gh.issues(PROPOSED, state="open")
+        log = next((i for i in self.gh.issues(LOG, state="open")), None) or self.gh.create_issue(
+            LOG_TITLE, "Each overnight scout run is recorded here. Proposals are filed as their own issues "
+                       "with the `factory:proposed` label.", [LOG])
+        self.ws.prepare("__scout__", create=False)
+        limit = int(self.f.overnight.get("max_proposals", 3))
+        auto = bool(self.f.overnight.get("auto_build", False))
+        existing = "\n".join(f"- #{i['number']} {i['title']}" for i in open_issues) or "- (none)"
+        task = (f"# Overnight scout run\n\nPropose at most {limit} new feature requests for this repository.\n\n"
+                f"## Already open (do not repeat these)\n{existing}")
+        record = records.RunRecord(id=uuid.uuid4().hex[:12], issue=log["number"], stage="scout",
+                                   agent=agent.name, model=agent.model, run_url=self.run_url)
+        comment = self.gh.comment(log["number"], records.render_comment(record, agent.title, agent.icon))
+        record.comment_id = comment["id"]
+        result = self.run_agent(agent, task, self.prompt_values({"title": "scout", "number": 0}),
+                                self.ws.path, record.add_activity)
+        self.ws.discard()
+        record.cost_usd, record.turns, record.duration_s = result.cost_usd, result.turns, round(result.duration_s, 1)
+        record.decision, record.summary, record.error = result.decision, result.summary, result.error
+        record.status = "succeeded" if result.ok else "failed"
+        taken = {i["title"].strip().lower() for i in open_issues}
+        created = []
+        for p in result.proposals if result.ok else []:
+            title = str(p["title"]).strip()[:120]
+            if not title or title.lower() in taken or len(created) >= limit:
+                continue
+            body = (f"{PROPOSAL_MARKER}\n{str(p.get('body', '')).strip()}\n\n**Why:** {str(p.get('why', '')).strip()}\n\n"
+                    f"**Size:** {p.get('size', '?')} · proposed by the scout agent overnight.\n\n"
+                    + ("The factory starts building this automatically (`overnight.auto_build`)."
+                       if auto else "To build it, add the `factory` label. To drop it, close this issue."))
+            issue = self.gh.create_issue(title, body, [PROPOSED] + ([self.f.label] if auto else []))
+            created.append(issue["number"])
+            taken.add(title.lower())
+        record.pr = None
+        record.next = "auto_build" if auto and created else ("proposed" if created else None)
+        listing = "\n".join(f"- #{n}" for n in created)
+        self.finish(record, runner.AgentResult(result.decision, result.summary,
+                                                (result.report + ("\n\n**Filed:**\n" + listing if created else "")).strip(),
+                                                result.cost_usd, result.turns, result.duration_s, result.error))
+        return created

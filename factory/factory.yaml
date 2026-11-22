@@ -36,6 +36,9 @@ runner: ubuntu-latest
 # Spending limits, in US dollars, enforced by the orchestrator.
 budgets:
   per_issue_usd: 30
+  # Total across every request and the scout, per UTC day. The factory pauses
+  # when it is reached and picks up again the next day.
+  per_day_usd: 40
   # Per-run limits live on each agent (budget_usd).
 
 policies:
@@ -44,6 +47,19 @@ policies:
   max_rework_loops: 3
   # Agent runs chained in one workflow run before handing off to a new run.
   max_stages_per_job: 8
+  # Requests built at the same time.
+  max_parallel_requests: 3
+
+# Working while you sleep. Every night (see .github/workflows/factory-scout.yml,
+# 02:00 India time) the scout agent proposes new requests, filed as issues
+# labelled factory:proposed. Approve one by adding the `factory` label.
+# The hourly heartbeat keeps building whatever is approved, around the clock.
+overnight:
+  scout: scout
+  max_proposals: 3
+  # true: build proposals straight away without waiting for your approval.
+  auto_build: false
+  schedule: every night at 02:00 IST
 
 # The pipeline. Each stage names an agent and maps that agent's decisions to
 # what happens next: another stage, or one of

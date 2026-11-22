@@ -16,6 +16,8 @@ LABEL_COLORS = {
     "factory:running": "1d76db",
     "factory:done": "0e8a16",
     "factory:stopped": "b60205",
+    "factory:proposed": "fef2c0",
+    "factory:log": "ededed",
 }
 
 
@@ -117,6 +119,11 @@ class GitHub:
                 raise
         self._known_labels.add(label)
 
+    def create_issue(self, title: str, body: str, labels: list[str]) -> dict:
+        for label in labels:
+            self.ensure_label(label)
+        return self._request("POST", self._r("/issues"), {"title": title, "body": body, "labels": labels})
+
     def close_issue(self, number: int, reason: str = "not_planned") -> None:
         self._request("PATCH", self._r(f"/issues/{number}"), {"state": "closed", "state_reason": reason})
 
@@ -203,6 +210,10 @@ class FakeGitHub:
 
     def ensure_label(self, label):
         pass
+
+    def create_issue(self, title, body, labels, author="github-actions[bot]"):
+        number = max(self._issues, default=0) + 1
+        return self.add_issue(number, title, body, author=author, labels=tuple(labels))
 
     def close_issue(self, number, reason="not_planned"):
         self._issues[number]["state"] = "closed"

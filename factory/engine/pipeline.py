@@ -228,6 +228,7 @@ class Orchestrator:
         task = self.build_task(agent, issue, comments, runs)
         result = self.run_agent(agent, task, self.prompt_values(issue), self.ws.path, on_activity)
         record.cost_usd, record.turns, record.duration_s = result.cost_usd, result.turns, round(result.duration_s, 1)
+        record.tokens = dict(result.tokens)
         record.decision, record.summary, record.error = result.decision, result.summary, result.error
         if result.ok and agent.workspace == "write":
             try:
@@ -471,6 +472,7 @@ class Orchestrator:
                                 self.ws.path, record.add_activity)
         self.ws.discard()
         record.cost_usd, record.turns, record.duration_s = result.cost_usd, result.turns, round(result.duration_s, 1)
+        record.tokens = dict(result.tokens)
         record.decision, record.summary, record.error = result.decision, result.summary, result.error
         record.status = "succeeded" if result.ok else "failed"
         taken = {i["title"].strip().lower() for i in open_issues}
@@ -491,5 +493,6 @@ class Orchestrator:
         listing = "\n".join(f"- #{n}" for n in created)
         self.finish(record, runner.AgentResult(result.decision, result.summary,
                                                 (result.report + ("\n\n**Filed:**\n" + listing if created else "")).strip(),
-                                                result.cost_usd, result.turns, result.duration_s, result.error))
+                                                result.cost_usd, result.turns, result.duration_s, result.error,
+                                                tokens=result.tokens))
         return created

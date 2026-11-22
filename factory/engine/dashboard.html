@@ -164,6 +164,36 @@ footer { color: var(--muted); font-size: 12.5px; }
   .runs .what { grid-column: 1 / -1; }
   .hide-sm { display: none; }
 }
+/* Token usage: single-hue bars (magnitude), labels in text ink, hover tips on each bar. */
+.usage { padding: 20px; display: flex; flex-direction: column; gap: 24px; }
+.usage-tot { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px 24px; }
+.usage-tot div b { display: block; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.usage-tot div span { color: var(--muted); font-size: 12.5px; }
+.usage .label { color: var(--muted); font-size: 12px; font-weight: 500; margin-bottom: 8px; }
+.hbars { display: grid; grid-template-columns: minmax(90px, max-content) 1fr auto; gap: 8px 12px; align-items: center; font-size: 13px; }
+.hbars .who { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.hbars .who i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.hbars .track { height: 10px; position: relative; }
+.hbars .fill { position: absolute; inset: 0 auto 0 0; min-width: 2px; background: var(--accent); border-radius: 0 4px 4px 0; }
+.hbars .v { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 12.5px; }
+.days { display: flex; align-items: flex-end; gap: 2px; height: 96px; border-bottom: 1px solid var(--line); }
+.days .d { flex: 1; height: 100%; display: flex; align-items: flex-end; position: relative; cursor: default; }
+.days .d span { width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 0; }
+.days .d.zero span { background: transparent; }
+.days .d:hover span, .days .d:focus-visible span { opacity: .75; }
+.days .d .tip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); font-size: 12px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; z-index: 2; pointer-events: none; }
+.days .d:hover .tip, .days .d:focus-visible .tip { display: block; }
+.days-axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 11.5px; margin-top: 4px; }
+.budget { display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.budget-line { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; }
+.budget-line b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.budget-line span { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.meter { height: 8px; border-radius: 4px; background: var(--sunken); overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.meter.high span { background: var(--human); }
+.meter.full span { background: var(--bad); }
+.usage .note { color: var(--muted); font-size: 12.5px; margin: 0; }
 </style>
 
 <div class="wrap" id="app"><div class="empty">Loading the factory…</div></div>
@@ -180,6 +210,8 @@ footer { color: var(--muted); font-size: 12.5px; }
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const md = s => esc(s).replace(/`([^`]+)`/g, '<span class="mono">$1</span>');
   const money = n => "$" + (Number(n) || 0).toFixed(2);
+  const tok = n => { n = Number(n) || 0; return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(Math.round(n)); };
+  const tokens = r => { const t = r.tokens || {}; return (t.input || 0) + (t.output || 0) + (t.cache_read || 0) + (t.cache_write || 0); };
   const mins = s => { const m = (Number(s) || 0) / 60; return m < 1 ? "<1 min" : m < 60 ? Math.round(m) + " min" : (m / 60).toFixed(1) + " h"; };
   const ago = iso => {
     if (!iso) return "";
@@ -206,7 +238,7 @@ footer { color: var(--muted); font-size: 12.5px; }
     return { runs, running: runs.filter(r => r.status === "running"), last: fin[0],
       success: fin.length ? Math.round(100 * ok.length / fin.length) + "%" : "–",
       avg: fin.length ? mins(fin.reduce((t, r) => t + (r.duration_s || 0), 0) / fin.length) : "–",
-      cost: runs.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0) };
+      cost: runs.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0), tokens: runs.reduce((t, r) => t + tokens(r), 0) };
   }
 
   function top() {
@@ -338,10 +370,71 @@ footer { color: var(--muted); font-size: 12.5px; }
       return `<li><span class="when">${r.status === "running" ? '<span class="live" style="color:var(--accent)">● now</span>' : ago(r.started)}</span>
         <span class="agent" style="--c:${esc(a.color)}"><span class="dot"></span>${esc(a.title)}</span>
         <span class="what"><a href="${issueUrl(r.issue)}">#${r.issue}</a> ${outcome}</span>
-        <span class="cost"><span class="sm-only">${r.status === "running" ? "now" : ago(r.started)}${r.status === "running" ? "" : " · "}</span>${r.status === "running" ? "" : `${mins(r.duration_s)} · ${money(r.cost_usd)}`}${r.run_url ? ` · <a href="${esc(r.run_url)}">logs</a>` : ""}</span></li>`;
+        <span class="cost"><span class="sm-only">${r.status === "running" ? "now" : ago(r.started)}${r.status === "running" ? "" : " · "}</span>${r.status === "running" ? "" : `${mins(r.duration_s)} · ${money(r.cost_usd)}${tokens(r) ? ` · ${tok(tokens(r))} tok` : ""}`}${r.run_url ? ` · <a href="${esc(r.run_url)}">logs</a>` : ""}</span></li>`;
     }).join("");
     return `<section aria-label="Runs"><div class="sec-head"><h2>Recent runs</h2><div class="filters" role="group" aria-label="Filter by agent">${chips}</div></div>
       <div class="card">${items ? `<ul class="runs">${items}</ul>` : '<div class="empty">No runs for this agent yet.</div>'}</div></section>`;
+  }
+
+
+  /* Today's spend against budgets.per_day_usd. Days are UTC, like the engine's cap. */
+  function today() {
+    const cap = Number(D.budget_per_day) || 0;
+    if (!cap) return "";
+    const day = new Date().toISOString().slice(0, 10);
+    const ran = D.runs.filter(r => (r.started || "").slice(0, 10) === day);
+    const spent = ran.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0);
+    const toks = ran.reduce((t, r) => t + tokens(r), 0);
+    const left = Math.max(0, cap - spent), pct = Math.min(100, 100 * spent / cap);
+    const reset = new Date(day + "T00:00:00Z"); reset.setUTCDate(reset.getUTCDate() + 1);
+    const hrs = Math.max(0, (reset - Date.now()) / 3600000);
+    const resets = `resets in ${hrs < 1 ? Math.round(hrs * 60) + " min" : Math.floor(hrs) + " h " + Math.round((hrs % 1) * 60) + " min"}`;
+    return `<div class="budget">
+      <div class="budget-line"><div><b>${money(left)}</b> <span>left of today's ${money(cap)} budget</span></div>
+        <span>${money(spent)} used${toks ? ` · ${tok(toks)} tokens` : ""} · ${left ? resets : "paused until reset, " + resets}</span></div>
+      <div class="meter ${pct >= 100 ? "full" : pct >= 80 ? "high" : ""}" role="meter" aria-valuemin="0" aria-valuemax="${cap}" aria-valuenow="${spent.toFixed(2)}" aria-label="Daily budget used"><span style="width:${pct.toFixed(1)}%"></span></div>
+    </div>`;
+  }
+
+  /* Token usage: totals, by agent, and by day for the last 14 days. */
+  function usage() {
+    const R = D.runs.filter(r => tokens(r) > 0);
+    const budget = today();
+    if (!R.length) return `<section aria-label="Token usage"><div class="sec-head"><h2>Budget and token usage</h2></div>
+      <div class="card usage">${budget}<p class="note">No token counts yet. Runs record them from now on.</p></div></section>`;
+    const sum = k => R.reduce((t, r) => t + ((r.tokens || {})[k] || 0), 0);
+    const total = R.reduce((t, r) => t + tokens(r), 0);
+    const cost = R.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0);
+    const agents = D.agents.concat(N ? [N.scout] : []).map(a => {
+      const rs = R.filter(r => r.agent === a.name);
+      return { a, t: rs.reduce((x, r) => x + tokens(r), 0), c: rs.reduce((x, r) => x + (Number(r.cost_usd) || 0), 0), n: rs.length };
+    }).filter(x => x.n);
+    const maxA = Math.max(1, ...agents.map(x => x.t));
+    const bars = agents.map(x => `<span class="who" style="--c:${esc(x.a.color)}"><i></i>${esc(x.a.title)}</span>
+      <span class="track"><span class="fill" style="width:${(100 * x.t / maxA).toFixed(1)}%"></span></span>
+      <span class="v">${tok(x.t)} · ${money(x.c)} · ${x.n} run${x.n === 1 ? "" : "s"}</span>`).join("");
+    const day = iso => iso.slice(0, 10), now = new Date();
+    const days = [...Array(14)].map((_, i) => { const d = new Date(now); d.setUTCDate(d.getUTCDate() - 13 + i); return d.toISOString().slice(0, 10); });
+    const perDay = Object.fromEntries(days.map(d => [d, { t: 0, c: 0 }]));
+    R.forEach(r => { const d = perDay[day(r.started || "")]; if (d) { d.t += tokens(r); d.c += Number(r.cost_usd) || 0; } });
+    const maxD = Math.max(1, ...days.map(d => perDay[d].t));
+    const label = d => new Date(d + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+    const cols = days.map(d => { const v = perDay[d]; return `<div class="d${v.t ? "" : " zero"}" tabindex="0" aria-label="${label(d)}: ${tok(v.t)} tokens, ${money(v.c)}">
+      <span style="height:${(100 * v.t / maxD).toFixed(1)}%"></span><span class="tip">${label(d)} · ${tok(v.t)} tokens · ${money(v.c)}</span></div>`; }).join("");
+    return `<section aria-label="Token usage"><div class="sec-head"><h2>Budget and token usage</h2><p>What today has left, and the tokens every agent run used</p></div>
+      <div class="card usage">${budget}
+        <div class="usage-tot">
+          <div><b>${tok(total)}</b><span>tokens in all</span></div>
+          <div><b>${tok(sum("input") + sum("cache_write"))}</b><span>input</span></div>
+          <div><b>${tok(sum("cache_read"))}</b><span>read from cache</span></div>
+          <div><b>${tok(sum("output"))}</b><span>output</span></div>
+          <div><b>${money(cost)}</b><span>estimated cost</span></div>
+        </div>
+        <div><div class="label">By agent</div><div class="hbars">${bars}</div></div>
+        <div><div class="label">By day, last 14 days (UTC)</div><div class="days">${cols}</div>
+          <div class="days-axis"><span>${label(days[0])}</span><span>${label(days[13])}</span></div></div>
+        <p class="note">On a Claude subscription these runs count against your plan's usage limits; the dollar figures are Claude Code's estimates.</p>
+      </div></section>`;
   }
 
   function drawer() {
@@ -362,7 +455,7 @@ footer { color: var(--muted); font-size: 12.5px; }
           <dt>Sees</dt><dd>${a.context.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</dd>
           <dt>Budget</dt><dd class="num">${money(a.budget_usd)} per run</dd>
           ${a.stage ? "" : `<dt>When</dt><dd>${esc((N && N.schedule) || "overnight")}</dd>`}
-          <dt>So far</dt><dd class="num">${st.runs.length} run${st.runs.length === 1 ? "" : "s"} · ${st.success} finished ok · avg ${st.avg} · ${money(st.cost)}</dd>
+          <dt>So far</dt><dd class="num">${st.runs.length} run${st.runs.length === 1 ? "" : "s"} · ${st.success} finished ok · avg ${st.avg} · ${money(st.cost)}${st.tokens ? ` · ${tok(st.tokens)} tokens` : ""}</dd>
         </dl>
         <div><div class="label">Decisions</div>${a.decisions.map(d => !d.next ? `<div class="route"><span class="mono">${esc(d.name)}</span><span class="muted"></span><span></span><span class="m">${esc(d.meaning)}</span></div>` : `<div class="route"><span class="mono">${esc(d.name)}</span><span class="muted">→</span><b>${esc(target(d.next))}</b><span class="m">${esc(d.meaning)}</span></div>`).join("")}</div>
         <div><div class="label">Prompt</div><pre class="prompt">${esc(reflow(a.prompt))}</pre></div>
@@ -372,7 +465,7 @@ footer { color: var(--muted); font-size: 12.5px; }
   }
 
   function render() {
-    app.innerHTML = top() + needs() + map() + requests() + runs() +
+    app.innerHTML = top() + needs() + map() + requests() + usage() + runs() +
       `<footer>Agents live in <span class="mono">factory/agents/</span> and the pipeline in <span class="mono">factory/factory.yaml</span>.${D.sample ? " All figures on this page are examples." : ""}</footer>`;
     drawer();
   }

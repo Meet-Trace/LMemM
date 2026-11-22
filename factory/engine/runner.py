@@ -40,10 +40,20 @@ class AgentResult:
     duration_s: float = 0.0
     error: str | None = None
     proposals: list = field(default_factory=list)
+    # Token counts Claude Code reported for the run: input, output, cache_read, cache_write.
+    tokens: dict = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
         return self.error is None and self.decision is not None
+
+
+def token_counts(final: dict) -> dict:
+    """The token counts in Claude Code's final result event, with short names."""
+    usage = final.get("usage") or {}
+    names = {"input": "input_tokens", "output": "output_tokens",
+             "cache_read": "cache_read_input_tokens", "cache_write": "cache_creation_input_tokens"}
+    return {k: int(usage.get(v) or 0) for k, v in names.items()}
 
 
 def fill(template: str, values: dict[str, str]) -> str:
@@ -201,15 +211,16 @@ def run(agent: Agent, task: str, values: dict[str, str], cwd: Path,
                            error=f"Claude Code exited ({code}) without a result. {' '.join(tail)}".strip())
     cost = float(final.get("total_cost_usd") or 0.0)
     turns = int(final.get("num_turns") or 0)
+    tokens = token_counts(final)
     structured = _parse_structured(final)
     if final.get("is_error") or final.get("subtype") not in (None, "success"):
         reason = final.get("subtype") or "error"
         if reason == "error_max_budget_usd":
             reason = f"hit this agent's ${agent.budget_usd:g} budget"
-        return AgentResult(None, "", "", cost, turns, duration, error=f"Run ended early: {reason}")
+        return AgentResult(None, "", "", cost, turns, duration, error=f"Run ended early: {reason}", tokens=tokens)
     if not structured or structured.get("decision") not in agent.decisions:
         return AgentResult(None, "", str(final.get("result") or ""), cost, turns, duration,
-                           error="The agent did not return a valid decision")
+                           error="The agent did not return a valid decision", tokens=tokens)
     proposals = [p for p in structured.get("proposals") or [] if isinstance(p, dict) and p.get("title")]
     return AgentResult(structured["decision"], str(structured.get("summary", "")).strip(),
-                       str(structured.get("report", "")).strip(), cost, turns, duration, proposals=proposals)
+                       str(structured.get("report", "")).strip(), cost, turns, duration, proposals=proposals, tokens=tokens)

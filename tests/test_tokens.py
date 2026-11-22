@@ -36,8 +36,8 @@ class Tokens(unittest.TestCase):
         self.assertEqual(tokens.EASE, (0.2, 0.7, 0.1, 1.0))
 
     def test_reduced_motion_still_drops_movement(self):
-        self.assertFalse(motion.reduced())                       # no AppKit here: motion is off and harmless
-        motion.pop(object())
+        self.assertIsInstance(motion.reduced(), bool)            # whatever this Mac says, asking never raises
+        motion.pop(object())                                     # and a stand-in view is harmless
 
 
 if __name__ == "__main__":

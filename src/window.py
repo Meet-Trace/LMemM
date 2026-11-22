@@ -1087,7 +1087,7 @@ class MainWindow:
         reg = self._reg()
         y = 24
         if d["kind"] == "name":
-            kit.put_text(card, d["title"], 24, y, cw - 48, 18, 700, wrap=False, height=26)
+            kit.put_text(card, d["title"], 24, y, cw - 48, tokens.DISPLAY["m"], 400, wrap=False, height=26, face="serif", track=tokens.TRACK["display"])
             y += 42
             self._field_at(cx + 24, cy + y, cw - 48, d["value"] if focus else None, "Name")
             y += 44
@@ -1123,7 +1123,7 @@ class MainWindow:
             found = [items[i] for i in d["ids"] if i in items]
             one = found[0] if len(found) == 1 else None
             title = f"“{page_model.title_of(one)}”" if one else page_model.plural(len(found), "thing")
-            kit.put_text(card, title, 24, y, cw - 48, 18, 700, wrap=False, height=26)
+            kit.put_text(card, title, 24, y, cw - 48, tokens.DISPLAY["m"], 400, wrap=False, height=26, face="serif", track=tokens.TRACK["display"])
             y += 40
             rows = [("Move to…", "arrow.turn.down.right", lambda: self.open_thing_pick("assign", d["ids"])),
                     ("Also in…", "plus.circle", lambda: self.open_thing_pick("also", d["ids"]))]

@@ -24,6 +24,7 @@ import setup_kit as kit
 import tokens
 from setup_kit import CENTER, LEFT
 from widget import _Fields, _field, _Flipped, _Ring, _Tap
+SZ = tokens.SIZE                                   # the type scale (tokens.py)
 
 W, H, X = 480, 600, 36                                         # H is the smallest height; the window can grow
 CW = W - 2 * X
@@ -187,7 +188,7 @@ class SetupWindow:
         dots.setFrame_(NSMakeRect((W - 65) / 2, 28, 65, 8))
         root.addSubview_(dots)
         if view["back"]:
-            self._link(root, "‹ Back", 20, 20, lambda: self._do(self.setup.back), size=14)
+            self._link(root, "‹ Back", 20, 20, lambda: self._do(self.setup.back), size=SZ["ui"])
         step = view["step"]
         foot_top = self._foot(root, view)
         body = _Flipped.alloc().initWithFrame_(NSMakeRect(X, TOP, CW, 10))
@@ -214,7 +215,7 @@ class SetupWindow:
         elif step == "you":
             self.window.makeFirstResponder_(self.name_field)
 
-    def _link(self, parent, text, x, y, callback, size=14, color=None, w=None, align=LEFT):
+    def _link(self, parent, text, x, y, callback, size=SZ["ui"], color=None, w=None, align=LEFT):
         width = w or kit.text_width(text, size, 500) + 16
         tap = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x, y, width, size + 12), callback)
         kit.put_text(tap, text, 8 if align == LEFT else 0, 0, width - (8 if align == LEFT else 0), size, 500,
@@ -241,19 +242,19 @@ class SetupWindow:
             elif kind == "secondary" and secondary:
                 items.append((kind, 28))
         if view["error"]:
-            items.insert(0, ("error", kit.text_height(view["error"], 13, 500, CW) + 2))
+            items.insert(0, ("error", kit.text_height(view["error"], SZ["label"], 500, CW) + 2))
         gap = 12
         total = sum(h for _k, h in items) + gap * max(0, len(items) - 1)
         y = self.h - 30 - total
         start = y
         for kind, h in items:
             if kind == "error":
-                kit.put_text(root, view["error"], X, y, CW, 13, 500, kit.status_text("red"), CENTER)
+                kit.put_text(root, view["error"], X, y, CW, SZ["label"], 500, kit.status_text("red"), CENTER)
             elif kind == "trust":
                 self._trust(root, trust, y)
             elif kind == "primary":
                 label = primary["label"]
-                width = min(CW, max(220, kit.text_width(label, 16, 600) + 56))
+                width = min(CW, max(220, kit.text_width(label, SZ["lead"], 600) + 56))
                 self.primary_tap = kit.button(root, label, (W - width) / 2, y, width, 48, self._primary,
                                               kind="quiet" if primary["quiet"] else "primary",
                                               enabled=primary["enabled"])
@@ -263,15 +264,15 @@ class SetupWindow:
         return start
 
     def _trust(self, root, text, y):
-        width = kit.text_width(text, 13, 400)
+        width = kit.text_width(text, SZ["label"], 400)
         if width > CW - 24:
-            kit.put_text(root, text, X, y, CW, 13, 400, kit.mute(), CENTER)
+            kit.put_text(root, text, X, y, CW, SZ["label"], 400, kit.mute(), CENTER)
             return
         left = (W - (width + 20)) / 2
         lock = kit.icon("lock.fill", 12, kit.status_text("green"), (left, y + 4, 12, 14))
         if lock is not None:
             root.addSubview_(lock)
-        kit.put_text(root, text, left + 20, y, width + 4, 13, 400, kit.mute(), LEFT, wrap=False, height=22, middle=True)
+        kit.put_text(root, text, left + 20, y, width + 4, SZ["label"], 400, kit.mute(), LEFT, wrap=False, height=22, middle=True)
 
     # -- the five screens. Each fills `body` (CW wide) from y=0 and returns its height.
 
@@ -289,28 +290,28 @@ class SetupWindow:
         body.addSubview_(mark)
         y = 60 + 24
         y += kit.display(body, view["title"], 0, y, CW, size=tokens.DISPLAY["l"], align=CENTER) + 12
-        y += kit.put_text(body, view["sub"], 20, y, CW - 40, 16, 400, kit.mute(), CENTER) + 18
+        y += kit.put_text(body, view["sub"], 20, y, CW - 40, SZ["lead"], 400, kit.mute(), CENTER) + 18
         return self._notes(body, view["notes"], y) - (10 if view["notes"] else 0)
 
     def _you(self, body, view):
         y = kit.display(body, view["title"], 0, 0, CW, size=tokens.DISPLAY["l"], align=CENTER) + 22
-        y += kit.put_text(body, "First name", 0, y, CW, 13, 600, align=CENTER) + 8
+        y += kit.put_text(body, "First name", 0, y, CW, SZ["label"], 600, align=CENTER) + 8
         box = kit._KitBox.alloc().initWithFocus_(True)
         box.setFrame_(NSMakeRect(0, y, CW, 52))
         body.addSubview_(box)
-        self.name_field = _field(view["name"]["value"], view["name"]["placeholder"], 20, False,
+        self.name_field = _field(view["name"]["value"], view["name"]["placeholder"], SZ["section"], False,
                                  (16, y + 12, CW - 32, 28), self.fields)
-        self.name_field.setFont_(kit.font(20, 500))
+        self.name_field.setFont_(kit.font(SZ["section"], 500))
         self.name_field.setAlignment_(CENTER)
         body.addSubview_(self.name_field)
         y += 52 + 8
-        y += kit.put_text(body, view["name"]["hint"], 0, y, CW, 13, 400, kit.mute(), CENTER) + 22
+        y += kit.put_text(body, view["name"]["hint"], 0, y, CW, SZ["label"], 400, kit.mute(), CENTER) + 22
         optional = "Optional"
         label = "What do you mostly work on?"
-        lw, ow = kit.text_width(label, 13, 600), kit.text_width(optional, 13, 500)
+        lw, ow = kit.text_width(label, SZ["label"], 600), kit.text_width(optional, SZ["label"], 500)
         left = (CW - (lw + 8 + ow)) / 2
-        kit.put_text(body, label, left, y, lw + 4, 13, 600, wrap=False, height=18)
-        kit.put_text(body, optional, left + lw + 8, y, ow + 4, 13, 500, kit.mute(), wrap=False, height=18)
+        kit.put_text(body, label, left, y, lw + 4, SZ["label"], 600, wrap=False, height=18)
+        kit.put_text(body, optional, left + lw + 8, y, ow + 4, SZ["label"], 500, kit.mute(), wrap=False, height=18)
         y += 18 + 10
         rows, row, row_w = [], [], 0
         for role in view["roles"]:
@@ -332,7 +333,7 @@ class SetupWindow:
         opened = self.show_saved
         link_text = "What gets saved ▴" if opened else "What gets saved ▾"
         self._link(body, link_text, (CW - 150) / 2, y, lambda: (setattr(self, "show_saved", not self.show_saved), self.render()),
-                   size=13, w=150, align=CENTER)
+                   size=SZ["label"], w=150, align=CENTER)
         y += 30
         if opened:
             y += kit.note(body, "info", "\n".join("•  " + line for line in view["saved"]), 0, y, CW) + 4
@@ -357,18 +358,18 @@ class SetupWindow:
         body.addSubview_(tile)
         text_x = 48
         action = row["action"]
-        button_w = max(76, kit.text_width(row["button"], 13, 600) + 28) if action else 66
+        button_w = max(76, kit.text_width(row["button"], SZ["label"], 600) + 28) if action else 66
         text_w = CW - text_x - button_w - 12
         ty = y
         head = row["title"]
-        hw = kit.text_width(head, 15, 600)
-        kit.put_text(body, head, text_x, ty, hw + 4, 15, 600, wrap=False, height=20)
+        hw = kit.text_width(head, SZ["body"], 600)
+        kit.put_text(body, head, text_x, ty, hw + 4, SZ["body"], 600, wrap=False, height=20)
         if row["tag"]:
-            kit.put_text(body, row["tag"].upper(), text_x + hw + 8, ty + 3, 80, 11, 600, kit.mute(), wrap=False, height=16)
+            kit.put_text(body, row["tag"].upper(), text_x + hw + 8, ty + 3, 80, SZ["micro"], 600, kit.mute(), wrap=False, height=16)
         ty += 21
         color = (kit.status_text("red") if state == onboarding.DENIED else
                  kit.status_text("orange") if state == onboarding.RESTART else kit.mute())
-        ty += kit.put_text(body, row["line"], text_x, ty, text_w, 13, 400, color) + 2
+        ty += kit.put_text(body, row["line"], text_x, ty, text_w, SZ["label"], 400, color) + 2
         if row["key"] == "screen":
             some = bool(view["watch_apps"])
             ty += 8
@@ -377,20 +378,20 @@ class SetupWindow:
             body.addSubview_(holder)
             for label, active, cb, x, w in (("All apps", not some, lambda: self._do(self.setup.set_apps, []), 2, 78),
                                             ("Only some apps", some, self._open_picker, 82, 104)):
-                kit.button(holder, label, x, 2, w, 24, cb, kind="primary" if active else "ghost", size=12, weight=600)
+                kit.button(holder, label, x, 2, w, 24, cb, kind="primary" if active else "ghost", size=SZ["small"], weight=600)
             ty += 28
         if action:
             kit.button(body, row["button"], CW - button_w, y + 3, button_w, 30,
-                       (lambda a=action, k=row["key"]: self._do(self.setup.press, a, k)), kind="primary", size=13, weight=600)
+                       (lambda a=action, k=row["key"]: self._do(self.setup.press, a, k)), kind="primary", size=SZ["label"], weight=600)
         else:
             check = kit.icon("checkmark.circle.fill", 18, kit.status_text("green"), (CW - 62, y + 8, 18, 18))
             if check is not None:
                 body.addSubview_(check)
-            kit.put_text(body, "On", CW - 40, y + 5, 40, 13, 600, kit.status_text("green"), LEFT, wrap=False, height=24, middle=True)
+            kit.put_text(body, "On", CW - 40, y + 5, 40, SZ["label"], 600, kit.status_text("green"), LEFT, wrap=False, height=24, middle=True)
         return max(ty, y + 38) + pad
 
     def _try(self, body, view):
-        y = kit.put_text(body, view["title"], 20, 0, CW - 40, 29, 700, align=CENTER) + 24
+        y = kit.put_text(body, view["title"], 20, 0, CW - 40, SZ["welcome"], 700, align=CENTER) + 24
         keys = view["keys"]
         total = len(keys) * 56 + (len(keys) - 1) * 10
         for i, glyph in enumerate(keys):
@@ -398,7 +399,7 @@ class SetupWindow:
             key.setFrame_(NSMakeRect((CW - total) / 2 + i * 66, y, 56, 58))
             body.addSubview_(key)
         y += 58 + 22
-        y += kit.put_text(body, view["sub"], 20, y, CW - 40, 16, 400, kit.mute(), CENTER) + 16
+        y += kit.put_text(body, view["sub"], 20, y, CW - 40, SZ["lead"], 400, kit.mute(), CENTER) + 16
         return self._notes(body, view["notes"], y) - (10 if view["notes"] else 0)
 
     # -- the app picker (Screen Recording, only some apps)
@@ -413,15 +414,15 @@ class SetupWindow:
         state = self.picker
         sheet = kit._KitCanvas.alloc().initWithFrame_(NSMakeRect(0, 0, W, self.h))
         y = 52
-        y += kit.put_text(sheet, "Where should LMemM look?", X, y, CW, 25, 700, align=CENTER) + 8
+        y += kit.put_text(sheet, "Where should LMemM look?", X, y, CW, SZ["hero"], 700, align=CENTER) + 8
         y += kit.put_text(sheet, "Apps installed on this Mac. LMemM looks only at the ones you pick and stays off in every other app.",
-                          X + 10, y, CW - 20, 14, 400, kit.mute(), CENTER) + 16
+                          X + 10, y, CW - 20, SZ["ui"], 400, kit.mute(), CENTER) + 16
         box = kit._KitBox.alloc().initWithFocus_(True)               # the search field has the cursor from the start
         box.setFrame_(NSMakeRect(X, y, CW, 38))
         sheet.addSubview_(box)
-        search = _field(state["query"], "Search apps", 14, False, (X + 14, y + 9, CW - 28, 20),
+        search = _field(state["query"], "Search apps", SZ["ui"], False, (X + 14, y + 9, CW - 28, 20),
                         _Fields.alloc().initWithChange_submit_cancel_(self._query, lambda _t: None, lambda: None))
-        search.setFont_(kit.font(14, 400))
+        search.setFont_(kit.font(SZ["ui"], 400))
         sheet.addSubview_(search)
         y += 38 + 10
         scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(X, y, CW, self.h - y - 132))
@@ -449,7 +450,7 @@ class SetupWindow:
         rows = apps.search(state["all"], state["query"])
         doc = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, CW, max(1, len(rows)) * 44))
         if not rows:
-            kit.put_text(doc, f"No app named “{state['query']}”.", 8, 12, CW - 16, 14, 400, kit.mute())
+            kit.put_text(doc, f"No app named “{state['query']}”.", 8, 12, CW - 16, SZ["ui"], 400, kit.mute())
         for i, app in enumerate(rows):
             tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(0, i * 44, CW, 44), (lambda a=app: self._toggle_app(a)))
             image = self._icon(app)
@@ -457,7 +458,7 @@ class SetupWindow:
                 holder = NSImageView.alloc().initWithFrame_(NSMakeRect(6, 7, 30, 30))
                 holder.setImage_(image)
                 tap.addSubview_(holder)
-            kit.put_text(tap, app["name"], 48, 0, CW - 48 - 44, 14, 500, wrap=False, height=44, middle=True)
+            kit.put_text(tap, app["name"], 48, 0, CW - 48 - 44, SZ["ui"], 500, wrap=False, height=44, middle=True)
             ring = _Ring.alloc().initWithChecked_(app["id"] in state["chosen"])
             ring.blue = True
             ring.setFrame_(NSMakeRect(CW - 32, 13, 18, 18))

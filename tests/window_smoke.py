@@ -46,6 +46,8 @@ for n in ("put_text","tile","button","text_width","text_height","ink","mute","ac
     setattr(kit, n, mock.MagicMock(return_value=20))
 kit._KitRule = type("_KitRule", (Base,), {"initWithFrame_": lambda self, *a: self})
 kit.LEFT, kit.RIGHT, kit.CENTER = 0, 2, 1
+kit.input_field = mock.MagicMock(side_effect=lambda *a, **k: (Base(), Base()))      # (outline, field)
+kit.place_input = mock.MagicMock()
 kit.button = mock.MagicMock()                    # memory_pane sets attributes on the button it gets back
 kit.text_width = lambda *a, **k: 50
 kit.text_height = lambda *a, **k: 20

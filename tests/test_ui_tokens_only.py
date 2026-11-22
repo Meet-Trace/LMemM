@@ -1,10 +1,10 @@
 """The UI files take their colours, fonts and radii from palette.py, tokens.py and setup_kit.py (source checks, no Mac needed).
 
 Colour calls that build a colour from numbers (colorWithRed, colorWithWhite, colorWithSRGBRed) are allowed only where the
-numbers come from the palette or are a neutral that has no token; the count per file may go down, never up. Numeric font
-sizes are not scanned: the sizes are still passed to `put_text` and `font` as plain numbers (the type scale is in
-tokens.py, and the window's headings are set by tokens.DISPLAY, which test_tokens.py holds at 34 or less).
+numbers come from the palette or are a neutral that has no token; the count per file may go down, never up. Font sizes
+are read from tokens.py (SZ["label"], tokens.DISPLAY["m"]): a number written in a text call's size slot fails the test.
 """
+import ast
 import os
 import re
 import unittest
@@ -24,6 +24,31 @@ ALLOWED_BUILDERS = {
 }
 
 
+# the calls whose size argument is a font size: name -> (position of the size, keyword)
+SIZE_ARG = {"put_text": (5, "size"), "text_height": (1, "size"), "text_width": (1, "size"), "font": (0, "size"),
+            "_font": (0, "size"), "_field": (2, "size"), "button": (None, "size"), "_link": (None, "size"),
+            "segmented": (None, "size"), "_segmented": (None, "size"), "mono_text": (None, "size"), "_label": (None, "size")}
+
+
+def literal_sizes(source):
+    """The (line, number) of every font size written as a number in a text call."""
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else fn.id if isinstance(fn, ast.Name) else None
+        if name not in SIZE_ARG:
+            continue
+        pos, kw = SIZE_ARG[name]
+        if name == "_label":                       # window's self._label(parent, text, x, y, w, size) vs widget's _label(text, size)
+            pos = 5 if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name) and fn.value.id == "self" else 1
+        args = ([node.args[pos]] if pos is not None and len(node.args) > pos else []) + [k.value for k in node.keywords if k.arg == kw]
+        found += [(a.lineno, a.value) for a in args if isinstance(a, ast.Constant) and isinstance(a.value, (int, float))
+                  and not isinstance(a.value, bool)]
+    return found
+
+
 def read(name):
     with open(os.path.join(SRC, name)) as handle:
         return handle.read()
@@ -37,6 +62,34 @@ class UiUsesTokens(unittest.TestCase):
     def test_colour_building_calls_do_not_grow(self):
         for name in FILES:
             self.assertLessEqual(len(BUILDERS.findall(read(name))), ALLOWED_BUILDERS[name], name)
+
+    def test_font_sizes_come_from_the_type_scale(self):
+        for name in FILES:
+            self.assertEqual(literal_sizes(read(name)), [], name + " sets a font size as a number: use tokens.SIZE / tokens.DISPLAY")
+
+    def test_every_size_in_the_scale_is_known_and_headings_stay_small(self):
+        import tokens
+        self.assertEqual(list(tokens.SIZE.values()), sorted(tokens.SIZE.values()))
+        self.assertLessEqual(max(tokens.DISPLAY.values()), tokens.WINDOW_HEADING_MAX)
+
+    def test_dialog_titles_are_serif(self):
+        window = read("window.py")
+        self.assertNotRegex(window, r"kit\.put_text\(card, .*cw - 48, SZ\[\"(head|title)\"\], 700")
+
+    def test_one_field_style(self):
+        pane = read("memory_pane.py")
+        self.assertNotIn("setBezelStyle_", read("window.py"))
+        self.assertIn("_KitBox", pane)
+        self.assertIn("input_field", read("window.py"))
+
+    def test_the_shared_primitives_are_used_where_their_concept_appears(self):
+        pane, window = read("memory_pane.py"), read("window.py")
+        self.assertIn("kit.source_line(", pane)                 # observed text: a mono source line with the words marked
+        self.assertIn("kit.tag(host,'decided'", pane)           # a decision
+        self.assertIn("kit.segmented(", pane)                   # the period control
+        self.assertIn("kit.segmented(doc", window)              # Settings sections
+        self.assertGreaterEqual(window.count("kit.empty_state("), 2)
+        self.assertGreaterEqual(window.count('kit.surface(doc, x, y, w, ') , 2)   # notes (thing page and search) share one surface
 
     def test_no_design_asset_is_fetched_over_the_network(self):
         for name in FILES + ("setup_kit.py", "palette.py", "tokens.py"):

@@ -57,6 +57,7 @@ import notes
 import palette
 import tokens
 import rules
+SZ = tokens.SIZE                                   # the type scale (tokens.py)
 
 BORDERLESS, NONACTIVATING = 0, 1 << 7
 # all Spaces, stationary, over full-screen apps, not in the window cycle
@@ -179,7 +180,7 @@ def _font(size, bold=False):
         return NSFont.systemFontOfSize_weight_(size, 0.4) if bold else NSFont.systemFontOfSize_(size)
 
 
-def _label(text, size=11, bold=False, color=None, frame=(0, 0, 10, 10), wrap=False, strike=False):
+def _label(text, size=SZ["micro"], bold=False, color=None, frame=(0, 0, 10, 10), wrap=False, strike=False):
     """A text field. wrap=True lets it run to several lines; the frame's height is then
     set from the text. Returns (field, height)."""
     font = _font(size, bold)
@@ -740,30 +741,30 @@ class Widget:
 
     def peek_text(self):
         if not self.count:
-            return _fit(self.sug["peek"], _font(13), PEEK_MAX - 44) if self.sug else "No notes here"
-        return _fit(self.first.replace("\n", " "), _font(13), PEEK_MAX - 44)
+            return _fit(self.sug["peek"], _font(SZ["label"]), PEEK_MAX - 44) if self.sug else "No notes here"
+        return _fit(self.first.replace("\n", " "), _font(SZ["label"]), PEEK_MAX - 44)
 
     def heard_text(self):
         text = (self.listening or "").replace("\n", " ").strip()
         if not text:
             return "Listening…"
-        return _fit(text, _font(13), LISTEN_W - 48, tail=True)
+        return _fit(text, _font(SZ["label"]), LISTEN_W - 48, tail=True)
 
     def _capsule(self):
         """Size of the drawn capsule for the current state."""
         state = self.mode_of_pill()
         if state == "peek":
-            return _text_width(self.peek_text(), _font(13)) + 44 + (4 if not self.count and self.sug else 0), 28
+            return _text_width(self.peek_text(), _font(SZ["label"])) + 44 + (4 if not self.count and self.sug else 0), 28
         if state in MARKS:
             return 28, 28
         if state == "saved":
-            return _text_width(self.saved, _font(13)) + 48, 28
+            return _text_width(self.saved, _font(SZ["label"])) + 48, 28
         if state == "listening":
             return LISTEN_W, 30                          # one width: it does not chase every word
         if state == "count":
             return 44, 22
         if state == "suggest":
-            return (_text_width(SUGGEST_WORDS, _font(13)) + 52, 28) if self.sug["first_time"] else (44, 22)
+            return (_text_width(SUGGEST_WORDS, _font(SZ["label"])) + 52, 28) if self.sug["first_time"] else (44, 22)
         return 36, 5
 
     def layout(self, animate=False):
@@ -1011,23 +1012,23 @@ class Widget:
                                                getattr(self, "card_height", 100)), True)
 
     def _header(self, body, y, title, caption, back=None):
-        field, h = _label(title, 14, bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 18))
+        field, h = _label(title, SZ["ui"], bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 18))
         body.addSubview_(field)
         y += 19
         if back:                                    # "‹ Q3 plan": one step back to this thing
             tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(PAD - 4, y - 4, CARD_W - 2 * PAD + 8, 24), back[1])
-            small, _ = _label(f"‹ {back[0]}", 12, color=NSColor.secondaryLabelColor(), frame=(4, 4, CARD_W - 2 * PAD, 16))
+            small, _ = _label(f"‹ {back[0]}", SZ["small"], color=NSColor.secondaryLabelColor(), frame=(4, 4, CARD_W - 2 * PAD, 16))
             tap.addSubview_(small)
             body.addSubview_(tap)
         else:
-            small, _ = _label(caption, 12, color=NSColor.secondaryLabelColor(), frame=(PAD, y, CARD_W - 2 * PAD, 16))
+            small, _ = _label(caption, SZ["small"], color=NSColor.secondaryLabelColor(), frame=(PAD, y, CARD_W - 2 * PAD, 16))
             body.addSubview_(small)
         return y + 24
 
     def _note(self, body, y, row):
         text_w = CARD_W - 2 * PAD - 28
         color = NSColor.secondaryLabelColor() if row["done"] else NSColor.labelColor()
-        field, h = _label(row["text"], 14, color=color, frame=(28 + 8, 0, text_w, 17), wrap=True, strike=row["done"])
+        field, h = _label(row["text"], SZ["ui"], color=color, frame=(28 + 8, 0, text_w, 17), wrap=True, strike=row["done"])
         height = h + 14
         folding = self.flow.phase(row["id"], time.time()) == "fold"
         tap = _Tap.alloc().initWithFrame_callback_(
@@ -1048,8 +1049,8 @@ class Widget:
     def _link(self, body, y, left, right, callback):
         tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(6, y, CARD_W - 12, 28), callback)
         mute = NSColor.secondaryLabelColor()
-        tap.addSubview_(_label(left, 12, color=mute, frame=(PAD - 6, 6, CARD_W - 80, 16))[0])
-        tap.addSubview_(_label(right, 13, color=mute, frame=(CARD_W - 12 - PAD - 4, 5, 14, 16))[0])
+        tap.addSubview_(_label(left, SZ["small"], color=mute, frame=(PAD - 6, 6, CARD_W - 80, 16))[0])
+        tap.addSubview_(_label(right, SZ["label"], color=mute, frame=(CARD_W - 12 - PAD - 4, 5, 14, 16))[0])
         body.addSubview_(tap)
         return y + 28
 
@@ -1057,15 +1058,15 @@ class Widget:
         tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(8, y, CARD_W - 16, 34), self._add)
         tap.fill = True
         mute = NSColor.secondaryLabelColor()
-        tap.addSubview_(_label(ADD_LABEL, 13, color=mute, frame=(12, 8, 150, 18))[0])
-        key = _label(self.hotkey, 11, color=NSColor.secondaryLabelColor(), frame=(CARD_W - 16 - 12 - 50, 9, 50, 16))[0]
+        tap.addSubview_(_label(ADD_LABEL, SZ["label"], color=mute, frame=(12, 8, 150, 18))[0])
+        key = _label(self.hotkey, SZ["micro"], color=NSColor.secondaryLabelColor(), frame=(CARD_W - 16 - 12 - 50, 9, 50, 16))[0]
         key.setAlignment_(2)                         # right
         tap.addSubview_(key)
         body.addSubview_(tap)
         return y + 42
 
     def _empty(self, body, y):
-        field, h = _label(EMPTY_HINT.format(key=self.hotkey), 13, color=NSColor.secondaryLabelColor(),
+        field, h = _label(EMPTY_HINT.format(key=self.hotkey), SZ["label"], color=NSColor.secondaryLabelColor(),
                           frame=(PAD, y, CARD_W - 2 * PAD, 18), wrap=True)
         body.addSubview_(field)
         return y + h + 6
@@ -1084,11 +1085,11 @@ class Widget:
             badge.animator().setAlphaValue_(1.0)
             NSAnimationContext.endGrouping()
         y += 56
-        head, _ = _label(title, 16, bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 20))
+        head, _ = _label(title, SZ["lead"], bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 20))
         head.setAlignment_(1)
         body.addSubview_(head)
         y += 23
-        small, h = _label(line, 13, color=NSColor.secondaryLabelColor(), frame=(PAD, y, CARD_W - 2 * PAD, 18), wrap=True)
+        small, h = _label(line, SZ["label"], color=NSColor.secondaryLabelColor(), frame=(PAD, y, CARD_W - 2 * PAD, 18), wrap=True)
         small.setAlignment_(1)
         body.addSubview_(small)
         return y + h + 10
@@ -1112,11 +1113,11 @@ class Widget:
             holder.setImage_(image)
             holder.setContentTintColor_(mute)
             tap.addSubview_(holder)
-        tap.addSubview_(_label("Done", 12, color=mute, frame=(PAD - 6 + 22, 6, 100, 16))[0])
-        number = _label(str(count), 12, color=NSColor.secondaryLabelColor(), frame=(CARD_W - 12 - PAD - 40, 6, 32, 16))[0]
+        tap.addSubview_(_label("Done", SZ["small"], color=mute, frame=(PAD - 6 + 22, 6, 100, 16))[0])
+        number = _label(str(count), SZ["small"], color=NSColor.secondaryLabelColor(), frame=(CARD_W - 12 - PAD - 40, 6, 32, 16))[0]
         number.setAlignment_(2)
         tap.addSubview_(number)
-        tap.addSubview_(_label("›", 13, color=mute, frame=(CARD_W - 12 - PAD - 4, 5, 14, 16))[0])
+        tap.addSubview_(_label("›", SZ["label"], color=mute, frame=(CARD_W - 12 - PAD - 4, 5, 14, 16))[0])
         body.addSubview_(tap)
         return y + 32
 
@@ -1126,10 +1127,10 @@ class Widget:
         if not shown:
             return y
         text, undoable = shown
-        body.addSubview_(_label(text, 12, color=NSColor.secondaryLabelColor(), frame=(PAD, y + 4, 140, 16))[0])
+        body.addSubview_(_label(text, SZ["small"], color=NSColor.secondaryLabelColor(), frame=(PAD, y + 4, 140, 16))[0])
         if undoable:
             undo = _Tap.alloc().initWithFrame_callback_(NSMakeRect(CARD_W - PAD - 64, y - 2, 64, 28), self._undo)
-            word = _label("Undo", 12, bold=True, color=NSColor.controlAccentColor(), frame=(0, 6, 64, 16))[0]
+            word = _label("Undo", SZ["small"], bold=True, color=NSColor.controlAccentColor(), frame=(0, 6, 64, 16))[0]
             word.setAlignment_(2)
             undo.addSubview_(word)
             body.addSubview_(undo)
@@ -1140,16 +1141,16 @@ class Widget:
         view = notes.done_view(self.data, datetime.now().isoformat(timespec="seconds"))
         y = self._header(body, y, "Done", "", back=(view["title"], lambda: self._go("here")))
         if not view["groups"]:
-            body.addSubview_(_label("Nothing finished yet.", 13, color=NSColor.secondaryLabelColor(),
+            body.addSubview_(_label("Nothing finished yet.", SZ["label"], color=NSColor.secondaryLabelColor(),
                                     frame=(PAD, y, CARD_W - 2 * PAD, 18))[0])
             y += 26
         for label, rows in view["groups"]:
-            body.addSubview_(_label(label.upper(), 11, bold=True, color=NSColor.secondaryLabelColor(),
+            body.addSubview_(_label(label.upper(), SZ["micro"], bold=True, color=NSColor.secondaryLabelColor(),
                                     frame=(PAD, y + 4, CARD_W - 2 * PAD, 14))[0])
             y += 22
             for row in rows:
                 text_w = CARD_W - 2 * PAD - 28
-                field, h = _label(row["text"], 14, color=NSColor.secondaryLabelColor(),
+                field, h = _label(row["text"], SZ["ui"], color=NSColor.secondaryLabelColor(),
                                   frame=(0, 0, text_w - 4, 17), wrap=True, strike=True)
                 height = h + 14 + 16
                 tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(6, y, CARD_W - 12, height),
@@ -1159,7 +1160,7 @@ class Widget:
                 ring = _Ring.alloc().initWithChecked_(True)
                 ring.setFrame_(NSMakeRect(PAD - 6 + 2, 8, 17, 17))
                 field.setFrame_(NSMakeRect(PAD - 6 + 2 + 17 + 11, 7, text_w - 4, h))
-                when = _label(row["when"], 11, color=NSColor.secondaryLabelColor(),
+                when = _label(row["when"], SZ["micro"], color=NSColor.secondaryLabelColor(),
                               frame=(PAD - 6 + 2 + 17 + 11, 7 + h + 1, text_w, 14))[0]
                 for v in (ring, field, when):
                     tap.addSubview_(v)
@@ -1177,24 +1178,24 @@ class Widget:
             holder.setImage_(image)
             holder.setContentTintColor_(mute)
             tap.addSubview_(holder)
-        tap.addSubview_(_label("Pause LMemM", 12, color=mute, frame=(PAD - 6 + 22, 6, CARD_W - 80, 16))[0])
-        tap.addSubview_(_label("›", 13, color=mute, frame=(CARD_W - 12 - PAD - 4, 5, 14, 16))[0])
+        tap.addSubview_(_label("Pause LMemM", SZ["small"], color=mute, frame=(PAD - 6 + 22, 6, CARD_W - 80, 16))[0])
+        tap.addSubview_(_label("›", SZ["label"], color=mute, frame=(CARD_W - 12 - PAD - 4, 5, 14, 16))[0])
         body.addSubview_(tap)
         return y + 32
 
     def _pause_menu(self, body, y):
         """Pause for: three choices, each showing when it ends."""
         back = _Tap.alloc().initWithFrame_callback_(NSMakeRect(PAD - 4, y - 8, 120, 24), lambda: self._go("here"))
-        back.addSubview_(_label("‹ Back", 12, color=NSColor.secondaryLabelColor(), frame=(4, 4, 110, 16))[0])
+        back.addSubview_(_label("‹ Back", SZ["small"], color=NSColor.secondaryLabelColor(), frame=(4, 4, 110, 16))[0])
         body.addSubview_(back)
         y += 22
-        body.addSubview_(_label("Pause for", 16, bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 20))[0])
+        body.addSubview_(_label("Pause for", SZ["lead"], bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 20))[0])
         y += 28
         for row in rules.pause_options(datetime.now()):
             tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(6, y, CARD_W - 12, 46),
                                                        lambda kind=row["kind"]: self._pause(kind))
-            tap.addSubview_(_label(row["title"], 14, bold=True, frame=(PAD - 6 + 2, 6, CARD_W - 60, 18))[0])
-            tap.addSubview_(_label(row["sub"], 12, color=NSColor.secondaryLabelColor(),
+            tap.addSubview_(_label(row["title"], SZ["ui"], bold=True, frame=(PAD - 6 + 2, 6, CARD_W - 60, 18))[0])
+            tap.addSubview_(_label(row["sub"], SZ["small"], color=NSColor.secondaryLabelColor(),
                                    frame=(PAD - 6 + 2, 25, CARD_W - 60, 16))[0])
             body.addSubview_(tap)
             y += 46
@@ -1292,7 +1293,7 @@ class Widget:
         if old:
             old.setFrame_(NSMakeRect(12, 8, CARD_W - 16 - 24, 18))
             return old
-        return _field(self.query, placeholder, 13, False, (12, 8, CARD_W - 16 - 24, 18), self.fields)
+        return _field(self.query, placeholder, SZ["label"], False, (12, 8, CARD_W - 16 - 24, 18), self.fields)
 
     def _item_id(self):
         return (self.data or {}).get("item")
@@ -1354,7 +1355,7 @@ class Widget:
             color = NSColor.colorWithWhite_alpha_(palette.PILL_DARK[0] if dark else 1.0, 1.0)
         else:
             color = NSColor.secondaryLabelColor()
-        label = _label(text, 13, bold=primary, color=color, frame=(0, 8, frame[2], 17))[0]
+        label = _label(text, SZ["label"], bold=primary, color=color, frame=(0, 8, frame[2], 17))[0]
         label.setAlignment_(1)                      # centre
         tap.addSubview_(label)
         body.addSubview_(tap)
@@ -1362,10 +1363,10 @@ class Widget:
 
     def _suggest(self, body, y):
         sug = self.sug
-        body.addSubview_(_label("Looks like one project", 12, color=NSColor.secondaryLabelColor(),
+        body.addSubview_(_label("Looks like one project", SZ["small"], color=NSColor.secondaryLabelColor(),
                                 frame=(PAD, y, CARD_W - 2 * PAD, 16))[0])
         y += 19
-        self.name = _field(self.kept_name or sug["name"], "Project name", 16, True, (PAD - 2, y, CARD_W - 2 * PAD + 4, 22), self.fields)
+        self.name = _field(self.kept_name or sug["name"], "Project name", SZ["lead"], True, (PAD - 2, y, CARD_W - 2 * PAD + 4, 22), self.fields)
         body.addSubview_(self.name)
         y += 30
         things = sug["things"]
@@ -1375,17 +1376,17 @@ class Widget:
             y += 38
         if len(things) > len(shown):
             more = _Tap.alloc().initWithFrame_callback_(NSMakeRect(PAD - 4, y, CARD_W - 2 * PAD + 8, 22), self._expand_things)
-            more.addSubview_(_label(f"Show {len(things) - len(shown)} more", 12, color=NSColor.secondaryLabelColor(),
+            more.addSubview_(_label(f"Show {len(things) - len(shown)} more", SZ["small"], color=NSColor.secondaryLabelColor(),
                                     frame=(4, 3, CARD_W - 2 * PAD, 16))[0])
             body.addSubview_(more)
             y += 26
         y += 4
         if sug["reason"]:
-            body.addSubview_(_label(sug["reason"], 12, color=NSColor.secondaryLabelColor(),
+            body.addSubview_(_label(sug["reason"], SZ["small"], color=NSColor.secondaryLabelColor(),
                                     frame=(PAD, y, CARD_W - 2 * PAD, 16))[0])
             y += 22
         if sug["first_time"]:
-            field, h = _label(PROJECT_EXPLAINER, 12, color=NSColor.secondaryLabelColor(),
+            field, h = _label(PROJECT_EXPLAINER, SZ["small"], color=NSColor.secondaryLabelColor(),
                               frame=(PAD, y + 6, CARD_W - 2 * PAD, 16), wrap=True)
             body.addSubview_(field)
             y += h + 14
@@ -1409,8 +1410,8 @@ class Widget:
             holder.setImageScaling_(3)
             row.addSubview_(holder)
         width = CARD_W - 2 * PAD - 42
-        row.addSubview_(_label(thing["title"], 13, frame=(42, 2, width, 17))[0])
-        row.addSubview_(_label(thing["app"], 11, color=NSColor.secondaryLabelColor(), frame=(42, 19, width, 14))[0])
+        row.addSubview_(_label(thing["title"], SZ["label"], frame=(42, 2, width, 17))[0])
+        row.addSubview_(_label(thing["app"], SZ["micro"], color=NSColor.secondaryLabelColor(), frame=(42, 19, width, 14))[0])
         body.addSubview_(row)
 
     def _expand_things(self):
@@ -1423,14 +1424,14 @@ class Widget:
         """The picker before you have any project: what one is, and a name to give it."""
         thing = view["title"].replace("Add ", "", 1).replace(" to a project", "")
         back = _Tap.alloc().initWithFrame_callback_(NSMakeRect(PAD - 4, y - 8, 120, 24), lambda: self._go("here"))
-        back.addSubview_(_label("‹ Back", 12, color=NSColor.secondaryLabelColor(), frame=(4, 4, 110, 16))[0])
+        back.addSubview_(_label("‹ Back", SZ["small"], color=NSColor.secondaryLabelColor(), frame=(4, 4, 110, 16))[0])
         body.addSubview_(back)
         y += 20
-        head, _ = _label("Start a project", 16, bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 20))
+        head, _ = _label("Start a project", SZ["lead"], bold=True, frame=(PAD, y, CARD_W - 2 * PAD, 20))
         head.setAlignment_(1)
         body.addSubview_(head)
         y += 23
-        small, h = _label("Keep related things and their notes together.", 13, color=NSColor.secondaryLabelColor(),
+        small, h = _label("Keep related things and their notes together.", SZ["label"], color=NSColor.secondaryLabelColor(),
                           frame=(PAD, y, CARD_W - 2 * PAD, 18), wrap=True)
         small.setAlignment_(1)
         body.addSubview_(small)
@@ -1439,8 +1440,8 @@ class Widget:
         tile = _Tile.alloc().initWithKind_size_(view.get("kind", ""), 34)
         tile.setFrame_(NSMakeRect(14, 14, 34, 34))
         box.addSubview_(tile)
-        box.addSubview_(_label(thing, 14, bold=True, frame=(58, 12, CARD_W - 2 * PAD - 70, 18))[0])
-        box.addSubview_(_label("will be the first thing in it", 12, color=NSColor.secondaryLabelColor(),
+        box.addSubview_(_label(thing, SZ["ui"], bold=True, frame=(58, 12, CARD_W - 2 * PAD - 70, 18))[0])
+        box.addSubview_(_label("will be the first thing in it", SZ["small"], color=NSColor.secondaryLabelColor(),
                                frame=(58, 31, CARD_W - 2 * PAD - 70, 16))[0])
         body.addSubview_(box)
         y += 72
@@ -1478,11 +1479,11 @@ class Widget:
             dot.setWantsLayer_(True)
             dot.layer().setCornerRadius_(8)
             dot.layer().setBackgroundColor_(NSColor.labelColor().colorWithAlphaComponent_(0.12).CGColor())
-            dot.addSubview_(_label(mark, 13, bold=True, frame=(0, 4, 26, 17))[0])
+            dot.addSubview_(_label(mark, SZ["label"], bold=True, frame=(0, 4, 26, 17))[0])
             dot.subviews()[0].setAlignment_(1)
             tap.addSubview_(dot)
-            tap.addSubview_(_label(title, 13, frame=(PAD + 32, 5, CARD_W - 100, 17))[0])
-            tap.addSubview_(_label(small, 11, color=NSColor.secondaryLabelColor(), frame=(PAD + 32, 22, CARD_W - 100, 14))[0])
+            tap.addSubview_(_label(title, SZ["label"], frame=(PAD + 32, 5, CARD_W - 100, 17))[0])
+            tap.addSubview_(_label(small, SZ["micro"], color=NSColor.secondaryLabelColor(), frame=(PAD + 32, 22, CARD_W - 100, 14))[0])
             body.addSubview_(tap)
             return y + 40
 
@@ -1503,7 +1504,7 @@ class Widget:
             ring = _Ring.alloc().initWithChecked_(self.also)
             ring.setFrame_(NSMakeRect(PAD - 6 + 2, 9, 17, 17))
             tap.addSubview_(ring)
-            note, h = _label(f"Also add {names}, open now", 12, color=NSColor.secondaryLabelColor(),
+            note, h = _label(f"Also add {names}, open now", SZ["small"], color=NSColor.secondaryLabelColor(),
                              frame=(PAD + 24, 5, CARD_W - 12 - PAD - 30, 16), wrap=True)
             note.setFrame_(NSMakeRect(PAD + 24, 8, CARD_W - 12 - PAD - 30, h))
             tap.addSubview_(note)
@@ -1515,15 +1516,15 @@ class Widget:
         ring = _Ring.alloc().initWithChecked_(True)
         ring.setFrame_(NSMakeRect(PAD, y + 2, 17, 17))
         body.addSubview_(ring)
-        body.addSubview_(_label(self.done_text, 14, bold=True, frame=(PAD + 27, y, CARD_W - 2 * PAD - 27, 18))[0])
-        body.addSubview_(_label("It will show on the project page.", 12, color=NSColor.secondaryLabelColor(),
+        body.addSubview_(_label(self.done_text, SZ["ui"], bold=True, frame=(PAD + 27, y, CARD_W - 2 * PAD - 27, 18))[0])
+        body.addSubview_(_label("It will show on the project page.", SZ["small"], color=NSColor.secondaryLabelColor(),
                                 frame=(PAD + 27, y + 20, CARD_W - 2 * PAD - 27, 16))[0])
         return y + 40
 
     def _project(self, body, view, y):
         y = self._header(body, y, view["title"], view["caption"], back=(view["back"], lambda: self._go("here")))
         for thing, rows in view["groups"]:
-            field, _ = _label(thing.upper(), 11, bold=True, color=NSColor.secondaryLabelColor(),
+            field, _ = _label(thing.upper(), SZ["micro"], bold=True, color=NSColor.secondaryLabelColor(),
                               frame=(PAD, y + 4, CARD_W - 2 * PAD, 14))
             body.addSubview_(field)
             y += 22

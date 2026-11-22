@@ -21,6 +21,7 @@ import palette
 import tokens
 import widget
 from widget import _Flipped, _font, _label, _panel, _veil, PAD, PILL_BOTTOM, POPOVER_MATERIAL, BEHIND_WINDOW, ACTIVE
+SZ = tokens.SIZE                                   # the type scale (tokens.py)
 
 CARD_W, CARD_H = 320, 150
 GAP = 46                                    # from the screen's bottom edge to the card: clear of the pill
@@ -92,11 +93,11 @@ class NoteCard:
         body = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, CARD_W, CARD_H))
         mute = NSColor.secondaryLabelColor()
 
-        self.crumb, _ = _label("", 11, color=mute, frame=(PAD, 15, CARD_W - 2 * PAD - 100, 16))
+        self.crumb, _ = _label("", SZ["micro"], color=mute, frame=(PAD, 15, CARD_W - 2 * PAD - 100, 16))
         body.addSubview_(self.crumb)
         self.bars = _Bars.alloc().initWithFrame_(NSMakeRect(CARD_W - PAD - 92, 15, 16, 16))
         body.addSubview_(self.bars)
-        self.status, _ = _label("", 11, bold=True, frame=(CARD_W - PAD - 72, 15, 72, 16))
+        self.status, _ = _label("", SZ["micro"], bold=True, frame=(CARD_W - PAD - 72, 15, 72, 16))
         self.status.setAlignment_(0)
         body.addSubview_(self.status)
 
@@ -105,7 +106,7 @@ class NoteCard:
         scroll.setHasVerticalScroller_(False)
         self.text = NSTextView.alloc().initWithFrame_(NSMakeRect(0, 0, CARD_W - 2 * PAD, 68))
         self.text.setDrawsBackground_(False)
-        self.text.setFont_(_font(16))
+        self.text.setFont_(_font(SZ["lead"]))
         self.text.setRichText_(False)
         self.text.setTextContainerInset_((0, 2))
         self.text.textContainer().setLineFragmentPadding_(0)
@@ -117,11 +118,11 @@ class NoteCard:
         self.text.setDelegate_(self.typing)
         scroll.setDocumentView_(self.text)
         body.addSubview_(scroll)
-        self.placeholder, _ = _label(PLACEHOLDER, 16, color=NSColor.tertiaryLabelColor(),
+        self.placeholder, _ = _label(PLACEHOLDER, SZ["lead"], color=NSColor.tertiaryLabelColor(),
                                      frame=(PAD, 42, CARD_W - 2 * PAD, 20))
         body.addSubview_(self.placeholder)
 
-        self.hint, _ = _label(HINT, 11, color=NSColor.secondaryLabelColor(), frame=(PAD, CARD_H - 28, CARD_W - 2 * PAD, 14))
+        self.hint, _ = _label(HINT, SZ["micro"], color=NSColor.secondaryLabelColor(), frame=(PAD, CARD_H - 28, CARD_W - 2 * PAD, 14))
         body.addSubview_(self.hint)
         content.addSubview_(body)
         self.panel.setContentView_(content)

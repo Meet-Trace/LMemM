@@ -38,6 +38,7 @@ import tokens
 import window_model
 from setup_kit import LEFT, RIGHT
 from widget import _Fields, _Flipped, _Ring, _Tap
+SZ = tokens.SIZE                                   # the type scale (tokens.py)
 
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
@@ -362,13 +363,8 @@ class MainWindow:
         self.root.addSubview_(self.head_host)
         self.typing = _Fields.alloc().initWithChange_submit_cancel_(
             lambda text: self.press("search", text), lambda text: self.press("search", text), self._cancel_search)
-        self.search = NSTextField.alloc().initWithFrame_(NSMakeRect(16, 0, SIDE_W - 32, 28))
-        self.search.setPlaceholderString_("Search")
-        self.search.setBezeled_(True)
-        self.search.setBezelStyle_(1)
-        self.search.setDelegate_(self.typing)
+        self.search_box, self.search = kit.input_field(self.root, "Search", 16, 0, SIDE_W - 32, 30, delegate=self.typing)
         self.typing.arrow = self._arrow_from_field
-        self.root.addSubview_(self.search)
         self.side_scroll = _scroll(self.root)
         self.main_scroll = _scroll(self.root)
         self.keep_focus, self.note_surface, self.shot_at = False, None, None
@@ -381,7 +377,7 @@ class MainWindow:
         self.note_field.setBezeled_(False)
         self.note_field.setDrawsBackground_(False)
         self.note_field.setFocusRingType_(1)                           # none: the surface around it shows focus
-        self.note_field.setFont_(kit.font(14, 400))
+        self.note_field.setFont_(kit.font(SZ["ui"], 400))
         self.note_field.setDelegate_(self.note_typing)
         self.note_field.setHidden_(True)
         self.toast_host = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
@@ -394,12 +390,9 @@ class MainWindow:
         self.root.addSubview_(self.overlay)
         self.dlg_typing = _Fields.alloc().initWithChange_submit_cancel_(
             self._dialog_typed, lambda text: self._dialog_submit(), self.close_dialog)
-        self.dlg_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
-        self.dlg_field.setBezeled_(True)
-        self.dlg_field.setBezelStyle_(1)
-        self.dlg_field.setDelegate_(self.dlg_typing)
+        self.dlg_box, self.dlg_field = kit.input_field(self.overlay, "", 0, 0, 10, 30, delegate=self.dlg_typing, size=SZ["ui"])
+        self.dlg_box.setHidden_(True)
         self.dlg_field.setHidden_(True)
-        self.overlay.addSubview_(self.dlg_field)
         if not self.window.setFrameUsingName_("LMemMMain"):         # last time's size and place, if there was one
             self.window.center()
         self.window.setFrameAutosaveName_("LMemMMain")
@@ -813,7 +806,7 @@ class MainWindow:
         self.note_field.setHidden_(not thing)
         bar = 0                                                    # the note field is part of the page
         self._toast(now, bar)
-        self.search.setFrame_(NSMakeRect(16, TOP + 10, SIDE_W - 32, 28))
+        kit.place_input(self.search_box, self.search, 16, TOP + 9, SIDE_W - 32, 30)
         self.side_scroll.setFrame_(NSMakeRect(0, TOP + 52, SIDE_W, self.H - TOP - 52 - 48))
         self._side_foot(page["side"])
         self.head_host.setFrame_(NSMakeRect(SIDE_W, top, self.W - SIDE_W, head))
@@ -873,14 +866,14 @@ class MainWindow:
         if toast is None:
             return
         text, undoable = toast
-        width = min(kit.text_width(text, 13, 500) + (74 if undoable else 36), self.main_w)
+        width = min(kit.text_width(text, SZ["label"], 500) + (74 if undoable else 36), self.main_w)
         self.toast_host.setFrame_(NSMakeRect(SIDE_W + (self.W - SIDE_W - width) / 2, self.H - bar - 54, width, 36))
         pill = self._tap(self.toast_host, 0, 0, width, 36, None)
         pill.tint = NSColor.colorWithWhite_alpha_(palette.TOAST_DARK if _is_dark() else palette.TOAST_LIGHT, 0.96)       # dark page is 0.133: lift the toast so it has an edge
-        kit.put_text(pill, text, 18, 0, width - 36, 13, 500, NSColor.whiteColor(), wrap=False, height=36, middle=True)
+        kit.put_text(pill, text, 18, 0, width - 36, SZ["label"], 500, NSColor.whiteColor(), wrap=False, height=36, middle=True)
         if undoable:
             link = self._tap(pill, width - 62, 0, 56, 36, undo)
-            kit.put_text(link, "Undo", 0, 0, 56, 13, 600, NSColor.colorWithRed_green_blue_alpha_(*palette.ACCENT_TEXT_ON_DARK, 1.0),
+            kit.put_text(link, "Undo", 0, 0, 56, SZ["label"], 600, NSColor.colorWithRed_green_blue_alpha_(*palette.ACCENT_TEXT_ON_DARK, 1.0),
                          align=kit.CENTER, wrap=False, height=36, middle=True)
         if arriving:
             motion.pop(self.toast_host, origin="center")
@@ -906,7 +899,7 @@ class MainWindow:
         if button:
             row = button["id"]
             kit.button(self.banner_host, button["title"], self.col_x + room + 12, (height - 36) / 2, 164, 36,
-                       lambda: self.on_press(row), kind="outline", size=13, weight=600)
+                       lambda: self.on_press(row), kind="outline", size=SZ["label"], weight=600)
         self.banner_host.setFrame_(NSMakeRect(SIDE_W, TOP + 6, self.W - SIDE_W, height))
         return TOP + 6 + height + 6
 
@@ -1065,12 +1058,13 @@ class MainWindow:
         """Draw the question or form over the page (or take it away). The text field is built once
         and only moved, so typing is never interrupted."""
         for sub in list(self.overlay.subviews()):
-            if sub is not self.dlg_field:
+            if sub is not self.dlg_field and sub is not self.dlg_box:
                 sub.removeFromSuperview()
         d = self.dialog
         arriving = d is not None and self.overlay.isHidden()           # a dialog that was not on screen a moment ago
         self.overlay.setHidden_(d is None)
         self.dlg_field.setHidden_(True)
+        self.dlg_box.setHidden_(True)
         if d is None:
             return
         forms = d["kind"] in ("name", "pick", "tpick", "appick")      # a click outside must not throw away what was typed
@@ -1092,11 +1086,11 @@ class MainWindow:
             self._field_at(cx + 24, cy + y, cw - 48, d["value"] if focus else None, "Name")
             y += 44
             if d["error"]:
-                y += kit.put_text(card, d["error"], 24, y, cw - 48, 13, 500) + 12
+                y += kit.put_text(card, d["error"], 24, y, cw - 48, SZ["label"], 500) + 12
             y = self._dialog_buttons(card, cw, y + 6, "Cancel", "Make project" if d["action"] == "new" else "Save", self._dialog_submit)
         elif d["kind"] == "menu":
             name = reg["projects"][d["pid"]]["name"]
-            kit.put_text(card, name, 24, y, cw - 48, 18, 700, wrap=False, height=26)
+            kit.put_text(card, name, 24, y, cw - 48, tokens.DISPLAY["m"], 400, face="serif", track=tokens.TRACK["display"], wrap=False, height=26)
             y += 40
             for label, symbol, call in (
                     ("Rename…", "pencil", lambda: self.open_name("rename", d["pid"])),
@@ -1106,12 +1100,12 @@ class MainWindow:
                     ("Delete…", "trash", lambda: self.open_ask("delete", d["pid"]))):
                 row = self._tap(card, 12, y, cw - 24, 40, call)
                 kit.glyph(row, (symbol, "circle"), 11, 11, 18, kit.ink())
-                kit.put_text(row, label, 46, 0, cw - 24 - 60, 14, 500, wrap=False, height=40, middle=True)
+                kit.put_text(row, label, 46, 0, cw - 24 - 60, SZ["ui"], 500, wrap=False, height=40, middle=True)
                 y += 42
             y += 12
         elif d["kind"] == "pick":
             name = reg["projects"][d["pid"]]["name"]
-            kit.put_text(card, (f"Move “{name}” to…" if d["action"] == "move" else f"Merge “{name}” into…"), 24, y, cw - 48, 18, 700, wrap=False, height=26)
+            kit.put_text(card, (f"Move “{name}” to…" if d["action"] == "move" else f"Merge “{name}” into…"), 24, y, cw - 48, tokens.DISPLAY["m"], 400, face="serif", track=tokens.TRACK["display"], wrap=False, height=26)
             y += 42
             self._field_at(cx + 24, cy + y, cw - 48, "" if focus else None, "Search projects")
             y += 44
@@ -1135,14 +1129,14 @@ class MainWindow:
             for label, symbol, call in rows:
                 row = self._tap(card, 12, y, cw - 24, 40, call)
                 kit.glyph(row, (symbol, "circle"), 11, 11, 18, kit.ink())
-                kit.put_text(row, label, 46, 0, cw - 24 - 60, 14, 500, wrap=False, height=40, middle=True)
+                kit.put_text(row, label, 46, 0, cw - 24 - 60, SZ["ui"], 500, wrap=False, height=40, middle=True)
                 y += 42
             y += 12
         elif d["kind"] == "tpick":
             reg, items = self.data()
             many = len(d["ids"]) > 1
             what = page_model.plural(len(d["ids"]), "thing") if many else "this"
-            kit.put_text(card, (f"Move {what} to…" if d["action"] == "assign" else f"Also put {what} in…"), 24, y, cw - 48, 18, 700,
+            kit.put_text(card, (f"Move {what} to…" if d["action"] == "assign" else f"Also put {what} in…"), 24, y, cw - 48, tokens.DISPLAY["m"], 400, face="serif", track=tokens.TRACK["display"],
                          wrap=False, height=26)
             y += 42
             self._field_at(cx + 24, cy + y, cw - 48, "" if focus else None, "Search projects")
@@ -1152,7 +1146,7 @@ class MainWindow:
             y = self._dialog_buttons(card, cw, y + 10, "Cancel", None, None)
         elif d["kind"] == "appick":
             watch = d["purpose"] == "watch"
-            kit.put_text(card, "Watch only these apps" if watch else "Never remember these apps", 24, y, cw - 48, 18, 700, wrap=False, height=26)
+            kit.put_text(card, "Watch only these apps" if watch else "Never remember these apps", 24, y, cw - 48, tokens.DISPLAY["m"], 400, face="serif", track=tokens.TRACK["display"], wrap=False, height=26)
             y += 42
             self._field_at(cx + 24, cy + y, cw - 48, "" if focus else None, "Search apps")
             y += 44
@@ -1163,13 +1157,13 @@ class MainWindow:
                 row = self._tap(card, 12, y, cw - 24, 40,
                                 (lambda a=a: self.setting("watch_add" if watch else "skip_add", {"id": a["id"], "name": a["name"]})))
                 self._app_icon(row, a["name"], 8, 5, 30)
-                kit.put_text(row, a["name"], 48, 0, cw - 24 - 60, 14, 500, wrap=False, height=40, middle=True)
+                kit.put_text(row, a["name"], 48, 0, cw - 24 - 60, SZ["ui"], 500, wrap=False, height=40, middle=True)
                 y += 42
             if len(found) > 7:
-                kit.put_text(card, f"{len(found) - 7} more. Keep typing to narrow it.", 24, y + 2, cw - 48, 12, 400, kit.mute(), wrap=False, height=18)
+                kit.put_text(card, f"{len(found) - 7} more. Keep typing to narrow it.", 24, y + 2, cw - 48, SZ["small"], 400, kit.mute(), wrap=False, height=18)
                 y += 26
             if not found:
-                kit.put_text(card, "No app matches.", 24, y + 2, cw - 48, 13, 400, kit.mute(), wrap=False, height=20)
+                kit.put_text(card, "No app matches.", 24, y + 2, cw - 48, SZ["label"], 400, kit.mute(), wrap=False, height=20)
                 y += 28
             y = self._dialog_buttons(card, cw, y + 10, "Done", None, None)
         elif d["kind"] == "viewer":
@@ -1182,14 +1176,14 @@ class MainWindow:
             return
         elif d["kind"] == "task":
             plan = d["plan"]
-            y += kit.put_text(card, plan["title"], 24, y, cw - 48, 17, 700) + 10
-            y += kit.put_text(card, plan["text"], 24, y, cw - 48, 13, 400, kit.mute()) + 18
+            y += kit.put_text(card, plan["title"], 24, y, cw - 48, tokens.DISPLAY["m"], 400, face="serif", track=tokens.TRACK["display"]) + 10
+            y += kit.put_text(card, plan["text"], 24, y, cw - 48, SZ["label"], 400, kit.mute()) + 18
             action = lambda: self.thing_action("forget", d["ids"])
             y = self._dialog_buttons(card, cw, y, "Cancel", plan["button"], action if plan["button"] else None)
         elif d["kind"] == "ask":
             plan = d["plan"]
-            y += kit.put_text(card, plan["title"], 24, y, cw - 48, 17, 700) + 10
-            y += kit.put_text(card, plan["text"], 24, y, cw - 48, 13, 400, kit.mute()) + 18
+            y += kit.put_text(card, plan["title"], 24, y, cw - 48, tokens.DISPLAY["m"], 400, face="serif", track=tokens.TRACK["display"]) + 10
+            y += kit.put_text(card, plan["text"], 24, y, cw - 48, SZ["label"], 400, kit.mute()) + 18
             action = lambda: self.project_action(d["action"], pid=d["pid"], target=d["target"])
             y = self._dialog_buttons(card, cw, y, "Cancel", plan["button"], action if plan["button"] else None)
         card.setFrame_(NSMakeRect(cx, cy, cw, y + 22))
@@ -1197,7 +1191,9 @@ class MainWindow:
             motion.fade_in(scrim)
             motion.pop(card, origin="center", seconds=motion.MODAL_SECONDS, scale=motion.MODAL_SCALE)
         if not self.dlg_field.isHidden():                          # the field was added first: bring it above the backdrop and card
+            self.dlg_box.removeFromSuperview()
             self.dlg_field.removeFromSuperview()
+            self.overlay.addSubview_(self.dlg_box)
             self.overlay.addSubview_(self.dlg_field)
         if focus:
             self.window.makeFirstResponder_(self.dlg_field)
@@ -1210,30 +1206,31 @@ class MainWindow:
                 kit.tile(row, ("arrow.up.to.line", "tray.fill"), kit.ink(), 8, 7, 30)
             else:
                 self._project_icon(row, page_model.hue(r["id"]), 8, 7, 30)
-            kit.put_text(row, r["name"], 48, 4, cw - 24 - 60, 14, 600, wrap=False, height=20)
-            kit.put_text(row, r["path"], 48, 23, cw - 24 - 60, 12, 400, kit.mute(), wrap=False, height=16)
+            kit.put_text(row, r["name"], 48, 4, cw - 24 - 60, SZ["ui"], 600, wrap=False, height=20)
+            kit.put_text(row, r["path"], 48, 23, cw - 24 - 60, SZ["small"], 400, kit.mute(), wrap=False, height=16)
             y += 46
         left = found["more"] + max(0, len(found["rows"]) - 7)
         if left:
-            kit.put_text(card, f"{left} more. Keep typing to narrow it.", 24, y + 2, cw - 48, 12, 400, kit.mute(), wrap=False, height=18)
+            kit.put_text(card, f"{left} more. Keep typing to narrow it.", 24, y + 2, cw - 48, SZ["small"], 400, kit.mute(), wrap=False, height=18)
             y += 26
         if not found["rows"]:
-            kit.put_text(card, "No place to put it there.", 24, y + 2, cw - 48, 13, 400, kit.mute(), wrap=False, height=20)
+            kit.put_text(card, "No place to put it there.", 24, y + 2, cw - 48, SZ["label"], 400, kit.mute(), wrap=False, height=20)
             y += 28
         return y
 
     def _field_at(self, x, y, w, value, placeholder):
         """Move the one text field into the dialog. `value` replaces its text; None leaves what was typed."""
-        self.dlg_field.setFrame_(NSMakeRect(x, y, w, 30))
+        kit.place_input(self.dlg_box, self.dlg_field, x, y, w, 30)
         self.dlg_field.setPlaceholderString_(placeholder)
         if value is not None:
             self.dlg_field.setStringValue_(value)
         self.dlg_field.setHidden_(False)
+        self.dlg_box.setHidden_(False)
 
     def _dialog_buttons(self, card, cw, y, cancel, go, call):
-        kit.button(card, cancel, cw - 24 - 110 - (8 + 140 if go else 0), y, 110, 36, self.close_dialog, kind="quiet", size=13, weight=600)
+        kit.button(card, cancel, cw - 24 - 110 - (8 + 140 if go else 0), y, 110, 36, self.close_dialog, kind="quiet", size=SZ["label"], weight=600)
         if go:
-            kit.button(card, go, cw - 24 - 140, y, 140, 36, call, kind="primary", size=13, weight=600)
+            kit.button(card, go, cw - 24 - 140, y, 140, 36, call, kind="primary", size=SZ["label"], weight=600)
         return y + 36
 
     def _picked(self, target):
@@ -1303,10 +1300,10 @@ class MainWindow:
         parent.addSubview_(tap)
         return tap
 
-    def _label(self, parent, text, x, y, w, size=12, weight=600, color=None, align=LEFT):
+    def _label(self, parent, text, x, y, w, size=SZ["small"], weight=600, color=None, align=LEFT):
         kit.put_text(parent, text, x, y, w, size, weight, color or kit.mute(), align=align, wrap=False, height=size + 6)
 
-    def _link(self, parent, text, x, y, callback, size=13, color=None, tip=None):
+    def _link(self, parent, text, x, y, callback, size=SZ["label"], color=None, tip=None):
         """Quiet clickable text. Returns its width. `tip` is a short hover hint."""
         width = kit.text_width(text, size, 500) + 12
         tap = self._tap(parent, x, y, width, size + 12, callback)
@@ -1320,10 +1317,10 @@ class MainWindow:
         (label, on, callback). Returns the height."""
         left, row = x, 0
         for label, on, callback in items:
-            width = kit.text_width(label, 13, 500) + 26
+            width = kit.text_width(label, SZ["label"], 500) + 26
             if w is not None and x > left and x + width > left + w:
                 x, row = left, row + 1
-            kit.button(parent, label, x, y + row * 34, width, 28, callback, kind="primary" if on else "quiet", size=13, weight=500)
+            kit.button(parent, label, x, y + row * 34, width, 28, callback, kind="primary" if on else "quiet", size=SZ["label"], weight=500)
             x += width + 6
         return 28 + row * 34
 
@@ -1334,18 +1331,18 @@ class MainWindow:
         needs = side["needs"]
         self._label(doc, "NEEDS YOU", 16, y, 130)
         if needs["count"]:
-            self._link(doc, f"See all {needs['count']}", SIDE_W - 96, y - 6, lambda: self.press("needs"), size=12)
+            self._link(doc, f"See all {needs['count']}", SIDE_W - 96, y - 6, lambda: self.press("needs"), size=SZ["small"])
         y += 24
         for row in needs["rows"]:
             call = lambda r=row: self.press("thing", r["id"])
             tap = self._tap(doc, 8, y, SIDE_W - 16, 34, call)
             tap.fill = self._krow("side", "n" + row["id"], call, tap)
             self._app_icon(tap, row["app"], 8, 5, 24, row.get("kind", ""), row.get("url"))
-            kit.put_text(tap, row["title"], 40, 0, SIDE_W - 16 - 40 - 40, 13, 500, wrap=False, height=34, middle=True)
-            kit.put_text(tap, str(row["open"]), SIDE_W - 16 - 34, 0, 26, 12, 500, kit.mute(), align=RIGHT, wrap=False, height=34, middle=True)
+            kit.put_text(tap, row["title"], 40, 0, SIDE_W - 16 - 40 - 40, SZ["label"], 500, wrap=False, height=34, middle=True)
+            kit.put_text(tap, str(row["open"]), SIDE_W - 16 - 34, 0, 26, SZ["small"], 500, kit.mute(), align=RIGHT, wrap=False, height=34, middle=True)
             y += 34
         if not needs["count"]:
-            self._label(doc, "Nothing waiting.", 16, y, SIDE_W - 32, size=13, weight=400)
+            self._label(doc, "Nothing waiting.", 16, y, SIDE_W - 32, size=SZ["label"], weight=400)
             y += 26
         y += 14
         self._label(doc, "PROJECTS", 16, y, 130)
@@ -1355,7 +1352,7 @@ class MainWindow:
             x = 8 + min(row["level"], 9) * 14
             if row["id"] is None:                                  # "Show 8 more of 22"
                 more = row["more"]
-                self._link(doc, row["name"], x + 18, y, (lambda m=more: self.press("more_side", m)), size=12)
+                self._link(doc, row["name"], x + 18, y, (lambda m=more: self.press("more_side", m)), size=SZ["small"])
                 y += 26
                 continue
             call = (lambda: self.press("archived")) if row.get("folder") else (lambda r=row: self.press("go", r["id"]))
@@ -1364,20 +1361,20 @@ class MainWindow:
                 tap.fill = True
             if row["expandable"]:
                 caret = self._tap(tap, x - 8, 0, 22, 28, (lambda r=row: self.press("toggle", r["id"])))
-                kit.put_text(caret, "▾" if row["expanded"] else "▸", 0, 0, 22, 11, 600, kit.mute(), align=kit.CENTER,
+                kit.put_text(caret, "▾" if row["expanded"] else "▸", 0, 0, 22, SZ["micro"], 600, kit.mute(), align=kit.CENTER,
                              wrap=False, height=28, middle=True)
             if row.get("folder"):
                 kit.glyph(tap, ("archivebox", "tray"), x + 18, 6, 16, kit.mute())
             else:
                 self._project_icon(tap, row["hue"], x + 16, 4, 20)
-            kit.put_text(tap, row["name"], x + 42, 0, SIDE_W - 16 - x - 42 - 40, 13, 500,
+            kit.put_text(tap, row["name"], x + 42, 0, SIDE_W - 16 - x - 42 - 40, SZ["label"], 500,
                          kit.mute() if row.get("archived") else None, wrap=False, height=28, middle=True)
             if row["count"]:
-                kit.put_text(tap, str(row["count"]), SIDE_W - 16 - 38, 0, 30, 12, 400, kit.mute(), align=RIGHT,
+                kit.put_text(tap, str(row["count"]), SIDE_W - 16 - 38, 0, 30, SZ["small"], 400, kit.mute(), align=RIGHT,
                              wrap=False, height=28, middle=True)
             y += 28
         if not tree:
-            self._label(doc, "None yet. They appear as you work.", 16, y, SIDE_W - 32, size=13, weight=400)
+            self._label(doc, "None yet. They appear as you work.", 16, y, SIDE_W - 32, size=SZ["label"], weight=400)
             y += 26
         return y
 
@@ -1519,10 +1516,10 @@ class MainWindow:
             kit.display(doc, page["title"], tx, y, w - (tx - x) - (170 if kind == "project" else 0), size=tokens.DISPLAY["l"], wrap=False, height=34)
             y += 36
             if page.get("meta"):
-                self._label(doc, page["meta"], tx, y, w - (tx - x), size=13, weight=400)
+                self._label(doc, page["meta"], tx, y, w - (tx - x), size=SZ["label"], weight=400)
                 y += 34
         if kind == "home":
-            kit.button(doc, "+ New project", x + w - 150, 30, 150, 34, lambda: self.open_name("new"), kind="quiet", size=13, weight=600)
+            kit.button(doc, "+ New project", x + w - 150, 30, 150, 34, lambda: self.open_name("new"), kind="quiet", size=SZ["label"], weight=600)
         if kind == "project":
             self._project_actions(doc, x + w, 28, page["pid"])
         if kind == "thing":
@@ -1533,19 +1530,19 @@ class MainWindow:
 
     def _crumbs(self, doc, chain, x, y, quiet=False):
         cx = x - 6
-        cx += self._link(doc, "All projects", cx, y - 12, lambda: self.press("home"), size=12)
+        cx += self._link(doc, "All projects", cx, y - 12, lambda: self.press("home"), size=SZ["small"])
         for i, c in enumerate(chain):
-            self._label(doc, "›", cx, y - 8, 12, size=12, weight=400)
+            self._label(doc, "›", cx, y - 8, 12, size=SZ["small"], weight=400)
             cx += 12
             last = i == len(chain) - 1
             if c["id"] and not last:
-                cx += self._link(doc, c["name"], cx, y - 12, (lambda p=c["id"]: self.press("go", p)), size=12)
+                cx += self._link(doc, c["name"], cx, y - 12, (lambda p=c["id"]: self.press("go", p)), size=SZ["small"])
             else:
-                cx += self._link(doc, c["name"], cx, y - 12, None, size=12, color=kit.ink() if last and not quiet else kit.mute())
+                cx += self._link(doc, c["name"], cx, y - 12, None, size=SZ["small"], color=kit.ink() if last and not quiet else kit.mute())
         return y + 18
 
     def _section(self, doc, text, x, y, w):
-        kit.put_text(doc, text, x, y, w, 15, 700, wrap=False, height=22)
+        kit.put_text(doc, text, x, y, w, SZ["body"], 700, wrap=False, height=22)
         return y + 30
 
     def _empty(self, doc, empty, x, y, w, symbol=None):
@@ -1569,18 +1566,18 @@ class MainWindow:
             lead = 32
         self._app_icon(box, t["app"], lead, 8, 34, t.get("kind", ""), t.get("url"))
         tx = 46 + lead
-        kit.put_text(box, t["title"], tx, 6, w - tx - 130, 14, 600, wrap=False, height=20)
+        kit.put_text(box, t["title"], tx, 6, w - tx - 130, SZ["ui"], 600, wrap=False, height=20)
         if t["ago"]:
-            kit.put_text(box, t["ago"], w - 120, 6, 120, 12, 400, kit.mute(), align=RIGHT, wrap=False, height=20)
-        kit.put_text(box, t["sub"], tx, 27, w - tx - (96 if t["open"] else 0), 12, 400, kit.mute(), wrap=False, height=18)
+            kit.put_text(box, t["ago"], w - 120, 6, 120, SZ["small"], 400, kit.mute(), align=RIGHT, wrap=False, height=20)
+        kit.put_text(box, t["sub"], tx, 27, w - tx - (96 if t["open"] else 0), SZ["small"], 400, kit.mute(), wrap=False, height=18)
         if t["open"]:
-            kit.put_text(box, f"{t['open']} open", w - 90, 27, 90, 12, 600, kit.ink(), align=RIGHT, wrap=False, height=18)
+            kit.put_text(box, f"{t['open']} open", w - 90, 27, 90, SZ["small"], 600, kit.ink(), align=RIGHT, wrap=False, height=18)
         h = 52
         if notes:
             for text in t.get("notes", []):
-                h += kit.put_text(box, "○  " + text, tx, h - 2, w - tx, 13, 400, height=None) + 4
+                h += kit.put_text(box, "○  " + text, tx, h - 2, w - tx, SZ["label"], 400, height=None) + 4
             if t.get("more_notes"):
-                self._label(box, f"+{t['more_notes']} more", tx, h, w - tx, size=12, weight=400)
+                self._label(box, f"+{t['more_notes']} more", tx, h, w - tx, size=SZ["small"], weight=400)
                 h += 20
             h += 6
         box.setFrame_(NSMakeRect(x, y, w, h))
@@ -1606,18 +1603,18 @@ class MainWindow:
         tx = lead + 52
         right = w - 14
         if t["ago"]:
-            kit.put_text(box, _short_ago(t["ago"]), right - 70, 0, 70, 13, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
+            kit.put_text(box, _short_ago(t["ago"]), right - 70, 0, 70, SZ["label"], 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
             right -= 78
         if t["open"]:
-            kit.put_text(box, f"{t['open']} open", right - 70, 0, 70, 13, 600, kit.accent_text(), align=RIGHT, wrap=False, height=h, middle=True)
+            kit.put_text(box, f"{t['open']} open", right - 70, 0, 70, SZ["label"], 600, kit.accent_text(), align=RIGHT, wrap=False, height=h, middle=True)
             right -= 78
         src_w = min(220, max(int((right - tx) * 0.34), 0)) if t["sub"] else 0
         wide = max(right - 12 - tx, 40)
         before = len(box.subviews())
-        kit.put_text(box, t["title"], tx, 0, wide, 15, 600 if ticked else 500, wrap=False, height=h, middle=True, track=-0.006)
+        kit.put_text(box, t["title"], tx, 0, wide, SZ["body"], 600 if ticked else 500, wrap=False, height=h, middle=True, track=-0.006)
         title_view = box.subviews()[before]
         if src_w:
-            kit.put_text(box, t["sub"], right - src_w, 0, src_w, 13, 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
+            kit.put_text(box, t["sub"], right - src_w, 0, src_w, SZ["label"], 400, kit.mute(), align=RIGHT, wrap=False, height=h, middle=True, track=0.01)
             reveal = box.subviews()[before + 1]
             box.reveal, box.title_view = reveal, title_view
             box.title_frames = (NSMakeRect(tx, 0, wide, h), NSMakeRect(tx, 0, max(wide - src_w - 12, 40), h))
@@ -1641,8 +1638,8 @@ class MainWindow:
             if self._krow("main", "p" + r["id"], call, tap):
                 tap.tint = NSColor.labelColor().colorWithAlphaComponent_(0.14)
             self._project_icon(tap, r["hue"], 12, 12, 32)
-            kit.put_text(tap, r["name"], 56, 9, w - 70, 14, 600, wrap=False, height=20)
-            kit.put_text(tap, r["line"], 56, 30, w - 70, 12, 400, kit.mute(), wrap=False, height=16)
+            kit.put_text(tap, r["name"], 56, 9, w - 70, SZ["ui"], 600, wrap=False, height=20)
+            kit.put_text(tap, r["line"], 56, 30, w - 70, SZ["small"], 400, kit.mute(), wrap=False, height=16)
             y += 64
         return y
 
@@ -1664,7 +1661,7 @@ class MainWindow:
         if page["unplaced"]:
             y += 6
             self._label(doc, f"{page['unplaced']:,} thing{'s' * (page['unplaced'] != 1)} not in a project yet.",
-                        x, y, w, size=13, weight=400)
+                        x, y, w, size=SZ["label"], weight=400)
             y += 26
         return y
 
@@ -1677,9 +1674,9 @@ class MainWindow:
             tap = self._tap(doc, x, y, w, 56, (lambda p=e["pid"]: self.press("go", p)), fill=True)
             self._project_icon(tap, e["hue"], 12, 12, 32)
             n = e["count"]
-            kit.put_text(tap, f"{n} thing{'s' * (n != 1)} may belong in “{e['name']}”", 56, 9, w - 56 - 110, 14, 600, wrap=False, height=20)
-            kit.put_text(tap, e["line"], 56, 30, w - 56 - 110, 12, 400, kit.mute(), wrap=False, height=16)
-            kit.button(tap, "Review", w - 94, 11, 82, 34, (lambda p=e["pid"]: self.press("go", p)), kind="outline", size=12, weight=600)
+            kit.put_text(tap, f"{n} thing{'s' * (n != 1)} may belong in “{e['name']}”", 56, 9, w - 56 - 110, SZ["ui"], 600, wrap=False, height=20)
+            kit.put_text(tap, e["line"], 56, 30, w - 56 - 110, SZ["small"], 400, kit.mute(), wrap=False, height=16)
+            kit.button(tap, "Review", w - 94, 11, 82, 34, (lambda p=e["pid"]: self.press("go", p)), kind="outline", size=SZ["small"], weight=600)
             y += 64
         return y + 14
 
@@ -1687,28 +1684,28 @@ class MainWindow:
         """"Make “Trip” a project?" with the things that would go in it. Returns the inner height."""
         w = inner + 28
         kit.tile(box, ("sparkles", "wand.and.stars", "star.fill"), kit.ink(), 14, 12, 32)
-        kit.put_text(box, f"Make “{e['name']}” a project?", 58, 12, w - 58 - 190, 14, 600, wrap=False, height=20)
+        kit.put_text(box, f"Make “{e['name']}” a project?", 58, 12, w - 58 - 190, SZ["ui"], 600, wrap=False, height=20)
         n = len(e["things"])
-        kit.put_text(box, f"{n} things · {e['reason']}", 58, 32, w - 58 - 190, 12, 400, kit.mute(), wrap=False, height=16)
-        kit.button(box, "Dismiss", w - 14 - 84 - 8 - 84, 14, 84, 32, (lambda: self.answer("dismiss_project", e["id"])), kind="quiet", size=13, weight=600)
-        kit.button(box, "Create", w - 14 - 84, 14, 84, 32, (lambda: self.answer("accept_project", e["id"])), kind="primary", size=13, weight=600)
+        kit.put_text(box, f"{n} things · {e['reason']}", 58, 32, w - 58 - 190, SZ["small"], 400, kit.mute(), wrap=False, height=16)
+        kit.button(box, "Dismiss", w - 14 - 84 - 8 - 84, 14, 84, 32, (lambda: self.answer("dismiss_project", e["id"])), kind="quiet", size=SZ["label"], weight=600)
+        kit.button(box, "Create", w - 14 - 84, 14, 84, 32, (lambda: self.answer("accept_project", e["id"])), kind="primary", size=SZ["label"], weight=600)
         top = 56
         for t in e["things"][:3]:
-            kit.put_text(box, t["title"], 58, top, w - 58 - 14, 12, 500, wrap=False, height=18)
+            kit.put_text(box, t["title"], 58, top, w - 58 - 14, SZ["small"], 500, wrap=False, height=18)
             top += 20
         if n > 3:
-            kit.put_text(box, f"+{n - 3} more", 58, top, w - 58 - 14, 12, 400, kit.mute(), wrap=False, height=18)
+            kit.put_text(box, f"+{n - 3} more", 58, top, w - 58 - 14, SZ["small"], 400, kit.mute(), wrap=False, height=18)
             top += 20
-        kit.put_text(box, "Dismiss it and LMemM will not suggest this again.", 58, top + 2, w - 58 - 14, 12, 400, kit.mute(), wrap=False, height=18)
+        kit.put_text(box, "Dismiss it and LMemM will not suggest this again.", 58, top + 2, w - 58 - 14, SZ["small"], 400, kit.mute(), wrap=False, height=18)
         return top + 20 - 12
 
     def _suggested(self, doc, e, x, y, w):
         """On a project: things that may belong here, each with Add and Not here. Returns the new y."""
         n = len(e["things"])
-        kit.put_text(doc, f"Suggested for this project · {n}", x, y, w, 15, 700, wrap=False, height=22)
+        kit.put_text(doc, f"Suggested for this project · {n}", x, y, w, SZ["body"], 700, wrap=False, height=22)
         if n > 1:
             label = f"Add all {n}"
-            self._link(doc, label, x + w - kit.text_width(label, 13, 500) - 12, y - 4, lambda: self.answer("accept_items", e["id"]))
+            self._link(doc, label, x + w - kit.text_width(label, SZ["label"], 500) - 12, y - 4, lambda: self.answer("accept_items", e["id"]))
         y += 30
 
         def rows(box, inner):
@@ -1717,16 +1714,16 @@ class MainWindow:
                 call = (lambda i=t["id"]: self.press("thing", i))
                 self._app_icon(box, t["app"], 14, top + 6, 30, t.get("kind", ""), t.get("url"))
                 open_it = self._tap(box, 54, top, inner + 28 - 54 - 190, 44, call)
-                kit.put_text(open_it, t["title"], 0, 3, inner + 28 - 54 - 190, 14, 600, wrap=False, height=20)
-                kit.put_text(open_it, t["sub"], 0, 23, inner + 28 - 54 - 190, 12, 400, kit.mute(), wrap=False, height=16)
-                kit.button(box, "Not here", inner + 14 - 84, top + 6, 84, 32, (lambda i=t["id"]: self.answer("reject_items", e["id"], [i])), kind="quiet", size=13, weight=600)
-                kit.button(box, "Add", inner + 14 - 84 - 6 - 64, top + 6, 64, 32, (lambda i=t["id"]: self.answer("accept_items", e["id"], [i])), kind="primary", size=13, weight=600)
+                kit.put_text(open_it, t["title"], 0, 3, inner + 28 - 54 - 190, SZ["ui"], 600, wrap=False, height=20)
+                kit.put_text(open_it, t["sub"], 0, 23, inner + 28 - 54 - 190, SZ["small"], 400, kit.mute(), wrap=False, height=16)
+                kit.button(box, "Not here", inner + 14 - 84, top + 6, 84, 32, (lambda i=t["id"]: self.answer("reject_items", e["id"], [i])), kind="quiet", size=SZ["label"], weight=600)
+                kit.button(box, "Add", inner + 14 - 84 - 6 - 64, top + 6, 64, 32, (lambda i=t["id"]: self.answer("accept_items", e["id"], [i])), kind="primary", size=SZ["label"], weight=600)
                 top += 44
             if n > 5:
-                kit.put_text(box, f"+{n - 5} more after these", 14, top + 2, inner, 12, 400, kit.mute(), wrap=False, height=18)
+                kit.put_text(box, f"+{n - 5} more after these", 14, top + 2, inner, SZ["small"], 400, kit.mute(), wrap=False, height=18)
                 top += 22
             kit.put_text(box, "“Not here” keeps a thing out of this project for good. LMemM will not suggest it again.",
-                         14, top + 2, inner, 12, 400, kit.mute(), wrap=False, height=18)
+                         14, top + 2, inner, SZ["small"], 400, kit.mute(), wrap=False, height=18)
             return top + 22 - 12
         return self._card_box(doc, x, y, w, rows) + 20
 
@@ -1746,43 +1743,48 @@ class MainWindow:
 
     def _project_actions(self, parent, right, y, pid):
         """"+ Sub-project" and the "…" menu, at the right of a project's title."""
-        kit.button(parent, "⋯", right - 40, y, 40, 32, lambda: self.open_menu(pid), kind="quiet", size=16, weight=700)
+        kit.button(parent, "⋯", right - 40, y, 40, 32, lambda: self.open_menu(pid), kind="quiet", size=SZ["lead"], weight=700)
         kit.button(parent, "+ Sub-project", right - 40 - 8 - 120, y, 120, 32, lambda: self.open_name("new", parent=pid),
-                   kind="quiet", size=13, weight=600)
+                   kind="quiet", size=SZ["label"], weight=600)
 
     def _thing_buttons(self, parent, right, y, tid):
         """"Move to…" and "⋯" at the right of a thing's title."""
-        kit.button(parent, "⋯", right - 40, y, 40, 32, lambda: self.open_thing_menu([tid]), kind="quiet", size=16, weight=700)
+        kit.button(parent, "⋯", right - 40, y, 40, 32, lambda: self.open_thing_menu([tid]), kind="quiet", size=SZ["lead"], weight=700)
         kit.button(parent, "Move to…", right - 40 - 8 - 100, y, 100, 32, lambda: self.open_thing_pick("assign", [tid]),
-                   kind="quiet", size=13, weight=600)
+                   kind="quiet", size=SZ["label"], weight=600)
 
     # ------------------------------------------------------------ settings
 
     def _settings(self, doc, page, x, y, w):
         """Settings: six sections as tabs, then the one you are on. Every control changes the setting at once."""
-        y += self._chips(doc, x, y, [(t["title"], t["on"], (lambda i=t["id"]: self.press("settings", i))) for t in page["tabs"]], w) + 24
+        tabs = [(t["title"], t["on"], (lambda i=t["id"]: self.press("settings", i))) for t in page["tabs"]]
+        if sum(kit.text_width(label, SZ["label"], 500) + 28 for label, _on, _call in tabs) + 4 <= w:
+            kit.segmented(doc, x, y, tabs, size=SZ["label"], height=28)                             # the site's tab group, selected one filled
+            y += 28 + 24
+        else:
+            y += self._chips(doc, x, y, tabs, w) + 24                                      # a narrow column wraps them
         return getattr(self, "_set_" + page["section"])(doc, page[page["section"]], x, y, w)
 
     def _row(self, doc, x, y, w, title, line, build=None, height=60):
         """A soft row: a title, a quiet line under it, and whatever `build(row, width)` puts at the right."""
         row = self._tap(doc, x, y, w, height, None, fill=True)
-        kit.put_text(row, title, 16, 10, w - 200, 14, 600, wrap=False, height=20)
+        kit.put_text(row, title, 16, 10, w - 200, SZ["ui"], 600, wrap=False, height=20)
         if line:
-            kit.put_text(row, line, 16, 32, w - 200, 12, 400, kit.mute(), wrap=False, height=16)
+            kit.put_text(row, line, 16, 32, w - 200, SZ["small"], 400, kit.mute(), wrap=False, height=16)
         if build:
             build(row, w)
         return y + height + 8
 
     def _set_you(self, doc, you, x, y, w):
         y = self._row(doc, x, y, w, "First name", you["name"] or "Not set yet",
-                      lambda row, rw: kit.button(row, "Change…", rw - 106, 14, 90, 32, lambda: self.open_name("me"), kind="outline", size=13, weight=600))
-        self._label(doc, you["line"], x, y - 2, w, size=12, weight=400)
+                      lambda row, rw: kit.button(row, "Change…", rw - 106, 14, 90, 32, lambda: self.open_name("me"), kind="outline", size=SZ["label"], weight=600))
+        self._label(doc, you["line"], x, y - 2, w, size=SZ["small"], weight=400)
         y = self._section(doc, "What you mostly work on", x, y + 30, w)
         x2 = x
         for r in you["roles"]:
-            width = kit.text_width(r["role"], 13, 500) + 30
+            width = kit.text_width(r["role"], SZ["label"], 500) + 30
             kit.button(doc, r["role"], x2, y, width, 32, (lambda v=r["role"]: self.setting("toggle_role", v)),
-                       kind="primary" if r["on"] else "quiet", size=13, weight=500)
+                       kind="primary" if r["on"] else "quiet", size=SZ["label"], weight=500)
             x2 += width + 8
         return y + 48
 
@@ -1790,17 +1792,17 @@ class MainWindow:
         for e in chosen:
             row = self._tap(doc, x, y, w, 48, None, fill=True)
             self._app_icon(row, e["name"], 14, 9, 30)
-            kit.put_text(row, e["name"], 56, 0, w - 56 - 110, 14, 500, wrap=False, height=48, middle=True)
-            kit.button(row, "Remove", w - 14 - 84, 8, 84, 32, (lambda i=e["id"]: self.setting(remove, i)), kind="quiet", size=13, weight=600)
+            kit.put_text(row, e["name"], 56, 0, w - 56 - 110, SZ["ui"], 500, wrap=False, height=48, middle=True)
+            kit.button(row, "Remove", w - 14 - 84, 8, 84, 32, (lambda i=e["id"]: self.setting(remove, i)), kind="quiet", size=SZ["label"], weight=600)
             y += 56
         return y
 
     def _set_apps(self, doc, apps_, x, y, w):
         y = self._row(doc, x, y, w, "Every app" if apps_["mode"] == "all" else "Only some apps", apps_["line"])
         y = self._app_list(doc, apps_["chosen"], x, y, w, "watch_remove")
-        kit.button(doc, "Add apps…", x, y + 4, 120, 34, lambda: self.open_apps("watch"), kind="primary", size=13, weight=600)
+        kit.button(doc, "Add apps…", x, y + 4, 120, 34, lambda: self.open_apps("watch"), kind="primary", size=SZ["label"], weight=600)
         if apps_["chosen"]:
-            kit.button(doc, "Watch every app", x + 128, y + 4, 150, 34, lambda: self.setting("watch_all"), kind="quiet", size=13, weight=600)
+            kit.button(doc, "Watch every app", x + 128, y + 4, 150, 34, lambda: self.setting("watch_all"), kind="quiet", size=SZ["label"], weight=600)
         return y + 50
 
     def _set_access(self, doc, access, x, y, w):
@@ -1810,13 +1812,13 @@ class MainWindow:
             row = self._tap(doc, x, y, w, 64, None, fill=True)
             kit.tile(row, ("exclamationmark.circle.fill", "circle") if off else ("checkmark.circle.fill", "checkmark.circle"),
                      NSColor.systemRedColor() if red else kit.mute(), 14, 17, 30)
-            kit.put_text(row, r["title"] + (f"  ·  {r['tag']}" if r["tag"] else ""), 58, 11, w - 58 - 230, 14, 600, wrap=False, height=20)
-            kit.put_text(row, r["line"], 58, 33, w - 58 - 230, 12, 400, kit.mute(), wrap=False, height=16)
+            kit.put_text(row, r["title"] + (f"  ·  {r['tag']}" if r["tag"] else ""), 58, 11, w - 58 - 230, SZ["ui"], 600, wrap=False, height=20)
+            kit.put_text(row, r["line"], 58, 33, w - 58 - 230, SZ["small"], 400, kit.mute(), wrap=False, height=16)
             if r["button"]:
                 call = "restart" if r["action"] == "restart" else "access_ax" if r["key"] == "ax" else "access"
-                kit.button(row, r["button"], w - 14 - 180, 16, 180, 32, (lambda c=call: self.on_press(c)), kind="outline", size=13, weight=600)
+                kit.button(row, r["button"], w - 14 - 180, 16, 180, 32, (lambda c=call: self.on_press(c)), kind="outline", size=SZ["label"], weight=600)
             y += 72
-        self._label(doc, "Read from macOS every time. Nothing here is remembered.", x, y + 2, w, size=12, weight=400)
+        self._label(doc, "Read from macOS every time. Nothing here is remembered.", x, y + 2, w, size=SZ["small"], weight=400)
         return y + 30
 
     def _set_privacy(self, doc, privacy, x, y, w):
@@ -1824,54 +1826,54 @@ class MainWindow:
         for text in privacy["always"]:
             row = self._tap(doc, x, y, w, 40, None, fill=True)
             kit.tile(row, ("lock.fill", "lock"), kit.mute(), 12, 7, 26)
-            kit.put_text(row, text, 52, 0, w - 64, 13, 500, wrap=False, height=40, middle=True)
+            kit.put_text(row, text, 52, 0, w - 64, SZ["label"], 500, wrap=False, height=40, middle=True)
             y += 46
         y = self._section(doc, "Never remember these apps", x, y + 20, w)
         y = self._app_list(doc, privacy["never"], x, y, w, "skip_remove")
         if not privacy["never"]:
-            self._label(doc, "None yet.", x, y, w, size=13, weight=400)
+            self._label(doc, "None yet.", x, y, w, size=SZ["label"], weight=400)
             y += 28
-        self._label(doc, privacy["line"], x, y, w, size=12, weight=400)
-        kit.button(doc, "Add apps…", x, y + 26, 120, 34, lambda: self.open_apps("skip"), kind="primary", size=13, weight=600)
+        self._label(doc, privacy["line"], x, y, w, size=SZ["small"], weight=400)
+        kit.button(doc, "Add apps…", x, y + 26, 120, 34, lambda: self.open_apps("skip"), kind="primary", size=SZ["label"], weight=600)
         return y + 74
 
     def _set_general(self, doc, general, x, y, w):
         y = self._section(doc, "Keep screenshots for", x, y, w)
         x2 = x
         for k in general["keep"]:
-            width = kit.text_width(k["label"], 13, 500) + 30
+            width = kit.text_width(k["label"], SZ["label"], 500) + 30
             kit.button(doc, k["label"], x2, y, width, 32, (lambda d=k["days"]: self.setting("keep_days", d)),
-                       kind="primary" if k["on"] else "quiet", size=13, weight=500)
+                       kind="primary" if k["on"] else "quiet", size=SZ["label"], weight=500)
             x2 += width + 8
         y += 44
-        y += kit.put_text(doc, general["keep_line"], x, y, w, 12, 400, kit.mute()) + 24
+        y += kit.put_text(doc, general["keep_line"], x, y, w, SZ["small"], 400, kit.mute()) + 24
         y = self._section(doc, "Background", x, y, w)
         x2 = x
         for k in general["backdrop"]["rows"]:
-            width = kit.text_width(k["label"], 13, 500) + 30
+            width = kit.text_width(k["label"], SZ["label"], 500) + 30
             kit.button(doc, k["label"], x2, y, width, 32, (lambda key=k["key"]: self.setting("backdrop", key)),
-                       kind="primary" if k["on"] else "quiet", size=13, weight=500)
+                       kind="primary" if k["on"] else "quiet", size=SZ["label"], weight=500)
             x2 += width + 8
         y += 44
-        y += kit.put_text(doc, general["backdrop"]["line"], x, y, w, 12, 400, kit.mute()) + 24
+        y += kit.put_text(doc, general["backdrop"]["line"], x, y, w, SZ["small"], 400, kit.mute()) + 24
         y = self._row(doc, x, y, w, "Add a note", "Press this anywhere to write or dictate a note.",
-                      lambda row, rw: kit.put_text(row, general["hotkey"], rw - 116, 0, 100, 15, 600, align=RIGHT, wrap=False, height=60, middle=True))
+                      lambda row, rw: kit.put_text(row, general["hotkey"], rw - 116, 0, 100, SZ["body"], 600, align=RIGHT, wrap=False, height=60, middle=True))
         if self.memory_view:
             y=self._section(doc,general['memory']['title'],x,y+16,w)
-            y+=kit.put_text(doc,general['memory']['line'],x,y,w,13,400,kit.mute())+12
-            kit.button(doc,'Choose project…',x,y,160,32,lambda:self.press('home'),kind='outline',size=13,weight=600)
+            y+=kit.put_text(doc,general['memory']['line'],x,y,w,SZ["label"],400,kit.mute())+12
+            kit.button(doc,'Choose project…',x,y,160,32,lambda:self.press('home'),kind='outline',size=SZ["label"],weight=600)
             y+=52
         return self._row(doc, x, y, w, "Setup", "Go through the first-run questions again. Your memory and notes stay.",
-                         lambda row, rw: kit.button(row, "Reopen setup…", rw - 14 - 130, 14, 130, 32, lambda: self.on_press("setup"), kind="outline", size=13, weight=600))
+                         lambda row, rw: kit.button(row, "Reopen setup…", rw - 14 - 130, 14, 130, 32, lambda: self.on_press("setup"), kind="outline", size=SZ["label"], weight=600))
 
     def _set_data(self, doc, data, x, y, w):
         line = (f"{data['files']:,} file{'s' * (data['files'] != 1)} · {menu_model.size_text(data['bytes'])}" if data["known"]
                 else "LMemM cannot read its data folder.")
         y = self._row(doc, x, y, w, "Everything stays on this Mac", (data["where"] + "  ·  " if data["known"] else "") + line, height=60)
         y = self._row(doc, x, y, w, "Memory file", "Everything LMemM remembers, in one readable file.",
-                      lambda row, rw: kit.button(row, "Show in Finder", rw - 14 - 130, 14, 130, 32, lambda: self.on_press("show_file"), kind="outline", size=13, weight=600))
+                      lambda row, rw: kit.button(row, "Show in Finder", rw - 14 - 130, 14, 130, 32, lambda: self.on_press("show_file"), kind="outline", size=SZ["label"], weight=600))
         return self._row(doc, x, y, w, "Delete all my data", "Asks first, says what goes, then restarts LMemM.",
-                         lambda row, rw: kit.button(row, "Delete…", rw - 14 - 130, 14, 130, 32, lambda: self.on_press("delete"), kind="outline", size=13, weight=600))
+                         lambda row, rw: kit.button(row, "Delete…", rw - 14 - 130, 14, 130, 32, lambda: self.on_press("delete"), kind="outline", size=SZ["label"], weight=600))
 
     def _side_foot(self, side):
         """Pinned under the tree: make a project."""
@@ -1880,7 +1882,7 @@ class MainWindow:
         self.side_foot.setFrame_(NSMakeRect(0, self.H - 48, SIDE_W, 48))
         tap = self._tap(self.side_foot, 8, 8, SIDE_W - 16 - 40, 34, lambda: self.open_name("new"))
         kit.glyph(tap, ("plus.circle", "plus"), 9, 8, 18, kit.ink())
-        kit.put_text(tap, "New project", 40, 0, 110, 13, 500, wrap=False, height=34, middle=True)
+        kit.put_text(tap, "New project", 40, 0, 110, SZ["label"], 500, wrap=False, height=34, middle=True)
         gear = self._tap(self.side_foot, SIDE_W - 8 - 34, 8, 34, 34, lambda: self.open_settings(), fill=self.nav["view"] == "settings")
         kit.glyph(gear, ("gearshape", "gear"), 8, 8, 18, kit.mute())
 
@@ -1890,10 +1892,10 @@ class MainWindow:
         for r in page["rows"]:
             tap = self._tap(doc, x, y, w, 56, (lambda i=r["id"]: self.press("go", i)), fill=True)
             self._project_icon(tap, r["hue"], 12, 12, 32)
-            kit.put_text(tap, r["name"], 56, 9, w - 56 - 110, 14, 600, wrap=False, height=20)
-            kit.put_text(tap, (r["where"] + " · " if r["where"] else "") + r["line"], 56, 30, w - 56 - 110, 12, 400, kit.mute(), wrap=False, height=16)
+            kit.put_text(tap, r["name"], 56, 9, w - 56 - 110, SZ["ui"], 600, wrap=False, height=20)
+            kit.put_text(tap, (r["where"] + " · " if r["where"] else "") + r["line"], 56, 30, w - 56 - 110, SZ["small"], 400, kit.mute(), wrap=False, height=16)
             kit.button(tap, "Bring back", w - 100, 11, 88, 34, (lambda i=r["id"]: self.project_action("restore", pid=i)),
-                       kind="outline", size=12, weight=600)
+                       kind="outline", size=SZ["small"], weight=600)
             y += 64
         return y
 
@@ -1914,18 +1916,18 @@ class MainWindow:
         self._project_icon(host, page["hue"], x, y + 2, 36)
         if page["archived"]:
             kit.button(host, "Bring back", x + w - 110, y, 110, 32, lambda: self.project_action("restore", pid=page["pid"]),
-                       kind="outline", size=13, weight=600)
+                       kind="outline", size=SZ["label"], weight=600)
         else:
             self._grouped_actions(host, x + w, y + 2, page["pid"])
         title_w = min(kit.text_width(page["title"], tokens.DISPLAY["l"], 400, "serif"), w - 52 - 190)
         kit.display(host, page["title"], x + 50, y - 2, title_w + 8, size=tokens.DISPLAY["l"], wrap=False, height=34)
-        kit.put_text(host, page["meta"], x + 50, y + 33, max(w - 50 - 190, 60), 13, 400, kit.mute(), wrap=False, height=20)
+        kit.put_text(host, page["meta"], x + 50, y + 33, max(w - 50 - 190, 60), SZ["label"], 400, kit.mute(), wrap=False, height=20)
         y += 66
         if self.memory_snapshot:
             in_settings = bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
             tabs = self.memory_snapshot['tabs']
             self._segmented(host, x, y, [(tab, self.memory_snapshot['tab'] == tab and not in_settings,
-                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs], size=14, height=40, pad=22)
+                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs], size=SZ["ui"], height=40, pad=22)
             if self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding'):
                 gx = x + w - 32                                                        # Settings: a quiet gear at the far edge, not a tab
                 gear = self._tap(host, gx, y + 4, 32, 32, lambda: self._memory_action('open_settings'), fill=in_settings)
@@ -1942,16 +1944,16 @@ class MainWindow:
 
     def _grouped_actions(self, parent, right, y, pid):
         """"+ Sub-project" and "…" as one soft pair, not two buttons."""
-        add_w, more_w = int(kit.text_width("+ Sub-project", 13, 600)) + 28, 36
+        add_w, more_w = int(kit.text_width("+ Sub-project", SZ["label"], 600)) + 28, 36
         total = add_w + more_w + 1
         x = right - total
         parent.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, total, 32), kit.faint(0.07), None, 10))
         add = self._tap(parent, x, y, add_w, 32, lambda: self.open_name("new", parent=pid))
-        kit.put_text(add, "+ Sub-project", 14, 0, add_w - 28, 13, 600, wrap=False, height=32, middle=True)
+        kit.put_text(add, "+ Sub-project", 14, 0, add_w - 28, SZ["label"], 600, wrap=False, height=32, middle=True)
         add.radius = 10
         parent.addSubview_(_Rail.alloc().initWithFrame_(NSMakeRect(x + add_w, y + 8, 1, 16)))
         more = self._tap(parent, x + add_w + 1, y, more_w, 32, lambda: self.open_menu(pid))
-        kit.put_text(more, "⋯", 0, 0, more_w, 16, 700, align=kit.CENTER, wrap=False, height=32, middle=True)
+        kit.put_text(more, "⋯", 0, 0, more_w, SZ["lead"], 700, align=kit.CENTER, wrap=False, height=32, middle=True)
         more.setToolTip_("More")
         more.radius = 10
 
@@ -1970,9 +1972,9 @@ class MainWindow:
             if not chips:
                 caught = page["caught_up"]
                 kit.glyph(host, ("checkmark.circle", "checkmark.circle.fill"), x, y + 3, 14, kit.mute())
-                tw = kit.text_width(caught["title"], 12, 600)
-                kit.put_text(host, caught["title"], x + 20, y, tw + 6, 12, 600, kit.mute(), wrap=False, height=20, middle=True)
-                kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), 12, 400, kit.mute(), wrap=False, height=20, middle=True)
+                tw = kit.text_width(caught["title"], SZ["small"], 600)
+                kit.put_text(host, caught["title"], x + 20, y, tw + 6, SZ["small"], 600, kit.mute(), wrap=False, height=20, middle=True)
+                kit.put_text(host, caught["line"], x + 20 + tw + 10, y, max(w - 20 - tw - 10, 40), SZ["small"], 400, kit.mute(), wrap=False, height=20, middle=True)
                 return y + 28
         if not snap:                                                                  # Memory is off: only the quiet activity links
             cx = x
@@ -1981,54 +1983,57 @@ class MainWindow:
                 tap = self._tap(host, cx, y, cw, 26, (lambda i=t["id"]: self.press("thing", i)), fill=True)
                 tap.setToolTip_("\n".join("\u25cb  " + n for n in t.get("notes", [])[:3]) or t["title"])
                 self._app_icon(tap, t["app"], 6, 4, 18, t.get("kind", ""), t.get("url"))
-                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 30, 0, cw - 38, 12, 500, wrap=False, height=26, middle=True)
+                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 30, 0, cw - 38, SZ["small"], 500, wrap=False, height=26, middle=True)
                 cx += cw + 8
             return y + 38
         gap = 8
         kit.display(host, "Resume", x, y - 2, 120, size=tokens.DISPLAY["m"], wrap=False, height=24, middle=True)        # the section, named
-        y += 28
+        y += 34
         top = y
-        aw = int(kit.text_width("Add note", 13, 600)) + 28
-        kit.button(host, "Add note", x + w - aw, top + 7, aw, 28, lambda: self._memory_action("add_note"), kind="primary", size=13, weight=600)
+        aw = int(kit.text_width("Add note", SZ["label"], 600)) + 28
+        kit.button(host, "Add note", x + w - aw, top + 7, aw, 28, lambda: self._memory_action("add_note"), kind="primary", size=SZ["label"], weight=600)
         right = x + w - aw - gap
         if not empty:
-            cw_ = int(kit.text_width("Copy context", 13, 600)) + 28
-            kit.button(host, "Copy context", right - cw_, top + 7, cw_, 28, lambda: self._memory_action("copy_context"), kind="outline", size=13, weight=600)
+            cw_ = int(kit.text_width("Copy context", SZ["label"], 600)) + 28
+            kit.button(host, "Copy context", right - cw_, top + 7, cw_, 28, lambda: self._memory_action("copy_context"), kind="outline", size=SZ["label"], weight=600)
             right -= cw_ + gap
         if item:                                                                      # one unit: accent edge, title first, then type, time, Source
             host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, top + 1, 3, 40), kit.accent(0.85), None, 1.5))
             left = x + 16
             stamp = friendly(item["at"]) if item["at"] else ""
-            kit.put_text(host, item["title"], left, top, max(right - left - 16, 80), 15, 600, wrap=False, height=22, middle=True, track=-0.004)
+            kit.put_text(host, item["title"], left, top, max(right - left - 16, 80), SZ["body"], 600, wrap=False, height=22, middle=True, track=-0.004)
             cx = left
-            kw = int(kit.text_width(item["kind"], 12, 600)) + 2
-            kit.put_text(host, item["kind"], cx, top + 24, kw, 12, 600, kit.accent_text(), wrap=False, height=18, middle=True)
+            kw = int(kit.text_width(item["kind"], SZ["small"], 600)) + 2
+            kit.put_text(host, item["kind"], cx, top + 24, kw, SZ["small"], 600, kit.accent_text(), wrap=False, height=18, middle=True)
             cx += kw + 8
             if stamp:
-                tw_ = int(kit.text_width(stamp, 12, 400)) + 2
-                kit.put_text(host, "\u00b7  " + stamp, cx, top + 24, tw_ + 16, 12, 400, kit.mute(), wrap=False, height=18, middle=True)
+                tw_ = int(kit.text_width(stamp, SZ["small"], 400)) + 2
+                kit.put_text(host, "\u00b7  " + stamp, cx, top + 24, tw_ + 16, SZ["small"], 400, kit.mute(), wrap=False, height=18, middle=True)
                 cx += tw_ + 22
             if item["citation_id"]:
-                sw_ = int(kit.text_width("Source", 12, 600)) + 30
+                sw_ = int(kit.text_width("Source", SZ["small"], 600)) + 30
                 pill = kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(cx, top + 21, sw_, 24), lambda c=item["citation_id"]: self._memory_action("view_source", {"citation_id": c}))
                 pill.fill, pill.radius, pill.ax_label = kit.accent(0.10), 8, "Source for: " + item["title"][:60]
                 host.addSubview_(pill)
-                kit.put_text(pill, "Source  \u203a", 0, 0, sw_, 12, 600, kit.accent_text(), align=kit.CENTER, wrap=False, height=24, middle=True)
+                kit.put_text(pill, "Source  \u203a", 0, 0, sw_, SZ["small"], 600, kit.accent_text(), align=kit.CENTER, wrap=False, height=24, middle=True)
                 cx += sw_ + gap
             if item["done"]:
-                dw_ = int(kit.text_width("Mark done", 12, 600)) + 22
-                kit.button(host, "Mark done", cx, top + 21, dw_, 24, lambda d=item["done"]: self._memory_action(d[0], d[1]), kind="outline", size=12, weight=600)
+                dw_ = int(kit.text_width("Mark done", SZ["small"], 600)) + 22
+                kit.button(host, "Mark done", cx, top + 21, dw_, 24, lambda d=item["done"]: self._memory_action(d[0], d[1]), kind="outline", size=SZ["small"], weight=600)
             y = top + 46
             undo = snap.get("last_completed")
             if undo:
-                kit.put_text(host, "Marked done", left, y, 90, 12, 500, kit.mute(), wrap=False, height=24, middle=True)
-                uw = int(kit.text_width("Undo", 12, 600)) + 22
-                kit.button(host, "Undo", left + 88, y, uw, 24, lambda: self._memory_action(undo[0], undo[1]), kind="outline", size=12, weight=600)
+                kit.put_text(host, "Marked done", left, y, 90, SZ["small"], 500, kit.mute(), wrap=False, height=24, middle=True)
+                uw = int(kit.text_width("Undo", SZ["small"], 600)) + 22
+                kit.button(host, "Undo", left + 88, y, uw, 24, lambda: self._memory_action(undo[0], undo[1]), kind="outline", size=SZ["small"], weight=600)
                 y += 30
         else:
             msg = "Save a note to start" if empty else "" if snap.get("loading") else page["caught_up"]["title"] if not chips else ""
-            if msg:kit.put_text(host, msg, x, top, max(right - x - 16, 80), 14, 500, kit.mute(), wrap=False, height=42, middle=True)
+            if msg:kit.put_text(host, msg, x, top, max(right - x - 16, 80), SZ["ui"], 500, kit.mute(), wrap=False, height=42, middle=True)
             y = top + 46
+        paper = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x - 12, top - 6, w + 24, y - top + 8), kit.warm("surface"), kit.warm("edge"), RADIUS_PANEL)
+        host.addSubview_positioned_relativeTo_(paper, -1, None)                      # Resume sits on the note surface, like every other thing you can pick up
+        y += 8
         if chips:                                                                     # open-note links: present, but quieter than Resume
             cx = x + 16
             cw = min(200, (w - 16 - gap * (len(chips) - 1)) / len(chips))
@@ -2036,7 +2041,7 @@ class MainWindow:
                 tap = self._tap(host, cx, y, cw, 24, (lambda i=t["id"]: self.press("thing", i)))
                 tap.setToolTip_("\n".join("\u25cb  " + n for n in t.get("notes", [])[:3]) or t["title"])
                 self._app_icon(tap, t["app"], 4, 4, 16, t.get("kind", ""), t.get("url"))
-                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 26, 0, cw - 30, 11, 500, kit.mute(), wrap=False, height=24, middle=True)
+                kit.put_text(tap, t["title"] + (f"  {t['open']}" if t["open"] else ""), 26, 0, cw - 30, SZ["micro"], 500, kit.mute(), wrap=False, height=24, middle=True)
                 cx += cw + gap
             y += 30
         return y
@@ -2046,10 +2051,10 @@ class MainWindow:
         own: where to look (a segmented Only here / With sub-projects) at the left, which source (one menu) at the right."""
         kit.display(host, "Things", x, y, w, size=tokens.DISPLAY["m"], wrap=False, height=30, middle=True)
         cx = x + kit.text_width("Things", tokens.DISPLAY["m"], 400, "serif") + 10
-        kit.put_text(host, str(page["total"]), cx, y + 2, 60, 13, 400, kit.mute(), wrap=False, height=30, middle=True)
+        kit.put_text(host, str(page["total"]), cx, y + 2, 60, SZ["label"], 400, kit.mute(), wrap=False, height=30, middle=True)
         if self.sel is None and page["total"]:                                        # a contextual action of browsing, at the heading's edge
-            sw = int(kit.text_width("Select", 13, 600)) + 28
-            kit.button(host, "Select", x + w - sw, y + 1, sw, 28, self.start_select, kind="quiet", size=13, weight=600)
+            sw = int(kit.text_width("Select", SZ["label"], 600)) + 28
+            kit.button(host, "Select", x + w - sw, y + 1, sw, 28, self.start_select, kind="quiet", size=SZ["label"], weight=600)
         y += 42
         if page["deep"]["show"]:
             self._segmented(host, x, y, [("Only here", not page["deep"]["on"], lambda: self.press("deep", False)),
@@ -2061,7 +2066,7 @@ class MainWindow:
             y += self._select_bar(host, page, x, y, w) + 10
         return y
 
-    def _segmented(self, parent, x, y, items, size=13, height=28, pad=14):
+    def _segmented(self, parent, x, y, items, size=SZ["label"], height=28, pad=14):
         """A compact two-or-more way toggle (the shared kit.segmented): the chosen segment is a filled pill on a track."""
         return kit.segmented(parent, x, y, items, size=size, height=height, pad=pad)
 
@@ -2069,9 +2074,9 @@ class MainWindow:
         """One control for the source filter. Closed, it names what is chosen; open, it is a native menu."""
         chosen = self.nav["app"]
         label = chosen or "All sources"
-        width = min(kit.text_width(label, 12, 600) + 44, 240)
+        width = min(kit.text_width(label, SZ["small"], 600) + 44, 240)
         tap = self._tap(parent, right - width, y, width, 28, None, fill=True)
-        kit.put_text(tap, label, 12, 0, width - 36, 12, 600 if chosen else 500, None if chosen else kit.mute(), wrap=False, height=28, middle=True)
+        kit.put_text(tap, label, 12, 0, width - 36, SZ["small"], 600 if chosen else 500, None if chosen else kit.mute(), wrap=False, height=28, middle=True)
         kit.glyph(tap, ("chevron.down",), width - 22, 8, 12, kit.mute())
         tap.callback = lambda: self._popup_sources(tap, page)
 
@@ -2098,10 +2103,10 @@ class MainWindow:
         n = len(self.sel)
         tap = self._tap(parent, x, y, w, 44, None, fill=True)
         text = f"{n} selected" if n else "Tap things to select them"
-        tw = int(kit.text_width(text, 13, 600))
-        kit.put_text(tap, text, 14, 0, tw + 8, 13, 600, None if n else kit.mute(), wrap=False, height=44, middle=True)
+        tw = int(kit.text_width(text, SZ["label"], 600))
+        kit.put_text(tap, text, 14, 0, tw + 8, SZ["label"], 600, None if n else kit.mute(), wrap=False, height=44, middle=True)
         if n:                                                            # Clear deselects but stays here; Done, at the right, leaves
-            kit.button(tap, "Clear", 14 + tw + 12, 6, 64, 32, self.clear_select, kind="quiet", size=13, weight=600)
+            kit.button(tap, "Clear", 14 + tw + 12, 6, 64, 32, self.clear_select, kind="quiet", size=SZ["label"], weight=600)
         right = w - 8
         for label, kind, call, width in (
                 ("Done", "primary", self.stop_select, 70),
@@ -2112,7 +2117,7 @@ class MainWindow:
             if label != "Done" and not n:
                 continue
             right -= width
-            kit.button(tap, label, right, 6, width, 32, call, kind=kind, size=13, weight=600)
+            kit.button(tap, label, right, 6, width, 32, call, kind=kind, size=SZ["label"], weight=600)
             right -= 6
         return 44
 
@@ -2120,12 +2125,12 @@ class MainWindow:
         """A small Pick up card: the app, the thing, and its first open notes. Opens the thing."""
         tap = self._tap(parent, x, y, w, h, (lambda i=t["id"]: self.press("thing", i)), fill=True)
         self._app_icon(tap, t["app"], 12, 11, 24, t.get("kind", ""), t.get("url"))
-        kit.put_text(tap, t["title"], 44, 11, w - 56, 13, 600, wrap=False, height=24, middle=True)
+        kit.put_text(tap, t["title"], 44, 11, w - 56, SZ["label"], 600, wrap=False, height=24, middle=True)
         shown = t.get("notes", [])[:2]
         more = t["open"] - len(shown)
         for i, text in enumerate(shown):
             tail = f"   +{more}" if more > 0 and i == len(shown) - 1 else ""
-            kit.put_text(tap, "○  " + text + tail, 12, 44 + i * 18, w - 24, 12, 400, kit.mute(), wrap=False, height=18)
+            kit.put_text(tap, "○  " + text + tail, 12, 44 + i * 18, w - 24, SZ["small"], 400, kit.mute(), wrap=False, height=18)
         return tap
 
     def _things(self, doc, page, x, y, w):
@@ -2136,10 +2141,10 @@ class MainWindow:
         for index, group in enumerate(page["groups"]):
             recent = index == 0
             n = len(group["things"])
-            tw = kit.text_width(group["title"], 17, 700)
-            kit.put_text(doc, group["title"], x + 26, y, tw + 8, 17, 700, None if recent else kit.mute(), wrap=False, height=26, track=-0.014)
+            tw = kit.text_width(group["title"], SZ["title"], 700)
+            kit.put_text(doc, group["title"], x + 26, y, tw + 8, SZ["title"], 700, None if recent else kit.mute(), wrap=False, height=26, track=-0.014)
             label = f"{n} thing{'s' * (n != 1)}"
-            kit.put_text(doc, label, x + 26 + tw + 10, y + 1, 100, 13, 400, kit.mute(), wrap=False, height=26, track=0.01)
+            kit.put_text(doc, label, x + 26 + tw + 10, y + 1, 100, SZ["label"], 400, kit.mute(), wrap=False, height=26, track=0.01)
             self._filmstrip(doc, group["things"], x + w - 8, y - 1, recent)
             if recent:                                                   # the newest chapter is a filled blue mark, the older ones hollow rings
                 marker = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x + 3, y + 8, 11, 11), kit.accent_text(), None, 5.5)
@@ -2158,11 +2163,10 @@ class MainWindow:
                 NSMakeRect(x - 12, first - 10, w + 24, y - first - 10 + 14), kit.faint(0.035), kit.faint(0.06), 16)
             doc.addSubview_positioned_relativeTo_(ground, -1, None)
         if not page["groups"]:
-            self._label(doc, "Nothing matches this filter.", x, y + 8, w, size=13, weight=400)
-            y += 34
+            y = self._empty(doc, {"title": "Nothing matches this filter", "line": "Choose another source to see the rest of this project's things."}, x, y, w)
         if page["things_more"]:
             kit.button(doc, f"Show {min(page['things_more'], page_model.THINGS_SHOWN)} more of {page['things_more']}",
-                       x, y + 4, 240, 36, lambda: self.press("more"), kind="quiet", size=13, weight=500)
+                       x, y + 4, 240, 36, lambda: self.press("more"), kind="quiet", size=SZ["label"], weight=500)
             y += 48
         return y
 
@@ -2252,15 +2256,15 @@ class MainWindow:
         cy += kit.display(doc, page["headline"], px, cy, tw, kit.warm("ink"), size=tokens.DISPLAY["l"]) + 12
         if page["ai_summary"]:                                                # written by the model from the window and your notes: labelled
             cy += kit.body(doc, page["ai_summary"], px, cy, tw, kit.warm("ink")) + 8
-            kit.put_text(doc, "Summary by Trace", px, cy, tw, 11, 500, kit.accent_text(), wrap=False, height=16, tip=False)
+            kit.put_text(doc, "Summary by Trace", px, cy, tw, SZ["micro"], 500, kit.accent_text(), wrap=False, height=16, tip=False)
             cy += 26
         elif page["observed"]:                                                # no AI line yet: only stored facts
             cy += kit.body(doc, page["observed"], px, cy, tw, kit.warm("ink")) + 14
         if page["reopen"]:                                                    # the one dominant action, right under what you were doing
-            kit.button(doc, "      Reopen", px, cy + 6, 128, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=13, weight=600)
+            kit.button(doc, "      Reopen", px, cy + 6, 128, BUTTON_H, lambda u=page["reopen"]: self.open_url(u), kind="primary", size=SZ["label"], weight=600)
             kit.glyph(doc, ("play", "arrow.up.right.square"), px + 16, cy + 6 + (BUTTON_H - 14) / 2, 14, NSColor.whiteColor())
             kit.glyph(doc, ("link",), px + 148, cy + 6 + (BUTTON_H - 16) / 2, 16, kit.warm("mute"))
-            self._link(doc, "Copy link", px + 168, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=13,
+            self._link(doc, "Copy link", px + 168, cy + 6 + (BUTTON_H - 24) / 2, lambda u=page["reopen"]: self.copy_text(u, "Link copied."), size=SZ["label"],
                        tip="Copy original link")
             cy += BUTTON_H + 12
         bottom = cy
@@ -2297,23 +2301,22 @@ class MainWindow:
         tap.ax_label = "Screenshot of " + page["title"] + ". Opens full size."
         caption = "As it looked, " + page["shot_when"].lower() + "."
         kit.meta(doc, caption, x, y + h + 12, max(w - 110, 40), kit.warm("mute"), wrap=False, height=16, tip=False)
-        width = kit.text_width("Full size", 12, 500) + 12
+        width = kit.text_width("Full size", SZ["small"], 500) + 12
         kit.glyph(doc, ("arrow.up.left.and.arrow.down.right", "arrow.up.left.and.arrow.down.right.circle"), x + w - width - 18, y + h + 12, 13, kit.accent_text())
-        self._link(doc, "Full size", x + w - width, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=12, color=kit.accent_text())
+        self._link(doc, "Full size", x + w - width, y + h + 8, (lambda p=page["shot"]: self.open_file(p)), size=SZ["small"], color=kit.accent_text())
         return y + h + 32
 
     def _notes(self, doc, page, x, y, w):
         """Your notes, then the one place to write another: the composer sits at the end of the list, in this panel."""
         count = page["open_count"]
         kit.glyph(doc, ("waveform", "list.bullet"), x, y + 1, 18, kit.warm("ink"))
-        kit.put_text(doc, "Your notes", x + 28, y, w - 98, 15, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
-        kit.put_text(doc, f"{count} open" if count else "all done", x + w - 70, y + 1, 70, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18, tip=False)
+        kit.put_text(doc, "Your notes", x + 28, y, w - 98, SZ["body"], 600, kit.warm("ink"), wrap=False, height=20, tip=False)
+        kit.put_text(doc, f"{count} open" if count else "all done", x + w - 70, y + 1, 70, SZ["small"], 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18, tip=False)
         y += 36
         for n in page["open"] + page["done"]:
             y = self._note_row(doc, n, x, y, w)
         if not page["open"] and not page["done"]:
-            kit.put_text(doc, "Nothing written yet.", x, y, w, 13, 400, kit.warm("mute"), wrap=False, height=20, tip=False)
-            y += 28
+            y += kit.empty_state(doc, "Notes you write will stay here", "Add one below. It stays with this thing and shows up on its project.", x, y, w) + 16
         return self._composer(doc, x, y + 6, w)
 
     def _composer(self, doc, x, y, w):
@@ -2332,25 +2335,26 @@ class MainWindow:
 
     def _note_row(self, doc, n, x, y, w):
         """One note: a tick (a tap flips it), the words, when. A finished one is grey and crossed out."""
-        words = w - 34 - 74
-        h = max(kit.text_height(n["text"], 14, 400, words), 20)
+        words = w - 42 - 90
+        h = max(kit.text_height(n["text"], SZ["ui"], 400, words), 20)
+        kit.surface(doc, x, y, w, h + 14, "surface", radius=RADIUS_FIELD)       # the one note surface: paper, a hairline, a round tick
         row = self._tap(doc, x, y, w, h + 14, (lambda i=n["id"], d=n["done"]: self.tick_note(i, not d)))
         row.checked, row.ax_label = bool(n["done"]), n["text"]
         ring = _Ring.alloc().initWithChecked_(n["done"])
         ring.blue = True
-        ring.setFrame_(NSMakeRect(4, 6, 17, 17))
+        ring.setFrame_(NSMakeRect(12, 6, 17, 17))
         row.addSubview_(ring)
         if n["done"]:
-            self._struck(row, n["text"], 34, 6, words, 14)
+            self._struck(row, n["text"], 42, 6, words, 14)
         else:
-            kit.put_text(row, n["text"], 34, 6, words, 14, 400, kit.warm("ink"))
-        kit.put_text(row, n["when"], w - 72, 8, 72, 12, 400, kit.warm("mute"), align=RIGHT, wrap=False, height=18, tip=False)
-        return y + h + 14
+            kit.put_text(row, n["text"], 42, 6, words, SZ["ui"], 400, kit.warm("ink"))
+        kit.put_text(row, n["when"], w - 82, 8, 72, SZ["small"], 400, kit.warm("soft"), align=RIGHT, wrap=False, height=18, tip=False)
+        return y + h + 14 + 6
 
     def _facts(self, doc, page, x, y, w):
         """The quiet part, always in view but small: when, how long, the address, the captured text and where it is kept."""
         kit.glyph(doc, ("info.circle",), x, y + 1, 18, kit.warm("ink"))
-        kit.put_text(doc, "Details", x + 28, y, w - 28, 15, 600, kit.warm("ink"), wrap=False, height=20, tip=False)
+        kit.put_text(doc, "Details", x + 28, y, w - 28, SZ["body"], 600, kit.warm("ink"), wrap=False, height=20, tip=False)
         y += 36
         rows = list(page["details"])
         if page["address"]:
@@ -2359,7 +2363,10 @@ class MainWindow:
         for k, v in rows:
             kit.glyph(doc, DETAIL_ICONS.get(k, ("circle",)), x, y, 15, kit.warm("mute"))
             kit.meta(doc, k, x + 28, y, 84, kit.warm("mute"), height=18, tip=False)   # wraps like the value so both lines share a baseline
-            h = max(kit.meta(doc, v, x + 118, y, w - 118, kit.warm("ink"), wrap=(k != "Address"), tip=False), 18)
+            if k == "Address":                                        # an address is a source: monospaced
+                h = max(kit.mono_text(doc, v, x + 118, y, w - 118, kit.warm("ink"), height=18, tip=False), 18)
+            else:
+                h = max(kit.meta(doc, v, x + 118, y, w - 118, kit.warm("ink"), tip=False), 18)
             if k == "Address":                                        # the full address on hover of this row only, never over the buttons
                 hold = _Flipped.alloc().initWithFrame_(NSMakeRect(x + 118, y, w - 118, h))
                 hold.setToolTip_(v)
@@ -2370,7 +2377,7 @@ class MainWindow:
             y += 8
             kit.glyph(doc, ("doc.text",), x, y + 5, 15, kit.accent_text())
             self._link(doc, "View captured text" + (f" · {screen['count']} versions" if screen["count"] > 1 else ""),
-                       x + 22, y, (lambda e=screen: self.open_viewer(e)), size=12, color=kit.accent_text())
+                       x + 22, y, (lambda e=screen: self.open_viewer(e)), size=SZ["small"], color=kit.accent_text())
             y += 28
         reg, items = self.data()
         if page["item"] in items:                                 # where it is kept: only what is stored
@@ -2379,12 +2386,12 @@ class MainWindow:
         px = x
         for p in page["places"]:
             label = p["name"] + (" · main" if p["main"] else "")
-            width = kit.text_width(label, 13, 500) + 52
+            width = kit.text_width(label, SZ["label"], 500) + 52
             if px + width > x + w:
                 px, y = x, y + 40
             tap = self._tap(doc, px, y, width, 32, (lambda i=p["id"]: self.press("go", i)), fill=True)
             self._project_icon(tap, p["hue"], 6, 5, 22)
-            kit.put_text(tap, label, 34, 0, width - 40, 13, 500, wrap=False, height=32, middle=True, tip=False)
+            kit.put_text(tap, label, 34, 0, width - 40, SZ["label"], 500, wrap=False, height=32, middle=True, tip=False)
             px += width + 8
         return y + (40 if page["places"] else 0)
 
@@ -2415,17 +2422,17 @@ class MainWindow:
     def _viewer(self, card, cw, ch, d):
         screen, i = d["screen"], d["v"]
         v = screen["versions"][i]
-        kit.put_text(card, screen["place"], 24, 20, cw - 48 - 90, 15, 700, wrap=False, height=24)
-        kit.button(card, "Close", cw - 24 - 76, 16, 76, 32, self.close_dialog, kind="quiet", size=13, weight=600)
+        kit.put_text(card, screen["place"], 24, 20, cw - 48 - 90, SZ["body"], 700, wrap=False, height=24)
+        kit.button(card, "Close", cw - 24 - 76, 16, 76, 32, self.close_dialog, kind="quiet", size=SZ["label"], weight=600)
         x = 24
         for n, ver in enumerate(screen["versions"]):                # one tab per dated version, newest first
-            width = kit.text_width(ver["label"], 13, 600) + 28
+            width = kit.text_width(ver["label"], SZ["label"], 600) + 28
             kit.button(card, ver["label"], x, 60, width, 30, (lambda k=n: self._viewer_to(k)),
-                       kind="primary" if n == i else "quiet", size=13, weight=600)
+                       kind="primary" if n == i else "quiet", size=SZ["label"], weight=600)
             x += width + 8
         top = 104
         if v["place"]:
-            kit.put_text(card, v["place"], 24, top, cw - 48, 12, 400, kit.mute(), wrap=False, height=16)
+            kit.put_text(card, v["place"], 24, top, cw - 48, SZ["small"], 400, kit.mute(), wrap=False, height=16)
             top += 22
         box = self._tap(card, 24, top, cw - 48, ch - top - 76, None, fill=True)       # the text sits in a box of its own
         box.washes = False                                          # a text box does not light up under the pointer
@@ -2436,7 +2443,7 @@ class MainWindow:
         view.setSelectable_(True)                                   # drag to select, Cmd-C copies, Cmd-A selects all
         view.setDrawsBackground_(False)
         view.setRichText_(False)
-        view.setFont_(kit.font(13))
+        view.setFont_(kit.font(SZ["label"]))
         view.setTextColor_(kit.ink())
         view.setTextContainerInset_((0, 4))
         view.textContainer().setLineFragmentPadding_(0)
@@ -2447,11 +2454,11 @@ class MainWindow:
         view.setString_("\n\n".join(v["lines"]))
         scroll.setDocumentView_(view)
         kit.button(card, "Copy text", 24, ch - 52, 110, 36, (lambda t="\n".join(v["lines"]): self.copy_text(t, "Copied the text.")),
-                   kind="primary", size=13, weight=600)
+                   kind="primary", size=SZ["label"], weight=600)
         link = v["url"] or screen["url"]
         if link:
             kit.button(card, "Copy link", 24 + 118, ch - 52, 110, 36, (lambda u=link: self.copy_text(u, "Copied the link.")),
-                       kind="quiet", size=13, weight=600)
+                       kind="quiet", size=SZ["label"], weight=600)
 
     def _viewer_to(self, k):
         self.dialog["v"] = k
@@ -2467,16 +2474,17 @@ class MainWindow:
         if page["notes"]:
             y = self._section(doc, "Notes", x, y + 8, w)
             for n in page["notes"]:
-                row = self._tap(doc, x, y, w, 42, (lambda i=n["id"]: self.press("thing", i)))
-                self._app_icon(row, n.get("app", ""), 0, 6, 30, n.get("kind", ""), n.get("url"))
-                kit.put_text(row, n["text"], 42, 4, w - 42, 14, 500, wrap=False, height=20)
-                kit.put_text(row, n["thing"], 42, 22, w - 42, 12, 400, kit.mute(), wrap=False, height=16)
-                y += 46
+                kit.surface(doc, x, y, w, 46, "surface", radius=RADIUS_FIELD)    # the same note surface as on the thing page
+                row = self._tap(doc, x, y, w, 46, (lambda i=n["id"]: self.press("thing", i)))
+                self._app_icon(row, n.get("app", ""), 8, 8, 30, n.get("kind", ""), n.get("url"))
+                kit.put_text(row, n["text"], 50, 5, w - 62, SZ["ui"], 500, wrap=False, height=20)
+                kit.put_text(row, n["thing"], 50, 25, w - 62, SZ["small"], 400, kit.mute(), wrap=False, height=16)
+                y += 52
         if page["things"]:
             y = self._section(doc, "Things", x, y + 8, w)
             for t in page["things"]:
                 y = self._thing(doc, t, x, y, w)
             if page["things_more"]:
-                self._label(doc, f"{page['things_more']} more. Keep typing to narrow it.", x, y + 6, w, size=13, weight=400)
+                self._label(doc, f"{page['things_more']} more. Keep typing to narrow it.", x, y + 6, w, size=SZ["label"], weight=400)
                 y += 30
         return y

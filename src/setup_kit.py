@@ -11,7 +11,7 @@ import os
 import objc
 from AppKit import (NSAttributedString, NSBezierPath, NSColor, NSFont, NSFontAttributeName,
                     NSForegroundColorAttributeName, NSImage, NSImageView, NSKernAttributeName, NSMakeRect, NSMakeSize,
-                    NSMutableParagraphStyle, NSParagraphStyleAttributeName)
+                    NSMutableParagraphStyle, NSParagraphStyleAttributeName, NSTextField)
 
 import palette
 import tokens
@@ -647,7 +647,7 @@ def tag(parent, kind, text, x, y, height=20):
 def segmented(parent, x, y, items, size=13, height=28, pad=14):
     """A track with the chosen segment lifted into a filled pill (the website's tab group): one control for tabs and
     periods. `items` are (label, on, callback). The chosen one is always filled. Returns the width."""
-    widths = [int(text_width(label, size, 500)) + 2 * pad for label, _on, _call in items]
+    widths = [int(text_width(label, size, 600)) + 2 * pad for label, _on, _call in items]      # measured at the heavier weight, so the chosen one never clips
     parent.addSubview_(_KitSurface.alloc().initWithFrame_fill_edge_radius_(
         NSMakeRect(x, y, sum(widths) + 4, height), faint(0.055), None, height / 2))
     sx = x + 2
@@ -781,6 +781,60 @@ def field(parent, x, y, w, h, focus=False):
     box.setFrame_(NSMakeRect(x, y, w, h))
     parent.addSubview_(box)
     return box
+
+
+def _unfocus(text, ok):
+    box = getattr(text, "box", None)
+    if ok and box is not None and box.focus:
+        box.focus = False
+        box.setNeedsDisplay_(True)
+
+
+class _KitInput(NSTextField):
+    """A borderless one-line text field that lights its outline (a _KitBox behind it) while it has the cursor."""
+
+    def becomeFirstResponder(self):
+        ok = objc.super(_KitInput, self).becomeFirstResponder()
+        box = getattr(self, "box", None)
+        if ok and box is not None:
+            box.focus = True
+            box.setNeedsDisplay_(True)
+        return ok
+
+    def resignFirstResponder(self):
+        ok = objc.super(_KitInput, self).resignFirstResponder()
+        _unfocus(self, ok)
+        return ok
+
+    def textDidEndEditing_(self, note):               # the field editor holds the cursor, so this is when it really leaves
+        objc.super(_KitInput, self).textDidEndEditing_(note)
+        _unfocus(self, True)
+
+
+
+def input_field(parent, placeholder, x, y, w, h, delegate=None, size=None):
+    """The one text field (search, names, pickers): a hairline outline that takes the accent ring on focus, with a
+    borderless native field inside it. Returns (outline, field); move both with place_input."""
+    box = field(parent, x, y, w, h)
+    text = _KitInput.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
+    text.setPlaceholderString_(placeholder)
+    text.setBordered_(False)
+    text.setBezeled_(False)
+    text.setDrawsBackground_(False)
+    text.setFocusRingType_(1)                         # none: the outline shows focus
+    text.setFont_(font(size or tokens.TEXT["label"] + 1, 400))
+    if delegate is not None:
+        text.setDelegate_(delegate)
+    text.box = box
+    parent.addSubview_(text)
+    place_input(box, text, x, y, w, h)
+    return box, text
+
+
+def place_input(box, text, x, y, w, h):
+    """Put an input_field's outline and field at this frame (the field is inset 10 pt and centred)."""
+    box.setFrame_(NSMakeRect(x, y, w, h))
+    text.setFrame_(NSMakeRect(x + 10, y + (h - 18) / 2, w - 20, 18))
 
 
 class _KitProjectMark(_Flipped):

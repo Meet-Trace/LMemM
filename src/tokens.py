@@ -14,6 +14,9 @@ PAD = 32                                           # the page's side padding
 # heading); everything else is Figtree. A window heading is never above 34 (desktop density).
 DISPLAY = {"xl": 34, "l": 26, "m": 20}
 TEXT = {"body": 15, "label": 13, "meta": 11}
+# The sizes the UI sets text at (the ui files say SZ["label"], never 13). Display (the serif) is DISPLAY above.
+SIZE = {"micro": TEXT["meta"], "small": 12, "label": TEXT["label"], "ui": 14, "body": TEXT["body"], "lead": 16, "title": 17,
+        "head": 18, "section": 20, "page": 24, "hero": 25, "welcome": 29}
 WINDOW_HEADING_MAX = 34
 TRACK = {"display": -0.03, "body": 0.0, "meta": 0.012}       # em
 LEAD = {"display": 1.06, "body": 1.42, "meta": 1.3}

@@ -340,7 +340,7 @@ def main(reg, items, state, counts, now, fading=(), sugg=None, prefs=None):
                  "where": " › ".join(projects.path_names(reg, p)[:-1])} for p in archived_roots(reg)]
         return {"kind": "archived", "title": "Archived", "back": True,
                 "meta": "Hidden from the tree, Pick up and search. Nothing is deleted.", "rows": rows,
-                "empty": None if rows else {"title": "Nothing archived", "line": "Projects you archive wait here until you bring them back."}}
+                "empty": None if rows else {"title": "Archived projects will rest here", "line": "Projects you archive wait here until you bring them back."}}
     if view == "needs":
         rows = [_thing(reg, i, now, with_notes=True) for i in needs_you(items)]
         return {"kind": "needs", "title": "Needs you", "meta": plural(len(rows), "thing") + " with open notes",
@@ -356,9 +356,9 @@ def home(reg, items, counts, now, sugg=None):
     cards = [{"id": p, "name": reg["projects"][p]["name"], "hue": hue(p), "line": _count_line(counts[p], _subs(reg, p))}
              for p in top]
     if not top and not items:
-        empty = {"title": "Nothing here yet", "line": "LMemM is learning what you work on. Things appear here by themselves."}
+        empty = {"title": "Your projects will gather here as you work", "line": "Trace is learning what you work on. Things appear here by themselves; there is nothing to set up."}
     elif not top:
-        empty = {"title": "No projects yet", "line": "Your things are saved. Projects you make will appear here."}
+        empty = {"title": "Your projects will gather here", "line": "Your things are saved. Projects you make will appear here, each with its notes and sources."}
     else:
         empty = None
     return {"kind": "home", "title": "All projects", "meta": plural(len(top), "project"),
@@ -395,8 +395,8 @@ def project_page(reg, items, state, counts, now, sugg=None):
             "meta": " · ".join(([plural(len(kids), "sub-project")] if kids else []) + [_count_line(c)]),
             "suggested": _suggest_for(sugg, pid)}
     if not everything and not kids:
-        page["empty"] = {"title": "Nothing here yet",
-                         "line": "Things you work on in this project show up by themselves."}
+        page["empty"] = {"title": "This project's work will show up here",
+                         "line": "Things you work on in this project appear by themselves, with their notes and sources."}
         return page
     page["pick_up"] = [_thing(reg, i, now, here=pid, with_notes=True) for i in pick]
     if not pick:

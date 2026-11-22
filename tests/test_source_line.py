@@ -79,6 +79,12 @@ class OneImplementationEach(unittest.TestCase):
         self.assertIn("kit._KitInput.alloc()", window)
         self.assertIn("kit.input_field(accessory", window)
 
+    def test_every_memory_field_is_drawn_on_the_one_outline(self):
+        pane = _read("memory_pane.py")
+        self.assertNotIn("box.fill=kit.faint(0.06);box.border=kit.line()", pane)     # the composer's old hand-drawn box
+        self.assertGreaterEqual(pane.count("kit._KitBox.alloc().initWithFocus_("), 2)  # query/field_box and the composer
+        self.assertEqual(pane.count("self.note.box=box"), 1)
+
     def test_the_pill_card_buttons_come_from_the_shared_button(self):
         widget = _read("widget.py")
         body = widget[widget.index("    def _button(self"):widget.index("    def _suggest(self")]

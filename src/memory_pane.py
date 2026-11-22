@@ -238,7 +238,8 @@ class MemoryPane:
                 host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,16+22+10+fh+14+BTN_H+16),kit.faint(0.05),kit.faint(0.09),14),-1,None)
                 kit.put_text(host,'Add to project memory',x+PADX,top+16,inner,SZ["body"],600,wrap=False,height=22,track=-0.004)
                 fy=top+16+22+10
-                box=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+PADX,fy,inner,fh),None);box.fill=kit.faint(0.06);box.border=kit.line();box.radius=11
+                box=kit._KitBox.alloc().initWithFocus_(self.note.currentEditor() is not None)      # the one field style, accent ring while it has the cursor
+                box.setFrame_(NSMakeRect(x+PADX,fy,inner,fh));self.note.box=box
                 host.addSubview_positioned_relativeTo_(box,-1,self.note)
                 self.note.setHidden_(False);self.note.setFrame_(NSMakeRect(x+PADX+12,fy+10,inner-24,fh-20))
                 by=fy+fh+14

@@ -166,6 +166,19 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("```diff", review_task)
         self.assertIn("Ready for you to test", self.gh.comments(7)[-1]["body"])
 
+    def test_blocked_pull_request_falls_back_to_a_compare_link(self):
+        from factory.engine.github import GitHubError
+
+        def refuse(*args):
+            raise GitHubError("POST /pulls -> 403: GitHub Actions is not permitted to create pull requests")
+        self.gh.create_pr = refuse
+        script = Scripted({"triage": ["accept"], "spec": ["done"], "implement": ["done"],
+                           "review": ["approve"], "verify": ["pass"]})
+        self.assertEqual(self.orch(script).advance(7), "done")
+        last = self.gh.comments(7)[-1]["body"]
+        self.assertIn("compare/main...factory/issue-7?expand=1", last)
+        self.assertIn("factory/issue-7", git(self.tmp, "--git-dir", str(self.origin), "branch"))
+
     def test_review_sends_work_back_then_parks_after_the_loop_limit(self):
         script = Scripted({"triage": ["accept"], "spec": ["done"], "implement": ["done"] * 5,
                            "review": ["changes_requested"] * 5, "verify": []})

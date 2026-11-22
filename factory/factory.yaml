@@ -17,7 +17,7 @@ version: 1
 # start or resume runs, so strangers cannot spend your API budget.
 intake:
   label: factory
-  allowed_users: [AvniDhir]
+  allowed_users: [adityakhuntia, AvniDhir]
 
 # The project the factory builds.
 project:

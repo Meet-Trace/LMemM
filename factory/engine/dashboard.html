@@ -1,0 +1,396 @@
+<title>Trace Factory</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one calm column. Status line, the pipeline map (you above, agents below),
+   then requests as a stage grid, then recent runs. Agent details open in a side drawer. */
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --sunken: #f0f2f5;
+  --ink: #16191f;
+  --muted: #667085;
+  --faint: #98a2b3;
+  --line: #e5e8ed;
+  --accent: #3b5bdb;
+  --human: #b25e09;
+  --human-soft: #fdf1e3;
+  --ok: #138a52;
+  --ok-soft: #e5f5ec;
+  --bad: #c4372d;
+  --bad-soft: #fcebe9;
+  --run-soft: #e9eefc;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1115; --surface: #161920; --sunken: #1d2129; --ink: #eceef2; --muted: #9aa3b2; --faint: #6b7483;
+    --line: #262b34; --accent: #8aa2f5; --human: #f0a95a; --human-soft: #36260f; --ok: #4fc58c; --ok-soft: #14301f;
+    --bad: #f27a70; --bad-soft: #3b1c19; --run-soft: #1c2541; --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1115; --surface: #161920; --sunken: #1d2129; --ink: #eceef2; --muted: #9aa3b2; --faint: #6b7483;
+  --line: #262b34; --accent: #8aa2f5; --human: #f0a95a; --human-soft: #36260f; --ok: #4fc58c; --ok-soft: #14301f;
+  --bad: #f27a70; --bad-soft: #3b1c19; --run-soft: #1c2541; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.55 var(--font-body);
+  padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px; -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+h1, h2 { margin: 0; letter-spacing: -0.015em; text-wrap: balance; }
+h1 { font-size: 22px; font-weight: 600; }
+h2 { font-size: 15px; font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.sec-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+
+/* top */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.top .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  background: var(--human-soft); color: var(--human); vertical-align: 3px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; background: var(--ink); color: var(--bg);
+  font-weight: 500; font-size: 13.5px; text-decoration: none; }
+.btn:hover { text-decoration: none; opacity: .9; }
+.status { display: flex; flex-wrap: wrap; gap: 8px 32px; margin-top: 20px; }
+.stat b { display: block; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.stat span { font-size: 12.5px; color: var(--muted); }
+.stat.attn b { color: var(--human); }
+
+.callout { display: flex; flex-direction: column; gap: 2px; }
+.callout .row { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--human-soft); }
+.callout .row + .row { margin-top: 6px; }
+.callout .row > div { min-width: 0; flex: 1; }
+.callout .what { font-size: 13px; color: var(--muted); }
+
+/* pipeline map */
+.map { padding: 8px 0 4px; overflow-x: auto; }
+.map svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.map text { font-family: var(--font-body); }
+.lane-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.node { cursor: pointer; }
+.node:focus { outline: none; }
+.node:focus-visible rect.box, .node:hover rect.box { stroke: var(--accent); }
+.node.sel rect.box { stroke: var(--accent); stroke-width: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; padding: 10px 18px 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 18px; height: 0; vertical-align: 4px; margin-right: 6px; border-top: 2px solid var(--faint); }
+.legend i.dash { border-top-style: dashed; border-color: var(--human); }
+.legend i.back { border-color: var(--bad); }
+.night { display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: baseline; padding: 12px 18px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+.night-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.night > span:last-child { flex: 1 1 300px; min-width: 0; }
+.link { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-weight: 500; }
+.link:hover { text-decoration: underline; }
+@keyframes pulse { 50% { opacity: .3; } }
+.live { animation: pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .live { animation: none; } }
+
+/* requests grid */
+.grid { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { font-size: 11.5px; font-weight: 500; color: var(--muted); text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+th.c, td.c { text-align: center; padding-inline: 6px; }
+td.r, th.r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.req-title { font-weight: 500; }
+.req-sub { font-size: 12.5px; color: var(--muted); }
+.step { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line); vertical-align: middle; }
+.step.done { background: var(--c); border-color: var(--c); }
+.step.cur { border-color: var(--c); background: color-mix(in srgb, var(--c) 25%, transparent); }
+.step.wait { border-color: var(--human); background: var(--human-soft); }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.pill.running { background: var(--run-soft); color: var(--accent); }
+.pill.waiting, .pill.proposed { background: var(--human-soft); color: var(--human); }
+.pill.done { background: var(--ok-soft); color: var(--ok); }
+.pill.stopped, .pill.failed { background: var(--bad-soft); color: var(--bad); }
+.pill.queued { background: var(--sunken); color: var(--muted); }
+
+/* runs */
+.runs { list-style: none; margin: 0; padding: 0; }
+.runs li { display: grid; grid-template-columns: 76px 130px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.runs li:last-child { border-bottom: 0; }
+.runs .when { color: var(--muted); font-size: 12.5px; }
+.runs .agent { display: flex; align-items: center; gap: 8px; font-weight: 500; white-space: nowrap; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.runs .what { min-width: 0; overflow-wrap: anywhere; }
+.runs .what .muted { font-size: 12.5px; }
+.runs .cost { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.filters { display: flex; flex-wrap: wrap; gap: 4px; }
+.filters button { border: 0; background: transparent; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 13px; color: var(--muted); }
+.filters button[aria-pressed="true"] { background: var(--sunken); color: var(--ink); font-weight: 500; }
+.sm-only { display: none; }
+.empty { padding: 28px 16px; color: var(--muted); text-align: center; font-size: 13.5px; }
+footer { color: var(--muted); font-size: 12.5px; }
+
+/* drawer */
+.scrim { position: fixed; inset: 0; background: rgba(15, 17, 21, .32); z-index: 20; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100%); background: var(--surface); z-index: 21;
+  border-left: 1px solid var(--line); overflow-y: auto; display: flex; flex-direction: column; gap: 20px;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)) 24px; }
+.drawer .close { align-self: flex-end; border: 0; background: var(--sunken); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+.drawer h2 { font-size: 18px; display: flex; gap: 10px; align-items: center; }
+.drawer .swatch { width: 12px; height: 12px; border-radius: 4px; background: var(--c); }
+.drawer p { margin: 0; }
+.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 13.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 7px; margin: 0 4px 4px 0; border-radius: 6px; background: var(--sunken); font: 12px var(--font-mono); }
+.chip.deny { background: var(--bad-soft); color: var(--bad); }
+.label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.route { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 4px 10px; font-size: 13.5px; padding: 8px 0; border-top: 1px solid var(--line); }
+.route .m { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px; }
+.prompt { margin: 0; padding: 14px; border-radius: 10px; background: var(--sunken); font: 12px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.hint { font-size: 12.5px; color: var(--muted); }
+
+@media (max-width: 640px) {
+  .runs li { grid-template-columns: minmax(0, 1fr) auto; }
+  .runs .when { display: none; }
+  .sm-only { display: inline !important; }
+  .runs .what { grid-column: 1 / -1; }
+  .hide-sm { display: none; }
+}
+</style>
+
+<div class="wrap" id="app"><div class="empty">Loading the factory…</div></div>
+<div id="drawer-root"></div>
+
+<script id="factory-data" type="application/json">/*__FACTORY_DATA__*/null</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("factory-data").textContent || "null") || { agents: [], issues: [], runs: [] };
+  const app = document.getElementById("app"), drawerRoot = document.getElementById("drawer-root");
+  const N = D.overnight || null;
+  const byName = Object.fromEntries(D.agents.concat(N ? [N.scout] : []).map(a => [a.name, a]));
+  const byStage = Object.fromEntries(D.agents.map(a => [a.stage, a]));
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const md = s => esc(s).replace(/`([^`]+)`/g, '<span class="mono">$1</span>');
+  const money = n => "$" + (Number(n) || 0).toFixed(2);
+  const mins = s => { const m = (Number(s) || 0) / 60; return m < 1 ? "<1 min" : m < 60 ? Math.round(m) + " min" : (m / 60).toFixed(1) + " h"; };
+  const ago = iso => {
+    if (!iso) return "";
+    const s = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.round(s / 60) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    return Math.round(s / 86400) + "d ago";
+  };
+  const repo = D.repo ? "https://github.com/" + D.repo : "#";
+  const issueUrl = n => D.sample ? "#" : `${repo}/issues/${n}`;
+  const prUrl = n => D.sample ? "#" : `${repo}/pull/${n}`;
+  const newUrl = D.sample || !D.repo ? "#" : `${repo}/issues/new?template=factory-request.yml`;
+  const STATE = { running: "Running", waiting: "Needs your reply", done: "Ready to test", stopped: "Closed", queued: "Queued", proposed: "Proposed" };
+  // Prompts are hard-wrapped in their files; join wrapped lines so they read well in the drawer.
+  const reflow = t => String(t || "").replace(/([^\n])\n(?!\n)(?!\s*(?:[-*]|\d+\.)\s)(?=\s*\S)/g, (m, c) => c + " ").replace(/ {2,}/g, " ");
+  const target = t => ({ wait: "asks you", stop: "closes it", done: "hands to you", proposed: "files proposals for you", auto_build: "starts building" }[t] || t);
+  let selected = null, filter = "all";
+
+  function stats(a) {
+    const runs = D.runs.filter(r => r.agent === a.name);
+    const fin = runs.filter(r => r.status !== "running");
+    const ok = fin.filter(r => r.status === "succeeded");
+    return { runs, running: runs.filter(r => r.status === "running"), last: fin[0],
+      success: fin.length ? Math.round(100 * ok.length / fin.length) + "%" : "–",
+      avg: fin.length ? mins(fin.reduce((t, r) => t + (r.duration_s || 0), 0) / fin.length) : "–",
+      cost: runs.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0) };
+  }
+
+  function top() {
+    const n = s => D.issues.filter(i => i.state === s).length;
+    const spent = D.runs.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0);
+    const waiting = n("waiting") + n("proposed");
+    return `<header>
+      <div class="top"><div><h1>Trace Factory${D.sample ? '<span class="tag">Example data</span>' : ""}</h1>
+        <div class="meta">${esc(D.repo || "")} · updated ${ago(D.generated)}</div></div>
+        <a class="btn" href="${newUrl}" target="_blank" rel="noopener">New request</a></div>
+      <div class="status">
+        <div class="stat"><b>${n("running") + n("queued")}</b><span>being built</span></div>
+        <div class="stat ${waiting ? "attn" : ""}"><b>${waiting}</b><span>need you</span></div>
+        <div class="stat"><b>${n("done")}</b><span>ready to test</span></div>
+        <div class="stat"><b>${money(spent)}</b><span>agent spend</span></div>
+      </div></header>`;
+  }
+
+  function needs() {
+    const items = D.issues.filter(i => ["waiting", "done", "proposed"].includes(i.state));
+    if (!items.length) return "";
+    const what = i => i.state === "done" ? `Test the pull request${i.pr ? ` <a href="${prUrl(i.pr)}">#${i.pr}</a>` : ""} and merge it if it works.`
+      : i.state === "proposed" ? "The scout suggested this. Add the factory label to build it."
+      : `${esc((byStage[i.stage] || {}).title || "An agent")} asked you a question. Reply on the issue.`;
+    return `<section class="callout" aria-label="Needs you">${items.map(i => `<div class="row"><span class="pill ${i.state}">${STATE[i.state]}</span>
+      <div><a href="${issueUrl(i.number)}">#${i.number} ${esc(i.title)}</a><div class="what">${what(i)}</div></div></div>`).join("")}</section>`;
+  }
+
+  /* The pipeline map: your lane on top, the agents' lane below, arrows for every route. */
+  function map() {
+    const A = D.agents, W = 1040, colW = (W - 120) / (A.length + 1), x0 = 120;
+    const yHuman = 62, yAgent = 194, bw = Math.min(150, colW - 22), bh = 64;
+    const cx = i => x0 + colW * (i + 0.5);
+    const waitIdx = A.map((a, i) => a.decisions.some(d => d.next === "wait") ? i : -1).filter(i => i >= 0);
+    const askX = waitIdx.length ? waitIdx.reduce((t, i) => t + cx(i), 0) / waitIdx.length : cx(1);
+    const doneX = cx(A.length);
+    const loops = A.reduce((t, a, i) => t + a.decisions.filter(d => { const j = A.findIndex(b => b.stage === d.next); return j >= 0 && j < i; }).length, 0);
+    const laneH = bh + 40 + loops * 18 + (loops ? 14 : 0), H = 142 + laneH + 8;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Pipeline: you file a request, agents triage, spec, implement, review and verify, you answer questions and test the result">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--faint)"/></marker>
+        <marker id="ahh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--human)"/></marker>
+        <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--bad)"/></marker>
+      </defs>
+      <rect x="0" y="12" width="${W}" height="100" rx="10" fill="var(--human-soft)"/>
+      <rect x="0" y="142" width="${W}" height="${laneH}" rx="10" fill="var(--sunken)"/>
+      <text class="lane-label" x="18" y="66" fill="var(--human)">You</text>
+      <text class="lane-label" x="18" y="200" fill="var(--muted)">Agents</text>`;
+    const human = (x, title, sub) => `<g><rect x="${x - bw / 2}" y="${yHuman - 26}" width="${bw}" height="52" rx="9" fill="var(--surface)" stroke="var(--human)" stroke-width="1.2"/>
+      <text x="${x}" y="${yHuman - 3}" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">${title}</text>
+      <text x="${x}" y="${yHuman + 14}" text-anchor="middle" font-size="11" fill="var(--muted)">${sub}</text></g>`;
+    // Your three touch points.
+    s += human(cx(0) - colW * 0.0, "File a request", "issue + factory label");
+    s += human(askX, "Answer a question", "only when asked");
+    s += human(doneX, "Test & merge", "you decide what ships");
+    // Request flows down into the first agent.
+    s += `<path d="M${cx(0)} ${yHuman + 26} L${cx(0)} ${yAgent - bh / 2 - 2}" stroke="var(--faint)" stroke-width="1.5" fill="none" marker-end="url(#ah)"/>`;
+    // Forward arrows between agents.
+    A.forEach((a, i) => {
+      if (i < A.length - 1) s += `<path d="M${cx(i) + bw / 2} ${yAgent} L${cx(i + 1) - bw / 2 - 2} ${yAgent}" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ah)"/>`;
+    });
+    // Last agent hands up to you.
+    const last = A.length - 1;
+    s += `<path d="M${cx(last) + bw / 2} ${yAgent} C${doneX} ${yAgent} ${doneX} ${yAgent} ${doneX} ${yHuman + 28}" stroke="var(--faint)" stroke-width="1.5" fill="none" marker-end="url(#ah)"/>`;
+    // Questions go up (dashed) to "Answer a question" and your reply comes back down.
+    waitIdx.forEach(i => {
+      s += `<path d="M${cx(i)} ${yAgent - bh / 2} L${cx(i)} ${yAgent - bh / 2 - 18} L${askX} ${yHuman + 46} L${askX} ${yHuman + 28}" stroke="var(--human)" stroke-width="1.3" stroke-dasharray="4 4" fill="none" marker-end="url(#ahh)"/>`;
+    });
+    // Rework loops: a route that goes back to an earlier stage, drawn under the lane.
+    let depth = 0;
+    A.forEach((a, i) => a.decisions.forEach(d => {
+      const j = A.findIndex(b => b.stage === d.next);
+      if (j >= 0 && j < i) {
+        const y = yAgent + bh / 2 + 22 + depth * 18; depth++;
+        s += `<path d="M${cx(i)} ${yAgent + bh / 2} L${cx(i)} ${y} L${cx(j) + 10} ${y} L${cx(j) + 10} ${yAgent + bh / 2 + 2}" stroke="var(--bad)" stroke-width="1.3" fill="none" marker-end="url(#ahb)"/>
+          <text x="${(cx(i) + cx(j)) / 2}" y="${y - 5}" text-anchor="middle" font-size="11" fill="var(--bad)">${esc(d.name.replace(/_/g, " "))}</text>`;
+      }
+    }));
+    // Agent nodes on top of the arrows.
+    A.forEach((a, i) => {
+      const st = stats(a), busy = st.running.length;
+      const line = busy ? `working on #${st.running[0].issue}` : `${st.runs.length} run${st.runs.length === 1 ? "" : "s"} · ${st.success} ok`;
+      s += `<g class="node${selected === a.name ? " sel" : ""}" data-agent="${esc(a.name)}" tabindex="0" role="button" aria-label="${esc(a.title)} agent details">
+        <rect class="box" x="${cx(i) - bw / 2}" y="${yAgent - bh / 2}" width="${bw}" height="${bh}" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.2"/>
+        <rect x="${cx(i) - bw / 2}" y="${yAgent - bh / 2}" width="4" height="${bh}" rx="2" fill="${esc(a.color)}"/>
+        <text x="${cx(i) - bw / 2 + 16}" y="${yAgent - 8}" font-size="13" font-weight="600" fill="var(--ink)">${esc(a.title)}</text>
+        <text x="${cx(i) - bw / 2 + 16}" y="${yAgent + 12}" font-size="11" fill="${busy ? "var(--accent)" : "var(--muted)"}">${busy ? "● " : ""}${esc(line)}</text>
+      </g>`;
+    });
+    s += `</svg>`;
+    return `<section aria-label="Pipeline"><div class="sec-head"><h2>Pipeline</h2><p>Select an agent to see what it is and how it is set up</p></div>
+      <div class="card"><div class="map">${s}</div>
+      <div class="legend"><span><i></i>work moves forward</span><span><i class="dash"></i>question for you, your reply resumes it</span><span><i class="back"></i>sent back for fixes (max 3)</span></div>
+      ${N ? `<div class="night"><span class="night-label">While you sleep</span>
+        <span>The <button type="button" class="link" data-agent="${esc(N.scout.name)}">${esc(N.scout.title)}</button> agent proposes up to ${N.max_proposals} requests ${esc(N.schedule || "each night")}.
+        ${N.auto_build ? "They are built straight away." : "They wait for you to approve them with the <span class=\"mono\">factory</span> label."}
+        Approved requests keep moving through the pipeline around the clock${N.per_day_usd ? `, up to ${money(N.per_day_usd)} a day` : ""}.</span></div>` : ""}</div></section>`;
+  }
+
+  function requests() {
+    if (!D.issues.length) return `<section><div class="sec-head"><h2>Requests</h2></div><div class="card empty">No requests yet. Use New request to file one.</div></section>`;
+    const head = D.agents.map(a => `<th class="c hide-sm">${esc(a.title)}</th>`).join("");
+    const rows = D.issues.map(i => {
+      const done = new Set(D.runs.filter(r => r.issue === i.number && r.status === "succeeded").map(r => r.stage));
+      const cells = D.agents.map(a => {
+        let cls = "";
+        if (i.state === "done" || (done.has(a.stage) && a.stage !== i.stage)) cls = "done";
+        else if (a.stage === i.stage && i.state === "waiting") cls = "wait";
+        else if (a.stage === i.stage && (i.state === "running" || i.state === "queued")) cls = "cur" + (i.state === "running" ? " live" : "");
+        return `<td class="c hide-sm"><span class="step ${cls}" style="--c:${esc(a.color)}" title="${esc(a.title)}"></span></td>`;
+      }).join("");
+      return `<tr><td><div class="req-title"><a href="${issueUrl(i.number)}">#${i.number}</a> ${esc(i.title)}</div>
+          <div class="req-sub">${i.pr ? `PR <a href="${prUrl(i.pr)}">#${i.pr}</a> · ` : ""}${money(i.cost_usd)} · ${ago(i.updated)}</div></td>
+        ${cells}<td class="r"><span class="pill ${i.state}">${STATE[i.state] || i.state}</span></td></tr>`;
+    }).join("");
+    return `<section aria-label="Requests"><div class="sec-head"><h2>Requests</h2><p>Where each request is in the pipeline</p></div>
+      <div class="card grid"><table><thead><tr><th>Request</th>${head}<th class="r">Status</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  }
+
+  function runs() {
+    const list = D.runs.filter(r => filter === "all" || r.agent === filter).slice(0, 60);
+    const chips = [["all", "All"]].concat(D.agents.concat(N ? [N.scout] : []).map(a => [a.name, a.title]))
+      .map(([k, t]) => `<button type="button" data-filter="${esc(k)}" aria-pressed="${filter === k}">${esc(t)}</button>`).join("");
+    const items = list.map(r => {
+      const a = byName[r.agent] || { title: r.agent, color: "var(--faint)" };
+      const outcome = r.status === "running" ? `<span class="muted">${md((r.activity || []).slice(-1)[0] || "Starting up")}</span>`
+        : r.status === "failed" ? `<span class="pill failed">Failed</span> <span class="muted">${esc(r.error || "")}</span>`
+        : `<span class="mono">${esc(r.decision)}</span>${r.next ? ` <span class="muted">→ ${esc(target(r.next))}</span>` : ""}`;
+      return `<li><span class="when">${r.status === "running" ? '<span class="live" style="color:var(--accent)">● now</span>' : ago(r.started)}</span>
+        <span class="agent" style="--c:${esc(a.color)}"><span class="dot"></span>${esc(a.title)}</span>
+        <span class="what"><a href="${issueUrl(r.issue)}">#${r.issue}</a> ${outcome}</span>
+        <span class="cost"><span class="sm-only">${r.status === "running" ? "now" : ago(r.started)}${r.status === "running" ? "" : " · "}</span>${r.status === "running" ? "" : `${mins(r.duration_s)} · ${money(r.cost_usd)}`}${r.run_url ? ` · <a href="${esc(r.run_url)}">logs</a>` : ""}</span></li>`;
+    }).join("");
+    return `<section aria-label="Runs"><div class="sec-head"><h2>Recent runs</h2><div class="filters" role="group" aria-label="Filter by agent">${chips}</div></div>
+      <div class="card">${items ? `<ul class="runs">${items}</ul>` : '<div class="empty">No runs for this agent yet.</div>'}</div></section>`;
+  }
+
+  function drawer() {
+    const a = byName[selected];
+    if (!a) { drawerRoot.innerHTML = ""; return; }
+    const st = stats(a);
+    drawerRoot.innerHTML = `<div class="scrim" data-close></div>
+      <aside class="drawer" role="dialog" aria-modal="true" aria-label="${esc(a.title)} agent" style="--c:${esc(a.color)}">
+        <button class="close" type="button" data-close>Close</button>
+        <h2><span class="swatch"></span>${esc(a.title)}</h2>
+        <p>${esc(a.description)}</p>
+        <div>${st.running.length ? `<span class="pill running">Working on #${st.running[0].issue}</span> <span class="muted">${md((st.running[0].activity || []).slice(-1)[0] || "")}</span>`
+          : `<span class="pill queued">Idle</span> <span class="muted">${st.last ? `last ran ${ago(st.last.finished || st.last.started)} on #${st.last.issue}` : "has not run yet"}</span>`}</div>
+        <dl class="kv">
+          <dt>Model</dt><dd class="mono">${esc(a.model)}, effort ${esc(a.effort)}</dd>
+          <dt>Can use</dt><dd>${a.tools.map(t => `<span class="chip">${esc(t)}</span>`).join("")}${a.disallowed_tools.map(t => `<span class="chip deny">no ${esc(t)}</span>`).join("")}</dd>
+          <dt>Changes</dt><dd>${a.workspace === "write" ? "Edits files on the feature branch" : "Read only"}</dd>
+          <dt>Sees</dt><dd>${a.context.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</dd>
+          <dt>Budget</dt><dd class="num">${money(a.budget_usd)} per run</dd>
+          ${a.stage ? "" : `<dt>When</dt><dd>${esc((N && N.schedule) || "overnight")}</dd>`}
+          <dt>So far</dt><dd class="num">${st.runs.length} run${st.runs.length === 1 ? "" : "s"} · ${st.success} finished ok · avg ${st.avg} · ${money(st.cost)}</dd>
+        </dl>
+        <div><div class="label">Decisions</div>${a.decisions.map(d => !d.next ? `<div class="route"><span class="mono">${esc(d.name)}</span><span class="muted"></span><span></span><span class="m">${esc(d.meaning)}</span></div>` : `<div class="route"><span class="mono">${esc(d.name)}</span><span class="muted">→</span><b>${esc(target(d.next))}</b><span class="m">${esc(d.meaning)}</span></div>`).join("")}</div>
+        <div><div class="label">Prompt</div><pre class="prompt">${esc(reflow(a.prompt))}</pre></div>
+        <p class="hint">Edit <span class="mono">${esc(a.file)}</span> and <span class="mono">${esc(a.prompt_file)}</span> to change this agent.</p>
+      </aside>`;
+    drawerRoot.querySelector(".close").focus();
+  }
+
+  function render() {
+    app.innerHTML = top() + needs() + map() + requests() + runs() +
+      `<footer>Agents live in <span class="mono">factory/agents/</span> and the pipeline in <span class="mono">factory/factory.yaml</span>.${D.sample ? " All figures on this page are examples." : ""}</footer>`;
+    drawer();
+  }
+  function open(name) { selected = selected === name ? null : name; render(); }
+
+  app.addEventListener("click", e => {
+    const node = e.target.closest("[data-agent]");
+    if (node) { open(node.dataset.agent); return; }
+    const f = e.target.closest("[data-filter]");
+    if (f) { filter = f.dataset.filter; render(); }
+  });
+  app.addEventListener("keydown", e => {
+    const node = e.target.closest("[data-agent]");
+    if (node && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(node.dataset.agent); }
+  });
+  drawerRoot.addEventListener("click", e => { if (e.target.closest("[data-close]")) { selected = null; render(); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && selected) { selected = null; render(); } });
+  render();
+  if (!D.sample) setInterval(() => { if (!selected) location.reload(); }, 120000);
+})();
+</script>

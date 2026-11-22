@@ -1,0 +1,38 @@
+name: Feature request for the factory
+description: Describe a feature. Agents triage, spec, build, review and test it, then hand you a pull request.
+title: ""
+labels: [factory]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The factory picks this up within a minute. Each agent posts its progress here.
+        If it needs something from you it asks in a comment; just reply.
+        Comment `/factory status` any time, or `/factory stop` to cancel.
+  - type: textarea
+    id: what
+    attributes:
+      label: What should Trace do?
+      description: The behaviour you want, in your own words.
+      placeholder: When I click the menu bar icon, show my top three projects today with time spent on each.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The problem it solves. Helps the agents make good small decisions.
+  - type: textarea
+    id: done
+    attributes:
+      label: How will you know it works?
+      description: What you will check when you test it. Optional; the spec agent fills gaps.
+  - type: dropdown
+    id: size
+    attributes:
+      label: How big do you think it is?
+      options:
+        - Small (a few hours)
+        - Medium (about a day)
+        - Large (split it up if you can)
+        - Not sure

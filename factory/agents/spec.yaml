@@ -1,0 +1,22 @@
+# Spec: turns an accepted request into a buildable spec.
+name: spec
+title: Spec
+icon: "📐"
+color: "#0ea5e9"
+description: >
+  Turns the accepted request into a short spec: the behaviour, the files
+  likely to change, acceptance criteria and the tests that prove it. Writes it
+  to docs/specs on the feature branch.
+
+model: claude-opus-5-5
+effort: high
+prompt: prompts/spec.md
+tools: [Read, Grep, Glob, Write, Edit]
+workspace: write
+budget_usd: 3
+
+context: [issue, comments, reports]
+
+decisions:
+  done: The spec is written and ready to implement.
+  needs_info: A product decision is needed from the requester first.

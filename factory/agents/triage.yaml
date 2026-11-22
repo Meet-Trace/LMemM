@@ -1,0 +1,27 @@
+# Triage: decides whether a request is ready to build.
+name: triage
+title: Triage
+icon: "🧭"
+color: "#6366f1"
+description: >
+  Reads a new feature request, checks it against the codebase and decides
+  whether it is clear, in scope and small enough to build. Asks you a question
+  when it is not.
+
+model: claude-opus-5-5
+effort: medium
+prompt: prompts/triage.md
+# Read-only: triage looks at the code but never changes it.
+tools: [Read, Grep, Glob]
+workspace: read
+budget_usd: 1.5
+
+# What the orchestrator hands the agent.
+context: [issue, comments]
+
+# The decisions this agent can return. The pipeline in factory.yaml maps each
+# one to the next step.
+decisions:
+  accept: The request is clear and buildable; hand it to spec.
+  needs_info: Something essential is missing; ask the requester.
+  reject: Out of scope, a duplicate, or not something to build.

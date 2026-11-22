@@ -1,0 +1,25 @@
+# UI: owns the look and feel of what the change touches.
+name: ui
+title: UI
+icon: "🎨"
+color: "#ec4899"
+description: >
+  Senior product designer and frontend engineer. Turns the implemented change
+  into a polished interface that feels like Trace: calm, editorial, restrained,
+  no glassmorphism. Skips changes that have no UI.
+
+model: claude-sonnet-5-5
+effort: high
+prompt: prompts/ui.md
+tools: [Read, Grep, Glob, Write, Edit, Bash]
+# The orchestrator commits and pushes; the agent must not.
+disallowed_tools: ["Bash(git push:*)", "Bash(git commit:*)", "Bash(gh:*)"]
+workspace: write
+budget_usd: 5
+
+context: [issue, comments, reports, diff]
+
+decisions:
+  done: The UI work is finished and the tests still pass.
+  skip: The change has no user interface, so there was nothing to design.
+  needs_info: Needs a product or design decision from the requester.

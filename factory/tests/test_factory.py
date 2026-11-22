@@ -33,7 +33,7 @@ def copy_factory(tmp: Path) -> Path:
 class ConfigTests(unittest.TestCase):
     def test_repo_config_is_valid(self):
         f = config.load(REAL)
-        self.assertEqual(f.stage_names, ("triage", "spec", "implement", "review", "verify"))
+        self.assertEqual(f.stage_names, ("triage", "spec", "implement", "ui", "review", "verify"))
         self.assertEqual(f.agent_for("review").builtin_tools, ("Read", "Grep", "Glob"))
         self.assertIn("avnidhir", f.allowed_users)
 
@@ -70,9 +70,9 @@ class ConfigTests(unittest.TestCase):
                                      "      done: verify\n      needs_info: wait\n\n  - stage: verify")
             (root / "factory.yaml").write_text(text)
             f = config.load(root)
-            self.assertEqual(f.stage_names, ("triage", "spec", "implement", "review", "security", "verify"))
+            self.assertEqual(f.stage_names, ("triage", "spec", "implement", "ui", "review", "security", "verify"))
             # Removing the review stage leaves nothing pointing at security: reported, not ignored.
-            text = text.replace("      done: review", "      done: verify")
+            text = text.replace("      done: review\n      skip: review", "      done: verify\n      skip: verify")
             (root / "factory.yaml").write_text(text)
             with self.assertRaisesRegex(config.ConfigError, "can never be reached"):
                 config.load(root)
@@ -155,10 +155,10 @@ class OrchestratorTests(unittest.TestCase):
         return pipeline.Orchestrator(self.f, self.gh, ws, run_agent=script, log=lambda *_: None)
 
     def test_happy_path_reaches_a_ready_pull_request(self):
-        script = Scripted({"triage": ["accept"], "spec": ["done"], "implement": ["done"],
+        script = Scripted({"triage": ["accept"], "spec": ["done"], "implement": ["done"], "ui": ["done"],
                            "review": ["approve"], "verify": ["pass"]})
         self.assertEqual(self.orch(script).advance(7), "done")
-        self.assertEqual([c[0] for c in script.calls], ["triage", "spec", "implement", "review", "verify"])
+        self.assertEqual([c[0] for c in script.calls], ["triage", "spec", "implement", "ui", "review", "verify"])
         self.assertEqual(self.gh.labels(7), {"factory", "factory:done"})
         pr = self.gh.prs["factory/issue-7"]
         self.assertFalse(pr["draft"])
@@ -167,11 +167,11 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("spec.md", files)
         self.assertNotIn("stray.txt", files)
         runs = records.runs_from_comments(self.gh.comments(7))
-        self.assertEqual([r["status"] for r in runs], ["succeeded"] * 5)
+        self.assertEqual([r["status"] for r in runs], ["succeeded"] * 6)
         self.assertEqual(runs[-1]["next"], "done")
         self.assertEqual(runs[0]["tokens"], {"input": 10, "output": 20, "cache_read": 300, "cache_write": 0})
         # Later agents saw earlier reports and the diff.
-        review_task = script.calls[3][1]
+        review_task = script.calls[4][1]
         self.assertIn("Report from spec.", review_task)
         self.assertIn("```diff", review_task)
         self.assertIn("Ready for you to test", self.gh.comments(7)[-1]["body"])
@@ -182,7 +182,8 @@ class OrchestratorTests(unittest.TestCase):
         def refuse(*args):
             raise GitHubError("POST /pulls -> 403: GitHub Actions is not permitted to create pull requests")
         self.gh.create_pr = refuse
-        script = Scripted({"triage": ["accept"], "spec": ["done"], "implement": ["done"],
+        # A change with no UI: the UI agent skips straight to review.
+        script = Scripted({"triage": ["accept"], "spec": ["done"], "implement": ["done"], "ui": ["skip"],
                            "review": ["approve"], "verify": ["pass"]})
         self.assertEqual(self.orch(script).advance(7), "done")
         last = self.gh.comments(7)[-1]["body"]
@@ -191,7 +192,7 @@ class OrchestratorTests(unittest.TestCase):
 
     def test_review_sends_work_back_then_parks_after_the_loop_limit(self):
         script = Scripted({"triage": ["accept"], "spec": ["done"], "implement": ["done"] * 5,
-                           "review": ["changes_requested"] * 5, "verify": []})
+                           "ui": ["skip"] * 5, "review": ["changes_requested"] * 5, "verify": []})
         orch = self.orch(script)
         orch.f.policies["max_stages_per_job"] = 20
         self.assertEqual(orch.advance(7), "wait")

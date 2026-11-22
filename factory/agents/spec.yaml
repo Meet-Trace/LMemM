@@ -8,7 +8,7 @@ description: >
   likely to change, acceptance criteria and the tests that prove it. Writes it
   to docs/specs on the feature branch.
 
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 prompt: prompts/spec.md
 tools: [Read, Grep, Glob, Write, Edit]

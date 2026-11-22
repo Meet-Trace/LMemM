@@ -8,7 +8,7 @@ description: >
   whether it is clear, in scope and small enough to build. Asks you a question
   when it is not.
 
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: medium
 prompt: prompts/triage.md
 # Read-only: triage looks at the code but never changes it.

@@ -13,7 +13,7 @@ flowchart LR
   end
   subgraph Agents
     S[Scout<br/>overnight] -.proposes.-> AP
-    TR[Triage] --> SP[Spec] --> IM[Implement] --> RV[Code review] --> VE[Verify & test]
+    TR[Triage] --> SP[Spec] --> IM[Implement] --> UI[UI design] --> RV[Code review] --> VE[Verify & test]
     RV -- changes requested --> IM
     VE -- tests fail --> IM
   end
@@ -75,7 +75,7 @@ python -m factory agents            # prints the pipeline
 python -m factory new-agent security  # scaffolds agents/security.yaml + prompts/security.md
 ```
 
-- **Edit** an agent: change its YAML (for example `model: claude-sonnet-5-5`,
+- **Edit** an agent: change its YAML (for example `model: claude-opus-5-5`,
   `effort: high`, `budget_usd: 2`, add `Bash` to `tools`) or its prompt.
 - **Add** an agent: scaffold it, write its prompt, then add a stage to
   `factory.yaml` and point another stage's decision at it.

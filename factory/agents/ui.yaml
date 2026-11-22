@@ -1,0 +1,24 @@
+# UI: owns the look and feel of what the change touches.
+# Not in the pipeline yet: add a stage for it in factory.yaml once its prompt is written.
+name: ui
+title: UI
+icon: "🎨"
+color: "#ec4899"
+description: >
+  Polishes the user interface the change touches, so it stays calm, tidy and
+  consistent with the rest of Trace. Its full instructions are still to come.
+
+model: claude-opus-5-5
+effort: high
+prompt: prompts/ui.md
+tools: [Read, Grep, Glob, Write, Edit, Bash]
+# The orchestrator commits and pushes; the agent must not.
+disallowed_tools: ["Bash(git push:*)", "Bash(git commit:*)", "Bash(gh:*)"]
+workspace: write
+budget_usd: 5
+
+context: [issue, comments, reports, diff]
+
+decisions:
+  done: The UI work is finished and the tests still pass.
+  needs_info: Needs a design decision from the requester.

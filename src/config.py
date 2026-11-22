@@ -95,7 +95,7 @@ OBS_RETENTION = 120.0       # seconds: observations older than this (before the 
 OBS_MIN_AGREE = 2           # an app read is used only if at least this many of the OCR's lines (fewer if it has fewer) match it...
 OBS_MIN_SHARE = 0.5         # ...and at least this share of them
 MAX_VARIANTS = 20           # OCR originals kept on one stored excerpt when accessibility text replaced them
-MOMENT_LOG = False          # opt-in (shadow only): keep a small digest per stretch of each visit (moments.py); nothing reads it yet
+MOMENT_LOG = True           # keep a small digest per stretch of each visit for 48 h (moments.py); Work History reads it (history_model H11)
 MOMENT_KEEP_LINES = True    # keep up to 3 short quoted lines in a digest; False = terms and identifiers only
 MOMENT_VISIT_GAP = 90.0     # seconds with no frame after which the next frame starts a new visit (pause, idle, lock, sleep)
 MOMENT_MIN_CATEGORY_S = 10.0  # the interaction category must change after this long in a moment to start a new one

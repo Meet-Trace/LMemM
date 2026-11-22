@@ -51,9 +51,9 @@ class Base(unittest.TestCase):
         s["hist"].update(hist)
         return s
 
-    def view(self, items=None, now=NOW, live=None, skip=(), **hist):
+    def view(self, items=None, now=NOW, live=None, skip=(), moments=(), **hist):
         return hm.view(self.reg, self.items if items is None else items, self.state(**hist), now,
-                       sessions_dir=self.dir, live=live, skip=skip)
+                       sessions_dir=self.dir, live=live, skip=skip, moments=moments)
 
     def rows(self, page):
         return [r for g in page["groups"] for r in g["rows"]]
@@ -281,6 +281,55 @@ class Search(Base):
             source = fh.read()
         for word in ("urllib", "requests", "socket", "narrator", "embedding", "semantic"):
             self.assertNotIn(word, source)
+
+
+def mom(item, vid, a, b, seq=0):
+    """A stored moment record; a and b are 'HH:MM:SS' on NOW's day."""
+    t = lambda c: datetime.strptime("2026-11-22 " + c, "%Y-%m-%d %H:%M:%S").timestamp()
+    return {"item_id": item, "visit_id": vid, "seq": seq, "t_start": t(a), "t_end": t(b)}
+
+
+class MomentFeedTests(Base):
+    def test_a_visit_is_one_entry_however_many_moments_it_has(self):
+        recs = [mom("a", "v1", "09:00:00", "09:10:00"), mom("a", "v1", "09:10:00", "09:25:00", 1)]
+        row, = self.rows(self.view(moments=recs))
+        self.assertEqual((row["id"], row["span"], row["seconds"]), ("a", "09:00–09:25", 1500))
+
+    def test_a_pass_through_tab_is_not_work_history(self):
+        recs = [mom("a", "v1", "09:00:00", "09:10:00"), mom("b", "v2", "09:10:00", "09:10:08"),
+                mom("a", "v3", "09:10:08", "09:20:00")]
+        page = self.view(moments=recs)
+        self.assertEqual([r["id"] for r in self.rows(page)], ["a"])          # the bounce is gone, and a before and after it is one entry
+        self.assertEqual(self.rows(page)[0]["span"], "09:00–09:20")
+
+    def test_moments_replace_the_session_stretches_from_their_start_but_older_ones_stay(self):
+        self.session("20261122-080000", [stretch("c", "08:00:00", "08:30:00", 1800), stretch("b", "09:05:00", "09:05:05", 5),
+                                         stretch("c", "09:05:05", "09:06:00", 55)])
+        recs = [mom("a", "v1", "09:00:00", "09:10:00")]
+        self.assertEqual([r["id"] for r in self.rows(self.view(moments=recs))], ["c", "a"])
+
+    def test_the_running_sessions_tab_switches_are_not_shown_once_moments_exist(self):
+        live = ("20261122-090000", [stretch("b", "09:05:00", "09:05:05", 5)])
+        recs = [mom("a", "v1", "09:00:00", "09:10:00")]
+        self.assertEqual([r["id"] for r in self.rows(self.view(moments=recs, live=live))], ["a"])
+
+    def test_a_moment_for_a_forgotten_thing_or_a_never_remember_app_is_hidden(self):
+        recs = [mom("zz", "v1", "09:00:00", "09:10:00"), mom("c", "v2", "09:10:00", "09:20:00")]
+        self.assertEqual([r["id"] for r in self.rows(self.view(moments=recs))], ["c"])
+        self.assertEqual(self.rows(self.view(moments=recs, skip=[{"name": "Notes"}])), [])
+
+    def test_moments_alone_are_enough_for_a_page_and_a_day_jump(self):
+        page = self.view(moments=[mom("a", "v1", "09:00:00", "09:10:00")])
+        self.assertIsNone(page["empty"])
+        self.assertEqual(page["jump"][0]["day"], "2026-11-22")
+
+    def test_malformed_records_are_skipped(self):
+        recs = [{"item_id": "a"}, {"item_id": 3, "visit_id": "v", "t_start": 1, "t_end": 99}, mom("a", "v1", "09:00:00", "09:10:00")]
+        self.assertEqual([r["id"] for r in self.rows(self.view(moments=recs))], ["a"])
+
+    def test_no_moments_leaves_the_session_feed_as_it_was(self):
+        self.today()
+        self.assertEqual(len(self.rows(self.view())), 3)
 
 
 if __name__ == "__main__":

@@ -45,8 +45,8 @@ page (`Tracker.open_window`, then `open_history`). Reading history never pauses,
   done), and kept excerpt text. Nothing matches: "Nothing found for “x”". No model, no network.
 - **Evidence honesty:** an entry for a thing whose screenshot is gone or whose excerpts are gone simply has no
   screenshot or excerpts on its page. Older entries show times, app, project and name only. Nothing says or implies
-  more exists. Moments and the event trail (48 h) are not used; the history is built from sessions plus the thing
-  record.
+  more exists. The last 48 h are built from Moments (one entry per visit, visits under 30 s dropped, so tab switches do not
+  clutter it); older time is built from sessions. The event trail is not used. Both join the thing record.
 - **Error and empty states:** no sessions yet: "Nothing remembered yet. Your work will appear here as you go." A
   session file that cannot be read is skipped, and the rest still shows. A load failure never raises into the UI.
 - **Loading:** one day (plus its session files) is read at a time; a day's rows are cached by session file

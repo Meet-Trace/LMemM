@@ -2,7 +2,7 @@
 
 The page answers: "what did I work on, and when?". It is a read only view over what LMemM already keeps: the
 session files (long lived, one per run, a timeline of stretches that point at things) joined to the live things.
-Nothing here writes, caches memory of its own, or reads moments or the event trail (they only last 48 hours).
+Nothing here writes or caches memory of its own. Recent time comes from Moments (H11); it never reads the event trail.
 window.py draws it and forwards presses to page_model.press(); it decides nothing.
 
     H1  Today is the default. Yesterday, This week (the last 7 days) and Earlier (older days that have anything)
@@ -23,6 +23,10 @@ window.py draws it and forwards presses to page_model.press(); it decides nothin
     H9  Earlier pages itself seven days at a time, never reading further than it shows. Search pages by fifty.
     H10 Search looks at thing titles, project names and old names, notes (open and done) and kept excerpt text,
         case and accents ignored, across all of history. No model, no network, no index of its own.
+    H11 Where Moments exist (they last 48 hours) they are the record of the time: one entry per visit, never one per
+        tab switch. A visit's moments are one stretch, and a visit with under MIN_VISIT_S of dwell is a pass-through
+        and is dropped. Session stretches starting at or after the first moment are not shown (they are the noisy
+        per tab feed); older ones are, so earlier days keep working. With no moments the page is as it was.
 """
 
 import os
@@ -39,6 +43,7 @@ MODES = (("timeline", "Timeline"), ("projects", "Projects"), ("apps", "Apps"))
 JUMP_DAYS = 60
 WEEK_DAYS = 7
 MIN_SECONDS = 60
+MIN_VISIT_S = 30                    # a visit shorter than this is a pass-through (a tab clicked past), not work
 EMPTY = {"title": "Nothing remembered yet", "line": "Your work will appear here as you go."}
 NO_DAY = {"title": "Nothing remembered for this day", "line": "Pick another day, or look at This week."}
 NONE_FOUND = {"title": "Nothing found", "line": "Try part of a name, a project, a note or some text you read."}
@@ -93,9 +98,9 @@ def _names(sessions_dir):
     return out
 
 
-def days(sessions_dir, live=None):
-    """The days that have a session starting on them, newest first, without opening a file."""
-    found = {start.date() for start, _name in _names(sessions_dir)}
+def days(sessions_dir, live=None, moments=()):
+    """The days that have a session or a moment starting on them, newest first, without opening a session file."""
+    found = {start.date() for start, _name in _names(sessions_dir)} | {e["start"].date() for e in moments}
     started = _start_of(live[0]) if live else None
     if started:
         found.add(started.date())
@@ -143,6 +148,27 @@ def _events(start, timeline):
     return out
 
 
+def moment_events(records):
+    """Moment records (dicts, as MomentStore.read gives them) -> one stretch per visit, oldest first (H11). A visit
+    with under MIN_VISIT_S of dwell is dropped. Records that cannot be read are skipped."""
+    visits = {}
+    for r in records or ():
+        try:
+            item, vid = r["item_id"], r["visit_id"]
+            a, b = float(r["t_start"]), float(r["t_end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not isinstance(item, str) or not isinstance(vid, str):
+            continue
+        v = visits.setdefault(vid, {"item": item, "a": a, "b": b, "dwell": 0.0})
+        v["a"], v["b"] = min(v["a"], a), max(v["b"], b)
+        v["dwell"] += max(0.0, b - a)
+    out = [{"item": v["item"], "start": datetime.fromtimestamp(v["a"]), "end": datetime.fromtimestamp(v["b"]),
+            "seconds": int(v["dwell"])} for v in visits.values() if v["dwell"] >= MIN_VISIT_S]
+    out.sort(key=lambda e: e["start"])
+    return out
+
+
 def _load(path):
     """One session file's stretches, parsed again only when the file changed (H3). Never raises."""
     import json
@@ -164,9 +190,10 @@ def _load(path):
     return parsed
 
 
-def day_events(sessions_dir, day, live=None, names=None):
+def day_events(sessions_dir, day, live=None, names=None, moments=()):
     """The stretches that began on `day`, oldest first. `live` is (session id, events) of the running session: it is
-    not on disk until saved, so it is read from memory and its file, if any, is ignored."""
+    not on disk until saved, so it is read from memory and its file, if any, is ignored. `moments` (moment_events) replace
+    every session stretch that starts at or after the first of them (H11)."""
     names = _names(sessions_dir) if names is None else names
     live_id = live[0] if live else None
     before = [n for s, n in names if s.date() < day and n[:-5] != live_id]
@@ -178,6 +205,9 @@ def day_events(sessions_dir, day, live=None, names=None):
     started = _start_of(live_id) if live else None
     if started:
         out += [e for e in _events(started, [dict(x) for x in live[1]]) if e["start"].date() == day]
+    if moments:
+        out = [e for e in out if e["start"] < moments[0]["start"]]
+        out += [e for e in moments if e["start"].date() == day]
     out.sort(key=lambda e: e["start"])
     return out
 
@@ -255,18 +285,18 @@ def _summary(rows):
 
 # ---------------------------------------------------------------- the page
 
-def _range(hist, today, sessions_dir, live, names, reg, items, hide):
+def _range(hist, today, sessions_dir, live, names, reg, items, hide, moments):
     """[(day, rows)] for the scope, newest day first, and whether Earlier has more to show (H1, H9)."""
     scope = hist["scope"]
     if scope == "week":
         want = [today - timedelta(days=k) for k in range(WEEK_DAYS)]
-        return [(d, entries(reg, items, day_events(sessions_dir, d, live, names), hide)) for d in want], False
+        return [(d, entries(reg, items, day_events(sessions_dir, d, live, names, moments), hide)) for d in want], False
     if scope == "earlier":
         edge = today - timedelta(days=WEEK_DAYS - 1)
-        older = [d for d in days(sessions_dir, live) if d < edge]
+        older = [d for d in days(sessions_dir, live, moments) if d < edge]
         got, more = [], False
         for d in older:
-            rows = entries(reg, items, day_events(sessions_dir, d, live, names), hide)
+            rows = entries(reg, items, day_events(sessions_dir, d, live, names, moments), hide)
             if not rows:
                 continue
             if len(got) >= hist["n"]:
@@ -275,7 +305,7 @@ def _range(hist, today, sessions_dir, live, names, reg, items, hide):
             got.append((d, rows))
         return got, more
     d = selected(hist, today)
-    return [(d, entries(reg, items, day_events(sessions_dir, d, live, names), hide))], False
+    return [(d, entries(reg, items, day_events(sessions_dir, d, live, names, moments), hide))], False
 
 
 def _stamped(rows, today):
@@ -312,29 +342,30 @@ def _groups(rows, mode, today):
     return [{k: v for k, v in s.items() if k not in ("recent", "none")} for s in sections]
 
 
-def _jump(sessions_dir, live, today):
-    return [{"day": d.isoformat(), "title": label(d, today)} for d in days(sessions_dir, live)[:JUMP_DAYS]]
+def _jump(sessions_dir, live, today, moments=()):
+    return [{"day": d.isoformat(), "title": label(d, today)} for d in days(sessions_dir, live, moments)[:JUMP_DAYS]]
 
 
-def view(reg, items, state, now, sessions_dir=None, live=None, skip=()):
+def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=()):
     """The history page for state["hist"]. A failure to read never raises (a file that cannot be read is skipped)."""
     hist = state["hist"]
     today = now.date()
     hide = hidden_apps(skip)
+    moments = moment_events(moments)
     names = _names(sessions_dir) if sessions_dir else []
     page = {"kind": "history", "title": "Work History", "back": True, "mode": hist["mode"], "scope": hist["scope"],
             "q": hist["q"], "scopes": [{"id": k, "title": t, "on": k == hist["scope"]} for k, t in SCOPES],
             "modes": [{"id": k, "title": t, "on": k == hist["mode"]} for k, t in MODES],
-            "day": selected(hist, today).isoformat(), "jump": _jump(sessions_dir, live, today) if sessions_dir else [],
+            "day": selected(hist, today).isoformat(), "jump": _jump(sessions_dir, live, today, moments) if sessions_dir else [],
             "can_next": hist["scope"] in ("yesterday", "day"), "can_prev": True}
     if hist["scope"] in ("week", "earlier"):
         page["can_next"] = page["can_prev"] = False
     page["heading"] = {"week": "This week", "earlier": "Earlier"}.get(hist["scope"]) or label(selected(hist, today), today)
     if hist["q"]:
         return {**page, **_search(reg, items, hist, hide, now)}
-    if not items or not (names or live and live[1]):
+    if not items or not (names or moments or live and live[1]):
         return {**page, "groups": [], "more": False, "summary": "", "empty": EMPTY}
-    ranged, more = _range(hist, today, sessions_dir, live, names, reg, items, hide)
+    ranged, more = _range(hist, today, sessions_dir, live, names, reg, items, hide, moments)
     rows = [r for _d, rs in ranged for r in rs]
     return {**page, "groups": _groups(rows, hist["mode"], today), "more": more,
             "summary": _summary(rows), "empty": None if rows else (NO_DAY if hist["scope"] in ("today", "yesterday", "day") else EMPTY)}

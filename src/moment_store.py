@@ -168,6 +168,25 @@ class Recorder:
             disk = self.store.forget(minutes, app, now)
         return mem, disk
 
+    def history(self):
+        """Every stored moment plus the open one (not on disk until closed), oldest first, for Work History. The disk
+        read is repeated only when a day file changed, since the window asks for this on every refresh."""
+        try:
+            sig = []
+            for name in sorted(self.store._files()):
+                st = os.stat(os.path.join(self.store.dir, name))
+                sig.append((name, st.st_mtime_ns, st.st_size))
+            if getattr(self, "_hist_sig", None) != sig:
+                self._hist_recs, self._hist_sig = self.store.read(), sig
+            recs = list(self._hist_recs)
+            with self.buffer.lock:
+                if self.buffer.open is not None:
+                    recs.append(self.buffer.open.to_dict())
+            return recs
+        except Exception as e:
+            print(f"moments: {e!r}")
+            return []
+
     def interrupt(self):
         """The tracker is not looking (pause, idle, lock): close the open moment so it is on disk and not stretched."""
         try:

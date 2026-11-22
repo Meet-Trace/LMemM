@@ -556,9 +556,18 @@ class PartialForgetTests(unittest.TestCase):
 
 
 class RecorderTests(unittest.TestCase):
-    def test_off_by_default(self):
-        self.assertFalse(config.MOMENT_LOG)
+    def test_on_by_default_for_work_history(self):
+        self.assertTrue(config.MOMENT_LOG)
         self.assertEqual(config.MOMENT_RETENTION_HOURS, 48)
+
+    def test_history_gives_stored_and_open_moments_and_follows_a_forget(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = moment_store.Recorder(moment_store.MomentStore(os.path.join(d, "m")))
+            r.frame(T0, "a", {}, {"app": "Docs"}, "r", {"category": "reading"}, 0, {"text": DOC}, False)
+            r.frame(T0 + 20, "b", {}, {"app": "Docs"}, "r", {"category": "reading"}, 0, {"text": DOC}, False)
+            self.assertEqual([m["item_id"] for m in r.history()], ["a", "b"])        # a is stored, b is still open
+            r.forget(None, None, T0 + 30)
+            self.assertEqual(r.history(), [])
 
     def test_frame_never_raises(self):
         with tempfile.TemporaryDirectory() as d:

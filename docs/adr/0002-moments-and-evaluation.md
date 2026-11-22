@@ -9,7 +9,7 @@ One record per stretch of a visit in which nothing material changed (`src/moment
 - New visit when the item changes (any duration) or more than 90 s pass with no frame.
 - Inside a visit a frame extends the open moment. A new moment starts on a category change (after 10 s in the moment), a material text change (3 or more new terms or any new identifier, with a different text hash, and only when the new words persist into a second frame, so OCR noise cannot start a moment or enter a digest), or after 300 s.
 - Separate visits are never merged, even with identical content. A return is a new visit linked by `same_item_before`.
-- In memory: 30 minutes, 400 moments. On disk: `memory/moments/<day>.jsonl`, owner-only, 48 h retention sweep, partial forget by time or app, and `forget.delete_all` already removes the folder. Off by default (`MOMENT_LOG`); the tracker hook is read-only and swallows errors.
+- In memory: 30 minutes, 400 moments. On disk: `memory/moments/<day>.jsonl`, owner-only, 48 h retention sweep, partial forget by time or app, and `forget.delete_all` already removes the folder. On by default (`MOMENT_LOG`), because Work History reads it (`history_model` H11); the tracker hook is read-only and swallows errors.
 
 ## Evaluation (`src/activity_eval.py`, `scripts/eval_activities.py`)
 - **Unit.** The primary annotation unit is the moment. `units.csv` carries `unit_id` (= the moment id), `visit_id` and `moment_id`; a label may span many moments and many visits, and `also` marks concurrent work. Stored sessions and the invented days are visit-level, a legacy coarser view: they are marked as such, written to their own sheets, and never mixed with or compared to moment-level scores. `HOW_TO_LABEL.txt` is written beside each sheet.

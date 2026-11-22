@@ -811,10 +811,11 @@ class Tracker:
 
     def history_data(self):
         """Where Work History reads from: the session files, the running session (not on disk until saved) and the
-        apps you never remember. Read only; the capture loop is not touched."""
+        apps you never remember, and the moments (the record of recent time). Read only; the capture loop is not touched."""
         live = (self.session, [dict(e) for e in list(self.events)])        # copies: the capture thread goes on writing; no lock, so the window never waits on it
         return {"sessions_dir": config.paths().sessions_dir, "live": live,
-                "skip": apps.clean((store.load_user() or {}).get("skip_apps"))}
+                "skip": apps.clean((store.load_user() or {}).get("skip_apps")),
+                "moments": self.moments.history() if self.moments else []}
 
     def widget_history(self):
         self.open_window()

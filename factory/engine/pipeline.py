@@ -217,6 +217,7 @@ class Orchestrator:
 
         def on_activity(line: str) -> None:
             record.add_activity(line)
+            self.log(f"  {agent.name}: {line}")   # so the Actions log shows progress too
             if time.monotonic() - last[0] >= UPDATE_EVERY_S:
                 last[0] = time.monotonic()
                 try:
@@ -469,7 +470,7 @@ class Orchestrator:
         comment = self.gh.comment(log["number"], records.render_comment(record, agent.title, agent.icon))
         record.comment_id = comment["id"]
         result = self.run_agent(agent, task, self.prompt_values({"title": "scout", "number": 0}),
-                                self.ws.path, record.add_activity)
+                                self.ws.path, lambda line: (record.add_activity(line), self.log(f"  scout: {line}")))
         self.ws.discard()
         record.cost_usd, record.turns, record.duration_s = result.cost_usd, result.turns, round(result.duration_s, 1)
         record.tokens = dict(result.tokens)

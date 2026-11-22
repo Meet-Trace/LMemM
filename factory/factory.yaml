@@ -24,14 +24,15 @@ project:
   base_branch: main
   branch_prefix: factory/issue-
   # Commands agents may rely on. The verify agent runs test_command.
-  setup_command: python3 -m pip install --quiet numpy pillow
+  setup_command: python3 -m pip install --quiet -r requirements.txt
   test_command: ./scripts/test.sh
   # Where the spec agent writes specs (dated, like the rest of docs/specs).
   spec_dir: docs/specs
 
 # Where agent runs happen. Any GitHub Actions runner label works.
-# macos-latest matches Trace's real platform; ubuntu-latest is faster to start.
-runner: ubuntu-latest
+# macos-latest matches Trace's real platform, so its macOS tests run for real
+# (free on public repositories). ubuntu-latest starts faster but has no macOS.
+runner: macos-latest
 
 # Spending limits, in US dollars, enforced by the orchestrator.
 budgets:

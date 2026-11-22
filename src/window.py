@@ -2571,9 +2571,9 @@ class MainWindow:
         """One entry: its time at the left, a dot on the spine, then name, where, and the line the thing already stores."""
         pad = 8
         h = 72 if r["doing"] else 52
-        call = lambda i=r["id"]: self.press("thing", i)
+        call = (lambda i=r["id"]: self.press("thing", i)) if r.get("open", True) else None   # a vision Moment is not a thing: nothing to open
         box = _Tap.alloc().initWithFrame_callback_(NSMakeRect(x - pad, y, w + 2 * pad, h), call)
-        lit = self._krow("main", r["key"], call, box)
+        lit = self._krow("main", r["key"], call, box) if call else False
         box.fill = lit
         box.focusable, box.ax_label = True, f"{r['title']}, {r.get('when') or r['span']}"
         kit.put_text(box, r.get("when") or r["span"], pad, 9, HIST_TIME_W - 8, 12, 500, kit.mute(), wrap=False, height=20)
@@ -2584,7 +2584,7 @@ class MainWindow:
         tx = pad + HIST_TIME_W + 24
         room = w + 2 * pad - tx - pad
         kit.put_text(box, r["title"], tx, 8, room, 15, 600, wrap=False, height=20, track=-0.006)
-        where = " · ".join(b for b in (None if mode == "apps" else r["app"], None if mode == "projects" else r["project"], r.get("duration"), f"{r['visits']} visits" if r.get("visits", 1) > 1 else None) if b)
+        where = " · ".join(b for b in (None if mode == "apps" else r["app"], None if mode == "projects" else r["project"], r.get("duration"), f"{r['visits']} {r.get('unit', 'visits')}" if r.get("visits", 1) > 1 else None) if b)
         kit.put_text(box, where, tx, 28, room, 13, 400, kit.mute(), wrap=False, height=18)
         if r["doing"]:
             kit.put_text(box, r["doing"], tx, 47, room, 13, 400, kit.ink(), wrap=False, height=18)

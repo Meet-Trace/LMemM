@@ -154,3 +154,12 @@ page (`Tracker.open_window`, then `open_history`). Reading history never pauses,
   recent entry.
 - Staging: the whole spec is one change. If it must be split, ship the pill row, Timeline and thing links first, then
   Projects, Apps and search.
+
+## Update: Trace V2 vision Moments
+
+When Trace V2's data is present (`~/Library/Application Support/Trace/V2/observations.sqlite3` and
+`~/trace_prompts/moment_goals.json`; override with `TRACE_V2_DATA_DIR` and `LMEMM_V2_GOALS`), Work History is built from its
+vision-model Moments instead of the rule-based Moments (`src/v2_history.py`, `history_model` rule H13). The purpose is the
+entry's title, what happened is the line under it, and Moments judged to be one Activity show once. They are not things, so
+an entry opens nothing. Only described Moments appear (a Moment is stable after 15 minutes), and a Moment that is
+forgotten, merged or missing from the database is not shown. Without V2 data the page is as above.

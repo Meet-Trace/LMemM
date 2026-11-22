@@ -627,7 +627,7 @@ def search(reg, items, q, now):
 
 def view(reg, items, state, now=None, fading=(), sugg=None, prefs=None, hist=None):
     """fading: ids of notes ticked a moment ago, still on screen crossed out (P10). sugg: suggestions.view().
-    hist: where the history page reads from ({"sessions_dir", "live", "skip", "moments"}, history_model.py)."""
+    hist: where the history page reads from ({"sessions_dir", "live", "skip", "moments", "v2"}, history_model.py)."""
     now = now or datetime.now()
     with projects.indexed(reg, items):                                     # 10,000 projects must not mean 10,000 scans
         counts = projects.counts(reg, items)

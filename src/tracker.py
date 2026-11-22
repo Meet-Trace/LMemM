@@ -58,6 +58,7 @@ import settings_model
 import store
 import suggestions
 import thing_actions
+import v2_history
 import understand
 import widget
 from input_events import Aggregator
@@ -815,7 +816,8 @@ class Tracker:
         live = (self.session, [dict(e) for e in list(self.events)])        # copies: the capture thread goes on writing; no lock, so the window never waits on it
         return {"sessions_dir": config.paths().sessions_dir, "live": live,
                 "skip": apps.clean((store.load_user() or {}).get("skip_apps")),
-                "moments": self.moments.history() if self.moments else None}
+                "moments": self.moments.history() if self.moments else None,
+                "v2": v2_history.read()}
 
     def widget_history(self):
         self.open_window()

@@ -21,6 +21,10 @@ window.py draws it and forwards presses to page_model.press(); it decides nothin
     H8  Apps is the page: a section per app, most recently used first, with that app's entries in time order (newest
         day first, each day earliest first, so it reads top to bottom). Projects regroups the same entries by
         project. There is no separate flat timeline: every entry already carries its time.
+    H13 When Trace V2's vision-model Moments exist (v2_history.py) they are the record instead, all of it, not only
+        48 hours: the purpose is the title, what happened is the line under it, and Moments the pair check judged to
+        be one Activity show once. They are not things, so they open nothing. Search reads their text. Without
+        V2 data the page is as H11 says.
     H12 In a section a thing shows once per day, however many times you came back to it: first start to last end,
         seconds added, and "N visits" when there were several. "The same" means the same app and title (a page can
         be stored as more than one thing and still read as one), so those fold together too.
@@ -264,14 +268,26 @@ def merged(events):
     return out
 
 
+def _v2_row(e):
+    v = e["v2"]
+    return {"key": f"v2{e['item']}", "id": e["item"], "title": v["title"], "app": v["app"], "kind": "", "url": None, "pid": None,
+            "project": "", "hue": None, "doing": v["line"] or None, "activity": v["activity"], "open": False, "unit": "moments"}
+
+
 def entries(reg, items, events, hide=frozenset()):
     """Rows for one day's stretches, earliest first."""
     rows = []
     for e in merged(events):
-        item = items.get(e["item"])
-        if not _visible(item, hide):
-            continue
-        row = _row(reg, item, f"{e['item']}@{e['start']:%Y%m%d%H%M%S}")
+        if e.get("v2"):
+            if pm.fold(e["v2"]["app"] or "") in hide:
+                continue
+            row = _v2_row(e)
+        else:
+            item = items.get(e["item"])
+            if not _visible(item, hide):
+                continue
+            row = _row(reg, item, f"{e['item']}@{e['start']:%Y%m%d%H%M%S}")
+            row["open"] = True
         row.update(day=e["start"].date().isoformat(), at=e["start"].isoformat(timespec="seconds"),
                    to=e["end"].isoformat(timespec="seconds"), span=_span(e["start"], e["end"]), visits=1,
                    seconds=e["seconds"], duration=spent(e["seconds"]) if e["seconds"] >= MIN_SECONDS else None)
@@ -290,7 +306,10 @@ def collapse(rows):
     address) that read identically."""
     out, seen = [], {}
     for r in rows:
-        key = (r["day"], pm.fold(r["app"] or ""), pm.fold(r["title"] or "")) if r["title"] else (r["day"], r["id"])
+        if r.get("activity") is not None:
+            key = (r["day"], pm.fold(r["app"] or ""), "activity", r["activity"])
+        else:
+            key = (r["day"], pm.fold(r["app"] or ""), pm.fold(r["title"] or "")) if r["title"] else (r["day"], r["id"])
         first = seen.get(key)
         if first is None:
             seen[key] = first = dict(r)
@@ -374,13 +393,16 @@ def _jump(sessions_dir, live, today, moments=()):
     return [{"day": d.isoformat(), "title": label(d, today)} for d in days(sessions_dir, live, moments)[:JUMP_DAYS]]
 
 
-def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=None):
+def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=None, v2=None):
     """The history page for state["hist"]. A failure to read never raises (a file that cannot be read is skipped)."""
     hist = state["hist"]
     today = now.date()
     hide = hidden_apps(skip)
-    feed = moments is not None
-    if feed:
+    feed = moments is not None or v2 is not None
+    if v2 is not None:
+        moments = v2                                           # the vision Moments, kept for good: no 48 hour cutoff (H13)
+        sessions_dir, live = None, None
+    elif feed:
         cutoff = now - timedelta(hours=config.MOMENT_RETENTION_HOURS)
         moments = [e for e in moment_events(moments) if e["end"] >= cutoff]
         sessions_dir, live = None, None
@@ -388,7 +410,7 @@ def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=
         moments = []
     names = _names(sessions_dir) if sessions_dir else []
     page = {"kind": "history", "title": "Work History", "back": True, "mode": hist["mode"] if hist["mode"] in dict(MODES) else "apps", "scope": hist["scope"],
-            "q": hist["q"], "scopes": [{"id": k, "title": t, "on": k == hist["scope"]} for k, t in SCOPES if not (feed and k == "earlier")],
+            "q": hist["q"], "scopes": [{"id": k, "title": t, "on": k == hist["scope"]} for k, t in SCOPES if not (v2 is None and feed and k == "earlier")],
             "modes": [{"id": k, "title": t, "on": k == hist["mode"]} for k, t in MODES],
             "day": selected(hist, today).isoformat(), "jump": _jump(sessions_dir, live, today, moments) if sessions_dir or feed else [],
             "can_next": hist["scope"] in ("yesterday", "day"), "can_prev": True}
@@ -396,8 +418,8 @@ def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=
         page["can_next"] = page["can_prev"] = False
     page["heading"] = {"week": "This week", "earlier": "Earlier"}.get(hist["scope"]) or label(selected(hist, today), today)
     if hist["q"]:
-        return {**page, **_search(reg, items, hist, hide, now)}
-    if not items or not (names or moments or live and live[1]):
+        return {**page, **(_search_v2(moments, hist, hide) if v2 is not None else _search(reg, items, hist, hide, now))}
+    if (not items and v2 is None) or not (names or moments or live and live[1]):
         return {**page, "groups": [], "more": False, "summary": "", "empty": EMPTY}
     ranged, more = _range(hist, today, sessions_dir, live, names, reg, items, hide, moments)
     rows = [r for _d, rs in ranged for r in rs]
@@ -442,6 +464,20 @@ def matches(reg, item, want):
     if any(want in pm.fold(t) for t in _excerpts(item)):
         return "text"
     return None
+
+
+def _search_v2(events, hist, hide):
+    """Search over the vision Moments' text, newest first (H13)."""
+    want = pm.fold(hist["q"])
+    found = [e for e in reversed(events) if pm.fold(e["v2"]["app"] or "") not in hide
+             and want in pm.fold(" ".join((e["v2"]["title"], e["v2"]["line"], e["v2"]["app"] or "")))]
+    rows = []
+    for e in found[:hist["lim"]]:
+        row = _v2_row(e)
+        row.update(when=f"{e['start']:%a} {e['start'].day} {e['start']:%b} {e['start']:%H:%M}", span="", duration=None)
+        rows.append(row)
+    return {"groups": [{"title": pm.plural(len(found), "result"), "rows": rows}] if rows else [],
+            "more": max(0, len(found) - hist["lim"]), "summary": "", "empty": None if rows else NONE_FOUND, "search": True}
 
 
 def _search(reg, items, hist, hide, now):

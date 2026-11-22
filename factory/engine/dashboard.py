@@ -82,7 +82,8 @@ def collect(f: Factory, gh, repo: str) -> dict:
         })
     runs.sort(key=lambda r: r.get("started") or "", reverse=True)
     return {"repo": repo, "generated": records.now_iso(), "agents": agents_data(f), "overnight": overnight_data(f),
-            "issues": issues, "runs": runs, "budget_per_issue": f.budgets.get("per_issue_usd")}
+            "issues": issues, "runs": runs, "budget_per_issue": f.budgets.get("per_issue_usd"),
+            "budget_per_day": f.budgets.get("per_day_usd")}
 
 
 def render(data: dict, standalone: bool = True) -> str:
@@ -166,4 +167,4 @@ def sample(f: Factory) -> dict:
     runs.sort(key=lambda r: r["started"], reverse=True)
     return {"repo": "Meet-Trace/LMemM", "generated": records.now_iso(), "sample": True,
             "agents": agents_data(f), "overnight": overnight_data(f), "issues": issues, "runs": runs,
-            "budget_per_issue": f.budgets.get("per_issue_usd")}
+            "budget_per_issue": f.budgets.get("per_issue_usd"), "budget_per_day": f.budgets.get("per_day_usd")}

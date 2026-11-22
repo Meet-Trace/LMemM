@@ -430,6 +430,7 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(data["issues"][0]["stage"], "review")
         self.assertEqual(len(data["runs"]), 1)
         self.assertEqual(data["issues"][0]["tokens"], 0)
+        self.assertEqual(data["budget_per_day"], f.budgets["per_day_usd"])
 
 
 if __name__ == "__main__":

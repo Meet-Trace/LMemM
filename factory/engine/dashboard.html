@@ -185,6 +185,14 @@ footer { color: var(--muted); font-size: 12.5px; }
   background: var(--ink); color: var(--bg); font-size: 12px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; z-index: 2; pointer-events: none; }
 .days .d:hover .tip, .days .d:focus-visible .tip { display: block; }
 .days-axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 11.5px; margin-top: 4px; }
+.budget { display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.budget-line { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; }
+.budget-line b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.budget-line span { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.meter { height: 8px; border-radius: 4px; background: var(--sunken); overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.meter.high span { background: var(--human); }
+.meter.full span { background: var(--bad); }
 .usage .note { color: var(--muted); font-size: 12.5px; margin: 0; }
 </style>
 
@@ -369,11 +377,31 @@ footer { color: var(--muted); font-size: 12.5px; }
   }
 
 
+  /* Today's spend against budgets.per_day_usd. Days are UTC, like the engine's cap. */
+  function today() {
+    const cap = Number(D.budget_per_day) || 0;
+    if (!cap) return "";
+    const day = new Date().toISOString().slice(0, 10);
+    const ran = D.runs.filter(r => (r.started || "").slice(0, 10) === day);
+    const spent = ran.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0);
+    const toks = ran.reduce((t, r) => t + tokens(r), 0);
+    const left = Math.max(0, cap - spent), pct = Math.min(100, 100 * spent / cap);
+    const reset = new Date(day + "T00:00:00Z"); reset.setUTCDate(reset.getUTCDate() + 1);
+    const hrs = Math.max(0, (reset - Date.now()) / 3600000);
+    const resets = `resets in ${hrs < 1 ? Math.round(hrs * 60) + " min" : Math.floor(hrs) + " h " + Math.round((hrs % 1) * 60) + " min"}`;
+    return `<div class="budget">
+      <div class="budget-line"><div><b>${money(left)}</b> <span>left of today's ${money(cap)} budget</span></div>
+        <span>${money(spent)} used${toks ? ` · ${tok(toks)} tokens` : ""} · ${left ? resets : "paused until reset, " + resets}</span></div>
+      <div class="meter ${pct >= 100 ? "full" : pct >= 80 ? "high" : ""}" role="meter" aria-valuemin="0" aria-valuemax="${cap}" aria-valuenow="${spent.toFixed(2)}" aria-label="Daily budget used"><span style="width:${pct.toFixed(1)}%"></span></div>
+    </div>`;
+  }
+
   /* Token usage: totals, by agent, and by day for the last 14 days. */
   function usage() {
     const R = D.runs.filter(r => tokens(r) > 0);
-    if (!R.length) return `<section aria-label="Token usage"><div class="sec-head"><h2>Token usage</h2></div>
-      <div class="card empty">No token counts yet. Runs record them from now on.</div></section>`;
+    const budget = today();
+    if (!R.length) return `<section aria-label="Token usage"><div class="sec-head"><h2>Budget and token usage</h2></div>
+      <div class="card usage">${budget}<p class="note">No token counts yet. Runs record them from now on.</p></div></section>`;
     const sum = k => R.reduce((t, r) => t + ((r.tokens || {})[k] || 0), 0);
     const total = R.reduce((t, r) => t + tokens(r), 0);
     const cost = R.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0);
@@ -385,16 +413,16 @@ footer { color: var(--muted); font-size: 12.5px; }
     const bars = agents.map(x => `<span class="who" style="--c:${esc(x.a.color)}"><i></i>${esc(x.a.title)}</span>
       <span class="track"><span class="fill" style="width:${(100 * x.t / maxA).toFixed(1)}%"></span></span>
       <span class="v">${tok(x.t)} · ${money(x.c)} · ${x.n} run${x.n === 1 ? "" : "s"}</span>`).join("");
-    const day = iso => iso.slice(0, 10), today = new Date();
-    const days = [...Array(14)].map((_, i) => { const d = new Date(today); d.setUTCDate(d.getUTCDate() - 13 + i); return d.toISOString().slice(0, 10); });
+    const day = iso => iso.slice(0, 10), now = new Date();
+    const days = [...Array(14)].map((_, i) => { const d = new Date(now); d.setUTCDate(d.getUTCDate() - 13 + i); return d.toISOString().slice(0, 10); });
     const perDay = Object.fromEntries(days.map(d => [d, { t: 0, c: 0 }]));
     R.forEach(r => { const d = perDay[day(r.started || "")]; if (d) { d.t += tokens(r); d.c += Number(r.cost_usd) || 0; } });
     const maxD = Math.max(1, ...days.map(d => perDay[d].t));
     const label = d => new Date(d + "T00:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
     const cols = days.map(d => { const v = perDay[d]; return `<div class="d${v.t ? "" : " zero"}" tabindex="0" aria-label="${label(d)}: ${tok(v.t)} tokens, ${money(v.c)}">
       <span style="height:${(100 * v.t / maxD).toFixed(1)}%"></span><span class="tip">${label(d)} · ${tok(v.t)} tokens · ${money(v.c)}</span></div>`; }).join("");
-    return `<section aria-label="Token usage"><div class="sec-head"><h2>Token usage</h2><p>Counts Claude Code reports for every agent run</p></div>
-      <div class="card usage">
+    return `<section aria-label="Token usage"><div class="sec-head"><h2>Budget and token usage</h2><p>What today has left, and the tokens every agent run used</p></div>
+      <div class="card usage">${budget}
         <div class="usage-tot">
           <div><b>${tok(total)}</b><span>tokens in all</span></div>
           <div><b>${tok(sum("input") + sum("cache_write"))}</b><span>input</span></div>

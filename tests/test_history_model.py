@@ -51,7 +51,7 @@ class Base(unittest.TestCase):
         s["hist"].update(hist)
         return s
 
-    def view(self, items=None, now=NOW, live=None, skip=(), moments=(), **hist):
+    def view(self, items=None, now=NOW, live=None, skip=(), moments=None, **hist):
         return hm.view(self.reg, self.items if items is None else items, self.state(**hist), now,
                        sessions_dir=self.dir, live=live, skip=skip, moments=moments)
 
@@ -302,11 +302,21 @@ class MomentFeedTests(Base):
         self.assertEqual([r["id"] for r in self.rows(page)], ["a"])          # the bounce is gone, and a before and after it is one entry
         self.assertEqual(self.rows(page)[0]["span"], "09:00–09:20")
 
-    def test_moments_replace_the_session_stretches_from_their_start_but_older_ones_stay(self):
-        self.session("20261122-080000", [stretch("c", "08:00:00", "08:30:00", 1800), stretch("b", "09:05:00", "09:05:05", 5),
-                                         stretch("c", "09:05:05", "09:06:00", 55)])
+    def test_with_moments_on_the_session_files_are_not_read_at_all(self):
+        self.session("20261122-080000", [stretch("c", "08:00:00", "08:30:00", 1800)])
         recs = [mom("a", "v1", "09:00:00", "09:10:00")]
-        self.assertEqual([r["id"] for r in self.rows(self.view(moments=recs))], ["c", "a"])
+        self.assertEqual([r["id"] for r in self.rows(self.view(moments=recs))], ["a"])
+        self.assertEqual(self.rows(self.view(moments=[])), [])                    # moments on but none yet: empty, not the old feed
+
+    def test_only_the_last_48_hours_show_and_earlier_is_not_offered(self):
+        old = mom("a", "v0", "09:00:00", "09:10:00")
+        shift = 3 * 86400
+        old["t_start"] -= shift
+        old["t_end"] -= shift
+        page = self.view(moments=[old, mom("c", "v1", "09:00:00", "09:10:00")])
+        self.assertEqual([r["id"] for r in self.rows(page)], ["c"])
+        self.assertNotIn("earlier", [s["id"] for s in page["scopes"]])
+        self.assertEqual([d["day"] for d in page["jump"]], ["2026-11-22"])
 
     def test_the_running_sessions_tab_switches_are_not_shown_once_moments_exist(self):
         live = ("20261122-090000", [stretch("b", "09:05:00", "09:05:05", 5)])

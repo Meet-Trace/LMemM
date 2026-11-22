@@ -23,16 +23,18 @@ window.py draws it and forwards presses to page_model.press(); it decides nothin
     H9  Earlier pages itself seven days at a time, never reading further than it shows. Search pages by fifty.
     H10 Search looks at thing titles, project names and old names, notes (open and done) and kept excerpt text,
         case and accents ignored, across all of history. No model, no network, no index of its own.
-    H11 Where Moments exist (they last 48 hours) they are the record of the time: one entry per visit, never one per
-        tab switch. A visit's moments are one stretch, and a visit with under MIN_VISIT_S of dwell is a pass-through
-        and is dropped. Session stretches starting at or after the first moment are not shown (they are the noisy
-        per tab feed); older ones are, so earlier days keep working. With no moments the page is as it was.
+    H11 When Moments are on (the tracker passes a list, even an empty one) they are the only record of the time, and
+        only the last 48 hours (config.MOMENT_RETENTION_HOURS) show: one entry per visit, never one per tab switch.
+        A visit's moments are one stretch, and a visit with under MIN_VISIT_S of dwell is a pass-through and is
+        dropped. Session files are not read at all, and Earlier is not offered (it would always be empty). Only when
+        Moments are off (None) does the page fall back to the session files, as before.
 """
 
 import os
 import re
 from datetime import date, datetime, timedelta
 
+import config
 import favicons
 import page_model as pm
 import projects
@@ -83,6 +85,8 @@ def selected(hist, today):
 def _names(sessions_dir):
     """[(start datetime, file name)] sorted oldest first, from the file names alone."""
     out = []
+    if not sessions_dir:
+        return out
     try:
         entries = os.listdir(sessions_dir)
     except (OSError, TypeError):
@@ -346,17 +350,23 @@ def _jump(sessions_dir, live, today, moments=()):
     return [{"day": d.isoformat(), "title": label(d, today)} for d in days(sessions_dir, live, moments)[:JUMP_DAYS]]
 
 
-def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=()):
+def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=None):
     """The history page for state["hist"]. A failure to read never raises (a file that cannot be read is skipped)."""
     hist = state["hist"]
     today = now.date()
     hide = hidden_apps(skip)
-    moments = moment_events(moments)
+    feed = moments is not None
+    if feed:
+        cutoff = now - timedelta(hours=config.MOMENT_RETENTION_HOURS)
+        moments = [e for e in moment_events(moments) if e["end"] >= cutoff]
+        sessions_dir, live = None, None
+    else:
+        moments = []
     names = _names(sessions_dir) if sessions_dir else []
     page = {"kind": "history", "title": "Work History", "back": True, "mode": hist["mode"], "scope": hist["scope"],
-            "q": hist["q"], "scopes": [{"id": k, "title": t, "on": k == hist["scope"]} for k, t in SCOPES],
+            "q": hist["q"], "scopes": [{"id": k, "title": t, "on": k == hist["scope"]} for k, t in SCOPES if not (feed and k == "earlier")],
             "modes": [{"id": k, "title": t, "on": k == hist["mode"]} for k, t in MODES],
-            "day": selected(hist, today).isoformat(), "jump": _jump(sessions_dir, live, today, moments) if sessions_dir else [],
+            "day": selected(hist, today).isoformat(), "jump": _jump(sessions_dir, live, today, moments) if sessions_dir or feed else [],
             "can_next": hist["scope"] in ("yesterday", "day"), "can_prev": True}
     if hist["scope"] in ("week", "earlier"):
         page["can_next"] = page["can_prev"] = False

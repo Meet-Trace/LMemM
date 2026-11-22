@@ -22,7 +22,8 @@ window.py draws it and forwards presses to page_model.press(); it decides nothin
         day first, each day earliest first, so it reads top to bottom). Projects regroups the same entries by
         project. There is no separate flat timeline: every entry already carries its time.
     H12 In a section a thing shows once per day, however many times you came back to it: first start to last end,
-        seconds added, and "N visits" when there were several. Its other visits are not listed apart.
+        seconds added, and "N visits" when there were several. "The same" means the same app and title (a page can
+        be stored as more than one thing and still read as one), so those fold together too.
     H9  Earlier pages itself seven days at a time, never reading further than it shows. Search pages by fifty.
     H10 Search looks at thing titles, project names and old names, notes (open and done) and kept excerpt text,
         case and accents ignored, across all of history. No model, no network, no index of its own.
@@ -284,12 +285,15 @@ def _span(start, end):
 
 def collapse(rows):
     """One entry per thing per day in a section (H12): the visits to it are folded into the first one, from its first
-    start to its last end, seconds added. Order is that of each thing's first visit."""
+    start to its last end, seconds added. Order is that of each thing's first visit. "The same thing" is what the
+    person sees: the same app and title, because one page can be stored as several things (another tab, a changed
+    address) that read identically."""
     out, seen = [], {}
     for r in rows:
-        first = seen.get((r["id"], r["day"]))
+        key = (r["day"], pm.fold(r["app"] or ""), pm.fold(r["title"] or "")) if r["title"] else (r["day"], r["id"])
+        first = seen.get(key)
         if first is None:
-            seen[(r["id"], r["day"])] = first = dict(r)
+            seen[key] = first = dict(r)
             out.append(first)
             continue
         first["to"] = max(first["to"], r["to"])

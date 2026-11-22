@@ -298,6 +298,15 @@ class Search(Base):
         two_days = self.view(scope="week")
         self.assertEqual(len([r for r in self.rows(two_days) if r["id"] == "a"]), 1)
 
+    def test_two_stored_things_with_the_same_app_and_title_read_as_one_entry(self):
+        self.items["a2"] = thing("a2", "Q3 deck", "Keynote")
+        self.session("20261122-090000", [stretch("a", "09:00:00", "09:10:00", 600), stretch("c", "09:10:00", "09:12:00", 120),
+                                         stretch("a2", "09:12:00", "09:30:00", 1080)])
+        rows = self.view(mode="apps")["groups"][0]["rows"]
+        self.assertEqual([(r["title"], r["span"], r["visits"]) for r in rows], [("Q3 deck", "09:00–09:30", 2)])
+        self.items["a2"]["app"] = "Pages"                                            # same title in another app is another thing
+        self.assertEqual(len(self.rows(self.view(mode="projects"))), 3)
+
 
 def mom(item, vid, a, b, seq=0):
     """A stored moment record; a and b are 'HH:MM:SS' on NOW's day."""

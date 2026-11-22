@@ -18,6 +18,7 @@ from AppKit import (NSBezierPath, NSColor, NSFont, NSMakeRect, NSScreen, NSScrol
                     NSVisualEffectView)
 
 import palette
+import tokens
 import widget
 from widget import _Flipped, _font, _label, _panel, _veil, PAD, PILL_BOTTOM, POPOVER_MATERIAL, BEHIND_WINDOW, ACTIVE
 
@@ -85,7 +86,7 @@ class NoteCard:
         content.setBlendingMode_(BEHIND_WINDOW)
         content.setState_(ACTIVE)
         content.setWantsLayer_(True)
-        content.layer().setCornerRadius_(18)
+        content.layer().setCornerRadius_(tokens.RADIUS["l"])
         content.layer().setMasksToBounds_(True)
         content.addSubview_(_veil(CARD_W, CARD_H))
         body = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, CARD_W, CARD_H))

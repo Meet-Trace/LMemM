@@ -13,20 +13,33 @@ class SetupAssets(unittest.TestCase):
         self.assertGreater(os.path.getsize(os.path.join(fonts, "Figtree[wght].ttf")), 20000)
         self.assertIn("SIL Open Font License", open(os.path.join(fonts, "OFL.txt")).read())
 
-    def test_the_accent_is_blue_not_orange(self):
-        tree = ast.parse(open(os.path.join(ROOT, "src", "setup_kit.py")).read())
-        accent = next(n for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "ACCENT")
-        r, g, b = ast.literal_eval(accent.value)
+    def test_instrument_serif_ships_with_its_licence(self):
+        fonts = os.path.join(ROOT, "assets", "fonts")
+        for name in ("InstrumentSerif-Regular.ttf", "InstrumentSerif-Italic.ttf"):
+            self.assertGreater(os.path.getsize(os.path.join(fonts, name)), 20000, name)
+        licence = open(os.path.join(fonts, "OFL-InstrumentSerif.txt")).read()
+        self.assertIn("SIL Open Font License", licence)
+        self.assertIn("Instrument Serif", licence)
+
+    def test_the_kit_registers_the_serif_and_falls_back_without_it(self):
+        kit = open(os.path.join(ROOT, "src", "setup_kit.py")).read()
+        self.assertIn("InstrumentSerif-Regular.ttf", kit)
+        self.assertIn("InstrumentSerif-Italic.ttf", kit)
+        for fallback in ('"NewYork-Regular"', '"Georgia"', "NSFont.systemFontOfSize_(size)"):
+            self.assertIn(fallback, kit)                      # no face -> the system serif -> the system font, never a broken glyph
+
+    def test_the_accent_is_the_websites_blue(self):
+        import sys
+        sys.path.insert(0, os.path.join(ROOT, "src"))
+        import palette
+        r, g, b = palette.ACCENT
+        self.assertEqual((round(r * 255), round(g * 255), round(b * 255)), (0x28, 0x56, 0xd9))      # #2856d9 (was #3563E9 before the identity refactor)
         self.assertGreater(b, r + 0.4)                    # clearly blue
         self.assertGreater(b, g)
 
     def test_the_kit_accent_is_the_palette_accent(self):
-        import sys
-        sys.path.insert(0, os.path.join(ROOT, "src"))
-        import palette
-        tree = ast.parse(open(os.path.join(ROOT, "src", "setup_kit.py")).read())
-        accent = next(n for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "ACCENT")
-        self.assertEqual(tuple(ast.literal_eval(accent.value)), palette.ACCENT)
+        kit = open(os.path.join(ROOT, "src", "setup_kit.py")).read()
+        self.assertIn("ACCENT = palette.ACCENT", kit)      # one accent, not a copy of its numbers
 
     def test_alignment_values_match_the_existing_widget_code(self):
         """widget.py (running on a Mac) uses setAlignment_(1) for centre; the kit must agree, or every

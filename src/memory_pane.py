@@ -8,11 +8,12 @@ from memory_view import CONFIRMS, PERIOD_LABELS, STATE_LABELS, evidence_rows, fr
 import palette
 
 ACC = palette.ACCENT
-GREEN, ORANGE, GRAY = (.18, .62, .36), (.91, .45, .16), (.50, .50, .55)
+GREEN, ORANGE, GRAY = palette.STATE_GREEN, palette.STATE_ORANGE, palette.STATE_GRAY
 BTN_H,BTN_PAD=32,34                              # the one button size, shared by Settings and the Memory page
 KINDS={'primary':'primary','secondary':'outline','tertiary':'ghost','destructive':'danger'}
+MONO={'Page','File','From','Location'}              # file names and addresses are set in the monospaced face
 PADX=20                                          # inner side padding of every container
-RED = (.86, .27, .25)                            # only the Danger zone's quiet accent; never a whole red section
+RED = palette.STATE_RED                          # only the Danger zone's quiet accent; never a whole red section
 SECTIONS = {'Search results': ('Best matches', ['magnifyingglass'], ACC), 'Related evidence': ('Related', ['link'], ACC),
             'Decisions': ('Decisions', ['flag.fill'], ACC), 'Open tasks': ('Open tasks', ['checkmark.circle', 'checkmark.circle.fill'], ACC),
             'Recent evidence': ('Recent', ['clock'], GRAY)}
@@ -86,11 +87,13 @@ class MemoryPane:
             lines=[l for l in str(row['text']).split('\n') if l.strip()][:2] if row['title'] else []
             head_h=min(kit.text_height(lead,15,600 if row['title'] else 500,tw_,True,-0.004,None),57)
             body='\n'.join(lines);bh_=min(kit.text_height(body,13,400,tw_,True,0.004,1.3),36) if body else 0
-            h=max(56,10+head_h+(3+bh_ if bh_ else 0)+10)
+            decided=row.get('section')=='Decisions'
+            h=max(56,10+head_h+(3+bh_ if bh_ else 0)+10)+(24 if decided else 0)
             if row['citation_id']:
                 hit=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+6,y+2,w-12,h-4),lambda c=row['citation_id']:self.action('source',{'citation_id':c}));hit.radius=10;hit.ax_label='Open source: '+lead[:60];host.addSubview_(hit)
             kit.put_text(host,lead,x+PADX,y+10,tw_,15,600 if row['title'] else 500,height=head_h,track=-0.004)
             if bh_:kit.put_text(host,body,x+PADX,y+10+head_h+3,tw_,13,400,kit.mute(),height=bh_,track=0.004,lead=1.3)
+            if decided:kit.tag(host,'decided','Decided',x+PADX,y+h-32)
             if row['at']:kit.put_text(host,friendly(row['at']),x+w-PADX-RIGHT_W,y+11,RIGHT_W,12,400,kit.mute(),align=kit.RIGHT,wrap=False,height=18,track=0.01)
             if row['citation_id']:
                 sw_=int(kit.text_width('Source',12,600))+30
@@ -116,12 +119,9 @@ class MemoryPane:
             y=top+bh+90+14
         mode=view['state']
         if not binding:
-            y=40;cx=x+w/2
-            kit.tile(host,['brain','sparkles'],rgb(ACC),cx-32,y,64);y+=84
-            kit.put_text(host,'Give this project a memory',x,y,w,22,700,align=kit.CENTER,height=30);y+=38
+            y=40
             body='Save notes, decisions and browser sources for this project. A folder and VS Code are optional. Trace never scans your folders or imports history.'
-            bw=min(w,420);y+=kit.put_text(host,body,cx-bw/2,y,bw,14,400,kit.mute(),align=kit.CENTER)+20
-            kit.button(host,'Enable Memory',cx-90,y,180,40,lambda:self.action('enroll',{}),kind='primary',size=15);y+=40
+            y+=kit.empty_state(host,'Give this project a memory',body,x,y,w,accent_word='memory',action=('Enable Memory',lambda:self.action('enroll',{})))
             if view.get('error'):y+=24;error_card(view['error'],y)
         elif self.settings:self._settings(dict(view,binding=binding),x,w,kit,rgb,panel)
         else:
@@ -132,16 +132,8 @@ class MemoryPane:
             if glyph is not None:host.addSubview_(glyph)
             y+=48+14
             # one quiet controls line: time range at the left; Ask Codex, Refresh and the state at the right
-            px=x;items=[(PERIOD_LABELS.get(period,period),period==view['period'],period) for period in view['periods']]
-            widths=[int(kit.text_width(l,13,600))+28 for l,_o,_p in items]
-            track=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,y,sum(widths)+4,BTN_H),kit.faint(0.06),kit.faint(0.12),10);host.addSubview_(track)
-            sx=x+2
-            for (l,on,period),sw in zip(items,widths):
-                seg=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(sx,y+2,sw,BTN_H-4),lambda p=period:self.action('time_filter',{'period':p}))
-                seg.radius=8;seg.ax_label=l+(', selected' if on else '')
-                if on:seg.fill=kit.accent(0.18);seg.border=kit.accent(0.55)
-                host.addSubview_(seg)
-                kit.put_text(seg,l,14,0,sw-28,13,600 if on else 500,kit.accent_text() if on else kit.mute(),wrap=False,height=BTN_H-4,middle=True);sx+=sw
+            items=[(PERIOD_LABELS.get(period,period),period==view['period'],(lambda p=period:self.action('time_filter',{'period':p}))) for period in view['periods']]
+            kit.segmented(host,x,y,items,size=13,height=BTN_H)                     # the one tab/period control (selected is filled)
             right=x+w
             color=state_text(mode,kit);label=STATE_LABELS.get(mode,mode).split(' ·')[0]
             busy=self.refresh_state=='busy';done=self.refresh_state=='done'
@@ -203,8 +195,8 @@ class MemoryPane:
                 LW=76;vw=inner-LW-8
                 head=pv['heading'] if pv['heading']!=pv['kind'] else ''          # a note with no title: the kind label already says it
                 heading_h=min(kit.text_height(head,17,600,inner-190,True,-0.006,None),46) if head else 0
-                facts=[(l,v,min(kit.text_height(v,13,400,vw,True,0.002,1.3),36)) for l,v in pv['facts']]
-                dets=[(l,v,min(kit.text_height(v,12,400,vw,True,0.004,1.3),48)) for l,v in pv['details']] if self.details else []
+                facts=[(l,v,min(kit.text_height(v,12 if l in MONO else 13,400,vw,True,0.002,1.3,'mono' if l in MONO else 'sans'),36)) for l,v in pv['facts']]
+                dets=[(l,v,min(kit.text_height(v,12,400,vw,True,0.004,1.3,'mono' if l in MONO else 'sans'),48)) for l,v in pv['details']] if self.details else []
                 total=16+18+6+(heading_h+12 if head else 6)+sum(hh+6 for _l,_v,hh in facts)+10+BTN_H+(10+sum(hh+4 for _l,_v,hh in dets) if dets else 0)+16
                 host.addSubview_positioned_relativeTo_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,top,w,total),kit.accent(0.05),kit.accent(0.30),14),-1,None)
                 kit.put_text(host,pv['kind'],x+PADX,top+16,inner-190,12,600,kit.accent_text(),wrap=False,height=18,track=0.01)
@@ -218,7 +210,7 @@ class MemoryPane:
                 fy=hy+(heading_h+12 if head else 6)
                 for l,v,hh in facts:
                     kit.put_text(host,l,x+PADX,fy+1,LW,12,500,kit.mute(),wrap=False,height=18)
-                    kit.put_text(host,v,x+PADX+LW+8,fy,vw,13,400,height=hh,track=0.002,lead=1.3);fy+=hh+6
+                    kit.put_text(host,v,x+PADX+LW+8,fy,vw,12 if l in MONO else 13,400,height=hh,track=0.002,lead=1.3,face='mono' if l in MONO else 'sans');fy+=hh+6
                 by=fy+10;bx=x+PADX
                 if pv['url']:
                     ow=int(kit.text_width('Open original',13,600))+BTN_PAD
@@ -234,7 +226,7 @@ class MemoryPane:
                     host.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x+PADX,dy-5,inner,1)))
                     for l,v,hh in dets:
                         kit.put_text(host,l,x+PADX,dy+1,LW,12,500,kit.mute(),wrap=False,height=18)
-                        kit.put_text(host,v,x+PADX+LW+8,dy,vw,12,400,kit.mute(),height=hh,track=0.004,lead=1.3);dy+=hh+4
+                        kit.put_text(host,v,x+PADX+LW+8,dy,vw,12,400,kit.mute(),height=hh,track=0.004,lead=1.3,face='mono' if l in MONO else 'sans');dy+=hh+4
                 y=top+total+22
             # the composer: one quiet row; it opens into a field only when asked for
             if self.composer:
@@ -389,7 +381,7 @@ class MemoryPane:
             nonlocal y
             if group['top'] is None:return
             y+=10                                                 # one container geometry for every section; Danger zone is darker and edged in muted red
-            fill=rgb((0,0,0),0.30) if group['danger'] else kit.faint(0.05)
+            fill=rgb(RED,0.10) if group['danger'] else kit.faint(0.05)
             edge=rgb(RED,0.26) if group['danger'] else kit.faint(0.09)
             surface=kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x,group['top'],w,y-group['top']),fill,edge,14)
             host.addSubview_positioned_relativeTo_(surface,-1,None)
@@ -399,7 +391,7 @@ class MemoryPane:
             radius as the surfaces around it, a red edge mark only when it is destructive, the same buttons."""
             nonlocal y
             inner=w-2*PADX-16-12;dh=kit.text_height(detail,13,400,inner,True,0.004,1.3);ph=16+20+6+dh+14+BTN_H+16;top=y+4
-            host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x+PADX-4,top,w-2*PADX+8,ph),(rgb((0,0,0),0.24) if destructive else kit.faint(0.06)),None,12))
+            host.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x+PADX-4,top,w-2*PADX+8,ph),(rgb(RED,0.08) if destructive else kit.faint(0.06)),None,12))
             if destructive:
                 bar=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+PADX-4,top+14,3,ph-28),None);bar.fill=rgb(RED);bar.radius=1.5;host.addSubview_(bar)
             kit.put_text(host,title,x+PADX+12,top+16,inner,15,600,wrap=False,height=20)

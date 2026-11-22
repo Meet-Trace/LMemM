@@ -16,8 +16,8 @@ SETTLE = 1.0            # debounce: wait this long after the last trigger
 MAX_SETTLE = 3.0        # ...but never longer than this after the first one
 MIN_GAP = 2.0           # never two captures closer than this (pinned excepted)
 POLL = 0.5              # seconds between window/tab title checks
-WINDOW_APPEARANCE = "dark"   # the main window is drawn graphite (sidebar and pages alike), whatever the Mac's appearance: "dark", "light" or "system"
-PAGE_THEME = "b"        # palette.THEMES: "a" graphite with tonal layers, "b" deeper graphite with a faint light behind the screenshot
+WINDOW_APPEARANCE = "system"   # the main window follows the Mac: the website's ivory in light, graphite in dark. "dark" or "light" pins one
+PAGE_THEME = "b"        # the dark treatment (palette.THEMES): "a" graphite with tonal layers, "b" deeper graphite with a faint light behind the screenshot
 BACKDROP = "auto"      # the picture behind the window: "auto" follows the clock (backdrop.py), or one of its keys (Settings > General)
 AMBIENT_SCHEDULE = ((5, "morning"), (12, "afternoon"), (17, "evening"), (21, "night"))   # local hour each period starts; the last one runs past midnight
 AMBIENT_ART_DIR = "assets/ambient"   # morning.webp, afternoon.webp, evening.webp, night.webp (png/jpg also read); all four present = the artwork is used

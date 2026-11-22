@@ -55,6 +55,7 @@ import icon_images
 import motion
 import notes
 import palette
+import tokens
 import rules
 
 BORDERLESS, NONACTIVATING = 0, 1 << 7
@@ -72,12 +73,11 @@ CLEARED_SECONDS = 1.5               # the check mark stays on the pill this long
 FOLD_ALPHA = 0.45                   # a note that is folding away, and cannot be tapped
 ADD_LABEL = "Add a note…"
 SEARCH_PLACEHOLDER = "Find or name a project"
-ICONS = {"code_file": ("chevron.left.forwardslash.chevron.right", (0.48, 0.35, 0.94)),
-         "document": ("doc.text", (0.25, 0.48, 0.88)), "spreadsheet": ("tablecells", (0.18, 0.61, 0.38)),
-         "chat": ("bubble.left", (0.09, 0.65, 0.54)), "chat_list": ("bubble.left", (0.09, 0.65, 0.54)),
-         "email_draft": ("envelope", (0.84, 0.34, 0.24)), "email": ("envelope", (0.84, 0.34, 0.24)),
-         "mailbox": ("envelope", (0.84, 0.34, 0.24))}
-DEFAULT_ICON = ("square.on.square", (0.45, 0.45, 0.5))
+ICONS = {kind: (symbol, palette.KIND_TINT[tint]) for kind, (symbol, tint) in {
+    "code_file": ("chevron.left.forwardslash.chevron.right", "violet"), "document": ("doc.text", "blue"),
+    "spreadsheet": ("tablecells", "green"), "chat": ("bubble.left", "teal"), "chat_list": ("bubble.left", "teal"),
+    "email_draft": ("envelope", "red"), "email": ("envelope", "red"), "mailbox": ("envelope", "red")}.items()}
+DEFAULT_ICON = ("square.on.square", palette.KIND_TINT["grey"])
 SUGGEST_ROWS = 4                    # things the suggestion lists before its Show-more row
 DONE_SECONDS = 1.5                  # "Pricing created." stays this long, then the card closes
 PEEK_MAX = 340                      # the widest the peeking pill gets, whatever the language
@@ -250,7 +250,7 @@ class _Control(_Flipped):
         self.focusable = False
         self.ax_label = None
         self.checked = None                            # None: a button. True/False: a checkbox, ticked or not
-        self.radius = 10
+        self.radius = tokens.RADIUS["m"]
         self.washes = True                             # False for a backdrop that must not light up under the pointer
         self.addTrackingArea_(NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
             self.bounds(), TRACK, self, None))
@@ -528,8 +528,8 @@ class _PillView(NSView):
         cw, ch = bw - 2 * PILL_MARGIN[0], bh - 2 * PILL_MARGIN[1]
         capsule = NSMakeRect(PILL_MARGIN[0], PILL_MARGIN[1], cw, ch)
         dark = _dark()
-        ink = NSColor.colorWithWhite_alpha_(0.97 if dark else 0.09, 1.0)       # the pill itself
-        on_ink = NSColor.colorWithWhite_alpha_(0.09 if dark else 1.0, 1.0)     # text on the pill
+        ink = NSColor.colorWithWhite_alpha_(palette.PILL_LIGHT[0] if dark else palette.PILL_DARK[0], 1.0)       # the pill itself
+        on_ink = NSColor.colorWithWhite_alpha_(palette.PILL_DARK[0] if dark else 1.0, 1.0)     # text on the pill
         quiet = w.mode_of_pill() == "rest"
         rest = 0.9 if _more_contrast() else 0.45
         ink.colorWithAlphaComponent_(rest if quiet and not self.hover else 0.94).setFill()
@@ -799,7 +799,7 @@ class Widget:
         if bad:
             icon.setContentTintColor_(_rgb(palette.RED_ON_LIGHT_PILL if dark else palette.RED_ON_DARK_PILL))
         else:
-            icon.setContentTintColor_(NSColor.colorWithWhite_alpha_(0.09 if dark else 1.0, 1.0))
+            icon.setContentTintColor_(NSColor.colorWithWhite_alpha_(palette.PILL_DARK[0] if dark else 1.0, 1.0))
         icon.setHidden_(image is None)
         self.pill_view.setToolTip_(tip if bad else None)    # the system draws a tooltip down-right of the pointer, onto the Dock; the card says the rest
         icon.setAccessibilityElement_(False)            # the pill reads as one button (accessibility_text)
@@ -983,7 +983,7 @@ class Widget:
         content.setBlendingMode_(BEHIND_WINDOW)
         content.setState_(ACTIVE)
         content.setWantsLayer_(True)
-        content.layer().setCornerRadius_(18)
+        content.layer().setCornerRadius_(tokens.RADIUS["l"])
         content.layer().setMasksToBounds_(True)
         content.addSubview_(_veil(CARD_W, height))
         scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, CARD_W, height))
@@ -1350,8 +1350,8 @@ class Widget:
         tap = _Tap.alloc().initWithFrame_callback_(NSMakeRect(*frame), callback)
         dark = _dark()
         if primary:
-            tap.tint = NSColor.colorWithWhite_alpha_(0.97 if dark else 0.09, 1.0)
-            color = NSColor.colorWithWhite_alpha_(0.09 if dark else 1.0, 1.0)
+            tap.tint = NSColor.colorWithWhite_alpha_(palette.PILL_LIGHT[0] if dark else palette.PILL_DARK[0], 1.0)
+            color = NSColor.colorWithWhite_alpha_(palette.PILL_DARK[0] if dark else 1.0, 1.0)
         else:
             color = NSColor.secondaryLabelColor()
         label = _label(text, 13, bold=primary, color=color, frame=(0, 8, frame[2], 17))[0]

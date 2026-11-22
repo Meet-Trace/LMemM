@@ -42,14 +42,21 @@ SIZE = types.SimpleNamespace(width=1080, height=720)
 fake_widget._Flipped.frame = lambda self: types.SimpleNamespace(size=SIZE)
 sys.modules["widget"] = fake_widget
 kit = types.ModuleType("setup_kit")
-for n in ("put_text","tile","button","text_width","text_height","ink","mute","accent","accent_text","status_text","card_background","faint","line","icon","first_symbol","note","chip","chip_width","font"):
+for n in ("put_text","tile","button","text_width","text_height","ink","mute","accent","accent_text","status_text","card_background","faint","line","icon","first_symbol","note","chip","chip_width","font","warm","display","segmented","empty_state","project_mark","tag","dot","source_line","mono_text","field","soft","serif","mono"):
     setattr(kit, n, mock.MagicMock(return_value=20))
 kit._KitRule = type("_KitRule", (Base,), {"initWithFrame_": lambda self, *a: self})
 kit.LEFT, kit.RIGHT, kit.CENTER = 0, 2, 1
+kit.button = mock.MagicMock()                    # memory_pane sets attributes on the button it gets back
 kit.text_width = lambda *a, **k: 50
 kit.text_height = lambda *a, **k: 20
 kit._KitButton = type("_KitButton", (Base,), {"initWithFrame_callback_": lambda self, *a: self})
 
+def _kit_any(name):                                # any other primitive the kit grows is a mock too (the fake is not kept in step by hand)
+    if name.startswith("__"): raise AttributeError(name)
+    if name in ("surface", "project_mark", "dot", "field", "tile", "glyph", "icon"):
+        return mock.MagicMock()                    # these return a view; the rest return a height or a width
+    return mock.MagicMock(return_value=20)
+kit.__getattr__ = _kit_any
 sys.modules["setup_kit"] = kit
 import window
 print("window imported with fakes")
@@ -245,5 +252,20 @@ step('Memory: error card with bound folder',render)
 unbound=dict(memory_view(state,None,{'state':'Disabled'},rich),error='Project memory unavailable')
 w.memory_view=lambda pid,v=unbound:v
 step('Memory: error card on empty state',render)
+# Light and dark, and the smallest and a large window: the same pages draw in each (the ivory window follows a light Mac).
+import config, palette
+w.memory_view = lambda pid, v=snapshot: v
+w.ambient = types.SimpleNamespace(usable=False, view=mock.MagicMock())   # no artwork under the fake AppKit
+for appearance, treatment in (("light", "ivory"), ("dark", config.PAGE_THEME)):
+    config.WINDOW_APPEARANCE = appearance
+    for size in ((880, 560), (1920, 1200)):
+        SIZE.width, SIZE.height = size
+        w._measure(); w._layout()
+        for place, press in (("home", ("go", ids["home"])), ("project", ("go", ids["q3"])), ("thing", ("thing", "a")), ("settings", ("settings", "general"))):
+            w.nav = page_model.press(reg, page_model.new_state(), *press) if place != "thing" else page_model.press(reg, w.nav, *press)
+            step("%s %s %s" % (appearance, size, place), render)
+            if palette.CURRENT[0] != treatment:
+                FAILED.append("the window did not take the %s treatment in %s (has %s)" % (treatment, appearance, palette.CURRENT[0]))
+config.WINDOW_APPEARANCE = "system"
 print("FAILED:", FAILED) if FAILED else print("all pages drew")
 sys.exit(1 if FAILED else 0)

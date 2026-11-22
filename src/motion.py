@@ -1,7 +1,7 @@
 """LMemM - motion, in one place. Every animation goes through here so they share one curve, one set of
 durations and one reduced-motion rule (docs: design/ui-audit-emilkowalski.md).
 
-    ease     a strong ease-out, cubic-bezier(0.23, 1, 0.32, 1): enters and exits start fast.
+    ease     a strong ease-out, cubic-bezier(0.2, 0.7, 0.1, 1) (the site's, tokens.EASE): enters and exits start fast.
     pop      a card or dialog arrives: opacity and a small scale (never from zero), under 300 ms.
     step     the setup window changes screen: a short push forward, the other way for Back.
     none     things a person does many times a day, and anything started from the keyboard, do not animate.
@@ -11,15 +11,17 @@ Only opacity and transform are ever animated. Every call is best effort: if the 
 be made, the change simply happens, so motion can never stop a card from showing.
 """
 
-EASE = (0.23, 1.0, 0.32, 1.0)
-PRESS_SECONDS = 0.10               # a pressed control
-POP_SECONDS = 0.14                 # the pill's card, from a click
-MODAL_SECONDS = 0.20               # a dialog
-STEP_SECONDS = 0.22                # a setup screen
-EXIT_SECONDS = 0.09               # leaving is quicker than arriving
-CELEBRATE_SECONDS = 0.25           # the "All caught up" badge
-POP_SCALE = 0.97                   # a small card starts here, never at zero
-MODAL_SCALE = 0.96
+import tokens
+
+EASE = tokens.EASE                 # the site's curve, cubic-bezier(.2, .7, .1, 1): a strong ease-out
+PRESS_SECONDS = tokens.DURATION["press"]         # a pressed control
+POP_SECONDS = tokens.DURATION["pop"]             # the pill's card, from a click
+MODAL_SECONDS = tokens.DURATION["modal"]         # a dialog
+STEP_SECONDS = tokens.DURATION["step"]           # a setup screen
+EXIT_SECONDS = tokens.DURATION["exit"]           # leaving is quicker than arriving
+CELEBRATE_SECONDS = tokens.DURATION["celebrate"]  # the "All caught up" badge
+POP_SCALE = tokens.POP_SCALE                     # a small card starts here, never at zero
+MODAL_SCALE = tokens.MODAL_SCALE
 
 
 def reduced():

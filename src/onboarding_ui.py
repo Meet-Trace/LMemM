@@ -21,6 +21,7 @@ import motion
 import onboarding
 import permissions
 import setup_kit as kit
+import tokens
 from setup_kit import CENTER, LEFT
 from widget import _Fields, _field, _Flipped, _Ring, _Tap
 
@@ -287,12 +288,12 @@ class SetupWindow:
         mark = kit._KitMark.alloc().initWithFrame_(NSMakeRect((CW - 60) / 2, 0, 60, 60))
         body.addSubview_(mark)
         y = 60 + 24
-        y += kit.put_text(body, view["title"], 0, y, CW, 29, 700, align=CENTER) + 12
+        y += kit.display(body, view["title"], 0, y, CW, size=tokens.DISPLAY["l"], align=CENTER) + 12
         y += kit.put_text(body, view["sub"], 20, y, CW - 40, 16, 400, kit.mute(), CENTER) + 18
         return self._notes(body, view["notes"], y) - (10 if view["notes"] else 0)
 
     def _you(self, body, view):
-        y = kit.put_text(body, view["title"], 0, 0, CW, 29, 700, align=CENTER) + 22
+        y = kit.display(body, view["title"], 0, 0, CW, size=tokens.DISPLAY["l"], align=CENTER) + 22
         y += kit.put_text(body, "First name", 0, y, CW, 13, 600, align=CENTER) + 8
         box = kit._KitBox.alloc().initWithFocus_(True)
         box.setFrame_(NSMakeRect(0, y, CW, 52))
@@ -338,7 +339,7 @@ class SetupWindow:
         return y
 
     def _access(self, body, view):
-        y = kit.put_text(body, view["title"], 0, 0, CW, 29, 700, align=CENTER) + 16
+        y = kit.display(body, view["title"], 0, 0, CW, size=tokens.DISPLAY["l"], align=CENTER) + 16
         for i, row in enumerate(view["rows"]):
             if i:
                 rule = kit._KitRule.alloc().initWithFrame_(NSMakeRect(0, y, CW, 1))

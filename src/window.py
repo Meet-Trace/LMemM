@@ -34,18 +34,19 @@ import project_actions
 import rules
 import setup_kit as kit
 import thing_actions
+import tokens
 import window_model
 from setup_kit import LEFT, RIGHT
 from widget import _Fields, _Flipped, _Ring, _Tap
 
 W, H = 1080, 720                                       # the size it first opens at; after that the window remembers its own
 MIN_W, MIN_H = 880, 560                                # the smallest it can be dragged to
-RADIUS_PANEL, RADIUS_FIELD = 14, 10
+RADIUS_PANEL, RADIUS_FIELD = tokens.RADIUS["l"], tokens.RADIUS["m"]
 CARD_ALPHA = 0.60                                       # the cards let the background show through a little (a tint, never a blur)
 DETAIL_ICONS = {"Last seen": ("waveform.path.ecg", "waveform"), "First seen": ("calendar",), "Time spent": ("clock",),
                 "Visits": ("chart.bar", "chart.bar.fill"), "Address": ("link",)}                # one family of corners for the thing page
 BUTTON_H, FIELD_H = 34, 40
-SIDE_W = 250
+SIDE_W = tokens.SIDEBAR_W
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
 MIN_MAIN, MAX_MAIN = 560, 980 
@@ -55,19 +56,15 @@ TONES = {"red": "red", "grey": None, "calm": None}      # the banner box's tone 
 
 
 def _is_dark():
+    """True when the window is drawn dark: the Mac's appearance, unless config.WINDOW_APPEARANCE pins one."""
+    if config.WINDOW_APPEARANCE in ("dark", "light"):
+        return config.WINDOW_APPEARANCE == "dark"
     try:
         match = NSApplication.sharedApplication().effectiveAppearance().bestMatchFromAppearancesWithNames_(
             ["NSAppearanceNameAqua", "NSAppearanceNameDarkAqua"])
         return match == "NSAppearanceNameDarkAqua"
     except Exception:
         return False
-
-
-def hue_color(hue):
-    """The eight calm colours projects wear. Never red: red is only for a permission that is off."""
-    names = ("systemBlue", "systemPurple", "systemPink", "systemOrange", "systemTeal", "systemGreen",
-             "systemIndigo", "systemBrown")
-    return getattr(NSColor, names[hue % len(names)] + "Color")()
 
 
 def _local_minute():
@@ -206,14 +203,9 @@ class _SideBackdrop(_Flipped):
 
     def drawRect_(self, rect):
         box = self.bounds()
-        if config.WINDOW_APPEARANCE != "system":
-            kit.warm("sidebar").colorWithAlphaComponent_(0.80).setFill()
-            NSBezierPath.fillRect_(box)
-            kit.warm("edge").setFill()
-        else:
-            kit.faint(0.035).setFill()
-            NSBezierPath.fillRect_(box)
-            kit.faint(0.09).setFill()
+        kit.warm("sidebar").colorWithAlphaComponent_(0.80).setFill()
+        NSBezierPath.fillRect_(box)
+        kit.warm("edge").setFill()
         NSBezierPath.fillRect_(NSMakeRect(box.size.width - 1, 0, 1, box.size.height))
 
 
@@ -235,8 +227,23 @@ class _Backdrop(_Flipped):
             kit.warm("canvas").setFill()                                   # at worst: the plain graphite ground
             NSBezierPath.fillRect_(self.bounds())
 
+    def _paint_ivory(self):
+        """The light window: the site's ivory, with its faint warm radial high on the left and nothing else (no grain,
+        no vignette, no pictures)."""
+        from AppKit import NSGradient
+        box = self.bounds()
+        w, h = box.size.width, box.size.height
+        kit.warm("canvas").setFill()
+        NSBezierPath.fillRect_(box)
+        wash = NSColor.whiteColor().colorWithAlphaComponent_(palette.IVORY_WASH)
+        centre = NSMakePoint(w * 0.30, h * 0.08)
+        NSGradient.alloc().initWithColors_([wash, wash.colorWithAlphaComponent_(0.0)]) \
+            .drawFromCenter_radius_toCenter_radius_options_(centre, 0, centre, max(w, h) * 0.7, 0)
+
     def _paint(self):
         from AppKit import NSGradient
+        if palette.is_light():
+            return self._paint_ivory()
         box = self.bounds()
         w, h = box.size.width, box.size.height
         weights = {k: v for k, v in self.mix.items() if v > 0.004 and backdrop.entry(k)}
@@ -324,14 +331,12 @@ class MainWindow:
         self.window.setHidesOnDeactivate_(False)                   # it stays where it is when you go to another app
         self.window.setCollectionBehavior_(1 << 7)                 # the green button makes it full screen
         self.window.setContentMinSize_((MIN_W, MIN_H))
-        palette.use(config.PAGE_THEME)
-        if config.WINDOW_APPEARANCE in ("dark", "light"):          # one application: sidebar and pages together
+        palette.use(palette.theme_for(_is_dark(), config.PAGE_THEME))   # ivory in light, graphite in dark (the Mac's appearance)
+        if config.WINDOW_APPEARANCE in ("dark", "light"):          # pinned: one application, sidebar and pages together
             from AppKit import NSAppearance
             self.window.setAppearance_(NSAppearance.appearanceNamed_(
                 "NSAppearanceNameDarkAqua" if config.WINDOW_APPEARANCE == "dark" else "NSAppearanceNameAqua"))
-            self.window.setBackgroundColor_(kit.warm("canvas"))
-        else:
-            self.window.setBackgroundColor_(kit.card_background())
+        self.window.setBackgroundColor_(kit.warm("canvas"))
         self.closing = _MainClosing.alloc().init()
         self.closing.on_resize = self._resized
         self.closing.on_close = lambda: self._regular(False)
@@ -406,6 +411,7 @@ class MainWindow:
         self._layout()
         self._sync_wall(animate=False)
         self._start_wall_clock()
+        self._watch_appearance()
 
     # ------------------------------------------------------------ size, menu bar, Dock
 
@@ -447,9 +453,48 @@ class MainWindow:
         self.wall.setHidden_(shown)
         return shown
 
+    def _theme_name(self):
+        return palette.theme_for(_is_dark(), config.PAGE_THEME)
+
+    def _sync_theme(self):
+        """Light Mac: the ivory window. Dark Mac: graphite. Called on every render and when the appearance changes, so
+        the window follows the Mac without a restart. True when the treatment changed."""
+        name = self._theme_name()
+        if name == palette.CURRENT[0]:
+            return False
+        palette.use(name)
+        self.window.setBackgroundColor_(kit.warm("canvas"))
+        self.backdrop.setNeedsDisplay_(True)
+        self.wall.setNeedsDisplay_(True)
+        self._sync_wall(animate=False)
+        self.shown = self.stamp = None                                # every colour is baked into the views: draw them again
+        return True
+
+    def _watch_appearance(self):
+        """Redraw when the Mac switches between light and dark."""
+        try:
+            from Foundation import NSDistributedNotificationCenter
+            self.theme_watch = NSDistributedNotificationCenter.defaultCenter().addObserverForName_object_queue_usingBlock_(
+                "AppleInterfaceThemeChangedNotification", None, None, lambda note: self._appearance_changed())
+        except Exception:
+            self.theme_watch = None
+
+    def _appearance_changed(self):
+        try:
+            from Foundation import NSTimer                           # the app's own appearance follows the system a moment later
+            NSTimer.scheduledTimerWithTimeInterval_repeats_block_(0.25, False, lambda timer: self.render())
+        except Exception:
+            self.render()
+
     def _sync_wall(self, animate=True):
         """Show what the clock (or the chosen background) says. Time itself only ever nudges the weights by a
         little; a manual change cross-fades over about a second (reduced motion: it just changes)."""
+        if palette.is_light():                                        # the light window is plain ivory: no time-of-day pictures
+            self.ambient.view.setHidden_(True)
+            self.wall.setHidden_(False)
+            self.wall.setNeedsDisplay_(True)
+            return
+        self.ambient.view.setHidden_(False)
         target = self._wall_target()
         if self._sync_ambient(target, animate):
             return
@@ -747,13 +792,14 @@ class MainWindow:
             traceback.print_exc(file=sys.stderr)
 
     def _render(self):
+        self._sync_theme()
         reg, items = self.data()
         now = time.time()
         page = page_model.view(reg, items, self.nav, fading=self.flow.holding(now), sugg=self.suggest(),
                                prefs=self.prefs(self.nav["sec"]) if self.nav["view"] == "settings" else None)
         self.memory_snapshot=self.memory_view(page['main'].get('pid')) if self.memory_view and page['main']['kind']=='project' else None
         self.flow_sig = self.flow_signature()
-        sig = repr((window_model.signature(self.banner), page, self.flow_sig, self.sel, self.cur,self.memory_snapshot))
+        sig = repr((palette.CURRENT[0], window_model.signature(self.banner), page, self.flow_sig, self.sel, self.cur,self.memory_snapshot))
         if sig == self.shown:
             return
         self.shown = sig
@@ -1200,7 +1246,7 @@ class MainWindow:
     # ------------------------------------------------------------ icons
 
     def _project_icon(self, parent, hue, x, y, size=26):
-        kit.tile(parent, ("folder", "folder.fill"), hue_color(hue), x, y, size)
+        kit.project_mark(parent, x, y, size)                  # a project is a name with the accent dot, never a folder
 
     def _app_icon(self, parent, app, x, y, size=30, kind="", url=None):
         """The best real icon there is: the installed app's, else the web page's favicon from the
@@ -1470,7 +1516,7 @@ class MainWindow:
         if kind == "thing":                                       # the identity lives in the page's hero, below
             y += 8
         else:
-            kit.put_text(doc, page["title"], tx, y, w - (tx - x) - (170 if kind == "project" else 0), 26, 700, wrap=False, height=34)
+            kit.display(doc, page["title"], tx, y, w - (tx - x) - (170 if kind == "project" else 0), size=tokens.DISPLAY["l"], wrap=False, height=34)
             y += 36
             if page.get("meta"):
                 self._label(doc, page["meta"], tx, y, w - (tx - x), size=13, weight=400)
@@ -1502,11 +1548,9 @@ class MainWindow:
         kit.put_text(doc, text, x, y, w, 15, 700, wrap=False, height=22)
         return y + 30
 
-    def _empty(self, doc, empty, x, y, w, symbol=("tray.fill", "folder.fill")):
-        kit.tile(doc, symbol, kit.mute(), x, y + 10, 56)
-        kit.put_text(doc, empty["title"], x, y + 80, w, 18, 600, wrap=False, height=26)
-        h = kit.put_text(doc, empty["line"], x, y + 112, min(w, 460), 14, 400, kit.mute())
-        return y + 112 + h
+    def _empty(self, doc, empty, x, y, w, symbol=None):
+        """Every empty state: a serif heading that says what will appear, one muted line on how, no picture."""
+        return y + 24 + kit.empty_state(doc, empty["title"], empty["line"], x, y + 24, w, action=empty.get("action"))
 
     def _thing(self, doc, t, x, y, w, notes=False, select=False, compact=False):
         """A thing: its title, where it is, when. With notes: the open ones underneath. While selecting,
@@ -1873,15 +1917,15 @@ class MainWindow:
                        kind="outline", size=13, weight=600)
         else:
             self._grouped_actions(host, x + w, y + 2, page["pid"])
-        title_w = min(kit.text_width(page["title"], 26, 700), w - 52 - 190)
-        kit.put_text(host, page["title"], x + 50, y - 2, title_w + 8, 26, 700, wrap=False, height=34, track=-0.026)
+        title_w = min(kit.text_width(page["title"], tokens.DISPLAY["l"], 400, "serif"), w - 52 - 190)
+        kit.display(host, page["title"], x + 50, y - 2, title_w + 8, size=tokens.DISPLAY["l"], wrap=False, height=34)
         kit.put_text(host, page["meta"], x + 50, y + 33, max(w - 50 - 190, 60), 13, 400, kit.mute(), wrap=False, height=20)
         y += 66
         if self.memory_snapshot:
             in_settings = bool(self.memory_pane and self.memory_pane.settings and (self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding')))
             tabs = self.memory_snapshot['tabs']
             self._segmented(host, x, y, [(tab, self.memory_snapshot['tab'] == tab and not in_settings,
-                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs], size=14, height=40, pad=26)
+                                          (lambda t=tab: self._memory_action('tab', {'tab': t}))) for tab in tabs], size=14, height=40, pad=22)
             if self.memory_snapshot.get('binding') or self.memory_snapshot.get('retained_binding'):
                 gx = x + w - 32                                                        # Settings: a quiet gear at the far edge, not a tab
                 gear = self._tap(host, gx, y + 4, 32, 32, lambda: self._memory_action('open_settings'), fill=in_settings)
@@ -1941,7 +1985,7 @@ class MainWindow:
                 cx += cw + 8
             return y + 38
         gap = 8
-        kit.put_text(host, "Resume", x, y - 2, 120, 16, 700, wrap=False, height=24, middle=True, track=-0.012)        # the section, named
+        kit.display(host, "Resume", x, y - 2, 120, size=tokens.DISPLAY["m"], wrap=False, height=24, middle=True)        # the section, named
         y += 28
         top = y
         aw = int(kit.text_width("Add note", 13, 600)) + 28
@@ -2000,8 +2044,8 @@ class MainWindow:
     def _toolbar(self, host, page, x, y, w):
         """The Things heading on its own line (count and Select beside it), then the controls on a line of their
         own: where to look (a segmented Only here / With sub-projects) at the left, which source (one menu) at the right."""
-        kit.put_text(host, "Things", x, y, w, 20, 700, wrap=False, height=30, middle=True, track=-0.018)
-        cx = x + kit.text_width("Things", 20, 700) + 10
+        kit.display(host, "Things", x, y, w, size=tokens.DISPLAY["m"], wrap=False, height=30, middle=True)
+        cx = x + kit.text_width("Things", tokens.DISPLAY["m"], 400, "serif") + 10
         kit.put_text(host, str(page["total"]), cx, y + 2, 60, 13, 400, kit.mute(), wrap=False, height=30, middle=True)
         if self.sel is None and page["total"]:                                        # a contextual action of browsing, at the heading's edge
             sw = int(kit.text_width("Select", 13, 600)) + 28
@@ -2017,21 +2061,9 @@ class MainWindow:
             y += self._select_bar(host, page, x, y, w) + 10
         return y
 
-    def _segmented(self, parent, x, y, items, size=12, height=28, pad=24):
-        """A compact two-or-more way toggle: a soft track with the chosen segment lifted. `size`, `height` and `pad`
-        make the same control larger for primary navigation."""
-        widths = [kit.text_width(label, size, 500) + 2 * pad for label, _on, _call in items]
-        track = kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, sum(widths) + 4, height), kit.faint(0.07), None, 9 + (height - 28) / 4)
-        parent.addSubview_(track)
-        sx = x + 2
-        for (label, on, call), width in zip(items, widths):
-            seg = self._tap(parent, sx, y + 2, width, height - 4, call)
-            seg.focusable, seg.ax_label = True, label
-            if on:
-                seg.tint = kit.faint(0.16)
-            kit.put_text(seg, label, pad, 0, width - 2 * pad, size, 600 if on else 500, None if on else kit.mute(), wrap=False, height=height - 4, middle=True)
-            sx += width
-        return sx + 2 - x
+    def _segmented(self, parent, x, y, items, size=13, height=28, pad=14):
+        """A compact two-or-more way toggle (the shared kit.segmented): the chosen segment is a filled pill on a track."""
+        return kit.segmented(parent, x, y, items, size=size, height=height, pad=pad)
 
     def _source_menu(self, parent, page, right, y):
         """One control for the source filter. Closed, it names what is chosen; open, it is a native menu."""
@@ -2217,7 +2249,7 @@ class MainWindow:
         where = " · ".join(b for b in (page.get("meta"), "in " + main if main else "") if b)
         kit.meta(doc, where, px + 36, top + 3, tw - 36, kit.warm("mute"), wrap=False, height=18, tip=False)
         cy = top + 46
-        cy += kit.display(doc, page["headline"], px, cy, tw, kit.warm("ink")) + 12
+        cy += kit.display(doc, page["headline"], px, cy, tw, kit.warm("ink"), size=tokens.DISPLAY["l"]) + 12
         if page["ai_summary"]:                                                # written by the model from the window and your notes: labelled
             cy += kit.body(doc, page["ai_summary"], px, cy, tw, kit.warm("ink")) + 8
             kit.put_text(doc, "Summary by Trace", px, cy, tw, 11, 500, kit.accent_text(), wrap=False, height=16, tip=False)
@@ -2249,7 +2281,7 @@ class MainWindow:
         self.shot_at = (x, y, w, h)
         lift = _Flipped.alloc().initWithFrame_(NSMakeRect(x, y, w, h))            # depth under the screenshot, nothing more
         lift.setWantsLayer_(True)
-        lift.layer().setShadowOpacity_(0.5 if config.PAGE_THEME == "b" else 0.35)
+        lift.layer().setShadowOpacity_(tokens.SHADOW["opacity"] if palette.is_light() else 0.5 if config.PAGE_THEME == "b" else 0.35)
         lift.layer().setShadowRadius_(22)
         lift.layer().setShadowOffset_((0, 0))
         doc.addSubview_(lift)

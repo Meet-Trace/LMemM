@@ -31,6 +31,7 @@ LMemM - the one command.
     lmemm.py delete-all (--dry-run | --confirm)
                                       remove everything LMemM has kept, on this Mac
     lmemm.py setup [--again]          first-run setup, then LMemM starts (also runs once before `start`)
+    lmemm.py --version                print the version and exit
 
 Any of these also works by number from the menu (`lmemm.py`), which prompts for the
 same arguments shown above when an action takes them.
@@ -55,13 +56,15 @@ import notes  # noqa: E402
 import store  # noqa: E402
 import tracker  # noqa: E402
 
+__version__ = "0.1.0"
+
 USAGE = ("usage: lmemm.py [menu] | start [--every N] [--input-events --input-app APP]"
          " | memory [N] [--content] [--events]"
          " | notes [--all] [PROJECT] | notes done|reopen ID…"
          " | projects [--all] | projects new|rename|move|archive|restore|merge|delete …"
          " | context [SESSION] [--days N]"
          " | trail … | status | pause | resume | pin | note | delete-session ID (--dry-run | --confirm ID)"
-         " | delete-all (--dry-run | --confirm) | setup [--again] [--no-start]")
+         " | delete-all (--dry-run | --confirm) | setup [--again] [--no-start] | --version")
 
 
 # ---------------------------------------------------------------- memory
@@ -520,6 +523,9 @@ def main():
     args = sys.argv[1:]
     if not args:
         interactive_menu()
+        return
+    if args[0] == "--version":                 # before the line below, which sends any leading flag to `start`
+        print(f"lmemm.py {__version__}")
         return
     cmd = args[0] if not args[0].startswith("-") else "start"
     rest = args[1:] if args[0] == cmd else args

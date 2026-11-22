@@ -8,7 +8,7 @@ description: >
   the spec. When review or verify sends work back, it fixes exactly what they
   found.
 
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 prompt: prompts/implement.md
 tools: [Read, Grep, Glob, Write, Edit, Bash]

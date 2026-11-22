@@ -8,7 +8,7 @@ description: >
   Polishes the user interface the change touches, so it stays calm, tidy and
   consistent with the rest of Trace. Its full instructions are still to come.
 
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 prompt: prompts/ui.md
 tools: [Read, Grep, Glob, Write, Edit, Bash]

@@ -264,7 +264,7 @@ color: "#64748b"
 description: >
   One or two sentences on what this agent does. The dashboard shows this.
 
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: medium
 prompt: prompts/{name}.md
 tools: [Read, Grep, Glob]

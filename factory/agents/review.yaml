@@ -8,7 +8,7 @@ description: >
   security problems, missing tests and anything that breaks the repo's
   conventions. Approves it or sends a precise list of fixes back to implement.
 
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 effort: high
 prompt: prompts/review.md
 tools: [Read, Grep, Glob]

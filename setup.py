@@ -6,7 +6,11 @@ LMemM.app itself, not to the terminal it happens to be started from.
 """
 from setuptools import setup
 from pathlib import Path
+import re
 import sys
+
+# The one version, from lmemm.py (read, not imported: importing it loads the tracker)
+VERSION=re.search(r'^__version__ = "([^"]+)"', Path('lmemm.py').read_text(), re.M).group(1)
 
 STANDALONE='-A' not in sys.argv and '--alias' not in sys.argv
 resources=[]
@@ -26,7 +30,7 @@ OPTIONS = {
         "CFBundleName": "LMemM",
         "CFBundleDisplayName": "LMemM",
         "CFBundleIdentifier": "com.adityakhuntia.lmemm",
-        "CFBundleShortVersionString": "0.1.0",
+        "CFBundleShortVersionString": VERSION,
         "LSUIElement": True,
         "LSEnvironment": {"PYTHONUTF8": "1", "LANG": "en_US.UTF-8"},   # an app has no shell locale: files would read as ASCII
         "NSHighResolutionCapable": True,

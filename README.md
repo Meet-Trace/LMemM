@@ -123,6 +123,7 @@ Every item is also a direct command, for scripts and muscle memory:
 | `lmemm.py pin` | force-save the current screen |
 | `lmemm.py note` | open the note window from a terminal (same as ⌃⌥N) |
 | `lmemm.py delete-session ID --dry-run` / `--confirm ID` | remove one session's evidence |
+| `lmemm.py --version` | print the version and exit |
 | `./run.sh start` / `stop` / `log` / `status` | the same tracker, in the background |
 
 While it runs you see one line per change in what you're doing:

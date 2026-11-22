@@ -452,7 +452,7 @@ class Runner:
                 "screenshot_bytes": sum(size for status, _, _, size in shots if status == "stored"),
                 "reader_failures": {f"{reader}:{status}:{code or 'no_code'}": n for reader, status, code, n in readers},
                 "event_totals": {k: int(v) for k, v in events}, "db_bytes": db_bytes,
-                "screenshot_scopes": dict(scopes)}
+                "screenshot_scopes": dict(scopes), "screenshot_dedup": dict(self.store.dedup_stats)}
 
     def _ocr_stats(self):
         """The OCR reader's own counters (a worker-process client has them; the in-process reader does not)."""

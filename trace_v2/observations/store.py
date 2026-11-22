@@ -22,7 +22,7 @@ import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from . import queries
+from . import dedup, queries
 from .assets import AssetError, ScreenshotStore, magic_matches, sha256
 from .db import open_database
 from .models import (READERS, InvalidCapture, ReaderResult, ScreenshotCapture, ScreenshotWithheld, short_error)
@@ -83,6 +83,8 @@ class ObservationStore:
         self.lock = threading.RLock()
         self.clock_ns = time.time_ns
         self.ocr_max_attempts = 4
+        self._dedup_last = None
+        self.dedup_stats = {"unchanged": 0, "typing": 0, "changed": 0, "bytes_saved": 0}
         from .forget import resume_pending     # finish any forget interrupted after its commit
         resume_pending(self)
 
@@ -99,10 +101,11 @@ class ObservationStore:
             if existing:
                 return IngestResult(existing, False)
             oid = str(uuid.uuid4())
-            shot_row, written = self._store_screenshot(oid, draft.screenshot)
+            decision = self._dedup_plan(draft)
+            shot_row, written = self._store_screenshot(oid, draft.screenshot, decision)
             try:
                 self.db.execute("BEGIN IMMEDIATE")
-                self._insert(oid, draft, digest, shot_row, self._ocr_plan(draft, shot_row))
+                self._insert(oid, draft, digest, shot_row, self._ocr_plan(draft, shot_row, decision))
                 self.db.execute("COMMIT")
             except BaseException:
                 self._rollback()
@@ -111,6 +114,11 @@ class ObservationStore:
                 if self._existing(draft.capture_key, digest):     # lost a race to an identical retry
                     return IngestResult(self._existing(draft.capture_key, digest), False)
                 raise
+            try:
+                self._dedup_after(oid, draft, shot_row, decision)
+            except Exception:                    # noqa: BLE001 - housekeeping must never fail a stored capture
+                log.exception("screenshot de-duplication failed")
+                self._dedup_last = None
         return IngestResult(oid, True)
 
     def add_extraction(self, observation_id, reader, result):
@@ -146,8 +154,101 @@ class ObservationStore:
             raise DuplicateObservation(f"capture_key {capture_key!r} was already used for a different capture")
         return row[0]
 
-    def _store_screenshot(self, oid, shot):
+    def _dedup_plan(self, draft):
+        shot = draft.screenshot
+        if not isinstance(shot, ScreenshotCapture):
+            return {"kind": "none"}
+        params = dedup.get_params(self)
+        if not params["enabled"]:
+            return {"kind": "none"}
+        picture = dedup.picture(bytes(shot.data))
+        plan = {"kind": "changed", "picture": picture}
+        last = self._dedup_last
+        if last is None or picture is None or last["picture"] is None:
+            return plan
+        verdict, _, _ = dedup.compare(last["picture"][0], picture[0], params)
+        same_place = last["bundle"] == draft.context.application.get("bundle_id") and last["display"] == draft.context.display.get("id")
+        if verdict == "unchanged":
+            plan["kind"] = "unchanged"
+        elif verdict == "typing" and same_place and dedup.pressed_keys(draft.events):
+            plan["kind"] = "typing"
+        return plan
+
+    def _dedup_after(self, oid, draft, shot_row, plan):
+        last = self._dedup_last
+        if plan["kind"] == "none" or shot_row.get("status") != "stored":
+            self._dedup_last = None
+            return
+        if plan.get("linked"):
+            last["oids"].append(oid)
+            self.dedup_stats["unchanged"] += 1
+            self.dedup_stats["bytes_saved"] += shot_row.get("byte_size") or 0
+            return
+        self._dedup_last = {
+            "oids": [oid], "rel": shot_row["relative_path"], "picture": plan.get("picture"),
+            "bundle": draft.context.application.get("bundle_id"), "display": draft.context.display.get("id"),
+            "sha": shot_row["sha256"], "byte_size": shot_row["byte_size"], "format": shot_row["format"],
+            "width": shot_row["width"], "height": shot_row["height"]}
+        if plan["kind"] == "typing" and last is not None:
+            self.dedup_stats["typing"] += 1
+            self.dedup_stats["bytes_saved"] += self._supersede(last["oids"])
+        else:
+            self.dedup_stats["changed"] += 1
+
+    def _supersede(self, oids):
+        """Remove the files of earlier screenshots that a later one makes redundant; audited like a retention run."""
+        from . import ocr_queue
+        held = ocr_queue.protected(self)
+        rows = []
+        for oid in oids:
+            if oid in held:
+                continue
+            row = self.db.execute("SELECT s.relative_path, s.byte_size FROM screenshots s LEFT JOIN screenshot_deletions d "
+                                  "USING (observation_id) WHERE s.observation_id=? AND s.status='stored' "
+                                  "AND d.observation_id IS NULL", (oid,)).fetchone()
+            if row:
+                rows.append((oid, row[0], row[1] or 0))
+        if not rows:
+            return 0
+        run_id, freed, now = str(uuid.uuid4()), 0, self.clock_ns()
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            self.db.execute("INSERT INTO retention_runs VALUES (?,?,?,?,?,?)",
+                            (run_id, now_iso(), now, canonical({"mode": dedup.REASON}), None, 0))
+            deleted = 0
+            for oid, rel, size in rows:
+                existed = self.assets.delete(rel)
+                self.db.execute("INSERT INTO screenshot_deletions VALUES (?,?,?,?,?)", (oid, now_iso(), dedup.REASON, run_id, int(existed)))
+                deleted += int(existed)
+                freed += size if existed else 0
+            self.db.execute("INSERT INTO retention_run_finishes VALUES (?,?,?,?,?,?,?)",
+                            (run_id, now_iso(), len(rows), deleted, len(rows) - deleted, 0, freed))
+            self.db.execute("COMMIT")
+        except BaseException:
+            self._rollback()
+            raise
+        return freed
+
+    def _reused_ocr(self, oid):
+        row = self.db.execute("SELECT reader_version, text, raw_encoding, raw FROM extractions WHERE observation_id=? "
+                              "AND reader='ocr' AND status='succeeded' ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
+        if row is None:
+            return None
+        raw = queries._decode(row[2], row[3])
+        return None if raw is None else ReaderResult(row[0], "succeeded", raw, row[1])
+
+    def _store_screenshot(self, oid, shot, plan=None):
         """-> (row values for the screenshots table, relative path written or None)."""
+        last = self._dedup_last
+        if plan and plan["kind"] == "unchanged" and last is not None and isinstance(shot, ScreenshotCapture):
+            rel = self.assets.relative_path(oid, shot.captured_at_ns, last["format"])
+            try:
+                self.assets.link(rel, last["rel"])
+                plan["linked"] = True
+                return dict(status="stored", relative_path=rel, format=last["format"], width=last["width"], height=last["height"],
+                            byte_size=last["byte_size"], sha256=last["sha"], captured_at_ns=shot.captured_at_ns), rel
+            except (OSError, AssetError):
+                plan["kind"] = "changed"
         if isinstance(shot, ScreenshotWithheld):
             return dict(status="withheld", captured_at_ns=shot.captured_at_ns, error_code=shot.reason), None
         if not isinstance(shot, ScreenshotCapture):
@@ -167,9 +268,13 @@ class ObservationStore:
         return dict(status="stored", relative_path=rel, format=shot.format, width=shot.width, height=shot.height,
                     byte_size=len(data), sha256=sha256(data), captured_at_ns=shot.captured_at_ns), rel
 
-    def _ocr_plan(self, draft, shot_row):
+    def _ocr_plan(self, draft, shot_row, plan=None):
         """-> (OCR result for revision 1, enqueue a job). Only a stored screenshot is queued; a full queue skips OCR."""
         ocr = draft.ocr
+        if plan and plan.get("linked") and ocr.status == "pending" and self._dedup_last is not None:
+            reused = self._reused_ocr(self._dedup_last["oids"][0])
+            if reused is not None:
+                return reused, False
         if ocr.status != "pending":
             return ocr, False
         if shot_row["status"] != "stored":

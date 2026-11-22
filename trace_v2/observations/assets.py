@@ -48,13 +48,30 @@ class ScreenshotStore:
             raise AssetError(f"asset path escapes the asset root: {relative}")
         return path
 
-    def write(self, relative, data):
-        """Create the file with exactly these bytes. Refuses to replace an existing file."""
+    def _prepare(self, relative):
         path = self._resolve(relative)
         for parent in reversed(path.relative_to(self.root.resolve()).parents):
             d = self.root.resolve() / parent
             if not d.exists():
                 d.mkdir(mode=0o700)
+        return path
+
+    def link(self, relative, source_relative):
+        """Give an existing screenshot a second name, so identical pixels are stored once. Never replaces a file."""
+        path = self._prepare(relative)
+        source = self._resolve(source_relative)
+        if path.exists():
+            raise AssetError(f"screenshot already exists: {relative}")
+        os.link(source, path)
+        dir_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+
+    def write(self, relative, data):
+        """Create the file with exactly these bytes. Refuses to replace an existing file."""
+        path = self._prepare(relative)
         if path.exists():
             raise AssetError(f"screenshot already exists: {relative}")
         temp = path.with_name("." + path.name + ".tmp")

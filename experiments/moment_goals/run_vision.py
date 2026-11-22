@@ -65,6 +65,15 @@ def screenshot_path(conn, root, oid):
     return path if os.path.exists(path) else None
 
 
+def pick_screenshot(conn, root, ids):
+    middle = len(ids) // 2
+    for i in sorted(range(len(ids)), key=lambda i: abs(i - middle)):
+        path = screenshot_path(conn, root, ids[i])
+        if path:
+            return ids[i], path
+    return representative(ids), None
+
+
 def encode_image(path, side):
     from PIL import Image
     with Image.open(path) as image:
@@ -287,8 +296,7 @@ def one_moment(conn, root, host, model, moment, args):
     used = choose_tags(tags, args.max_images)
     images, ids, sizes, kept = [], [], [], []
     for tag in used:
-        oid = representative(tags[tag])
-        path = screenshot_path(conn, root, oid)
+        oid, path = pick_screenshot(conn, root, tags[tag])
         if not path:
             continue
         data, size = encode_image(path, args.image_side)

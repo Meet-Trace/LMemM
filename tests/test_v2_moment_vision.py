@@ -186,3 +186,24 @@ class MomentCallTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PickScreenshotTests(unittest.TestCase):
+    def test_skips_removed_files(self):
+        import sqlite3
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            conn = sqlite3.connect(":memory:")
+            conn.execute("CREATE TABLE screenshots(observation_id TEXT, status TEXT, relative_path TEXT)")
+            for oid in ("a", "b", "c"):
+                conn.execute("INSERT INTO screenshots VALUES (?, 'stored', ?)", (oid, oid + ".png"))
+            open(os.path.join(d, "c.png"), "w").close()
+            self.assertEqual(V.pick_screenshot(conn, d, ["a", "b", "c"])[0], "c")
+
+    def test_none_left(self):
+        import sqlite3
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            conn = sqlite3.connect(":memory:")
+            conn.execute("CREATE TABLE screenshots(observation_id TEXT, status TEXT, relative_path TEXT)")
+            self.assertIsNone(V.pick_screenshot(conn, d, ["a"])[1])

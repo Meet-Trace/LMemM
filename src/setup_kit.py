@@ -11,14 +11,16 @@ import os
 import objc
 from AppKit import (NSAttributedString, NSBezierPath, NSColor, NSFont, NSFontAttributeName,
                     NSForegroundColorAttributeName, NSImage, NSImageView, NSKernAttributeName, NSMakeRect, NSMakeSize,
-                    NSMutableParagraphStyle, NSParagraphStyleAttributeName)
+                    NSMutableParagraphStyle, NSParagraphStyleAttributeName, NSTextField)
 
 import palette
+import tokens
 from widget import _Control, _Flipped
 
 LEFT, CENTER, RIGHT = 0, 1, 2                         # NSTextAlignment on current macOS (the old 1 = right, 2 = centre is gone)
 _FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "fonts")
 _FONT_FILE = "Figtree[wght].ttf"
+_SERIF_FILES = ("InstrumentSerif-Regular.ttf", "InstrumentSerif-Italic.ttf")      # the website's display face (SIL OFL, next to its licence)
 _NAMES = {400: "Figtree-Regular", 500: "Figtree-Medium", 600: "Figtree-SemiBold", 700: "Figtree-Bold"}
 _WGHT = 2003265652                                  # the 'wght' variation axis tag
 _registered = None
@@ -27,7 +29,7 @@ _fonts = {}
 
 # ---------------------------------------------------------------- colour
 
-ACCENT = (0.17, 0.40, 0.92)                          # a calm blue, in place of the pill's orange (= palette.ACCENT)
+ACCENT = palette.ACCENT                              # the website's blue, #2856d9 (one accent for the whole app)
 
 
 def accent(alpha=1.0):
@@ -67,12 +69,31 @@ def warm(token):
     return NSColor.colorWithRed_green_blue_alpha_(*palette.WARM[token], 1.0)
 
 
+def _by_appearance(light, dark):
+    """A colour that is `light` (r, g, b) on a light ground and `dark` on a dark one."""
+    try:
+        def pick(appearance):
+            is_dark = appearance.bestMatchFromAppearancesWithNames_(["NSAppearanceNameAqua", "NSAppearanceNameDarkAqua"]) \
+                == "NSAppearanceNameDarkAqua"
+            return NSColor.colorWithRed_green_blue_alpha_(*(dark if is_dark else light), 1.0)
+        return NSColor.colorWithName_dynamicProvider_(None, pick)
+    except Exception:
+        return NSColor.labelColor()
+
+
 def ink():
-    return NSColor.labelColor()
+    """Text: the website's ink (#191a20) on a light ground, soft warm white on a dark one."""
+    return _by_appearance(palette.THEMES["ivory"]["ink"], palette.THEMES["b"]["ink"])
 
 
 def mute():
-    return NSColor.secondaryLabelColor()
+    """Quieter text: the website's muted ink on a light ground."""
+    return _by_appearance(palette.THEMES["ivory"]["mute"], palette.THEMES["b"]["mute"])
+
+
+def soft():
+    """The quietest text (metadata, times): never for sentences."""
+    return _by_appearance(palette.THEMES["ivory"]["soft"], palette.THEMES["b"]["soft"])
 
 
 def faint(alpha=0.06):
@@ -98,27 +119,80 @@ def card_background():
 
 # ---------------------------------------------------------------- type
 
+def _register_file(name):
+    """Register one bundled font file for this process; True when the file is there and macOS took it."""
+    try:
+        from CoreText import CTFontManagerRegisterFontsForURL, kCTFontManagerScopeProcess
+        from Foundation import NSURL
+        path = os.path.normpath(os.path.join(_FONT_DIR, name))
+        if os.path.exists(path):
+            CTFontManagerRegisterFontsForURL(NSURL.fileURLWithPath_(path), kCTFontManagerScopeProcess, None)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def register_fonts():
-    """Make the bundled Figtree available to this process. True when it is. Never raises; if the
-    file is missing or macOS refuses it, the system font is used and nothing else changes."""
+    """Make the bundled Figtree and Instrument Serif available to this process. True when Figtree is. Never raises; if a
+    file is missing or macOS refuses it, the system font (or the system serif) is used and nothing else changes."""
     global _registered
     if _registered is None:
         _registered = False
         try:
-            from CoreText import CTFontManagerRegisterFontsForURL, kCTFontManagerScopeProcess
-            from Foundation import NSURL
-            path = os.path.normpath(os.path.join(_FONT_DIR, _FONT_FILE))
-            if os.path.exists(path):
-                CTFontManagerRegisterFontsForURL(NSURL.fileURLWithPath_(path), kCTFontManagerScopeProcess, None)
+            if _register_file(_FONT_FILE):
                 _registered = NSFont.fontWithName_size_("Figtree-Regular", 14) is not None \
                     or NSFont.fontWithName_size_("Figtree", 14) is not None
+            for name in _SERIF_FILES:
+                _register_file(name)
         except Exception:
             _registered = False
     return _registered
 
 
-def font(size, weight=400):
-    """Figtree at this size and weight (400, 500, 600, 700); the system font if Figtree is missing."""
+_SERIF_NAMES = (("InstrumentSerif-Regular", "NewYork-Regular", "Georgia"), ("InstrumentSerif-Italic", "NewYork-RegularItalic", "Georgia-Italic"))
+
+
+def serif(size, italic=False):
+    """The display face (Instrument Serif, as on the website); the system serif (New York, then Georgia) when it is
+    missing, then the system font. Never raises."""
+    key = ("serif", size, italic)
+    if key not in _fonts:
+        register_fonts()
+        found = None
+        for name in _SERIF_NAMES[1 if italic else 0]:
+            try:
+                found = NSFont.fontWithName_size_(name, size)
+            except Exception:
+                found = None
+            if found is not None:
+                break
+        _fonts[key] = found if found is not None else NSFont.systemFontOfSize_(size)
+    return _fonts[key]
+
+
+def mono(size, weight=400):
+    """The monospaced face for file names, addresses and code (SF Mono; Menlo if this macOS lacks it)."""
+    key = ("mono", size, weight)
+    if key not in _fonts:
+        found = None
+        try:
+            found = NSFont.monospacedSystemFontOfSize_weight_(size, {400: 0.0, 500: 0.23, 600: 0.3, 700: 0.4}.get(weight, 0.0))
+        except Exception:
+            found = None
+        if found is None:
+            found = NSFont.fontWithName_size_("Menlo-Regular", size) or NSFont.systemFontOfSize_(size)
+        _fonts[key] = found
+    return _fonts[key]
+
+
+def font(size, weight=400, face="sans"):
+    """Figtree at this size and weight (400, 500, 600, 700); the system font if Figtree is missing. `face` "serif" or
+    "serif-italic" is the display face, "mono" the monospaced one."""
+    if face == "serif" or face == "serif-italic":
+        return serif(size, face == "serif-italic")
+    if face == "mono":
+        return mono(size, weight)
     key = (size, weight)
     if key not in _fonts:
         found = None
@@ -140,17 +214,17 @@ def font(size, weight=400):
 
 # Three type roles. Display: the one heading that names the page (tight, heavy). Body: what you read
 # (comfortable leading). Meta: when, where, how long (small, quiet, a little open).
-DISPLAY = {"size": 30, "weight": 700, "track": -0.032, "lead": 1.06}
-BODY = {"size": 14, "weight": 400, "track": 0.0, "lead": 1.42}
-META = {"size": 12, "weight": 400, "track": 0.012, "lead": 1.3}
+DISPLAY = {"size": tokens.DISPLAY["xl"], "weight": 400, "track": tokens.TRACK["display"], "lead": tokens.LEAD["display"], "face": "serif"}
+BODY = {"size": 14, "weight": 400, "track": tokens.TRACK["body"], "lead": tokens.LEAD["body"]}
+META = {"size": 12, "weight": 400, "track": tokens.TRACK["meta"], "lead": tokens.LEAD["meta"]}
 
 
-def _attributed(text, size, weight, color, align, wrap, track=None, lead=None):
+def _attributed(text, size, weight, color, align, wrap, track=None, lead=None, face="sans"):
     style = NSMutableParagraphStyle.alloc().init()
     style.setAlignment_(align)
     style.setLineBreakMode_(0 if wrap else 4)
     style.setLineHeightMultiple_((lead or 1.18) if wrap else 1.0)
-    attrs = {NSFontAttributeName: font(size, weight), NSForegroundColorAttributeName: color,
+    attrs = {NSFontAttributeName: font(size, weight, face), NSForegroundColorAttributeName: color,
              NSParagraphStyleAttributeName: style}
     if track is not None:                            # tracking in em, set by the caller (a role)
         attrs[NSKernAttributeName] = track * size
@@ -159,14 +233,14 @@ def _attributed(text, size, weight, color, align, wrap, track=None, lead=None):
     return NSAttributedString.alloc().initWithString_attributes_(text, attrs)
 
 
-def text_width(text, size, weight=400):
+def text_width(text, size, weight=400, face="sans"):
     return NSAttributedString.alloc().initWithString_attributes_(
-        text, {NSFontAttributeName: font(size, weight)}).size().width
+        text, {NSFontAttributeName: font(size, weight, face)}).size().width
 
 
-def text_height(text, size, weight, width, wrap=True, track=None, lead=None):
+def text_height(text, size, weight, width, wrap=True, track=None, lead=None, face="sans"):
     """The height this text needs at this width (one line when it does not wrap)."""
-    shown = _attributed(text, size, weight, ink(), LEFT, wrap, track, lead)
+    shown = _attributed(text, size, weight, ink(), LEFT, wrap, track, lead, face)
     rect = shown.boundingRectWithSize_options_(NSMakeSize(width, 100000), 1)
     return float(int(rect.size.height) + 1)
 
@@ -177,6 +251,7 @@ class _KitText(_Flipped):
 
     def initWithText_size_weight_color_align_wrap_middle_(self, text, size, weight, color, align, wrap, middle):
         self = objc.super(_KitText, self).initWithFrame_(NSMakeRect(0, 0, 10, 10))
+        self.face = "sans"
         self.text, self.size, self.weight, self.color = text, size, weight, color
         self.align, self.wrap, self.middle = align, wrap, middle
         self.attributed = None                       # set to draw mixed weights (a bold lead-in)
@@ -185,7 +260,7 @@ class _KitText(_Flipped):
 
     def drawRect_(self, rect):
         bounds = self.bounds()
-        shown = self.attributed if self.attributed is not None else _attributed(self.text, self.size, self.weight, self.color, self.align, self.wrap, self.track, self.lead)
+        shown = self.attributed if self.attributed is not None else _attributed(self.text, self.size, self.weight, self.color, self.align, self.wrap, self.track, self.lead, self.face)
         height = shown.boundingRectWithSize_options_(NSMakeSize(bounds.size.width, 100000), 1).size.height
         y = (bounds.size.height - height) / 2 if self.middle else 0
         shown.drawWithRect_options_(NSMakeRect(0, y, bounds.size.width, height + 2), 1)
@@ -217,12 +292,33 @@ class _KitText(_Flipped):
         self.setNeedsDisplay_(True)
 
 
-def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False, tip=True, track=None, lead=None):
-    """Add text to `parent`; returns the height it takes. `track` (em) and `lead` (line height) come from a type role."""
-    h = height if height is not None else text_height(text, size, weight, w, wrap, track, lead)
+def _decorated(text, size, weight, color, align, wrap, track, lead, face, accent_word, mark):
+    """The attributed string for put_text's accent word and evidence mark."""
+    shown = _attributed(text, size, weight, color, align, wrap, track, lead, face).mutableCopy()
+    if mark and text:
+        whole = (0, len(text))
+        shown.addAttribute_value_range_("NSBackgroundColor", accent(0.16), whole)
+        shown.addAttribute_value_range_("NSUnderline", 1, whole)
+        shown.addAttribute_value_range_("NSUnderlineColor", accent(), whole)
+    if accent_word and accent_word in text:
+        at = text.index(accent_word)
+        span = (at, len(accent_word))
+        shown.addAttribute_value_range_(NSFontAttributeName, serif(size, True), span)
+        shown.addAttribute_value_range_(NSForegroundColorAttributeName, accent_text(), span)
+    return shown
+
+
+def put_text(parent, text, x, y, w, size=15, weight=400, color=None, align=LEFT, wrap=True, height=None, middle=False, tip=True, track=None, lead=None,
+             face="sans", accent_word=None, mark=False):
+    """Add text to `parent`; returns the height it takes. `track` (em) and `lead` (line height) come from a type role.
+    `face` is "sans", "serif", "serif-italic" or "mono". `accent_word` is set in italic accent blue inside serif text
+    (the website's key word); `mark` highlights the whole run as evidence (a soft blue wash and a blue underline)."""
+    h = height if height is not None else text_height(text, size, weight, w, wrap, track, lead, face)
     view = _KitText.alloc().initWithText_size_weight_color_align_wrap_middle_(
         text, size, weight, color or ink(), align, wrap, middle)
-    view.track, view.lead = track, lead
+    view.track, view.lead, view.face = track, lead, face
+    if accent_word or mark:
+        view.attributed = _decorated(text, size, weight, color or ink(), align, wrap, track, lead, face, accent_word, mark)
     view.setFrame_(NSMakeRect(x, y, w, h))
     parent.addSubview_(view)
     try:
@@ -256,7 +352,7 @@ class _KitButton(_Control):
         self = objc.super(_KitButton, self).initWithFrame_callback_(frame, callback)
         self.focusable = True
         self.fill = self.border = None
-        self.radius = 12
+        self.radius = tokens.RADIUS["m"]
         self.label = None
         return self
 
@@ -284,6 +380,7 @@ def button(parent, label, x, y, w, h, callback, kind="primary", size=16, weight=
         tap.fill = faint(0.07)
     elif kind == "outline":
         tap.border = line()
+        color = ink()
     elif kind == "danger":                            # destructive: a restrained red outline and red words
         color = status_text("red")
         tap.border = color.colorWithAlphaComponent_(0.55)
@@ -296,7 +393,7 @@ def button(parent, label, x, y, w, h, callback, kind="primary", size=16, weight=
         text.setFrame_(NSMakeRect(0, 0, w, h))
         tap.addSubview_(text)
         tap.label = text
-    tap.radius = 12 if h >= 40 else 9
+    tap.radius = tokens.RADIUS["m"]
     tap.setAlphaValue_(1.0 if enabled else 0.35)
     parent.addSubview_(tap)
     return tap
@@ -433,15 +530,16 @@ class _KitBox(_Flipped):
 
     def drawRect_(self, rect):
         b = self.bounds()
+        radius = tokens.RADIUS["m"]
         if self.focus:
             accent(0.14).setStroke()
             glow = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-                NSMakeRect(1, 1, b.size.width - 2, b.size.height - 2), 13, 13)
+                NSMakeRect(1, 1, b.size.width - 2, b.size.height - 2), radius + 1, radius + 1)
             glow.setLineWidth_(4)
             glow.stroke()
         path = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-            NSMakeRect(0.75, 0.75, b.size.width - 1.5, b.size.height - 1.5), 12, 12)
-        path.setLineWidth_(1.5)
+            NSMakeRect(0.75, 0.75, b.size.width - 1.5, b.size.height - 1.5), radius, radius)
+        path.setLineWidth_(1.5 if self.focus else tokens.HAIRLINE)       # a hairline at rest, the accent ring while focused
         (accent() if self.focus else line()).setStroke()
         path.stroke()
 
@@ -504,12 +602,19 @@ def glyph(parent, symbols, x, y, size=18, color=None):
     return holder
 
 
-def display(parent, text, x, y, w, color=None, size=None):
-    """The page's one display heading (role: display)."""
+def display(parent, text, x, y, w, color=None, size=None, accent_word=None, **kw):
+    """The page's one display heading (role: display): Instrument Serif, tight, with at most one italic accent word
+    (`accent_word`). `size` is one of tokens.DISPLAY's values; a window heading is never above 34."""
     r = dict(DISPLAY)
     if size:
-        r["size"] = size
-    return put_text(parent, text, x, y, w, r["size"], r["weight"], color, track=r["track"], lead=r["lead"])
+        r["size"] = min(size, tokens.WINDOW_HEADING_MAX)
+    return put_text(parent, text, x, y, w, r["size"], r["weight"], color, track=r["track"], lead=r["lead"], face=r["face"],
+                    accent_word=accent_word, **kw)
+
+
+def mono_text(parent, text, x, y, w, color=None, size=12, **kw):
+    """File names, addresses and code, in the monospaced face."""
+    return put_text(parent, text, x, y, w, size, 400, color or mute(), face="mono", wrap=kw.pop("wrap", False), **kw)
 
 
 def meta(parent, text, x, y, w, color=None, **kw):
@@ -520,6 +625,114 @@ def meta(parent, text, x, y, w, color=None, **kw):
 def body(parent, text, x, y, w, color=None):
     """What you read: descriptions and summaries (role: body)."""
     return put_text(parent, text, x, y, w, BODY["size"], BODY["weight"], color, track=BODY["track"], lead=BODY["lead"])
+
+
+def tag(parent, kind, text, x, y, height=20):
+    """A small label: kind "decided" (the quiet green of a decision), "accent" (blue) or "quiet" (grey; a status). One
+    shape everywhere. Returns its width."""
+    size = tokens.TEXT["meta"]
+    width = int(text_width(text, size, 600)) + 14
+    if kind == "decided":
+        fill, color = warm("success").colorWithAlphaComponent_(0.14), warm("success_text")
+    elif kind == "accent":
+        fill, color = accent(0.12), warm("accent_text")
+    else:
+        fill, color = faint(0.06), mute()
+    view = _KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, width, height), fill, None, tokens.RADIUS["s"])
+    parent.addSubview_(view)
+    put_text(view, text, 7, 0, width - 14, size, 600, color, wrap=False, height=height, middle=True, tip=False)
+    return width
+
+
+def segmented(parent, x, y, items, size=13, height=28, pad=14):
+    """A track with the chosen segment lifted into a filled pill (the website's tab group): one control for tabs and
+    periods. `items` are (label, on, callback). The chosen one is always filled. Returns the width."""
+    widths = [int(text_width(label, size, 600)) + 2 * pad for label, _on, _call in items]      # measured at the heavier weight, so the chosen one never clips
+    parent.addSubview_(_KitSurface.alloc().initWithFrame_fill_edge_radius_(
+        NSMakeRect(x, y, sum(widths) + 4, height), faint(0.055), None, height / 2))
+    sx = x + 2
+    for (label, on, call), width in zip(items, widths):
+        seg = _KitButton.alloc().initWithFrame_callback_(NSMakeRect(sx, y + 2, width, height - 4), call)
+        seg.radius = (height - 4) / 2
+        seg.ax_label = label + (", selected" if on else "")
+        if on:
+            seg.fill = warm("surface") if palette.is_light() else faint(0.16)
+        parent.addSubview_(seg)
+        put_text(seg, label, pad, 0, width - 2 * pad, size, 600 if on else 500, ink() if on else mute(), wrap=False,
+                 height=height - 4, middle=True, tip=False)
+        sx += width
+    return sx + 2 - x
+
+
+def dot(parent, x, y, size=8, color=None):
+    """The brand dot: the small accent circle that stands for a project (never a folder)."""
+    view = _KitMarkDot.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
+    view.color = color or accent()
+    parent.addSubview_(view)
+    return view
+
+
+class _KitMarkDot(_Flipped):
+    def drawRect_(self, rect):
+        (getattr(self, "color", None) or accent()).setFill()
+        NSBezierPath.bezierPathWithOvalInRect_(self.bounds()).fill()
+
+    def hitTest_(self, point):
+        return None
+
+
+def empty_state(parent, title, line_text, x, y, w, accent_word=None, action=None):
+    """An empty state, always in the same voice: a serif heading that says what will appear, one muted line on how it
+    gets there, and the one useful action if there is one (`action` is (label, callback)). No picture, no sample data.
+    Returns the height used."""
+    width = min(w, 520)
+    h = display(parent, title, x, y, width, size=tokens.DISPLAY["m"], accent_word=accent_word)
+    h += 8
+    h += put_text(parent, line_text, x, y + h, min(w, 460), tokens.TEXT["body"] - 1, 400, mute(), lead=tokens.LEAD["body"])
+    if action:
+        h += 16
+        label, callback = action
+        bw = int(text_width(label, 13, 600)) + 32
+        button(parent, label, x, y + h, bw, 34, callback, kind="primary", size=13, weight=600)
+        h += 34
+    return h
+
+
+SOURCE_HEAD_H, SOURCE_GAP = 16, 3        # the source line's height, and the space before its quote (a row sizes itself from these)
+
+
+def literal_source(text):
+    """True for a file name, path or address (set in mono); a page title or other prose is not."""
+    text = str(text or "").strip()
+    return bool(text) and (" " not in text or "/" in text)
+
+
+def source_line(parent, text, x, y, w, quote=None, quote_height=None):
+    """A source: a line naming it (monospaced for a file or address, plain for a page title) and, under it, the quoted
+    words marked as evidence (a soft blue wash and a blue underline). The same on every screen that shows evidence.
+    `quote_height` bounds the quote, so a row that reserved that much space never has it overrun. Returns the height used."""
+    if literal_source(text):
+        mono_text(parent, text, x, y, w, size=12, height=SOURCE_HEAD_H)
+    else:
+        put_text(parent, text, x, y, w, 13, 500, mute(), wrap=False, height=SOURCE_HEAD_H)
+    h = SOURCE_HEAD_H
+    if quote:
+        h += SOURCE_GAP + put_text(parent, quote, x, y + h + SOURCE_GAP, w, 13, 400, ink(), mark=True, lead=1.35, height=quote_height)
+    return h
+
+
+def source_button(parent, x, y, label, callback, height=24, right=None):
+    """The one "Source ›" button that opens a piece of evidence (Memory rows, Resume). Placed at x, or with its right
+    edge at `right`. `label` names what it opens, for VoiceOver. Returns its width."""
+    size = tokens.SIZE["small"]
+    width = int(text_width("Source", size, 600)) + 30
+    if right is not None:
+        x = right - width
+    view = _KitButton.alloc().initWithFrame_callback_(NSMakeRect(x, y, width, height), callback)
+    view.fill, view.radius, view.ax_label = accent(0.10), tokens.RADIUS["m"], "Source for: " + label[:60]
+    parent.addSubview_(view)
+    put_text(view, "Source  \u203a", 0, 0, width, size, 600, accent_text(), align=CENTER, wrap=False, height=height, middle=True)
+    return width
 
 
 def tile(parent, symbol, color, x, y, size=28):
@@ -554,11 +767,12 @@ class _KitSurface(_Flipped):
         return None if self.fill is None else objc.super(_KitSurface, self).hitTest_(point)
 
 
-def surface(parent, x, y, w, h, token="surface", edge=True, radius=18, alpha=None):
+def surface(parent, x, y, w, h, token="surface", edge=True, radius=tokens.RADIUS["l"], alpha=None):
     """A warm rounded surface at (x, y); anything added to `parent` afterwards sits on it. `alpha` lets the
     background show through a little (a tinted veil, no blur); its edge is then a faint light line."""
     fill = warm(token) if alpha is None else warm(token).colorWithAlphaComponent_(alpha)
-    line_color = (warm("edge") if alpha is None else NSColor.whiteColor().colorWithAlphaComponent_(0.10)) if edge else None
+    veil = NSColor.blackColor() if palette.is_light() else NSColor.whiteColor()
+    line_color = (warm("edge") if alpha is None else veil.colorWithAlphaComponent_(0.08 if palette.is_light() else 0.10)) if edge else None
     view = _KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y, w, h), fill, line_color, radius)
     parent.addSubview_(view)
     return view
@@ -586,3 +800,89 @@ def first_symbol(names):
         if NSImage.imageWithSystemSymbolName_accessibilityDescription_(name, None) is not None:
             return name
     return None
+
+
+def field(parent, x, y, w, h, focus=False):
+    """The outline of a text field or the search field (hairline, the accent ring while it has the cursor). The one
+    style for every field; returns the view to put the field's text on."""
+    box = _KitBox.alloc().initWithFocus_(focus)
+    box.setFrame_(NSMakeRect(x, y, w, h))
+    parent.addSubview_(box)
+    return box
+
+
+def _unfocus(text, ok):
+    box = getattr(text, "box", None)
+    if ok and box is not None and box.focus:
+        box.focus = False
+        box.setNeedsDisplay_(True)
+
+
+class _KitInput(NSTextField):
+    """A borderless one-line text field that lights its outline (a _KitBox behind it) while it has the cursor."""
+
+    def becomeFirstResponder(self):
+        ok = objc.super(_KitInput, self).becomeFirstResponder()
+        box = getattr(self, "box", None)
+        if ok and box is not None:
+            box.focus = True
+            box.setNeedsDisplay_(True)
+        return ok
+
+    def resignFirstResponder(self):
+        ok = objc.super(_KitInput, self).resignFirstResponder()
+        _unfocus(self, ok)
+        return ok
+
+    def textDidEndEditing_(self, note):               # the field editor holds the cursor, so this is when it really leaves
+        objc.super(_KitInput, self).textDidEndEditing_(note)
+        _unfocus(self, True)
+
+
+
+def input_field(parent, placeholder, x, y, w, h, delegate=None, size=None):
+    """The one text field (search, names, pickers): a hairline outline that takes the accent ring on focus, with a
+    borderless native field inside it. Returns (outline, field); move both with place_input."""
+    box = field(parent, x, y, w, h)
+    text = _KitInput.alloc().initWithFrame_(NSMakeRect(0, 0, 10, 10))
+    text.setPlaceholderString_(placeholder)
+    text.setBordered_(False)
+    text.setBezeled_(False)
+    text.setDrawsBackground_(False)
+    text.setFocusRingType_(1)                         # none: the outline shows focus
+    text.setFont_(font(size or tokens.TEXT["label"] + 1, 400))
+    if delegate is not None:
+        text.setDelegate_(delegate)
+    text.box = box
+    parent.addSubview_(text)
+    place_input(box, text, x, y, w, h)
+    return box, text
+
+
+def place_input(box, text, x, y, w, h):
+    """Put an input_field's outline and field at this frame (the field is inset 10 pt and centred)."""
+    box.setFrame_(NSMakeRect(x, y, w, h))
+    text.setFrame_(NSMakeRect(x + 10, y + (h - 18) / 2, w - 20, 18))
+
+
+class _KitProjectMark(_Flipped):
+    """A project's mark: a soft accent tile with the accent dot at its centre."""
+
+    def drawRect_(self, rect):
+        box = self.bounds()
+        w = box.size.width
+        accent(0.10).setFill()
+        NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(box, w * 0.28, w * 0.28).fill()
+        accent().setFill()
+        d = w * 0.30
+        NSBezierPath.bezierPathWithOvalInRect_(NSMakeRect((w - d) / 2, (box.size.height - d) / 2, d, d)).fill()
+
+    def hitTest_(self, point):
+        return None
+
+
+def project_mark(parent, x, y, size=26):
+    """How a project is shown wherever it is a row or a title: one mark, never a folder."""
+    view = _KitProjectMark.alloc().initWithFrame_(NSMakeRect(x, y, size, size))
+    parent.addSubview_(view)
+    return view

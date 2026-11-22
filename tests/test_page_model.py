@@ -159,7 +159,7 @@ class ProjectPageTests(unittest.TestCase):
         reg, items, ids = world()
         empty = projects.create(reg, "Empty")
         page = pm.view(reg, items, pm.press(reg, pm.new_state(), "go", empty), NOW)["main"]
-        self.assertEqual(page["empty"]["title"], "Nothing here yet")
+        self.assertEqual(page["empty"]["title"], "This project's work will show up here")
         self.assertNotIn("pick_up", page)
 
     def test_crumbs_and_meta(self):
@@ -238,9 +238,9 @@ class HomeAndNeedsTests(unittest.TestCase):
 
     def test_first_run_and_no_projects_yet(self):
         v = pm.view(projects.empty(), {}, pm.new_state(), NOW)["main"]
-        self.assertEqual(v["empty"]["title"], "Nothing here yet")
+        self.assertEqual(v["empty"]["title"], "Your projects will gather here as you work")
         v = pm.view(projects.empty(), {"x": thing("x", "A")}, pm.new_state(), NOW)["main"]
-        self.assertEqual(v["empty"]["title"], "No projects yet")
+        self.assertEqual(v["empty"]["title"], "Your projects will gather here")
 
     def test_a_project_that_was_deleted_falls_back_to_home(self):
         reg, items, ids = world()
@@ -461,7 +461,7 @@ class ArchivedTests(unittest.TestCase):
     def test_nothing_archived_says_so(self):
         reg, items, ids = world()
         page = pm.view(reg, items, pm.press(reg, pm.new_state(), "archived"), NOW)["main"]
-        self.assertEqual(page["empty"]["title"], "Nothing archived")
+        self.assertEqual(page["empty"]["title"], "Archived projects will rest here")
 
 
 class SuggestionPageTests(unittest.TestCase):

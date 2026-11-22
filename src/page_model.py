@@ -142,7 +142,7 @@ def plural(n, one, many=None):
 def new_state():
     return {"view": "home", "pid": None, "q": "", "open": [], "deep": True, "app": None,
             "shown": THINGS_SHOWN, "subs": SUBS_SHOWN, "lim": {}, "needs_all": False, "tid": None, "back": None, "sec": "you",
-            "hist": {"scope": "today", "day": None, "mode": "timeline", "n": HISTORY_DAYS, "lim": HISTORY_FOUND, "q": ""}}
+            "hist": {"scope": "today", "day": None, "mode": "apps", "n": HISTORY_DAYS, "lim": HISTORY_FOUND, "q": ""}}
 
 
 def press(reg, state, action, arg=None, items=None, now=None):
@@ -218,7 +218,7 @@ def _history_press(s, state, action, arg, now):
         s.update(view="history", pid=None, q="", tid=None)
         return
     s.update(view="history", pid=None, q="")
-    if action == "history_mode" and arg in ("timeline", "projects", "apps"):
+    if action == "history_mode" and arg in ("projects", "apps"):
         hist["mode"] = arg
     elif action == "history_more":
         hist.update(**({"lim": hist["lim"] + HISTORY_FOUND} if hist["q"] else {"n": hist["n"] + HISTORY_DAYS}))

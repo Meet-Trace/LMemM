@@ -1323,6 +1323,14 @@ class MainWindow:
 
     def _side(self, doc, side):
         y = 6
+        call = lambda: self.press("history")
+        tap = self._tap(doc, 8, y, SIDE_W - 16, 34, call, fill=self.nav["view"] == "history")
+        if self._krow("side", "history", call, tap):
+            tap.fill = True
+        tap.focusable, tap.ax_label = True, "Work History"
+        kit.glyph(tap, ("clock.arrow.circlepath", "clock"), 11, 8, 18, kit.mute())
+        kit.put_text(tap, "Work History", 40, 0, SIDE_W - 16 - 40, 13, 500, wrap=False, height=34, middle=True)
+        y += 48                                                     # always one click away, whatever page you are on
         needs = side["needs"]
         self._label(doc, "NEEDS YOU", 16, y, 130)
         if needs["count"]:
@@ -2494,7 +2502,7 @@ class MainWindow:
             y += 40
         doc.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y, w, 1)))
         y += 22
-        many = page["scope"] in ("week", "earlier") and page["mode"] != "timeline"
+        many = page["scope"] in ("week", "earlier")
         for group in page["groups"]:
             y = self._history_group(doc, page, group, x, y, w, many)
         if page["empty"]:
@@ -2559,7 +2567,7 @@ class MainWindow:
         doc.addSubview_(_Rail.alloc().initWithFrame_(NSMakeRect(x + HIST_TIME_W + 4, top, 1, max(y - top - 8, 0))))
         return y + 26
 
-    def _history_row(self, doc, r, x, y, w, many, mode="timeline"):
+    def _history_row(self, doc, r, x, y, w, many, mode="apps"):
         """One entry: its time at the left, a dot on the spine, then name, where, and the line the thing already stores."""
         pad = 8
         h = 72 if r["doing"] else 52

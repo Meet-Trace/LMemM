@@ -23,7 +23,7 @@ page (`Tracker.open_window`, then `open_history`). Reading history never pauses,
   lists the last 7 days newest first, each day under its own heading. Earlier lists days that have history, newest
   first, loaded 7 days at a time with "Show earlier days". Days with nothing are skipped in Earlier and say "Nothing
   remembered for this day" when picked directly.
-- **Modes:** a three-way switch, **Timeline | Projects | Apps**. The mode and the selected day persist while the window
+- **Modes:** a three-way switch, **Apps | Projects**. The mode and the selected day persist while the window
   is open.
   - Timeline: entries in time order within a day (newest day first; within a day, earliest first, so the spine reads
     like a day).

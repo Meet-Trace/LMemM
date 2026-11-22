@@ -256,7 +256,7 @@ with open(os.path.join(hist_dir, today.strftime("%Y%m%d") + "-000001.json"), "w"
                             {"from": "00:20:00", "to": "00:21:00", "seconds": 30, "item": "b"}]}, fh)
 w.history = lambda: {"sessions_dir": hist_dir, "live": None, "skip": []}
 w.open_history(); step("history today", render)
-for mode in ("projects", "apps", "timeline"):
+for mode in ("projects", "apps"):
     w.press("history_mode", mode); step("history " + mode, render)
 for scope in ("yesterday", "week", "earlier", "today"):
     w.press("history_day", scope); step("history " + scope, render)

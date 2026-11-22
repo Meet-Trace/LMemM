@@ -18,8 +18,9 @@ window.py draws it and forwards presses to page_model.press(); it decides nothin
         holds them. A forgotten thing has no entry. Nothing about it is made up.
     H6  A duration shows only from 60 seconds up. A description shows only when the thing stores one.
     H7  A thing from an app on the Never remember list is hidden, in every mode and in search.
-    H8  Timeline lists days newest first, each day earliest first, so a day reads top to bottom. Projects and Apps
-        regroup the same entries (sections by most recent entry) and keep that order inside each section.
+    H8  Apps is the page: a section per app, most recently used first, with that app's entries in time order (newest
+        day first, each day earliest first, so it reads top to bottom). Projects regroups the same entries by
+        project. There is no separate flat timeline: every entry already carries its time.
     H9  Earlier pages itself seven days at a time, never reading further than it shows. Search pages by fifty.
     H10 Search looks at thing titles, project names and old names, notes (open and done) and kept excerpt text,
         case and accents ignored, across all of history. No model, no network, no index of its own.
@@ -41,7 +42,7 @@ import projects
 import store
 
 SCOPES = (("today", "Today"), ("yesterday", "Yesterday"), ("week", "This week"), ("earlier", "Earlier"))
-MODES = (("timeline", "Timeline"), ("projects", "Projects"), ("apps", "Apps"))
+MODES = (("apps", "Apps"), ("projects", "Projects"))
 JUMP_DAYS = 60
 WEEK_DAYS = 7
 MIN_SECONDS = 60
@@ -319,15 +320,10 @@ def _stamped(rows, today):
 
 
 def _groups(rows, mode, today):
-    """Timeline: a section per day. Projects and Apps: a section per project or app. Newest day first, earliest first
-    inside a day, in every mode (H8)."""
+    """A section per app (the default) or per project, most recently used first. Inside a section the entries run newest
+    day first, earliest first inside a day, so each reads top to bottom (H8)."""
     ordered = sorted(rows, key=lambda r: (r["day"], r["at"]))
     ordered.sort(key=lambda r: r["day"], reverse=True)
-    if mode == "timeline":
-        out = {}
-        for r in ordered:
-            out.setdefault(r["day"], []).append(r)
-        return [{"title": label(day_of(d), today), "rows": _stamped(rs, today)} for d, rs in out.items()]
     out = {}
     for r in ordered:
         key = (r["pid"] or "") if mode == "projects" else r["app"]
@@ -363,7 +359,7 @@ def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=
     else:
         moments = []
     names = _names(sessions_dir) if sessions_dir else []
-    page = {"kind": "history", "title": "Work History", "back": True, "mode": hist["mode"], "scope": hist["scope"],
+    page = {"kind": "history", "title": "Work History", "back": True, "mode": hist["mode"] if hist["mode"] in dict(MODES) else "apps", "scope": hist["scope"],
             "q": hist["q"], "scopes": [{"id": k, "title": t, "on": k == hist["scope"]} for k, t in SCOPES if not (feed and k == "earlier")],
             "modes": [{"id": k, "title": t, "on": k == hist["mode"]} for k, t in MODES],
             "day": selected(hist, today).isoformat(), "jump": _jump(sessions_dir, live, today, moments) if sessions_dir or feed else [],
@@ -377,7 +373,7 @@ def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=
         return {**page, "groups": [], "more": False, "summary": "", "empty": EMPTY}
     ranged, more = _range(hist, today, sessions_dir, live, names, reg, items, hide, moments)
     rows = [r for _d, rs in ranged for r in rs]
-    return {**page, "groups": _groups(rows, hist["mode"], today), "more": more,
+    return {**page, "groups": _groups(rows, page["mode"], today), "more": more,
             "summary": _summary(rows), "empty": None if rows else (NO_DAY if hist["scope"] in ("today", "yesterday", "day") else EMPTY)}
 
 

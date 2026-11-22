@@ -555,7 +555,7 @@ class HistoryPressTests(unittest.TestCase):
 
     def test_opening_starts_on_today_in_the_mode_you_left(self):
         s = self.go(pm.new_state(), "history")
-        self.assertEqual((s["view"], s["hist"]["scope"], s["hist"]["mode"]), ("history", "today", "timeline"))
+        self.assertEqual((s["view"], s["hist"]["scope"], s["hist"]["mode"]), ("history", "today", "apps"))
         s = self.go(self.go(s, "history_mode", "apps"), "history_day", "week")
         s = self.go(self.go(s, "home"), "history")
         self.assertEqual((s["hist"]["scope"], s["hist"]["mode"]), ("today", "apps"))
@@ -588,7 +588,7 @@ class HistoryPressTests(unittest.TestCase):
         self.assertEqual(s["hist"]["q"], "deck")
         self.assertEqual(self.go(s, "history_more")["hist"]["lim"], 100)
         self.assertEqual(self.go(s, "history_day", "week")["hist"]["q"], "")
-        self.assertEqual(self.go(s, "history_mode", "nope")["hist"]["mode"], "timeline")
+        self.assertEqual(self.go(s, "history_mode", "nope")["hist"]["mode"], "apps")
         self.assertEqual(self.go(s, "history_mode", "projects")["hist"]["mode"], "projects")
 
     def test_a_press_never_changes_the_state_it_was_given(self):

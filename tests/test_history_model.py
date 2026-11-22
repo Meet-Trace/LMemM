@@ -56,7 +56,12 @@ class Base(unittest.TestCase):
                        sessions_dir=self.dir, live=live, skip=skip, moments=moments)
 
     def rows(self, page):
-        return [r for g in page["groups"] for r in g["rows"]]
+        """Every entry, newest day first and earliest first inside a day, whatever the grouping."""
+        flat = [r for g in page["groups"] for r in g["rows"]]
+        if page.get("search"):
+            return flat
+        flat.sort(key=lambda r: r["at"])
+        return sorted(flat, key=lambda r: r["day"], reverse=True)
 
     def today(self):
         self.session("20261122-090000", [stretch("a", "09:00:05", "09:20:00", 600), stretch("a", "09:20:00", "09:30:00", 300),
@@ -112,7 +117,7 @@ class History(Base):
     def test_a_forgotten_thing_is_gone_from_every_mode_and_from_search(self):
         self.today()
         del self.items["a"]
-        for mode in ("timeline", "projects", "apps"):
+        for mode in ("projects", "apps"):
             self.assertNotIn("a", [r["id"] for r in self.rows(self.view(mode=mode))])
         self.assertEqual(self.rows(self.view(q="deck")), [])
 
@@ -122,12 +127,12 @@ class History(Base):
         self.assertEqual((page["groups"], page["empty"]), ([], hm.EMPTY))
         self.assertEqual(self.view(items={}, scope="week")["empty"], hm.EMPTY)
 
-    def test_an_app_you_never_remember_is_hidden_in_the_timeline_and_search(self):
+    def test_an_app_you_never_remember_is_hidden_in_history_and_search(self):
         self.today()
         skip = [{"id": "com.apple.Numbers", "name": "Numbers"}]
         self.assertEqual([r["id"] for r in self.rows(self.view(skip=skip))], ["a", "c"])
         self.assertEqual(self.rows(self.view(skip=skip, q="budget")), [])
-        self.assertEqual([r["id"] for r in self.rows(self.view(skip=skip, mode="apps"))], ["c", "a"])
+        self.assertEqual([g["title"] for g in self.view(skip=skip, mode="apps")["groups"]], ["Notes", "Keynote"])
         self.assertEqual([r["id"] for r in self.rows(self.view(q="budget"))], ["b"])
 
     def test_the_clock_going_backwards_means_midnight_passed(self):
@@ -149,7 +154,7 @@ class History(Base):
         self.session("20261118-100000", [stretch("c", "10:00:00", "10:30:00", 1800)])
         self.assertEqual([r["id"] for r in self.rows(self.view(scope="yesterday"))], ["b"])
         week = self.view(scope="week")
-        self.assertEqual([g["title"] for g in week["groups"]], ["Today", "Yesterday", "Wed 18 Nov"])
+        self.assertEqual([r["day_label"] for r in self.rows(week)], ["Today", "Today", "Today", "Yesterday", "Wed 18 Nov"])
         self.assertEqual(self.rows(self.view(scope="day", day="2026-11-18"))[0]["id"], "c")
         self.assertEqual(self.view(scope="day", day="2026-11-10")["empty"], hm.NO_DAY)
 
@@ -158,11 +163,11 @@ class History(Base):
             self.session(f"202610{n:02d}-100000", [stretch("a", "10:00:00", "10:30:00", 1800)])
         self.session("20261001-120000", [stretch("gone", "12:00:00", "12:30:00", 1800)])
         first = self.view(scope="earlier")
-        self.assertEqual(len(first["groups"]), 7)
+        self.assertEqual(len(self.rows(first)), 7)
         self.assertTrue(first["more"])
-        self.assertEqual(first["groups"][0]["title"], "Sun 11 Oct")
+        self.assertEqual(self.rows(first)[0]["day_label"], "Sun 11 Oct")
         more = self.view(scope="earlier", n=14)
-        self.assertEqual(len(more["groups"]), 11)
+        self.assertEqual(len(self.rows(more)), 11)
         self.assertFalse(more["more"])
 
     def test_projects_and_apps_group_and_keep_time_order(self):

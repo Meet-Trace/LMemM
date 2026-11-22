@@ -11,6 +11,7 @@ from typing import Callable
 
 from . import records, runner
 from .config import Agent, Factory
+from .github import GitHubError
 
 WAITING, RUNNING, DONE, STOPPED = "factory:waiting", "factory:running", "factory:done", "factory:stopped"
 PROPOSED, LOG = "factory:proposed", "factory:log"
@@ -252,7 +253,17 @@ class Orchestrator:
             return pr
         body = (f"Built by the software factory for #{issue['number']}.\n\n"
                 f"Closes #{issue['number']}\n\nEach agent's report is on the issue.")
-        return self.gh.create_pr(branch, self.ws.base, issue["title"], body)
+        try:
+            return self.gh.create_pr(branch, self.ws.base, issue["title"], body)
+        except GitHubError as exc:
+            # Usually "GitHub Actions is not permitted to create pull requests"
+            # (an org or repo setting). The branch is pushed; deliver() links it.
+            self.log(f"#{issue['number']}: could not open a pull request: {exc}")
+            return None
+
+    def compare_url(self, number: int) -> str:
+        return (f"https://github.com/{self.gh.repo}/compare/{self.ws.base}...{self.branch(number)}"
+                "?expand=1")
 
     # -- the loop ------------------------------------------------------------
     def advance(self, number: int, start: str | None = None) -> str:
@@ -341,9 +352,17 @@ class Orchestrator:
         pr = self.gh.find_pr(self.branch(issue["number"]))
         total = sum(float(r.get("cost_usd") or 0) for r in runs)
         if pr:
-            self.gh.mark_ready(pr)
+            try:
+                self.gh.mark_ready(pr)
+            except GitHubError as exc:
+                self.log(f"could not mark the pull request ready: {exc}")
             msg = (f"✅ **Ready for you to test:** {pr['html_url']}\n\nThe verify agent's report above "
                    f"has the steps. Total agent cost: ${total:.2f}.")
+        elif self.ws.remote_has(self.branch(issue["number"])):
+            msg = (f"✅ **Ready for you to test** on branch `{self.branch(issue['number'])}`. "
+                   f"GitHub did not let the factory open the pull request, so "
+                   f"[open it with one click]({self.compare_url(issue['number'])}). "
+                   f"The verify agent's report above has the steps. Total agent cost: ${total:.2f}.")
         else:
             msg = f"✅ The factory finished this request. Total agent cost: ${total:.2f}."
         login = issue["user"]["login"]

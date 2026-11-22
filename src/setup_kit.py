@@ -698,12 +698,26 @@ def empty_state(parent, title, line_text, x, y, w, accent_word=None, action=None
     return h
 
 
-def source_line(parent, text, x, y, w, quote=None):
-    """A source: a monospaced line (file, address or app) and, under it, the quoted words marked as evidence (a soft
-    blue wash and a blue underline). The same on every screen that shows evidence. Returns the height used."""
-    h = mono_text(parent, text, x, y, w, size=12, height=16)
+SOURCE_HEAD_H, SOURCE_GAP = 16, 3        # the source line's height, and the space before its quote (a row sizes itself from these)
+
+
+def literal_source(text):
+    """True for a file name, path or address (set in mono); a page title or other prose is not."""
+    text = str(text or "").strip()
+    return bool(text) and (" " not in text or "/" in text)
+
+
+def source_line(parent, text, x, y, w, quote=None, quote_height=None):
+    """A source: a line naming it (monospaced for a file or address, plain for a page title) and, under it, the quoted
+    words marked as evidence (a soft blue wash and a blue underline). The same on every screen that shows evidence.
+    `quote_height` bounds the quote, so a row that reserved that much space never has it overrun. Returns the height used."""
+    if literal_source(text):
+        mono_text(parent, text, x, y, w, size=12, height=SOURCE_HEAD_H)
+    else:
+        put_text(parent, text, x, y, w, 13, 500, mute(), wrap=False, height=SOURCE_HEAD_H)
+    h = SOURCE_HEAD_H
     if quote:
-        h += 4 + put_text(parent, quote, x, y + h + 4, w, 13, 400, ink(), mark=True, lead=1.35)
+        h += SOURCE_GAP + put_text(parent, quote, x, y + h + SOURCE_GAP, w, 13, 400, ink(), mark=True, lead=1.35, height=quote_height)
     return h
 
 

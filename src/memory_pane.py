@@ -89,13 +89,13 @@ class MemoryPane:
             lead=row['title'] or row['text']
             lines=[l for l in str(row['text']).split('\n') if l.strip()][:2] if row['title'] else []
             src=bool(row['title'])                           # observed text: a source (file name in mono) with its words marked as evidence
-            head_h=16 if src else min(kit.text_height(lead,SZ["body"],500,tw_,True,-0.004,None),57)
+            head_h=kit.SOURCE_HEAD_H if src else min(kit.text_height(lead,SZ["body"],500,tw_,True,-0.004,None),57)
             body='\n'.join(lines);bh_=min(kit.text_height(body,SZ["label"],400,tw_,True,0.004,1.35),36) if body else 0
             decided=row.get('section')=='Decisions'
-            h=max(56,10+head_h+(3+bh_ if bh_ else 0)+10)+(24 if decided else 0)
+            h=max(56,10+head_h+(kit.SOURCE_GAP+bh_ if bh_ else 0)+10)+(24 if decided else 0)
             if row['citation_id']:
                 hit=kit._KitButton.alloc().initWithFrame_callback_(NSMakeRect(x+6,y+2,w-12,h-4),lambda c=row['citation_id']:self.action('source',{'citation_id':c}));hit.radius=10;hit.ax_label='Open source: '+lead[:60];host.addSubview_(hit)
-            if src:kit.source_line(host,row['title'],x+PADX,y+10,tw_,quote=body or None)
+            if src:kit.source_line(host,row['title'],x+PADX,y+10,tw_,quote=body or None,quote_height=bh_ or None)      # drawn at the height the row reserved
             else:
                 kit.put_text(host,lead,x+PADX,y+10,tw_,SZ["body"],500,height=head_h,track=-0.004)
                 if bh_:kit.put_text(host,body,x+PADX,y+10+head_h+3,tw_,SZ["label"],400,kit.mute(),height=bh_,track=0.004,lead=1.3)

@@ -23,8 +23,9 @@ window.py draws it and forwards presses to page_model.press(); it decides nothin
         project. There is no separate flat timeline: every entry already carries its time.
     H13 When Trace V2's vision-model Moments exist (v2_history.py) they are the record instead, all of it, not only
         48 hours: the purpose is the title, what happened is the line under it, and Moments the pair check judged to
-        be one Activity show once. They are not things, so they open nothing. Search reads their text. Without
-        V2 data the page is as H11 says.
+        be one Activity show once. They are not things, so they open nothing. Search reads their text. What they have
+        not described yet is filled from the rule-based Moments (those starting after the last described one), so
+        the page is not stale when V2 is not running. Without V2 data the page is as H11 says.
     H12 In a section a thing shows once per day, however many times you came back to it: first start to last end,
         seconds added, and "N visits" when there were several. "The same" means the same app and title (a page can
         be stored as more than one thing and still read as one), so those fold together too.
@@ -400,7 +401,12 @@ def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=
     hide = hidden_apps(skip)
     feed = moments is not None or v2 is not None
     if v2 is not None:
-        moments = v2                                           # the vision Moments, kept for good: no 48 hour cutoff (H13)
+        # the vision Moments, kept for good: no 48 hour cutoff. Whatever they have not described yet (the latest quarter
+        # hour, or everything since V2 last ran) is filled from the rule-based Moments, so the page is never stale (H13)
+        after = max(e["end"] for e in v2)
+        recent = datetime.now() - timedelta(hours=config.MOMENT_RETENTION_HOURS)
+        fill = [e for e in moment_events(moments) if e["start"] >= after and e["end"] >= recent] if moments is not None else []
+        moments = sorted(v2 + fill, key=lambda e: e["start"])
         sessions_dir, live = None, None
     elif feed:
         cutoff = now - timedelta(hours=config.MOMENT_RETENTION_HOURS)

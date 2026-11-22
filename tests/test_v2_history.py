@@ -111,6 +111,21 @@ class V2(unittest.TestCase):
             e["end"] = e["end"].replace(day=1)
         self.assertIn("earlier", [s["id"] for s in self.page(v2=events)["scopes"]])
 
+    def test_what_v2_has_not_described_yet_is_filled_from_the_rule_based_moments(self):
+        from datetime import timedelta
+        now = datetime.now().replace(microsecond=0)
+        old_a = datetime.combine(now.date(), datetime.min.time()) + timedelta(hours=1)
+        v2 = [{"v2": {"id": "m1", "title": "Old purpose", "line": "", "app": "Terminal", "activity": None}, "item": "m1",
+               "start": old_a, "end": old_a + timedelta(minutes=5), "seconds": 300}]
+        thing = {"id": "t", "app": "Docs", "title": "Fresh doc", "last_seen": now.isoformat(), "notes": []}
+        rec = lambda vid, a, b: {"item_id": "t", "visit_id": vid, "t_start": a.timestamp(), "t_end": b.timestamp()}
+        moments = [rec("before", old_a - timedelta(minutes=30), old_a - timedelta(minutes=20)),       # inside V2's period: not shown
+                   rec("after", now - timedelta(minutes=10), now - timedelta(minutes=2))]              # after the last described Moment
+        s = pm.new_state()
+        page = hm.view(projects.empty(), {"t": thing}, s, now, v2=v2, moments=moments)
+        self.assertEqual(sorted(r["title"] for r in self.rows_of(page)), ["Fresh doc", "Old purpose"])
+        self.assertEqual([r["visits"] for r in self.rows_of(page)], [1, 1])
+
     def test_the_cache_follows_the_files(self):
         self.moment("m1", "09:00:00", "09:05:00")
         self.save()

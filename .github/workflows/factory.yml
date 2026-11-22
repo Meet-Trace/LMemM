@@ -1,0 +1,76 @@
+# The software factory. Label an issue `factory` and agents carry it from
+# triage to a tested pull request. Agents and stages: factory/factory.yaml.
+name: factory
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to run (leave empty to pick up anything waiting to run)
+        required: false
+      stage:
+        description: Stage to start at (optional)
+        required: false
+  schedule:
+    # Heartbeat: picks up requests a crashed or handed-off run left behind.
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  plan:
+    # Ignore comments on pull requests and on issues outside the factory.
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (!github.event.issue.pull_request && contains(github.event.issue.labels.*.name, 'factory'))
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.cfg.outputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: factory
+      - run: python3 -m pip install --quiet pyyaml
+      - id: cfg
+        run: |
+          python3 -m factory validate
+          echo "runner=$(python3 -m factory runner)" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: plan
+    runs-on: ${{ needs.plan.outputs.runner }}
+    timeout-minutes: 300
+    # One run per issue at a time; later events queue behind it.
+    concurrency:
+      group: factory-${{ github.event.issue.number || inputs.issue || 'sweep' }}
+      cancel-in-progress: false
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_VERSION: "2.1.330"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the factory and Claude Code
+        run: |
+          python -m pip install --quiet pyyaml
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          git config user.name "software-factory[bot]"
+          git config user.email "software-factory@users.noreply.github.com"
+      - name: Run the factory
+        run: python -m factory handle

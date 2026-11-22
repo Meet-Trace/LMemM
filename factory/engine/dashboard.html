@@ -1,0 +1,360 @@
+<title>Trace Factory</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: a control-room page. Summary strip, then the pipeline of agents left to right,
+   then requests moving through it, then the run log. Agent colors come from their YAML. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --sunken: #eceff4;
+  --ink: #141820;
+  --muted: #5a6474;
+  --line: #dde2ea;
+  --accent: #2b59c3;
+  --ok: #13804b;
+  --warn: #a15c00;
+  --bad: #c0362c;
+  --run: #2b59c3;
+  --ok-soft: #e3f4ea;
+  --warn-soft: #fbefd9;
+  --bad-soft: #fbe5e2;
+  --run-soft: #e4ebfa;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1116; --surface: #161a21; --sunken: #1c212a; --ink: #e7eaf0; --muted: #98a2b3;
+    --line: #29303b; --accent: #7d9cf0; --ok: #4cc38a; --warn: #e6a23c; --bad: #f07167; --run: #7d9cf0;
+    --ok-soft: #15301f; --warn-soft: #33270f; --bad-soft: #3a1b18; --run-soft: #1b2640;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #161a21; --sunken: #1c212a; --ink: #e7eaf0; --muted: #98a2b3;
+  --line: #29303b; --accent: #7d9cf0; --ok: #4cc38a; --warn: #e6a23c; --bad: #f07167; --run: #7d9cf0;
+  --ok-soft: #15301f; --warn-soft: #33270f; --bad-soft: #3a1b18; --run-soft: #1b2640;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 26px; font-weight: 700; }
+h2 { font-size: 17px; font-weight: 600; }
+h3 { font-size: 15px; font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-end; justify-content: space-between; }
+.top .sub { color: var(--muted); margin-top: 4px; }
+.sample { display: inline-block; margin-left: 10px; padding: 2px 8px; border-radius: 999px; font: 600 11px var(--font-body);
+  letter-spacing: .04em; text-transform: uppercase; background: var(--warn-soft); color: var(--warn); vertical-align: middle; }
+.kpis { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.kpi { display: flex; flex-direction: column; }
+.kpi b { font-family: var(--font-display); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 12px; color: var(--muted); }
+.kpi.attn b { color: var(--warn); }
+
+/* needs you */
+.needs { display: flex; flex-direction: column; gap: 8px; }
+.need { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line); }
+.need .what { flex: 1 1 260px; min-width: 0; }
+
+/* pipeline */
+.pipeline { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 10px; }
+.agent { position: relative; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); min-width: 0; }
+.agent:hover { border-color: color-mix(in srgb, var(--agent) 50%, var(--line)); }
+.agent[aria-pressed="true"] { border-color: var(--agent); box-shadow: 0 0 0 1px var(--agent); }
+.agent .head { display: flex; gap: 10px; align-items: center; }
+.badge { flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font: 700 14px var(--font-display);
+  color: #fff; background: var(--agent); }
+.agent .stage { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+.agent .arrow { position: absolute; right: -9px; top: 22px; width: 8px; height: 8px; border-top: 2px solid var(--line);
+  border-right: 2px solid var(--line); transform: rotate(45deg); }
+.agent .model { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.now { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: var(--sunken); min-height: 52px; overflow-wrap: anywhere; }
+.now.active { background: var(--run-soft); }
+.now .line { color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.stats div { display: flex; flex-direction: column; }
+.stats b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.stats span { font-size: 11px; color: var(--muted); }
+.mix { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--sunken); }
+.mix i { display: block; height: 100%; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--run); margin-right: 6px; vertical-align: 1px; }
+.dot.live { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dot.live { animation: none; } }
+
+/* agent detail */
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 20px 28px; }
+.detail dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; }
+.detail dt { color: var(--muted); font-size: 12.5px; }
+.detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.chip { display: inline-block; padding: 1px 7px; margin: 0 4px 4px 0; border-radius: 6px; background: var(--sunken);
+  font-family: var(--font-mono); font-size: 11.5px; }
+.chip.deny { background: var(--bad-soft); color: var(--bad); }
+.routes { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.route { display: grid; grid-template-columns: minmax(0, 9em) 1.2em minmax(0, 7em) minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 13px; }
+.prompt { max-height: 360px; overflow: auto; margin: 8px 0 0; padding: 12px; border-radius: 8px; background: var(--sunken);
+  font: 12px/1.55 var(--font-mono); white-space: pre-wrap; }
+.edit-hint { font-size: 12.5px; color: var(--muted); }
+
+/* requests */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.panel > header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 14px 16px;
+  border-bottom: 1px solid var(--line); }
+.req { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 18px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line); }
+.req:first-of-type { border-top: 0; }
+.req .title { font-weight: 500; overflow-wrap: anywhere; }
+.track { display: flex; gap: 4px; align-items: center; }
+.track i { width: 22px; height: 6px; border-radius: 3px; background: var(--sunken); }
+.track i.done { background: var(--agent); }
+.track i.cur { background: var(--agent); opacity: .45; }
+.track i.cur.running { animation: pulse 1.6s ease-in-out infinite; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.pill.running { background: var(--run-soft); color: var(--run); }
+.pill.waiting { background: var(--warn-soft); color: var(--warn); }
+.pill.done, .pill.succeeded { background: var(--ok-soft); color: var(--ok); }
+.pill.stopped, .pill.failed { background: var(--bad-soft); color: var(--bad); }
+.pill.queued { background: var(--sunken); color: var(--muted); }
+
+/* runs */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filters button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12.5px; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.table { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 9px 16px; border-top: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; border-top: 0; white-space: nowrap; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.who { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.who .badge { width: 20px; height: 20px; border-radius: 5px; font-size: 11px; }
+.empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+footer { color: var(--muted); font-size: 12.5px; }
+
+@media (max-width: 1000px) {
+  .pipeline { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .agent .arrow { display: none; }
+  .detail { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .req { grid-template-columns: minmax(0, 1fr) auto; }
+  .req .track { grid-column: 1 / -1; }
+  .route { grid-template-columns: minmax(0, 1fr) 1.2em minmax(0, 1fr); }
+  .route .meaning { grid-column: 1 / -1; }
+}
+</style>
+
+<div class="wrap" id="app">
+  <div class="empty">Loading the factory…</div>
+</div>
+
+<script id="factory-data" type="application/json">/*__FACTORY_DATA__*/null</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("factory-data").textContent || "null") || { agents: [], issues: [], runs: [] };
+  const app = document.getElementById("app");
+  const byName = Object.fromEntries(D.agents.map(a => [a.name, a]));
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const md = s => esc(s).replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
+  const money = n => "$" + (Number(n) || 0).toFixed(2);
+  const mins = s => { const m = (Number(s) || 0) / 60; return m < 1 ? "<1 min" : m < 60 ? Math.round(m) + " min" : (m / 60).toFixed(1) + " h"; };
+  const ago = iso => {
+    if (!iso) return "";
+    const s = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.round(s / 60) + " min ago";
+    if (s < 86400) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " d ago";
+  };
+  const repoUrl = D.repo ? "https://github.com/" + D.repo : "#";
+  const issueUrl = n => D.sample ? "#" : `${repoUrl}/issues/${n}`;
+  const prUrl = n => D.sample ? "#" : `${repoUrl}/pull/${n}`;
+  const decisionColor = (agent, d) => {
+    const nxt = (agent.decisions.find(x => x.name === d) || {}).next;
+    if (nxt === "wait") return "var(--warn)";
+    if (nxt === "stop") return "var(--bad)";
+    if (agent.stage && nxt && D.agents.findIndex(a => a.stage === nxt) !== -1 &&
+        D.agents.findIndex(a => a.stage === nxt) < D.agents.findIndex(a => a.stage === agent.stage)) return "var(--bad)";
+    return "var(--ok)";
+  };
+  const STATE_TEXT = { running: "Running", waiting: "Waiting on you", done: "Ready to test", stopped: "Stopped", queued: "Queued" };
+  let selected = null, filter = "all";
+  try { selected = localStorage.getItem("factory:agent"); } catch (e) {}
+  if (selected && !byName[selected]) selected = null;
+
+  function agentStats(a) {
+    const runs = D.runs.filter(r => r.agent === a.name);
+    const finished = runs.filter(r => r.status !== "running");
+    const ok = finished.filter(r => r.status === "succeeded");
+    const decisions = {};
+    ok.forEach(r => { decisions[r.decision] = (decisions[r.decision] || 0) + 1; });
+    return {
+      runs, running: runs.find(r => r.status === "running"), last: finished[0],
+      success: finished.length ? Math.round(100 * ok.length / finished.length) + "%" : "–",
+      avg: finished.length ? mins(finished.reduce((t, r) => t + (r.duration_s || 0), 0) / finished.length) : "–",
+      cost: runs.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0), decisions, okCount: ok.length,
+    };
+  }
+
+  function header() {
+    const active = D.issues.filter(i => i.state === "running" || i.state === "queued").length;
+    const waiting = D.issues.filter(i => i.state === "waiting").length;
+    const ready = D.issues.filter(i => i.state === "done").length;
+    const spent = D.runs.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0);
+    return `<div class="top">
+      <div><h1>Trace Factory${D.sample ? '<span class="sample">Example data</span>' : ""}</h1>
+        <div class="sub">${esc(D.repo || "")} · ${D.agents.length} agents · updated ${ago(D.generated)}</div></div>
+      <div class="kpis">
+        <div class="kpi"><b>${active}</b><span>in progress</span></div>
+        <div class="kpi ${waiting ? "attn" : ""}"><b>${waiting}</b><span>waiting on you</span></div>
+        <div class="kpi"><b>${ready}</b><span>ready to test</span></div>
+        <div class="kpi"><b>${money(spent)}</b><span>spent on agents</span></div>
+      </div></div>`;
+  }
+
+  function needsYou() {
+    const items = D.issues.filter(i => i.state === "waiting" || i.state === "done");
+    if (!items.length) return "";
+    return `<section class="needs" aria-label="Needs you"><div class="eyebrow">Needs you</div>${items.map(i => {
+      const a = byName[(D.agents.find(x => x.stage === i.stage) || {}).name];
+      const what = i.state === "done"
+        ? `Test the pull request${i.pr ? ` <a href="${prUrl(i.pr)}">#${i.pr}</a>` : ""}`
+        : `${a ? esc(a.title) : "The factory"} asked a question. Reply on the issue to continue.`;
+      return `<div class="need"><span class="pill ${i.state}">${STATE_TEXT[i.state]}</span>
+        <div class="what"><a href="${issueUrl(i.number)}">#${i.number} ${esc(i.title)}</a><div class="muted">${what}</div></div></div>`;
+    }).join("")}</section>`;
+  }
+
+  function pipeline() {
+    return `<section aria-label="Agents"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <h2>Agents</h2><span class="muted" style="font-size:12.5px">Select an agent to see its definition and filter its runs</span></div>
+      <div class="pipeline" style="--n:${D.agents.length}">${D.agents.map((a, idx) => {
+        const s = agentStats(a);
+        const total = Object.values(s.decisions).reduce((t, n) => t + n, 0);
+        const mix = total ? a.decisions.filter(d => s.decisions[d.name]).map(d =>
+          `<i title="${esc(d.name)}: ${s.decisions[d.name]}" style="width:${100 * s.decisions[d.name] / total}%;background:${decisionColor(a, d.name)}"></i>`).join("") : "";
+        const now = s.running
+          ? `<div class="now active"><span class="dot live"></span><b>Working on <a href="${issueUrl(s.running.issue)}">#${s.running.issue}</a></b> · ${ago(s.running.started).replace(" ago", "")}<div class="line">${md((s.running.activity || []).slice(-1)[0] || "Starting up")}</div></div>`
+          : `<div class="now"><b>Idle</b><div class="line">${s.last ? `Last ran on #${s.last.issue}, ${ago(s.last.finished || s.last.started)}` : "Has not run yet"}</div></div>`;
+        return `<button class="agent" type="button" data-agent="${esc(a.name)}" aria-pressed="${selected === a.name}" style="--agent:${esc(a.color)}">
+          <div class="head"><span class="badge" aria-hidden="true">${esc(a.title[0])}</span>
+            <div style="min-width:0"><h3>${esc(a.title)}</h3><div class="stage">stage · ${esc(a.stage)}</div></div></div>
+          <div class="model">${esc(a.model)} · ${esc(a.effort)}</div>
+          ${now}
+          <div class="stats"><div><b>${s.runs.length}</b><span>runs</span></div><div><b>${s.success}</b><span>finished ok</span></div><div><b>${s.avg}</b><span>avg time</span></div></div>
+          <div class="mix" aria-label="Decisions">${mix}</div>
+          ${idx < D.agents.length - 1 ? '<span class="arrow" aria-hidden="true"></span>' : ""}
+        </button>`;
+      }).join("")}</div></section>`;
+  }
+
+  function detail() {
+    const a = byName[selected];
+    if (!a) return "";
+    const s = agentStats(a);
+    const target = t => t === "wait" ? "ask you" : t === "stop" ? "close request" : t === "done" ? "ready for you" : t;
+    return `<section class="detail" style="--agent:${esc(a.color)}" aria-label="${esc(a.title)} agent">
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+        <div class="head" style="display:flex;gap:10px;align-items:center"><span class="badge" style="background:${esc(a.color)}" aria-hidden="true">${esc(a.title[0])}</span><h2>${esc(a.title)} agent</h2></div>
+        <p style="margin:0">${esc(a.description)}</p>
+        <dl>
+          <dt>Model</dt><dd class="mono">${esc(a.model)} · effort ${esc(a.effort)}</dd>
+          <dt>Tools</dt><dd>${a.tools.map(t => `<span class="chip">${esc(t)}</span>`).join("")}${a.disallowed_tools.map(t => `<span class="chip deny" title="Not allowed">✕ ${esc(t)}</span>`).join("")}</dd>
+          <dt>Workspace</dt><dd>${a.workspace === "write" ? "Changes files on the feature branch" : "Reads only; changes are discarded"}</dd>
+          <dt>Sees</dt><dd>${a.context.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</dd>
+          <dt>Budget</dt><dd class="num">${money(a.budget_usd)} per run · ${money(s.cost)} spent so far</dd>
+        </dl>
+        <div><div class="eyebrow">Decisions and where they go</div><div class="routes">${a.decisions.map(d =>
+          `<div class="route"><code class="mono" style="color:${decisionColor(a, d.name)}">${esc(d.name)}</code><span class="muted">→</span><b>${esc(target(d.next))}</b><span class="meaning muted">${esc(d.meaning)}</span></div>`).join("")}</div></div>
+        <div class="edit-hint">To change this agent, edit <code class="mono">${esc(a.file)}</code> and <code class="mono">${esc(a.prompt_file)}</code>, then run <code class="mono">python -m factory validate</code>.</div>
+      </div>
+      <div style="min-width:0"><div class="eyebrow">Prompt</div><pre class="prompt">${esc(a.prompt)}</pre></div>
+    </section>`;
+  }
+
+  function requests() {
+    const rows = D.issues.map(i => {
+      const doneStages = new Set(D.runs.filter(r => r.issue === i.number && r.status === "succeeded").map(r => r.stage));
+      const track = D.agents.map(a => {
+        const cls = i.state === "done" || (doneStages.has(a.stage) && a.stage !== i.stage) ? "done"
+          : a.stage === i.stage && i.state !== "stopped" ? "cur " + i.state : "";
+        return `<i class="${cls}" style="--agent:${esc(a.color)}" title="${esc(a.title)}"></i>`;
+      }).join("");
+      const stageAgent = D.agents.find(a => a.stage === i.stage);
+      return `<div class="req">
+        <div style="min-width:0"><div class="title"><a href="${issueUrl(i.number)}">#${i.number}</a> ${esc(i.title)}</div>
+          <div class="muted" style="font-size:12.5px">${stageAgent && i.state !== "done" ? esc(stageAgent.title) + " · " : ""}${money(i.cost_usd)}${i.pr ? ` · PR <a href="${prUrl(i.pr)}">#${i.pr}</a>` : ""} · updated ${ago(i.updated)}</div></div>
+        <div class="track" aria-label="Progress">${track}</div>
+        <span class="pill ${i.state}">${STATE_TEXT[i.state] || i.state}</span></div>`;
+    }).join("");
+    return `<section class="panel" aria-label="Requests"><header><h2>Requests</h2>
+      <span class="muted" style="font-size:12.5px">Open an issue with the <code class="mono">factory</code> label to add one</span></header>
+      ${rows || '<div class="empty">No requests yet. Label an issue <code class="mono">factory</code> and the triage agent picks it up.</div>'}</section>`;
+  }
+
+  function runs() {
+    const list = D.runs.filter(r => filter === "all" || r.agent === filter).slice(0, 200);
+    const chips = [`<button type="button" data-filter="all" aria-pressed="${filter === "all"}">All agents</button>`]
+      .concat(D.agents.map(a => `<button type="button" data-filter="${esc(a.name)}" aria-pressed="${filter === a.name}">${esc(a.title)}</button>`)).join("");
+    const body = list.map(r => {
+      const a = byName[r.agent] || { title: r.agent, color: "var(--muted)", decisions: [] };
+      const outcome = r.status === "running" ? `<span class="dot live"></span>${md((r.activity || []).slice(-1)[0] || "Starting up")}`
+        : r.status === "failed" ? `<span class="pill failed">Failed</span> ${esc(r.error || "")}`
+        : `<code class="mono" style="color:${decisionColor(a, r.decision)}">${esc(r.decision)}</code>${r.next ? ` <span class="muted">→ ${esc(r.next)}</span>` : ""}`;
+      return `<tr><td class="muted" title="${esc(r.started)}">${ago(r.started)}</td>
+        <td><span class="who" style="--agent:${esc(a.color)}"><span class="badge" aria-hidden="true">${esc((a.title || "?")[0])}</span>${esc(a.title)}</span></td>
+        <td style="min-width:180px"><a href="${issueUrl(r.issue)}">#${r.issue}</a> <span class="muted">${esc(r.issue_title || "")}</span></td>
+        <td style="min-width:200px">${outcome}</td>
+        <td class="r">${r.status === "running" ? "–" : mins(r.duration_s)}</td>
+        <td class="r">${r.status === "running" ? "–" : money(r.cost_usd)}</td>
+        <td>${r.run_url ? `<a href="${esc(r.run_url)}">Logs</a>` : ""}</td></tr>`;
+    }).join("");
+    return `<section class="panel" aria-label="Runs"><header><h2>Runs</h2><div class="filters" role="group" aria-label="Filter by agent">${chips}</div></header>
+      <div class="table">${body ? `<table><thead><tr><th>Started</th><th>Agent</th><th>Request</th><th>Outcome</th><th class="r">Time</th><th class="r">Cost</th><th></th></tr></thead><tbody>${body}</tbody></table>`
+        : '<div class="empty">No runs yet for this agent.</div>'}</div></section>`;
+  }
+
+  function render() {
+    app.innerHTML = header() + needsYou() + pipeline() + detail() + requests() + runs() +
+      `<footer>Agents are defined in <code class="mono">factory/agents/</code>; the pipeline in <code class="mono">factory/factory.yaml</code>.${D.sample ? " Figures on this page are examples." : ""}</footer>`;
+  }
+
+  app.addEventListener("click", e => {
+    const agentBtn = e.target.closest("[data-agent]");
+    if (agentBtn && !e.target.closest("a")) {
+      const name = agentBtn.dataset.agent;
+      selected = selected === name ? null : name;
+      filter = selected || "all";
+      try { selected ? localStorage.setItem("factory:agent", selected) : localStorage.removeItem("factory:agent"); } catch (err) {}
+      render();
+      return;
+    }
+    const f = e.target.closest("[data-filter]");
+    if (f) { filter = f.dataset.filter; render(); }
+  });
+  if (selected) filter = selected;
+  render();
+  if (!D.sample) setInterval(() => location.reload(), 120000);
+})();
+</script>

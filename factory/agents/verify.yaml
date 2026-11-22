@@ -1,0 +1,23 @@
+# Verify: proves the change works before you see it.
+name: verify
+title: Verify & test
+icon: "✅"
+color: "#10b981"
+description: >
+  Runs the test suite on the branch and on the base branch, checks every
+  acceptance criterion in the spec and writes the steps you can follow to test
+  the change yourself.
+
+model: claude-opus-5-5
+effort: medium
+prompt: prompts/verify.md
+tools: [Read, Grep, Glob, Bash]
+disallowed_tools: ["Bash(git push:*)", "Bash(git commit:*)", "Bash(gh:*)"]
+workspace: read
+budget_usd: 4
+
+context: [issue, reports, diff]
+
+decisions:
+  pass: Tests pass with no new failures and every acceptance criterion is met.
+  fail: A new failure or an unmet criterion; send it back to implement.

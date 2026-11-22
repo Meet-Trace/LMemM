@@ -1,0 +1,22 @@
+# Review: reviews the pull request like a careful senior engineer.
+name: review
+title: Code review
+icon: "🔍"
+color: "#a855f7"
+description: >
+  Reviews the pull request diff against the spec for correctness bugs,
+  security problems, missing tests and anything that breaks the repo's
+  conventions. Approves it or sends a precise list of fixes back to implement.
+
+model: claude-opus-5-5
+effort: high
+prompt: prompts/review.md
+tools: [Read, Grep, Glob]
+workspace: read
+budget_usd: 4
+
+context: [issue, reports, diff]
+
+decisions:
+  approve: No blocking problems; hand it to verify.
+  changes_requested: Blocking problems found; send them back to implement.

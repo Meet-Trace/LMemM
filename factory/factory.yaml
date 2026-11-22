@@ -1,0 +1,83 @@
+# The software factory, declared.
+#
+# A feature request becomes a GitHub issue with the `factory` label. The
+# orchestrator (factory/engine) walks it through the pipeline below, one stage
+# at a time. Each stage is run by an agent defined in factory/agents/*.yaml.
+#
+# To change the factory, edit this file and the agent files. Nothing else needs
+# to change:
+#   - add an agent:    python -m factory new-agent <name>, then add a stage here
+#   - remove an agent: delete its stage here (and its file, if you like)
+#   - edit an agent:   change its YAML (model, tools, budget) or its prompt .md
+# Check your edits with: python -m factory validate
+
+version: 1
+
+# Who can feed the factory. Only issues and comments from these GitHub users
+# start or resume runs, so strangers cannot spend your API budget.
+intake:
+  label: factory
+  allowed_users: [AvniDhir]
+
+# The project the factory builds.
+project:
+  base_branch: main
+  branch_prefix: factory/issue-
+  # Commands agents may rely on. The verify agent runs test_command.
+  setup_command: python3 -m pip install --quiet numpy pillow
+  test_command: ./scripts/test.sh
+  # Where the spec agent writes specs (dated, like the rest of docs/specs).
+  spec_dir: docs/specs
+
+# Where agent runs happen. Any GitHub Actions runner label works.
+# macos-latest matches Trace's real platform; ubuntu-latest is faster to start.
+runner: ubuntu-latest
+
+# Spending limits, in US dollars, enforced by the orchestrator.
+budgets:
+  per_issue_usd: 30
+  # Per-run limits live on each agent (budget_usd).
+
+policies:
+  # How many times review or verify can send work back to implement before
+  # the issue is parked for you.
+  max_rework_loops: 3
+  # Agent runs chained in one workflow run before handing off to a new run.
+  max_stages_per_job: 8
+
+# The pipeline. Each stage names an agent and maps that agent's decisions to
+# what happens next: another stage, or one of
+#   wait  - pause and ask you; your next comment on the issue resumes this stage
+#   stop  - close the request (the agent explains why on the issue)
+#   done  - finished; the pull request is ready for you to test
+pipeline:
+  - stage: triage
+    agent: triage
+    on:
+      accept: spec
+      needs_info: wait
+      reject: stop
+
+  - stage: spec
+    agent: spec
+    on:
+      done: implement
+      needs_info: wait
+
+  - stage: implement
+    agent: implement
+    on:
+      done: review
+      blocked: wait
+
+  - stage: review
+    agent: review
+    on:
+      approve: verify
+      changes_requested: implement
+
+  - stage: verify
+    agent: verify
+    on:
+      pass: done
+      fail: implement

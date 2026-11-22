@@ -1,0 +1,43 @@
+# Publishes the factory dashboard (agents, requests, runs) to GitHub Pages.
+# One-time setup: Settings -> Pages -> Source: GitHub Actions.
+name: factory-dashboard
+
+on:
+  workflow_run:
+    workflows: [factory]
+    types: [completed]
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: factory-dashboard
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: factory
+      - run: python3 -m pip install --quiet pyyaml
+      - name: Build the dashboard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 -m factory dashboard --out _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

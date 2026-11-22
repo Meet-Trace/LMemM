@@ -1,12 +1,12 @@
 # UI: owns the look and feel of what the change touches.
-# Not in the pipeline yet: add a stage for it in factory.yaml once its prompt is written.
 name: ui
 title: UI
 icon: "🎨"
 color: "#ec4899"
 description: >
-  Polishes the user interface the change touches, so it stays calm, tidy and
-  consistent with the rest of Trace. Its full instructions are still to come.
+  Senior product designer and frontend engineer. Turns the implemented change
+  into a polished interface that feels like Trace: calm, editorial, restrained,
+  no glassmorphism. Skips changes that have no UI.
 
 model: claude-sonnet-5-5
 effort: high
@@ -21,4 +21,5 @@ context: [issue, comments, reports, diff]
 
 decisions:
   done: The UI work is finished and the tests still pass.
-  needs_info: Needs a design decision from the requester.
+  skip: The change has no user interface, so there was nothing to design.
+  needs_info: Needs a product or design decision from the requester.

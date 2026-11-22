@@ -84,8 +84,15 @@ pipeline:
   - stage: implement
     agent: implement
     on:
-      done: review
+      done: ui
       blocked: wait
+
+  - stage: ui
+    agent: ui
+    on:
+      done: review
+      skip: review
+      needs_info: wait
 
   - stage: review
     agent: review

@@ -13,7 +13,7 @@ flowchart LR
   end
   subgraph Agents
     S[Scout<br/>overnight] -.proposes.-> AP
-    TR[Triage] --> SP[Spec] --> IM[Implement] --> RV[Code review] --> VE[Verify & test]
+    TR[Triage] --> SP[Spec] --> IM[Implement] --> UI[UI design] --> RV[Code review] --> VE[Verify & test]
     RV -- changes requested --> IM
     VE -- tests fail --> IM
   end

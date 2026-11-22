@@ -121,7 +121,9 @@ One-time setup:
      cost Claude Code estimates for each run.
    - or `ANTHROPIC_API_KEY` from console.anthropic.com to pay per use.
 2. Settings → Actions → General → Workflow permissions: allow GitHub Actions
-   to create pull requests.
+   to create pull requests. If the box is greyed out, an organization owner
+   enables it first under the organization's Settings → Actions. Without it the
+   factory still pushes the branch and posts a one-click link to open the PR.
 3. Settings → Pages → Source: GitHub Actions (for the dashboard). On a public
    repository the dashboard is public too.
 

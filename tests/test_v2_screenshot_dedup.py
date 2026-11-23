@@ -79,6 +79,33 @@ class QuietCaptureTest(unittest.TestCase):
             b = self.take(ts, 1, png(box=(300, 300, 700, 440)), reason="heartbeat", app="com.example.other")
             self.assertEqual(self.ocr_status(ts, b)[0], "pending")
 
+    def test_a_reused_ocr_stores_a_link_not_a_second_copy(self):
+        with TempStore() as ts:
+            a = self.take(ts, 0, png())
+            b = self.take(ts, 1, png(box=(300, 300, 700, 440)), reason="heartbeat")
+            stored = ts.store.db.execute("SELECT raw IS NULL FROM extractions WHERE observation_id=? AND reader='ocr'", (b,)).fetchone()[0]
+            self.assertEqual(stored, 1)
+            self.assertEqual(ts.store.db.execute("SELECT count(*) FROM extraction_links").fetchone()[0], 1)
+            first = ts.store.extractions(a, "ocr")[-1]["raw"]
+            self.assertTrue(first)
+            self.assertEqual(ts.store.extractions(b, "ocr")[-1]["raw"], first)
+
+    def test_forgetting_the_first_frame_keeps_the_raw_text_of_the_others(self):
+        from trace_v2.observations import forget
+        with TempStore() as ts:
+            a = self.take(ts, 0, png())
+            b = self.take(ts, 1, png(box=(300, 300, 700, 440)), reason="heartbeat")
+            c = self.take(ts, 2, png(box=(300, 300, 700, 440)), reason="heartbeat")
+            first = ts.store.extractions(a, "ocr")[-1]["raw"]
+            forget.forget(ts.store, {"observation_ids": [a]}, dry_run=False)
+            self.assertEqual(ts.store.extractions(b, "ocr")[-1]["raw"], first)
+            self.assertEqual(ts.store.extractions(c, "ocr")[-1]["raw"], first)
+            forget.forget(ts.store, {"observation_ids": [b]}, dry_run=False)
+            self.assertEqual(ts.store.extractions(c, "ocr")[-1]["raw"], first)
+            forget.forget(ts.store, {"observation_ids": [c]}, dry_run=False)
+            for table in ("extraction_links", "extraction_raw_copies"):
+                self.assertEqual(ts.store.db.execute(f"SELECT count(*) FROM {table}").fetchone()[0], 0)
+
 
 class UnchangedTest(unittest.TestCase):
     def test_identical_screens_share_one_file(self):

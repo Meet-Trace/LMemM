@@ -71,6 +71,33 @@ def _backups(store):
     return sorted(str(p) for p in store.root.glob("*.bak"))
 
 
+def _release_links(store, request_id):
+    """Rows of other observations may point at raw output that is about to be deleted: hand the output to one of them
+    (the rest are repointed to it) and drop every link and copy that belongs to the forgotten extractions."""
+    from . import queries
+    db = store.db
+    mine = ("SELECT extraction_id FROM extractions WHERE observation_id IN "
+            "(SELECT observation_id FROM deletion_grants WHERE request_id=?)")
+    targets = [r[0] for r in db.execute(
+        f"SELECT DISTINCT l.target_extraction_id FROM extraction_links l WHERE l.target_extraction_id IN ({mine}) "
+        f"AND l.extraction_id NOT IN ({mine})", (request_id, request_id))]
+    for target in targets:
+        row = db.execute("SELECT raw_encoding, raw FROM extractions WHERE extraction_id=?", (target,)).fetchone()
+        if row is None or row[1] is None:
+            row = db.execute("SELECT raw_encoding, raw FROM extraction_raw_copies WHERE extraction_id=?", (target,)).fetchone()
+        heirs = [r[0] for r in db.execute(
+            f"SELECT extraction_id FROM extraction_links WHERE target_extraction_id=? AND extraction_id NOT IN ({mine}) "
+            "ORDER BY extraction_id", (target, request_id))]
+        if row is None or row[1] is None or not heirs:
+            continue
+        first = heirs[0]
+        db.execute("INSERT OR REPLACE INTO extraction_raw_copies VALUES (?,?,?)", (first, row[0], row[1]))
+        db.execute("DELETE FROM extraction_links WHERE extraction_id=?", (first,))
+        db.executemany("UPDATE extraction_links SET target_extraction_id=? WHERE extraction_id=?", ((first, h) for h in heirs[1:]))
+    db.execute(f"DELETE FROM extraction_links WHERE extraction_id IN ({mine})", (request_id,))
+    db.execute(f"DELETE FROM extraction_raw_copies WHERE extraction_id IN ({mine})", (request_id,))
+
+
 def forget(store, selector, dry_run=False):
     where, args = _where(selector)
     with store.lock:
@@ -94,6 +121,7 @@ def forget(store, selector, dry_run=False):
                 "LEFT JOIN screenshot_deletions d USING (observation_id) WHERE g.request_id=?",
                 (request_id, request_id))
             granted = "observation_id IN (SELECT observation_id FROM deletion_grants WHERE request_id=?)"
+            _release_links(store, request_id)
             for table in ("ocr_jobs", "interaction_events", "extractions", "screenshot_deletions", "screenshot_thumbnails", "screenshots", "observations"):
                 store.db.execute(f"DELETE FROM {table} WHERE {granted}", (request_id,))
             store.db.execute("DELETE FROM deletion_grants WHERE request_id=?", (request_id,))

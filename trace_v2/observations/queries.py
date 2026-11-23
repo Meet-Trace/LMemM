@@ -15,6 +15,26 @@ class ScreenshotUnavailable(LookupError):
         self.reason = reason
 
 
+def raw_of(db, extraction_id, encoding, blob):
+    """-> the decoded raw output of an extraction, following a link to the extraction that holds it."""
+    if blob is not None:
+        return _decode(encoding, blob)
+    seen = set()
+    while extraction_id not in seen:
+        seen.add(extraction_id)
+        copy = db.execute("SELECT raw_encoding, raw FROM extraction_raw_copies WHERE extraction_id=?", (extraction_id,)).fetchone()
+        if copy:
+            return _decode(*copy)
+        link = db.execute("SELECT target_extraction_id FROM extraction_links WHERE extraction_id=?", (extraction_id,)).fetchone()
+        if link is None:
+            return None
+        row = db.execute("SELECT raw_encoding, raw FROM extractions WHERE extraction_id=?", (link[0],)).fetchone()
+        if row and row[1] is not None:
+            return _decode(*row)
+        extraction_id = link[0]
+    return None
+
+
 def _iso(ns):
     from .store import iso
     return None if ns is None else iso(ns)
@@ -40,8 +60,10 @@ def extractions(store, oid, reader, include_raw=True):
     for row in rows:
         r = dict(zip(EXTRACTION_COLS, row))
         enc, blob = r.pop("raw_encoding"), r.pop("raw")
+        if blob is None and include_raw:
+            r["raw"] = raw_of(store.db, r["extraction_id"], enc, blob)
         r["privacy"] = None if r.pop("privacy_json") is None else json.loads(row[-1])
-        if include_raw:
+        if include_raw and "raw" not in r:
             r["raw"] = _decode(enc, blob)
         out.append(r)
     return out

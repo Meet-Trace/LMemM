@@ -1,15 +1,15 @@
 import json
 
-from ..observations.queries import _decode
+from ..observations.queries import _decode, raw_of
 from .normalise import normalise
 
 SAMPLE = 8
 
 
 def ax_ok(conn, oid, reader):
-    row = conn.execute("SELECT raw_encoding, raw FROM extractions WHERE observation_id=? AND reader=? AND status='succeeded' "
-                       "ORDER BY revision DESC LIMIT 1", (oid, reader)).fetchone()
-    return _decode(*row) if row else None
+    row = conn.execute("SELECT extraction_id, raw_encoding, raw FROM extractions WHERE observation_id=? AND reader=? "
+                       "AND status='succeeded' ORDER BY revision DESC LIMIT 1", (oid, reader)).fetchone()
+    return raw_of(conn, *row) if row else None
 
 
 def ocr_of(conn, oid):

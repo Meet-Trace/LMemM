@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from . import dedup, queries
@@ -77,6 +77,8 @@ def content_hash(draft):
 
 
 class ObservationStore:
+    _reuse_source = None
+
     def __init__(self, root, legacy_archive=paths.LEGACY_ARCHIVE):
         self.root = paths.check_data_dir(root, legacy_archive)
         from . import derived
@@ -277,12 +279,16 @@ class ObservationStore:
         return shot, reuse
 
     def _reused_ocr(self, oid):
-        row = self.db.execute("SELECT reader_version, text, raw_encoding, raw FROM extractions WHERE observation_id=? "
+        row = self.db.execute("SELECT reader_version, text, raw_encoding, raw, extraction_id FROM extractions WHERE observation_id=? "
                               "AND reader='ocr' AND status='succeeded' ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
         if row is None:
             return None
-        raw = queries._decode(row[2], row[3])
-        return None if raw is None else ReaderResult(row[0], "succeeded", raw, row[1])
+        raw = queries.raw_of(self.db, row[4], row[2], row[3])
+        if raw is None:
+            return None
+        result = ReaderResult(row[0], "succeeded", raw, row[1])
+        self._reuse_source = row[4]
+        return result
 
     def _store_screenshot(self, oid, shot, plan=None, scan_pending=False, reused=False):
         """-> (row values for the screenshots table, relative path written or None). With `scan_pending` the file is
@@ -323,7 +329,7 @@ class ObservationStore:
         unless the screenshot is in quarantine (it needs the scan to be kept or removed)."""
         ocr = draft.ocr
         if plan and plan.get("linked") and ocr.status == "pending" and reused is not None:
-            return reused, False
+            return reused, False, self._reuse_source
         if ocr.status != "pending":
             return ocr, False
         if shot_row["status"] != "stored":
@@ -350,8 +356,13 @@ class ObservationStore:
                 "captured_at_ns", "error_code", "error_message")
         self.db.execute(f"INSERT INTO screenshots(observation_id,{','.join(cols)}) VALUES (?{',?' * len(cols)})",
                         (oid, *(shot_row.get(c) for c in cols)))
-        ocr, enqueue = plan
-        self._insert_extraction(oid, "ocr", ocr, 1, None)
+        ocr, enqueue, source = (*plan, None)[:3]
+        if source is None:
+            self._insert_extraction(oid, "ocr", ocr, 1, None)
+        else:
+            linked = replace(ocr, raw=None)
+            eid = self._insert_extraction(oid, "ocr", linked, 1, None)
+            self.db.execute("INSERT INTO extraction_links VALUES (?,?)", (eid, source))
         self._insert_extraction(oid, "accessibility", draft.accessibility, 1, None)
         if enqueue:
             from . import ocr_queue

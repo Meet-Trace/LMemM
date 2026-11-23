@@ -6,7 +6,7 @@ import time
 from .. import paths
 from ..observations.derived import derived_path
 from ..observations.models import ReaderResult, short_error
-from ..observations.queries import ScreenshotUnavailable, _decode
+from ..observations.queries import ScreenshotUnavailable, _decode, raw_of
 from .analyze import ALGORITHM, StructureError, analyze
 
 log = logging.getLogger("trace_v2.structure")
@@ -60,7 +60,7 @@ def _inputs(store, oid):
         return None, None, None
     source = {"observation_id": oid, "screenshot_sha256": shot[0]}
     ocr_info = {"extraction_id": ocr[0], "revision": ocr[1], "reader_version": ocr[2], "status": ocr[3],
-                "raw": _decode(ocr[4], ocr[5]) if ocr[3] == "succeeded" else None}
+                "raw": raw_of(store.db, ocr[0], ocr[4], ocr[5]) if ocr[3] == "succeeded" else None}
     return source, ocr_info, shot
 
 

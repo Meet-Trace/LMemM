@@ -288,3 +288,11 @@ async OCR mode (the default); in sync mode the OCR already ran during capture.
 A heartbeat capture reuses the previous accessibility read (kept on the trigger, `ax_memory`) instead of walking the tree
 again; every capture taken for a real reason (first, context, input, screen) reads it fresh. The reused result is stored as
 that capture's own accessibility extraction, so later stages see no difference.
+
+### Reused OCR is a link (S4)
+
+When an unchanged screen reuses the earlier frame's OCR, the new extraction row keeps its own `text` but its `raw`
+is empty and `extraction_links` points at the extraction that holds the raw output; readers follow the link
+(`queries.raw_of`). Forgetting the observation that holds the raw output first copies it to one of the pointing rows
+(`extraction_raw_copies`) and repoints the rest, so forgetting one frame never removes another frame's data. The link
+and copy tables are not append-only. Rows written before this change keep their own copy.

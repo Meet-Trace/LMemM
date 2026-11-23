@@ -1,7 +1,8 @@
 """Screenshot files: stored byte-for-byte as captured, outside the database.
 
 Layout: <assets>/screenshots/YYYY/MM/DD/<observation_id>.<ext> (UTC date of capture). Folders 0700, files 0600.
-Writes are create-only (never overwrite), fsynced, then renamed into place. Paths handed in are always
+Writes are create-only (never overwrite), fsynced, then renamed into place. A screenshot whose secret scan (OCR) has not
+finished is written under quarantine/ with the same relative name and moved to its final place only when the scan is clean. Paths handed in are always
 relative and are checked to stay inside the asset root.
 """
 
@@ -10,6 +11,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+QUARANTINE = "quarantine"
 EXTENSIONS = {"png": "png", "jpeg": "jpg", "heic": "heic", "tiff": "tiff"}
 
 
@@ -42,38 +44,62 @@ class ScreenshotStore:
         day = datetime.fromtimestamp(captured_at_ns / 1e9, tz=timezone.utc)
         return f"screenshots/{day:%Y/%m/%d}/{observation_id}.{EXTENSIONS[fmt]}"
 
-    def _resolve(self, relative):
-        path = (self.root / relative).resolve()
+    def _resolve(self, relative, base=None):
+        base = self.root if base is None else base
+        path = (base / relative).resolve()
         if self.root.resolve() not in path.parents:
             raise AssetError(f"asset path escapes the asset root: {relative}")
         return path
 
-    def _prepare(self, relative):
-        path = self._resolve(relative)
-        for parent in reversed(path.relative_to(self.root.resolve()).parents):
-            d = self.root.resolve() / parent
+    def _locate(self, relative):
+        """Where the file is now: the final location, else quarantine. The final path when it exists nowhere."""
+        final = self._resolve(relative)
+        if final.exists():
+            return final
+        held = self._resolve(relative, self.root / QUARANTINE)
+        return held if held.exists() else final
+
+    def _prepare(self, relative, base=None):
+        path = self._resolve(relative, base)
+        top = self.root.resolve() if base is None else base.resolve()
+        for parent in reversed(path.relative_to(top).parents):
+            d = top / parent
             if not d.exists():
-                d.mkdir(mode=0o700)
+                d.mkdir(mode=0o700, parents=True)
         return path
 
-    def link(self, relative, source_relative):
-        """Give an existing screenshot a second name, so identical pixels are stored once. Never replaces a file."""
-        path = self._prepare(relative)
-        source = self._resolve(source_relative)
-        if path.exists():
-            raise AssetError(f"screenshot already exists: {relative}")
-        os.link(source, path)
+    def _taken(self, relative):
+        return self._resolve(relative).exists() or self._resolve(relative, self.root / QUARANTINE).exists()
+
+    def _base(self, quarantined):
+        return self.root / QUARANTINE if quarantined else None
+
+    @staticmethod
+    def _sync_dir(path):
         dir_fd = os.open(path.parent, os.O_RDONLY)
         try:
             os.fsync(dir_fd)
         finally:
             os.close(dir_fd)
 
-    def write(self, relative, data):
-        """Create the file with exactly these bytes. Refuses to replace an existing file."""
-        path = self._prepare(relative)
-        if path.exists():
+    def link(self, relative, source_relative, quarantined=False):
+        """Give an existing screenshot a second name, so identical pixels are stored once. Never replaces a file.
+        `quarantined` puts the new name in quarantine (see write)."""
+        source = self._locate(source_relative)
+        if self._taken(relative):
             raise AssetError(f"screenshot already exists: {relative}")
+        path = self._prepare(relative, self._base(quarantined))
+        os.link(source, path)
+        self._sync_dir(path)
+
+    def write(self, relative, data, quarantined=False):
+        """Create the file with exactly these bytes. Refuses to replace an existing file.
+
+        A quarantined file lives under `quarantine/` with the same relative name. Every read, exists, link and delete
+        finds it there, but nothing treats it as a kept screenshot until release() moves it to its final place."""
+        if self._taken(relative):
+            raise AssetError(f"screenshot already exists: {relative}")
+        path = self._prepare(relative, self._base(quarantined))
         temp = path.with_name("." + path.name + ".tmp")
         fd = os.open(temp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         try:
@@ -84,32 +110,46 @@ class ScreenshotStore:
             os.link(temp, path)          # fails if `path` appeared meanwhile: never overwrites
         finally:
             temp.unlink(missing_ok=True)
-        dir_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
+        self._sync_dir(path)
+
+    def is_quarantined(self, relative):
+        return not self._resolve(relative).exists() and self._resolve(relative, self.root / QUARANTINE).exists()
+
+    def release(self, relative):
+        """Move a quarantined file to its final place. -> True when it was quarantined, False when it already is final or is gone."""
+        if not self.is_quarantined(relative):
+            return False
+        held = self._resolve(relative, self.root / QUARANTINE)
+        final = self._prepare(relative)
+        os.rename(held, final)
+        self._sync_dir(final)
+        self._sync_dir(held)
+        return True
 
     def read(self, relative, expected_sha256=None):
-        data = self._resolve(relative).read_bytes()
+        data = self._locate(relative).read_bytes()
         if expected_sha256 is not None and sha256(data) != expected_sha256:
             raise AssetError(f"screenshot checksum mismatch: {relative}")
         return data
 
     def exists(self, relative):
-        return self._resolve(relative).exists()
+        return self._locate(relative).exists()
 
     def delete(self, relative):
-        """Remove the file. Returns whether it existed."""
-        try:
-            self._resolve(relative).unlink()
-            return True
-        except FileNotFoundError:
-            return False
+        """Remove the file wherever it is (final or quarantine). Returns whether it existed."""
+        found = False
+        for path in (self._resolve(relative), self._resolve(relative, self.root / QUARANTINE)):
+            try:
+                path.unlink()
+                found = True
+            except FileNotFoundError:
+                pass
+        return found
 
     def all_relative_paths(self):
-        base = self.root / "screenshots"
-        if not base.exists():
-            return set()
-        return {str(p.relative_to(self.root)) for p in base.rglob("*")
-                if p.is_file() and not p.name.startswith(".")}
+        out = set()
+        for top in (self.root, self.root / QUARANTINE):
+            base = top / "screenshots"
+            if base.exists():
+                out |= {str(p.relative_to(top)) for p in base.rglob("*") if p.is_file() and not p.name.startswith(".")}
+        return out

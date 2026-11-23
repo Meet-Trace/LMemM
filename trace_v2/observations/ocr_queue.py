@@ -19,6 +19,7 @@ log = logging.getLogger("trace_v2.ocr_queue")
 TRANSIENT = frozenset({"Timeout", "WorkerCrashed", "WorkerBusy", "WorkerProtocolError", "CompletionFailed"})
 DEFERRED = frozenset({"WorkerStarting", "WorkerCircuitOpen", "WorkerClosed"})
 LATE_REASON = "secret_on_screen_late"
+UNSCANNED_REASON = "unscanned"
 PRUNE_AFTER_S = 7 * 86400
 S = 1_000_000_000
 
@@ -148,6 +149,8 @@ def _terminal(store, db, job_id, oid, target, code, message, now_ns, version=Non
     prev = _latest(db, oid)
     result = ReaderResult(version or (prev[2] if prev else "unknown"), "failed", None, None, code, message, None, now_ns)
     outcome = _append(store, db, oid, target, result)
+    if outcome == "ok":
+        _withhold(store, db, oid, now_ns, UNSCANNED_REASON, only_quarantined=True)
     db.execute("UPDATE ocr_jobs SET state='failed', claim_token=NULL, finished_at_ns=?, last_error_code=? WHERE job_id=?",
                (now_ns, code if outcome == "ok" else outcome, job_id))
     return "failed"
@@ -176,24 +179,39 @@ def _complete(store, job, result, now_ns):
             return owner
         outcome = _append(store, db, job.observation_id, job.target_revision, result, note)
         if outcome == "ok" and counts:
-            _withhold_late(store, db, job.observation_id, now_ns)
+            _withhold(store, db, job.observation_id, now_ns, LATE_REASON)
+        elif outcome == "ok":
+            _release(store, db, job.observation_id)
         db.execute("UPDATE ocr_jobs SET state='done', claim_token=NULL, finished_at_ns=?, last_error_code=? WHERE job_id=?",
                    (now_ns, None if outcome == "ok" else outcome, job.job_id))
         return "completed" if outcome == "ok" else outcome
 
 
-def _withhold_late(store, db, oid, now_ns):
-    """A secret was found in the OCR text after the PNG was stored: remove the file, audited like a retention run."""
-    row = db.execute("SELECT s.relative_path, s.byte_size FROM screenshots s LEFT JOIN screenshot_deletions d "
-                     "USING (observation_id) WHERE s.observation_id=? AND s.status='stored' AND d.observation_id IS NULL",
-                     (oid,)).fetchone()
-    if row is None:
+def _stored_path(db, oid):
+    return db.execute("SELECT s.relative_path, s.byte_size FROM screenshots s LEFT JOIN screenshot_deletions d "
+                      "USING (observation_id) WHERE s.observation_id=? AND s.status='stored' AND d.observation_id IS NULL",
+                      (oid,)).fetchone()
+
+
+def _release(store, db, oid):
+    """The scan found no secret: a quarantined screenshot moves to its final place."""
+    row = _stored_path(db, oid)
+    if row is not None:
+        store.assets.release(row[0])
+
+
+def _withhold(store, db, oid, now_ns, reason, only_quarantined=False):
+    """Remove the screenshot file, audited like a retention run. LATE_REASON: a secret was found in the OCR text.
+    UNSCANNED_REASON: the scan could not be completed, so a quarantined file is not kept (`only_quarantined`: a file that
+    is already in its final place, from before quarantine existed or from a synchronous capture, is left alone)."""
+    row = _stored_path(db, oid)
+    if row is None or (only_quarantined and not store.assets.is_quarantined(row[0])):
         return
     run_id = str(uuid.uuid4())
     db.execute("INSERT INTO retention_runs VALUES (?,?,?,?,?,?)",
-               (run_id, now_iso(), now_ns, canonical({"mode": LATE_REASON}), None, 0))
+               (run_id, now_iso(), now_ns, canonical({"mode": reason}), None, 0))
     existed = store.assets.delete(row[0])
-    db.execute("INSERT INTO screenshot_deletions VALUES (?,?,?,?,?)", (oid, now_iso(), LATE_REASON, run_id, int(existed)))
+    db.execute("INSERT INTO screenshot_deletions VALUES (?,?,?,?,?)", (oid, now_iso(), reason, run_id, int(existed)))
     db.execute("INSERT INTO retention_run_finishes VALUES (?,?,?,?,?,?,?)",
                (run_id, now_iso(), 1, int(existed), int(not existed), 0, (row[1] or 0) if existed else 0))
 

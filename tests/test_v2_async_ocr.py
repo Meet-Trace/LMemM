@@ -337,7 +337,8 @@ class RetryTest(unittest.TestCase):
             self.assertEqual((ocr["status"], ocr["error_code"], ocr["revision"]), ("failed", "Timeout", 2))
             self.assertEqual(env.job(oid)[0], "failed")
             self.assertEqual(env.reader.calls, 3)
-            self.assertEqual(retention.run(ts.store, T0 + 9 * DAY)["deleted"], 1)
+            self.assertEqual(retention.run(ts.store, T0 + 9 * DAY)["deleted"], 0)       # already removed as unscanned
+            self.assertEqual(ts.store.get(oid)["evidence"]["screenshot"]["deletion"]["reason"], "unscanned")
 
     def test_deterministic_failure_is_terminal_at_once(self):
         with TempStore() as ts:
@@ -470,7 +471,9 @@ class RetentionAndBacklogTest(unittest.TestCase):
             ids = [ts.store.ingest(pdraft(key=f"s:{i}", t=T0 + i)).observation_id for i in range(4)]
             codes = [ts.store.get(i)["evidence"]["ocr"] for i in ids]
             self.assertEqual([c["status"] for c in codes], ["pending", "pending", "skipped", "skipped"])
-            self.assertEqual(codes[2]["error_code"], "QueueFull")
+            shots = [ts.store.get(i)["evidence"]["screenshot"] for i in ids]
+            self.assertEqual([x["status"] for x in shots], ["stored", "stored", "withheld", "withheld"])
+            self.assertEqual(shots[2]["error_code"], "ocr_queue_full")
             self.assertEqual(ts.store.ocr_queue_stats()["queued"], 2)
 
 

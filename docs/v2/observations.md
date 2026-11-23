@@ -93,6 +93,18 @@ Observation whose capture time closes its interval:
 - a wall clock stepping backwards never produces an inverted window (`clock_regression` is counted);
 - a crash loses at most the events of the current interval, which were never on disk.
 
+## Quarantine until scanned (`assets.py`, `ocr_queue.py`)
+
+In async OCR mode the secret scan of the pixels is the OCR text, which arrives after the screenshot is stored. Until it does,
+the file lives under `<assets>/quarantine/` with the same relative name; reads, links and deletes find it there. A clean
+scan moves it to its final place. A secret in the text deletes it (`secret_on_screen_late`). A scan that cannot finish
+(terminal failure, job expiry after 1 h) deletes it (`unscanned`; migration 0006 adds the reason). When the OCR queue is
+full no scan can follow, so the screenshot is withheld as `ocr_queue_full` and no pixels are kept. A frame that reuses
+the clean text of an identical earlier frame is linked straight into its final place; a frame that must be scanned
+itself is linked into quarantine. Files already in their final place (older data, synchronous captures) are never removed
+by a failed scan. Residual: in synchronous mode a failed OCR still leaves the screenshot unscanned; a frame reusing the
+text of a near-identical earlier frame is not scanned on its own.
+
 ## Screenshot retention (`retention.py`)
 Policies: permanent (default), 5, 7, 14, 30 days, or a custom duration of at least one hour. `run(store, now_ns)`
 removes expired screenshot files oldest first, records each in `screenshot_deletions` and audits the run.

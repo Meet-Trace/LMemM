@@ -102,10 +102,11 @@ class ObservationStore:
                 return IngestResult(existing, False)
             oid = str(uuid.uuid4())
             decision = self._dedup_plan(draft)
-            shot_row, written = self._store_screenshot(oid, draft.screenshot, decision)
+            shot, reuse = self._quarantine_plan(draft, decision)
+            shot_row, written = self._store_screenshot(oid, shot, decision, draft.ocr.status == "pending", reuse is not None)
             try:
                 self.db.execute("BEGIN IMMEDIATE")
-                self._insert(oid, draft, digest, shot_row, self._ocr_plan(draft, shot_row, decision))
+                self._insert(oid, draft, digest, shot_row, self._ocr_plan(draft, shot_row, decision, reuse))
                 self.db.execute("COMMIT")
             except BaseException:
                 self._rollback()
@@ -229,6 +230,25 @@ class ObservationStore:
             raise
         return freed
 
+    def _quarantine_plan(self, draft, plan):
+        """-> (the screenshot to store, the OCR result to reuse or None).
+
+        A screenshot whose OCR is still pending is stored in quarantine (assets.write) and released only by a clean scan
+        (ocr_queue). When the OCR queue is full no scan can follow, so no pixels are kept: the screenshot is withheld as
+        `ocr_queue_full`."""
+        shot = draft.screenshot
+        if not isinstance(shot, ScreenshotCapture) or draft.ocr.status != "pending":
+            return shot, None
+        reuse = None
+        if plan.get("kind") == "unchanged" and self._dedup_last is not None:
+            reuse = self._reused_ocr(self._dedup_last["oids"][0])
+        from . import ocr_queue
+        from .settings import get_ocr_queue_cap
+        if reuse is None and ocr_queue.depth(self) >= get_ocr_queue_cap(self):
+            plan["kind"] = "none"
+            return ScreenshotWithheld("ocr_queue_full", shot.captured_at_ns), None
+        return shot, reuse
+
     def _reused_ocr(self, oid):
         row = self.db.execute("SELECT reader_version, text, raw_encoding, raw FROM extractions WHERE observation_id=? "
                               "AND reader='ocr' AND status='succeeded' ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
@@ -237,16 +257,18 @@ class ObservationStore:
         raw = queries._decode(row[2], row[3])
         return None if raw is None else ReaderResult(row[0], "succeeded", raw, row[1])
 
-    def _store_screenshot(self, oid, shot, plan=None):
-        """-> (row values for the screenshots table, relative path written or None)."""
+    def _store_screenshot(self, oid, shot, plan=None, scan_pending=False, reused=False):
+        """-> (row values for the screenshots table, relative path written or None). With `scan_pending` the file is
+        stored in quarantine, except a link to an earlier frame whose clean OCR text is reused (`reused`)."""
         last = self._dedup_last
         if plan and plan["kind"] == "unchanged" and last is not None and isinstance(shot, ScreenshotCapture):
             rel = self.assets.relative_path(oid, shot.captured_at_ns, last["format"])
             try:
-                self.assets.link(rel, last["rel"])
+                self.assets.link(rel, last["rel"], quarantined=scan_pending and not reused)
                 plan["linked"] = True
                 return dict(status="stored", relative_path=rel, format=last["format"], width=last["width"], height=last["height"],
-                            byte_size=last["byte_size"], sha256=last["sha"], captured_at_ns=shot.captured_at_ns), rel
+                            byte_size=last["byte_size"], sha256=last["sha"], captured_at_ns=shot.captured_at_ns,
+                            quarantined=scan_pending and not reused), rel
             except (OSError, AssetError):
                 plan["kind"] = "changed"
         if isinstance(shot, ScreenshotWithheld):
@@ -260,28 +282,28 @@ class ObservationStore:
                         error_message=f"bytes are not {shot.format}"), None
         rel = self.assets.relative_path(oid, shot.captured_at_ns, shot.format)
         try:
-            self.assets.write(rel, data)
+            self.assets.write(rel, data, quarantined=scan_pending)
         except (OSError, AssetError) as error:
             log.warning("screenshot write failed: %s", type(error).__name__)
             return dict(status="failed", captured_at_ns=shot.captured_at_ns, error_code="asset_write_failed",
                         error_message=short_error(type(error).__name__)), None
         return dict(status="stored", relative_path=rel, format=shot.format, width=shot.width, height=shot.height,
-                    byte_size=len(data), sha256=sha256(data), captured_at_ns=shot.captured_at_ns), rel
+                    byte_size=len(data), sha256=sha256(data), captured_at_ns=shot.captured_at_ns,
+                    quarantined=scan_pending), rel
 
-    def _ocr_plan(self, draft, shot_row, plan=None):
-        """-> (OCR result for revision 1, enqueue a job). Only a stored screenshot is queued; a full queue skips OCR."""
+    def _ocr_plan(self, draft, shot_row, plan=None, reused=None):
+        """-> (OCR result for revision 1, enqueue a job). Only a stored screenshot is queued; a full queue skips OCR
+        unless the screenshot is in quarantine (it needs the scan to be kept or removed)."""
         ocr = draft.ocr
-        if plan and plan.get("linked") and ocr.status == "pending" and self._dedup_last is not None:
-            reused = self._reused_ocr(self._dedup_last["oids"][0])
-            if reused is not None:
-                return reused, False
+        if plan and plan.get("linked") and ocr.status == "pending" and reused is not None:
+            return reused, False
         if ocr.status != "pending":
             return ocr, False
         if shot_row["status"] != "stored":
             return ReaderResult(ocr.reader_version, "skipped", error_code="no_screenshot"), False
         from . import ocr_queue
         from .settings import get_ocr_queue_cap
-        if ocr_queue.depth(self) >= get_ocr_queue_cap(self):
+        if not shot_row.get("quarantined") and ocr_queue.depth(self) >= get_ocr_queue_cap(self):
             return ReaderResult(ocr.reader_version, "skipped", error_code="QueueFull"), False
         return ocr, True
 

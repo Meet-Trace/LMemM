@@ -54,7 +54,9 @@ def parse_verdict(text):
 
 
 def text_action(moment):
-    """Used when no richer description of the Moment is supplied: the Moment's own summary, in words."""
+    """The vision description when the Moment has one, else the Moment's own summary in words."""
+    if moment.get("description"):
+        return moment["description"]
     s = moment["summary"]
     apps = ", ".join(a.split(".")[-1] for a in list(s.get("apps", {}))[:3]) or "an application"
     return f"Worked in {apps} for {round(s.get('duration_s', 0))} seconds on: {' '.join(s.get('top_tokens', [])[:10])}"
@@ -63,7 +65,8 @@ def text_action(moment):
 class OllamaInterpreter:
     prompt_version = PROMPT_VERSION
 
-    def __init__(self, model, host="http://127.0.0.1:11434", embed_model="embeddinggemma", describe=text_action, timeout=300):
+    def __init__(self, model, host="http://127.0.0.1:11434", embed_model="embeddinggemma", describe=text_action, timeout=300, description_model=None):
+        self.description_model = description_model
         self.model, self.host, self.embed_model, self.describe, self.timeout = model, host, embed_model, describe, timeout
 
     def _post(self, path, body):

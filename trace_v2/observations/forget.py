@@ -99,6 +99,7 @@ def forget(store, selector, dry_run=False):
                 store.db.execute(f"DELETE FROM {table} WHERE {held}", (request_id,))
             moment_held = "moment_id IN (SELECT moment_id FROM moment_member_index WHERE " + granted + ")"
             store.db.execute(f"DELETE FROM activity_interpretations WHERE {moment_held}", (request_id,))
+            store.db.execute(f"DELETE FROM moment_descriptions WHERE {moment_held}", (request_id,))
             store.db.execute(f"DELETE FROM activity_verdicts WHERE moment_a IN (SELECT moment_id FROM moment_member_index WHERE {granted}) "
                              f"OR moment_b IN (SELECT moment_id FROM moment_member_index WHERE {granted})", (request_id, request_id))
             store.db.execute(f"DELETE FROM activity_member_index WHERE {moment_held}", (request_id,))

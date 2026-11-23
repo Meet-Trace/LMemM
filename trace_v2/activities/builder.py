@@ -26,19 +26,29 @@ def unpack(blob):
     return np.frombuffer(blob, dtype=np.float32)
 
 
-def stable_moments(conn, model, version, limit):
-    return conn.execute(
-        "SELECT r.moment_id, r.start_ns, r.end_ns, r.summary_json, r.observation_count FROM moment_revisions r "
+def stable_moments(conn, model, version, limit, description_model=None):
+    """Stable Moments the model has not interpreted yet. With `description_model`, only those that have a description."""
+    from ..descriptions.vision import PROMPT_VERSION as DESCRIPTION_VERSION
+    join, extra, args = "", "", [model, version]
+    if description_model:
+        join = "JOIN moment_descriptions d ON d.moment_id=r.moment_id AND d.model=? AND d.prompt_version=? AND d.status='ok' "
+        args = [description_model, DESCRIPTION_VERSION] + args
+    rows = conn.execute(
+        "SELECT r.moment_id, r.start_ns, r.end_ns, r.summary_json, r.observation_count" + (", d.description" if description_model else ", NULL") +
+        " FROM moment_revisions r " + join +
         "WHERE r.state='stable' AND r.revision=(SELECT max(x.revision) FROM moment_revisions x WHERE x.moment_id=r.moment_id) "
         "AND NOT EXISTS (SELECT 1 FROM activity_interpretations a WHERE a.moment_id=r.moment_id AND a.model=? AND a.prompt_version=?) "
-        "ORDER BY r.end_ns, r.moment_id LIMIT ?", (model, version, limit)).fetchall()
+        "ORDER BY r.end_ns, r.moment_id LIMIT ?", (*args, limit)).fetchall()
+    return rows
 
 
 def interpret_pending(store, reader, interpreter, params, attempts):
     done = failed = 0
-    for moment_id, start, end, summary, count in stable_moments(reader, interpreter.model, interpreter.prompt_version,
-                                                                params["interpret_per_pass"]):
-        moment = {"moment_id": moment_id, "start_ns": start, "end_ns": end, "summary": json.loads(summary), "observations": count}
+    for moment_id, start, end, summary, count, description in stable_moments(
+            reader, interpreter.model, interpreter.prompt_version, params["interpret_per_pass"],
+            getattr(interpreter, "description_model", None)):
+        moment = {"moment_id": moment_id, "start_ns": start, "end_ns": end, "summary": json.loads(summary), "observations": count,
+                  "description": description}
         try:
             out = interpreter.interpret(moment)
             status = "clear" if out["clear"] and out["purpose"] else "unclear"

@@ -223,7 +223,7 @@ class Runner:
     def __init__(self, store, sources, interval_s, *, tap_factory=None, cursor_sample_ms=None, warmup=None,
                  permissions=None, pump=None, stats_every_s=DEFAULT_STATS_EVERY_S, stats_path=None,
                  monotonic=time.monotonic, clock_ns=time.time_ns, rss=_current_rss_mb, observer_factory=ContinuousObserver,
-                 settings_refresh_s=SETTINGS_REFRESH_S, front_app=None, ocr_mode="sync", ocr_queue_policy=None, structure=False, moments=False, activities_model=None):
+                 settings_refresh_s=SETTINGS_REFRESH_S, front_app=None, ocr_mode="sync", ocr_queue_policy=None, structure=False, moments=False, activities_model=None, vision_model=None):
         self.store, self.sources, self.interval_s = store, sources, interval_s
         self._tap_factory, self._cursor_ms = tap_factory, cursor_sample_ms
         self._warmup, self._permissions = warmup, permissions
@@ -236,6 +236,7 @@ class Runner:
         self.structure, self.structure_processor = structure, None
         self.moments, self.moment_processor = moments, None
         self.activities_model, self.activity_processor = activities_model, None
+        self.vision_model, self.description_processor = vision_model, None
         self._front_app = front_app                  # () -> bundle id of the front app; reconciles missed notifications
         self._stop = threading.Event()
         self.tap = self.observer = self.lifecycle = self.buffer = self.gate = None
@@ -355,9 +356,14 @@ class Runner:
         if self.moments and not once:
             self.moment_processor = MomentProcessor(self.store, clock_ns=self._clock_ns)
             self.moment_processor.start()
+            if self.vision_model:
+                from .descriptions import DescriptionProcessor, OllamaVision
+                self.description_processor = DescriptionProcessor(self.store, OllamaVision(self.vision_model), self.vision_model)
+                self.description_processor.start()
             if self.activities_model:
                 from .activities.ollama import OllamaInterpreter
-                self.activity_processor = ActivityProcessor(self.store, OllamaInterpreter(self.activities_model), clock_ns=self._clock_ns)
+                interpreter = OllamaInterpreter(self.activities_model, description_model=self.vision_model)
+                self.activity_processor = ActivityProcessor(self.store, interpreter, clock_ns=self._clock_ns)
                 self.activity_processor.start()
         if not once:
             extra["trigger"] = CaptureTrigger(trigger.get_params(self.store))
@@ -378,6 +384,8 @@ class Runner:
                 self.ocr_processor.stop()
             if self.structure_processor is not None:
                 self.structure_processor.stop()
+            if self.description_processor is not None:
+                self.description_processor.stop()
             if self.activity_processor is not None:
                 self.activity_processor.stop()
             if self.moment_processor is not None:
@@ -511,7 +519,8 @@ class Runner:
                 "ocr_worker": self._ocr_stats(), "ocr_queue": self._ocr_queue_stats(),
                 "structure": self.structure_processor.stats() if self.structure_processor else None,
                 "moments": self.moment_processor.stats() if self.moment_processor else None,
-                "activities": self.activity_processor.stats() if self.activity_processor else None}
+                "activities": self.activity_processor.stats() if self.activity_processor else None,
+                "descriptions": self.description_processor.stats() if self.description_processor else None}
 
     def write_stats(self, final=False):
         stats = self.stats(final)

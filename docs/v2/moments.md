@@ -29,3 +29,20 @@ Moment; the surviving Moments are assigned again on the next pass.
 
 Not done yet: merging and splitting Activities, a confidence score, and a real description of each Moment (the default
 `action` is the Moment's top words, not the vision-model description). Thresholds are untuned.
+
+## Moment descriptions (vision)
+
+`python -m trace_v2.run --moments --vision-model <ollama vision model> --activities-model <text model>`.
+
+A background worker (`trace_v2/descriptions`) describes each stable Moment once: the normalised account of the Moment
+(application, document structure, ordered observations, interactions) goes to the vision model together with up to four
+of its screenshots. The answer is kept only when every piece of evidence cites an observation that exists; otherwise the
+Moment is recorded as `insufficient`. Results are immutable rows in `moment_descriptions` (model, prompt version, status,
+confidence, evidence, seconds) and are deleted when an observation of the Moment is forgotten.
+
+The worker does one Moment per pass and waits while the Mac is on battery below 20% or has under 10% memory free
+(`pmset`, `memory_pressure`; unknown readings never pause). A model that cannot be reached is retried three times, then
+the Moment is recorded as `failed`. When `--vision-model` is set, Activities interpret only Moments that have an `ok`
+description, and use it as the action text.
+
+Untested on a Mac with a real model; the model call, image path and gate readings are covered by fakes only.

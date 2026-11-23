@@ -47,9 +47,11 @@ def ready_batch(conn, now_ns, params, since_ns, limit):
             continue
         age = (now_ns - inputs["obs"][0]) / S
         ocr, structure = inputs["ocr"], inputs["structure"]
-        settled = inputs["shot"] != "stored" or (ocr is not None and ocr[1] != "pending" and structure is not None)
-        if not settled and age < params["ready_wait_s"]:
-            break
+        if inputs["shot"] == "stored":
+            ocr_unfinished = ocr is None or ocr[1] == "pending"
+            wait = params["ocr_wait_s"] if ocr_unfinished else params["ready_wait_s"] if structure is None else 0
+            if age < wait:
+                break
         out.append((oid, inputs))
     return out
 

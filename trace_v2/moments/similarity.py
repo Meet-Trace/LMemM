@@ -15,6 +15,7 @@ PARAMS = {
     "stabilise_s": 900.0,
     "candidate_horizon_s": 1800.0,
     "ready_wait_s": 45.0,
+    "ocr_wait_s": 300.0,
     "split_min_side": 3,
     "split_candidates": 4,
     "max_split_members": 200,

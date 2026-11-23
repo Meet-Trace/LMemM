@@ -403,3 +403,18 @@ class LongMomentTest(unittest.TestCase):
             self.assertGreaterEqual(len(ms), 2)
             self.assertEqual(ms[0]["state"], "stable")
             self.assertLessEqual((ms[0]["end"] - ms[0]["start"]) / S, 300 + 60 + 3)
+
+
+class OcrWaitTest(unittest.TestCase):
+    def pending(self, ts, i, t):
+        ocr = ReaderResult("vision-ocr/1", "pending")
+        d = replace(draft(key=f"p{i}", t=t, ocr=ocr), context=context("com.apple.dt.Xcode", "shader.cpp"))
+        return ts.store.ingest(d).observation_id
+
+    def test_an_observation_waits_for_unfinished_ocr_until_the_cap(self):
+        with TempStore() as ts:
+            self.pending(ts, 0, T0)
+            self.assertEqual(run(ts, T0 + 100 * S)["processed"], 0)
+            self.assertEqual(run(ts, T0 + 100 * S)["skipped"], 0)
+            out = run(ts, T0 + 400 * S)
+            self.assertEqual(out["processed"] + out["skipped"], 1)

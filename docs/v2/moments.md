@@ -55,3 +55,9 @@ before the observation; or it reached `max_length_s` (60 min) and the gap is at 
 `max_length_s + hard_slack_s` (70 min), whatever the gap. The observation then starts or joins another Moment, so
 continuous work becomes a chain of Moments that Activities can link. Every Moment therefore gets described. All five
 values are untuned guesses.
+
+## Waiting for OCR
+
+An observation whose screenshot is stored is not judged while its OCR is unfinished, for up to `ocr_wait_s` (5 min); after
+that it is judged with what exists. If OCR is done but GSA-1 structure is missing it waits only `ready_wait_s` (45 s),
+because structure is optional and may never arrive. Observations without a stored screenshot are never held.

@@ -302,3 +302,11 @@ and copy tables are not append-only. Rows written before this change keep their 
 When typing makes a new screenshot replace the previous one, the store asks the OCR queue whether just those
 observations are still queued or pending (`ocr_queue.protected(store, oids)`) instead of listing every pending OCR in the
 database. Retention still uses the full list.
+
+### Decoded once at capture (X3)
+
+Deduplication already decodes each new screenshot. That decoded image is now kept for the layout step: the newest two
+(`DECODED_KEPT`) are held in memory by screenshot hash and `store.decoded_image(oid)` hands one over when its file is
+still stored. The layout step uses it instead of decoding the PNG again and falls back to the file otherwise (restart,
+evicted, deleted). It costs up to two decoded screenshots of memory (about 15 MB each at 2880x1800) and results are the
+same. Thumbnails and the vision model still read the file; only the layout step shares the capture-time decode.

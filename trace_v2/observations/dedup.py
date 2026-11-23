@@ -47,16 +47,26 @@ def set_params(store, value):
     return settings.put(store, KEY, normalise(value))
 
 
-def picture(data):
-    """-> small greyscale array of the screenshot, or None when it cannot be read."""
+def picture(data, keep=None):
+    """-> small greyscale array of the screenshot, or None when it cannot be read. With a list as `keep`, the decoded
+    image itself is appended to it (the caller closes it) so later steps need not decode the PNG again."""
     try:
         from PIL import Image
-        with Image.open(io.BytesIO(data)) as image:
+        image = Image.open(io.BytesIO(data))
+        try:
             image.load()
             grey = image.convert("L")
             factor = max(1, grey.width // WORK_WIDTH)
             small = grey.reduce(factor) if factor > 1 else grey
-            return np.asarray(small, dtype=np.int16), (image.width, image.height)
+            out = np.asarray(small, dtype=np.int16), (image.width, image.height)
+        except BaseException:
+            image.close()
+            raise
+        if keep is None:
+            image.close()
+        else:
+            keep.append(image)
+        return out
     except Exception:                                    # noqa: BLE001 - an unreadable image is simply kept
         return None
 

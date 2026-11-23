@@ -7,7 +7,7 @@ from .. import paths
 from ..observations.derived import derived_path
 from ..observations.models import ReaderResult, short_error
 from ..observations.queries import ScreenshotUnavailable, _decode, raw_of
-from .analyze import ALGORITHM, StructureError, analyze
+from .analyze import ALGORITHM, StructureError, analyze, analyze_image
 
 log = logging.getLogger("trace_v2.structure")
 
@@ -69,8 +69,9 @@ def build(store, oid, clock_ns=time.time_ns):
     if source is None:
         return "gone", None
     started = clock_ns()
+    image = store.decoded_image(oid)
     try:
-        data = store.screenshot_bytes(oid)
+        data = b"" if image is not None else store.screenshot_bytes(oid)
     except ScreenshotUnavailable as error:
         result = ReaderResult(ALGORITHM, "unavailable", None, None, "ScreenshotUnavailable", str(error), started,
                               clock_ns())
@@ -78,7 +79,7 @@ def build(store, oid, clock_ns=time.time_ns):
         return "gone", None
     else:
         try:
-            raw = analyze(data, ocr, source)
+            raw = analyze_image(image, ocr, source) if image is not None else analyze(data, ocr, source)
             result = ReaderResult(ALGORITHM, "succeeded", raw, None, None, None, started, clock_ns())
         except StructureError as error:
             result = ReaderResult(ALGORITHM, "failed", None, None, error.code, str(error), started, clock_ns())

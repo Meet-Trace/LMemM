@@ -30,6 +30,7 @@ from .. import paths
 
 log = logging.getLogger("trace_v2.observations")
 DEDUP_MEMORY = 8
+DECODED_KEPT = 2
 
 
 class DuplicateObservation(RuntimeError):
@@ -91,12 +92,14 @@ class ObservationStore:
         self.clock_ns = time.time_ns
         self.ocr_max_attempts = 4
         self._dedup_recent = []
+        self._decoded = {}
         self.dedup_stats = {"unchanged": 0, "typing": 0, "changed": 0, "bytes_saved": 0}
         from .forget import resume_pending     # finish any forget interrupted after its commit
         resume_pending(self)
         derived.reconcile(self)
 
     def close(self):
+        self._decoded = {}
         self.db.close()
         self.derived.close()
 
@@ -171,8 +174,9 @@ class ObservationStore:
         params = dedup.get_params(self)
         if not params["enabled"]:
             return {"kind": "none"}
-        picture = dedup.picture(bytes(shot.data))
-        plan = {"kind": "changed", "picture": picture}
+        kept = []
+        picture = dedup.picture(bytes(shot.data), keep=kept)
+        plan = {"kind": "changed", "picture": picture, "image": kept[0] if kept else None}
         if picture is None or not self._dedup_recent:
             return plan
         if draft.capture_reason in dedup.QUIET_REASONS:
@@ -196,11 +200,37 @@ class ObservationStore:
             plan["kind"], plan["previous"] = "typing", last
         return plan
 
+    def _hand_off(self, sha, image):
+        """Keep the decoded image of the newest screenshots for the layout step (structure/processor.py)."""
+        if image is None:
+            return
+        self._decoded.pop(sha, None)
+        self._decoded[sha] = image          # an evicted image is only dereferenced: the layout step may still be reading it
+        while len(self._decoded) > DECODED_KEPT:
+            del self._decoded[next(iter(self._decoded))]
+
+    def decoded_image(self, observation_id):
+        """-> the decoded screenshot kept from capture, or None (never read, evicted, deleted or withheld). Read-only: callers
+        must not modify or close it."""
+        with self.lock:
+            row = self.db.execute("SELECT s.status, s.sha256, d.observation_id, s.relative_path FROM screenshots s "
+                                  "LEFT JOIN screenshot_deletions d USING (observation_id) WHERE s.observation_id=?",
+                                  (observation_id,)).fetchone()
+            if row is None or row[0] != "stored" or row[2] is not None or row[1] not in self._decoded \
+                    or not self.assets.exists(row[3]):
+                return None
+            return self._decoded.get(row[1])
+
     def _dedup_after(self, oid, draft, shot_row, plan):
+        image = plan.get("image")
         if plan["kind"] == "none" or shot_row.get("status") != "stored":
             self._dedup_recent = []
+            if image is not None:
+                image.close()
             return
         if plan.get("linked"):
+            if image is not None:
+                image.close()
             entry = plan["match"]
             entry["oids"].append(oid)
             self._dedup_recent.remove(entry)
@@ -214,6 +244,7 @@ class ObservationStore:
             "bundle": draft.context.application.get("bundle_id"), "display": draft.context.display.get("id"),
             "sha": shot_row["sha256"], "byte_size": shot_row["byte_size"], "format": shot_row["format"],
             "width": shot_row["width"], "height": shot_row["height"]}
+        self._hand_off(shot_row["sha256"], image)
         previous = plan.get("previous") if plan["kind"] == "typing" else None
         if previous is not None and previous in self._dedup_recent:
             self._dedup_recent.remove(previous)

@@ -4,6 +4,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 
@@ -253,6 +254,31 @@ class PersistenceTest(unittest.TestCase):
             self.assertEqual(raw["source"]["ocr"]["extraction_id"], ocr_id(ts.store, oid))
             self.assertEqual(raw["text"][0]["text"], "hello world")
             self.assertEqual(needed(ts.store, T0 + SEC), [])
+
+    def test_the_image_decoded_at_capture_is_reused_and_gives_the_same_result(self):
+        with TempStore() as ts:
+            oid = ts.store.ingest(draft(shot=shot(form()))).observation_id
+            self.assertIsNotNone(ts.store.decoded_image(oid))
+            with unittest.mock.patch.object(P, "analyze", side_effect=AssertionError("decoded again")):
+                self.assertEqual(build(ts.store, oid)[0], "succeeded")
+            reused = ts.store.extractions(oid, "structure")[0]["raw"]
+            ts.store._decoded.clear()
+            self.assertIsNone(ts.store.decoded_image(oid))
+            other = ts.store.ingest(draft(key="again", shot=shot(form()), t=T0 + 60 * SEC)).observation_id
+            ts.store._decoded.clear()
+            build(ts.store, other)
+            fresh = ts.store.extractions(other, "structure")[0]["raw"]
+            for raw in (reused, fresh):
+                raw["source"] = None
+            self.assertEqual(reused, fresh)
+
+    def test_only_the_newest_decoded_images_are_kept(self):
+        with TempStore() as ts:
+            ids = [ts.store.ingest(draft(key=f"k{i}", shot=shot((form, dashboard, dense_grid, blank)[i](), T0 + i * 60 * SEC), t=T0 + i * 60 * SEC)).observation_id
+                   for i in range(4)]
+            self.assertLessEqual(len(ts.store._decoded), 2)
+            self.assertIsNone(ts.store.decoded_image(ids[0]))
+            self.assertIsNotNone(ts.store.decoded_image(ids[-1]))
 
     def test_no_duplicates_and_stale_sources_are_refused(self):
         with TempStore() as ts:

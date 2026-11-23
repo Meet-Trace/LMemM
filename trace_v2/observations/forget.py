@@ -93,6 +93,15 @@ def forget(store, selector, dry_run=False):
             affected = "moment_id IN (SELECT moment_id FROM moment_member_index WHERE " + granted + ")"
             former = [r[0] for r in store.db.execute(
                 "SELECT DISTINCT observation_id FROM moment_member_index WHERE " + affected, (request_id,))]
+            held = ("activity_id IN (SELECT activity_id FROM activity_member_index WHERE moment_id IN "
+                    "(SELECT moment_id FROM moment_member_index WHERE " + granted + "))")
+            for table in ("activity_revisions", "activities", "activity_member_index"):
+                store.db.execute(f"DELETE FROM {table} WHERE {held}", (request_id,))
+            moment_held = "moment_id IN (SELECT moment_id FROM moment_member_index WHERE " + granted + ")"
+            store.db.execute(f"DELETE FROM activity_interpretations WHERE {moment_held}", (request_id,))
+            store.db.execute(f"DELETE FROM activity_verdicts WHERE moment_a IN (SELECT moment_id FROM moment_member_index WHERE {granted}) "
+                             f"OR moment_b IN (SELECT moment_id FROM moment_member_index WHERE {granted})", (request_id, request_id))
+            store.db.execute(f"DELETE FROM activity_member_index WHERE {moment_held}", (request_id,))
             for table in ("moment_revisions", "moments", "moment_member_index"):
                 store.db.execute(f"DELETE FROM {table} WHERE {affected}", (request_id,))
             store.db.executemany("DELETE FROM observation_features WHERE observation_id=?", ((i,) for i in former))

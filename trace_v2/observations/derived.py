@@ -27,7 +27,8 @@ def open_derived(root):
     path = derived_path(root)
     connection = connect(path)
     try:
-        migrate(connection, path, migrations(DERIVED_MIGRATIONS_DIR))
+        fresh = connection.execute("PRAGMA user_version").fetchone()[0] == 0
+        migrate(connection, None if fresh else path, migrations(DERIVED_MIGRATIONS_DIR))     # nothing to back up in a new file
     except BaseException:
         connection.close()
         raise

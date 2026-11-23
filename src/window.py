@@ -46,6 +46,7 @@ DETAIL_ICONS = {"Last seen": ("waveform.path.ecg", "waveform"), "First seen": ("
                 "Visits": ("chart.bar", "chart.bar.fill"), "Address": ("link",)}                # one family of corners for the thing page
 BUTTON_H, FIELD_H = 34, 40
 SIDE_W = 250
+HIST_SEARCH_W, HIST_TIME_W = 230, 104                  # Work History: its search field, and the column of times left of the spine
 FAVICON_INSET = 0.17                                   # of the icon square, each side: a favicon is drawn at 66% inside its soft tile
 PAD = 32
 MIN_MAIN, MAX_MAIN = 560, 980 
@@ -283,8 +284,9 @@ class MainWindow:
     """on_press(row id) is called when the banner's button is pressed (ids the menu already knows).
     data() returns (project registry, things by id) for the page."""
 
-    def __init__(self, on_press, data, on_tick=None, on_add_note=None, on_project=None, on_project_undo=None, suggest=None, prefs=None, on_memory=None, memory_view=None):
+    def __init__(self, on_press, data, on_tick=None, on_add_note=None, on_project=None, on_project_undo=None, suggest=None, prefs=None, on_memory=None, memory_view=None, history=None):
         self.on_memory=on_memory or (lambda action,payload:None)
+        self.history = history or (lambda: None)                     # where Work History reads from (history_model.py)
         self.memory_view=memory_view
         self.memory_pane=None
         self.memory_snapshot=None
@@ -367,6 +369,15 @@ class MainWindow:
         self.side_scroll = _scroll(self.root)
         self.main_scroll = _scroll(self.root)
         self.keep_focus, self.note_surface, self.shot_at = False, None, None
+        self.hist_focus, self.hist_y, self.restore_y = False, None, None   # Work History: the cursor is in its search, and the place it was scrolled to
+        self.hist_typing = _Fields.alloc().initWithChange_submit_cancel_(
+            self._hist_typed, self._hist_typed, self._cancel_hist_search)
+        self.hist_field = NSTextField.alloc().initWithFrame_(NSMakeRect(0, 0, HIST_SEARCH_W, 28))
+        self.hist_field.setPlaceholderString_("Search history")
+        self.hist_field.setBezeled_(True)
+        self.hist_field.setBezelStyle_(1)
+        self.hist_field.setDelegate_(self.hist_typing)
+        self.hist_field.setHidden_(True)
         self.composing = False                                         # there are words in the note field that are not saved yet
         self.note_typing = _Fields.alloc().initWithChange_submit_cancel_(
             self._note_typed, self._submit_note, self._cancel_note)
@@ -602,15 +613,17 @@ class MainWindow:
             self.stop_select()
         elif self.nav["q"] and self.nav["view"] == "search":
             self._cancel_search()
+        elif self.nav["view"] == "history" and self.nav["hist"]["q"]:
+            self._cancel_hist_search()
         else:
             self.go_back()
 
     def focus_search(self):
-        self.window.makeFirstResponder_(self.search)
+        self.window.makeFirstResponder_(self.hist_field if self.nav["view"] == "history" else self.search)
 
     def go_back(self):
         kind = self.nav["view"]
-        if kind in ("thing", "settings", "search"):
+        if kind in ("thing", "settings", "search", "history"):
             self.back(kind)
         elif kind in ("needs", "archived", "project"):
             self.press("home")
@@ -636,8 +649,16 @@ class MainWindow:
 
     def press(self, action, arg=None):
         reg, items = self.data()
-        if action in {"go", "home", "needs"}:
+        if action in {"go", "home", "needs", "history"}:
             self.search.setStringValue_("")                        # leaving a search clears its words
+        if action in {"history", "history_day", "home", "go", "needs"}:
+            self.hist_field.setStringValue_("")
+        if action != "history_search":
+            self.hist_focus = False
+        if action == "thing" and self.nav["view"] == "history":
+            self.hist_y = self.main_scroll.contentView().bounds().origin.y      # Back comes to the same place
+        elif action == "back" and self.nav["view"] == "thing" and (self.nav.get("back") or {}).get("view") == "history":
+            self.restore_y = self.hist_y
         if action not in {"more", "more_subs", "more_side", "toggle"}:
             self.sel = None                                        # a selection belongs to the page it was made on
         self.nav = page_model.press(reg, self.nav, action, arg, items)
@@ -660,7 +681,7 @@ class MainWindow:
         self.render_now()
 
     def back(self, kind):
-        if kind in ("thing", "settings"):
+        if kind in ("thing", "settings", "history"):
             self.press("back")
         elif kind == "search":
             self.press("clear")
@@ -734,6 +755,14 @@ class MainWindow:
         self.search.setStringValue_("")
         self.press("clear")
 
+    def _hist_typed(self, text):
+        self.hist_focus = True
+        self.press("history_search", text)
+
+    def _cancel_hist_search(self):
+        self.hist_field.setStringValue_("")
+        self.press("history_search", "")
+
     # ------------------------------------------------------------ drawing
 
     def render(self):
@@ -750,7 +779,8 @@ class MainWindow:
         reg, items = self.data()
         now = time.time()
         page = page_model.view(reg, items, self.nav, fading=self.flow.holding(now), sugg=self.suggest(),
-                               prefs=self.prefs(self.nav["sec"]) if self.nav["view"] == "settings" else None)
+                               prefs=self.prefs(self.nav["sec"]) if self.nav["view"] == "settings" else None,
+                               hist=self.history() if self.nav["view"] == "history" else None)
         self.memory_snapshot=self.memory_view(page['main'].get('pid')) if self.memory_view and page['main']['kind']=='project' else None
         self.flow_sig = self.flow_signature()
         sig = repr((window_model.signature(self.banner), page, self.flow_sig, self.sel, self.cur,self.memory_snapshot))
@@ -765,6 +795,8 @@ class MainWindow:
         thing = main["kind"] == "thing"
         self.item_here = main.get("item") if thing else None
         self.note_field.setHidden_(not thing)
+        if main["kind"] != "history":
+            self.hist_field.setHidden_(True)
         bar = 0                                                    # the note field is part of the page
         self._toast(now, bar)
         self.search.setFrame_(NSMakeRect(16, TOP + 10, SIDE_W - 32, 28))
@@ -772,7 +804,9 @@ class MainWindow:
         self._side_foot(page["side"])
         self.head_host.setFrame_(NSMakeRect(SIDE_W, top, self.W - SIDE_W, head))
         self.main_scroll.setFrame_(NSMakeRect(SIDE_W, top + head, self.W - SIDE_W, self.H - top - head - bar))
-        here = (self.nav["view"], self.nav["pid"], self.nav["q"], self.nav["tid"])
+        h = self.nav["hist"]
+        here = (self.nav["view"], self.nav["pid"], self.nav["q"], self.nav["tid"],
+                (h["scope"], h["day"], h["mode"], h["q"]) if self.nav["view"] == "history" else None)
         moved, self.where = here != self.where, here
         if moved:
             self.cur = {"zone": self.cur["zone"], "id": None}
@@ -785,7 +819,8 @@ class MainWindow:
             self._place_pane(self.memory_pane.host, ("memory", bool(self.memory_pane.settings), retained.get("project_id")))
         else:
             leaving_pane, self.pane_key = self.pane_key is not None, None
-            self._fill(self.main_scroll, self.W - SIDE_W, lambda doc: self._main(doc, main, split), top=moved or leaving_pane)
+            at, self.restore_y = self.restore_y, None
+            self._fill(self.main_scroll, self.W - SIDE_W, lambda doc: self._main(doc, main, split), top=(moved or leaving_pane) and at is None, at=at)
 
     def _place_pane(self, host, key):
         """Show a pane's view in the scroll area without losing the place the person scrolled to. Setting the same
@@ -801,11 +836,11 @@ class MainWindow:
         clip.scrollToPoint_(NSMakePoint(0, max(0, min(keep, room))))
         scroll.reflectScrolledClipView_(clip)
 
-    def _fill(self, scroll, width, build, top=False):
+    def _fill(self, scroll, width, build, top=False, at=None):
         """Swap the scrolling area's contents, keeping the place the person had scrolled to (or
         going to the top when they have moved to another page)."""
         clip = scroll.contentView()
-        keep = 0 if top else clip.bounds().origin.y
+        keep = 0 if top else clip.bounds().origin.y if at is None else at
         doc = _Flipped.alloc().initWithFrame_(NSMakeRect(0, 0, width, 10))
         height = build(doc)
         view_h = scroll.frame().size.height
@@ -922,6 +957,9 @@ class MainWindow:
 
     def open_settings(self, section=None):
         self.press("settings", section)
+
+    def open_history(self):
+        self.press("history")
 
     def open_apps(self, purpose):
         """The app picker for "watch only these" or "never remember these"."""
@@ -1285,6 +1323,14 @@ class MainWindow:
 
     def _side(self, doc, side):
         y = 6
+        call = lambda: self.press("history")
+        tap = self._tap(doc, 8, y, SIDE_W - 16, 34, call, fill=self.nav["view"] == "history")
+        if self._krow("side", "history", call, tap):
+            tap.fill = True
+        tap.focusable, tap.ax_label = True, "Work History"
+        kit.glyph(tap, ("clock.arrow.circlepath", "clock"), 11, 8, 18, kit.mute())
+        kit.put_text(tap, "Work History", 40, 0, SIDE_W - 16 - 40, 13, 500, wrap=False, height=34, middle=True)
+        y += 48                                                     # always one click away, whatever page you are on
         needs = side["needs"]
         self._label(doc, "NEEDS YOU", 16, y, 130)
         if needs["count"]:
@@ -1454,6 +1500,8 @@ class MainWindow:
             return self._things(doc, page, x, 6, w)
         y = 30
         kind = page["kind"]
+        if kind == "history":
+            return self._history(doc, page, x, w)
         if kind in ("search", "needs", "thing", "archived", "settings"):
             self._link(doc, "‹ Back", x - 6, y - 8, lambda: self.back(kind))
             y += 24
@@ -2424,6 +2472,124 @@ class MainWindow:
     def _viewer_to(self, k):
         self.dialog["v"] = k
         self._dialog()
+
+    def _history(self, doc, page, x, w):
+        """Work History: a quiet page of its own. Title and search, the day and its summary, where to look (scope) and how
+        to group (mode), then entries on a hairline spine with their times to the left. No cards, no badges."""
+        y = 30
+        self._link(doc, "‹ Back", x - 6, y - 8, lambda: self.back("history"))
+        y += 24
+        kit.put_text(doc, page["title"], x, y, w - HIST_SEARCH_W - 16, 26, 700, wrap=False, height=34, track=-0.026)
+        self.hist_field.setFrame_(NSMakeRect(x + w - HIST_SEARCH_W, y + 3, HIST_SEARCH_W, 28))
+        self.hist_field.setHidden_(False)
+        doc.addSubview_(self.hist_field)                                  # moves it here from the last draw
+        if self.hist_focus:                                                # a redraw must not take the cursor away mid-word
+            self.window.makeFirstResponder_(self.hist_field)
+            editor = self.hist_field.currentEditor()
+            if editor is not None:
+                editor.setSelectedRange_((len(self.hist_field.stringValue()), 0))
+        y += 38
+        line = page["heading"] if not page["q"] else f"Results for “{page['q']}”"
+        if page["summary"] and not page["q"]:
+            line += "  ·  " + page["summary"]
+        self._label(doc, line, x, y, w, size=13, weight=400)
+        y += 32
+        if not page["q"]:
+            self._segmented(doc, x, y, [(sc["title"], sc["on"], (lambda k=sc["id"]: self.press("history_day", k))) for sc in page["scopes"]])
+            self._history_days(doc, page, x + w, y)
+            y += 40
+            self._segmented(doc, x, y, [(m["title"], m["on"], (lambda k=m["id"]: self.press("history_mode", k))) for m in page["modes"]])
+            y += 40
+        doc.addSubview_(kit._KitRule.alloc().initWithFrame_(NSMakeRect(x, y, w, 1)))
+        y += 22
+        many = page["scope"] in ("week", "earlier")
+        for group in page["groups"]:
+            y = self._history_group(doc, page, group, x, y, w, many)
+        if page["empty"]:
+            y = self._empty(doc, page["empty"], x, y + 6, w, symbol=("clock.arrow.circlepath", "clock"))
+        if page["more"]:
+            more = page["more"]
+            title = f"Show {min(more, page_model.HISTORY_FOUND)} more of {more}" if page.get("search") else "Show earlier days"
+            kit.button(doc, title, x, y + 4, 240, 36, lambda: self.press("history_more"), kind="quiet", size=13, weight=500)
+            y += 48
+        return y
+
+    def _history_days(self, doc, page, right, y):
+        """Previous and next day, and a menu of the days that have history (a date picker that never offers an empty day)."""
+        label = "Pick a day"
+        width = int(kit.text_width(label, 12, 500)) + 40
+        tap = self._tap(doc, right - width, y, width, 28, None, fill=True)
+        kit.put_text(tap, label, 12, 0, width - 36, 12, 500, kit.mute(), wrap=False, height=28, middle=True)
+        kit.glyph(tap, ("chevron.down",), width - 22, 8, 12, kit.mute())
+        tap.callback = lambda: self._popup_days(tap, page)
+        tap.focusable, tap.ax_label = True, label
+        for k, (symbol, name, on) in enumerate((("chevron.right", "next", page["can_next"]), ("chevron.left", "prev", page["can_prev"]))):
+            call = (lambda n=name: self.press("history_day", n)) if on else None
+            arrow = self._tap(doc, right - width - 8 - 30 * (k + 1), y, 28, 28, call)
+            arrow.ax_label = "Next day" if name == "next" else "Previous day"
+            kit.glyph(arrow, (symbol,), 8, 8, 12, kit.ink() if on else kit.faint(0.3))
+
+    def _popup_days(self, anchor, page):
+        menu = NSMenu.alloc().initWithTitle_("")
+        helper = _SourcePick.alloc().init()
+        helper.calls = {}
+        for n, entry in enumerate(page["jump"]):
+            item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(entry["title"], "pick:", "")
+            item.setTarget_(helper)
+            item.setTag_(n)
+            item.setState_(1 if entry["day"] == page["day"] and page["scope"] in ("today", "yesterday", "day") else 0)
+            helper.calls[n] = (lambda d=entry["day"]: self.press("history_day", d))
+            menu.addItem_(item)
+        if not page["jump"]:
+            menu.addItem_(NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Nothing remembered yet", None, ""))
+        self._source_helper = helper
+        menu.popUpMenuPositioningItem_atLocation_inView_(None, NSMakePoint(0, anchor.bounds().size.height + 4), anchor)
+
+    def _history_group(self, doc, page, group, x, y, w, many):
+        """One section: a day (Timeline), a project or an app, with its entries on the spine."""
+        title, hue = group["title"], group.get("hue")
+        lead = 0
+        if page["mode"] == "projects" and hue is not None:
+            doc.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(NSMakeRect(x, y + 9, 9, 9), hue_color(hue), None, 4.5))
+            lead = 18
+        elif page["mode"] == "apps":
+            self._app_icon(doc, title, x, y + 1, 24)
+            lead = 32
+        tw = min(kit.text_width(title, 17, 700) + 8, w - lead - 120)
+        kit.put_text(doc, title, x + lead, y, tw, 17, 700, wrap=False, height=26, track=-0.014)
+        count = len(group["rows"])
+        if not page["q"]:
+            kit.put_text(doc, f"{count} {'entry' if count == 1 else 'entries'}", x + lead + tw + 6, y + 1, 120, 13, 400, kit.mute(), wrap=False, height=26, track=0.01)
+        y += 36
+        top = y
+        for r in group["rows"]:
+            y = self._history_row(doc, r, x, y, w, many, page["mode"])
+        doc.addSubview_(_Rail.alloc().initWithFrame_(NSMakeRect(x + HIST_TIME_W + 4, top, 1, max(y - top - 8, 0))))
+        return y + 26
+
+    def _history_row(self, doc, r, x, y, w, many, mode="apps"):
+        """One entry: its time at the left, a dot on the spine, then name, where, and the line the thing already stores."""
+        pad = 8
+        h = 72 if r["doing"] else 52
+        call = (lambda i=r["id"]: self.press("thing", i)) if r.get("open", True) else None   # a vision Moment is not a thing: nothing to open
+        box = _Tap.alloc().initWithFrame_callback_(NSMakeRect(x - pad, y, w + 2 * pad, h), call)
+        lit = self._krow("main", r["key"], call, box) if call else False
+        box.fill = lit
+        box.focusable, box.ax_label = True, f"{r['title']}, {r.get('when') or r['span']}"
+        kit.put_text(box, r.get("when") or r["span"], pad, 9, HIST_TIME_W - 8, 12, 500, kit.mute(), wrap=False, height=20)
+        if many and r.get("day_label"):
+            kit.put_text(box, r["day_label"], pad, 27, HIST_TIME_W - 8, 11, 400, kit.mute(), wrap=False, height=16)
+        box.addSubview_(kit._KitSurface.alloc().initWithFrame_fill_edge_radius_(
+            NSMakeRect(pad + HIST_TIME_W + 4 - 3, 15, 7, 7), kit.accent_text() if lit else kit.faint(0.6), None, 3.5))
+        tx = pad + HIST_TIME_W + 24
+        room = w + 2 * pad - tx - pad
+        kit.put_text(box, r["title"], tx, 8, room, 15, 600, wrap=False, height=20, track=-0.006)
+        where = " · ".join(b for b in (None if mode == "apps" else r["app"], None if mode == "projects" else r["project"], r.get("duration"), f"{r['visits']} {r.get('unit', 'visits')}" if r.get("visits", 1) > 1 else None) if b)
+        kit.put_text(box, where, tx, 28, room, 13, 400, kit.mute(), wrap=False, height=18)
+        if r["doing"]:
+            kit.put_text(box, r["doing"], tx, 47, room, 13, 400, kit.ink(), wrap=False, height=18)
+        doc.addSubview_(box)
+        return y + h
 
     def _search(self, doc, page, x, y, w):
         if page["none"]:

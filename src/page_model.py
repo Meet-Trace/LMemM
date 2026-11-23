@@ -25,6 +25,7 @@ draws it and forwards presses to `press()`; it decides nothing.
     P10 A note you just ticked stays on its thing, crossed out, until its hold is over (rules.FinishFlow,
         R10), then moves to Finished. Tapping a finished note opens it again. The window reads and
         writes the same notes as the pill, so a tick in either is a tick in both.
+    P11 Work History is a page of its own (history_model.py, rules H1 to H10): `press` only moves its day, mode and search.
     P9  Any thing, and any note of it, opens its own page: the whole title, where it lives (and
         the other projects it is in), the open notes in full, the finished ones, when you last
         saw it and how long you spent, and what LMemM read from it. Back returns to the page you
@@ -35,7 +36,7 @@ import os
 import functools
 import re
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 import favicons
 import notes
@@ -53,6 +54,8 @@ NEEDS_HOME = 3
 NEEDS_SIDE = 3
 SEARCH_LIMITS = {"projects": 6, "notes": 8, "things": 25}
 CRUMBS_MAX = 5
+HISTORY_DAYS = 7                      # Work History: earlier days per page
+HISTORY_FOUND = 50                    # and search results per page
 
 
 # ---------------------------------------------------------------- words
@@ -138,12 +141,13 @@ def plural(n, one, many=None):
 
 def new_state():
     return {"view": "home", "pid": None, "q": "", "open": [], "deep": True, "app": None,
-            "shown": THINGS_SHOWN, "subs": SUBS_SHOWN, "lim": {}, "needs_all": False, "tid": None, "back": None, "sec": "you"}
+            "shown": THINGS_SHOWN, "subs": SUBS_SHOWN, "lim": {}, "needs_all": False, "tid": None, "back": None, "sec": "you",
+            "hist": {"scope": "today", "day": None, "mode": "apps", "n": HISTORY_DAYS, "lim": HISTORY_FOUND, "q": ""}}
 
 
-def press(reg, state, action, arg=None, items=None):
+def press(reg, state, action, arg=None, items=None, now=None):
     """A new state after a press. Unknown projects (deleted since) fall back to home."""
-    s = {**state, "open": list(state["open"]), "lim": dict(state["lim"])}
+    s = {**state, "open": list(state["open"]), "lim": dict(state["lim"]), "hist": dict(state["hist"])}
     if action == "home":
         s.update(view="home", pid=None, q="", needs_all=False)
     elif action == "go":
@@ -186,6 +190,8 @@ def press(reg, state, action, arg=None, items=None):
         if state["view"] != "settings":
             s["back"] = {"view": state["view"], "pid": state["pid"], "q": state["q"]}
         s.update(view="settings", pid=None, q="", sec=arg if arg in settings_model.SECTIONS else state.get("sec", "you"))
+    elif action in ("history", "history_day", "history_mode", "history_more", "history_search"):
+        _history_press(s, state, action, arg, now or datetime.now())
     elif action == "archived":
         s.update(view="archived", pid=None, q="")
         if ARCHIVE_ID not in s["open"]:
@@ -200,6 +206,42 @@ def press(reg, state, action, arg=None, items=None):
         back = "project" if s["pid"] and projects.exists(reg, s["pid"]) else "home"
         s.update(view=back, q="")
     return s
+
+
+def _history_press(s, state, action, arg, now):
+    """The history page's presses (H1, H8, H9). Opening it starts on Today; the mode is kept while the window lives."""
+    hist = s["hist"]
+    if action == "history":
+        if state["view"] != "history":
+            s["back"] = {"view": state["view"], "pid": state["pid"], "q": state["q"]}
+        hist.update(scope="today", day=None, q="", n=HISTORY_DAYS, lim=HISTORY_FOUND)
+        s.update(view="history", pid=None, q="", tid=None)
+        return
+    s.update(view="history", pid=None, q="")
+    if action == "history_mode" and arg in ("projects", "apps"):
+        hist["mode"] = arg
+    elif action == "history_more":
+        hist.update(**({"lim": hist["lim"] + HISTORY_FOUND} if hist["q"] else {"n": hist["n"] + HISTORY_DAYS}))
+    elif action == "history_search":
+        hist["q"] = (arg or "").strip()
+    elif action == "history_day":
+        hist["q"] = ""
+        today = now.date()
+        if arg in ("today", "yesterday", "week", "earlier"):
+            hist.update(scope=arg, day=None, n=HISTORY_DAYS)
+            return
+        current = today - timedelta(days=1) if hist["scope"] == "yesterday" else (
+            date.fromisoformat(hist["day"]) if hist["scope"] == "day" and hist["day"] else today)
+        if arg in ("prev", "next"):
+            target = current + timedelta(days=-1 if arg == "prev" else 1)
+        else:
+            try:
+                target = date.fromisoformat(arg)
+            except (TypeError, ValueError):
+                return
+        target = min(target, today)
+        gap = (today - target).days
+        hist.update(scope="today" if gap == 0 else "yesterday" if gap == 1 else "day", day=target.isoformat() if gap > 1 else None)
 
 
 # ---------------------------------------------------------------- rows
@@ -326,8 +368,11 @@ def crumbs(reg, pid):
     return chain
 
 
-def main(reg, items, state, counts, now, fading=(), sugg=None, prefs=None):
+def main(reg, items, state, counts, now, fading=(), sugg=None, prefs=None, hist=None):
     view = state["view"]
+    if view == "history":
+        import history_model
+        return history_model.view(reg, items, state, now, **(hist or {}))
     if view == "settings" and prefs:
         return prefs
     if view == "thing" and state.get("tid") in items:
@@ -580,12 +625,13 @@ def search(reg, items, q, now):
 
 # ---------------------------------------------------------------- the whole page
 
-def view(reg, items, state, now=None, fading=(), sugg=None, prefs=None):
-    """fading: ids of notes ticked a moment ago, still on screen crossed out (P10). sugg: suggestions.view()."""
+def view(reg, items, state, now=None, fading=(), sugg=None, prefs=None, hist=None):
+    """fading: ids of notes ticked a moment ago, still on screen crossed out (P10). sugg: suggestions.view().
+    hist: where the history page reads from ({"sessions_dir", "live", "skip", "moments", "v2"}, history_model.py)."""
     now = now or datetime.now()
     with projects.indexed(reg, items):                                     # 10,000 projects must not mean 10,000 scans
         counts = projects.counts(reg, items)
-        return {"side": side(reg, items, state, counts, now), "main": main(reg, items, state, counts, now, fading, sugg, prefs)}
+        return {"side": side(reg, items, state, counts, now), "main": main(reg, items, state, counts, now, fading, sugg, prefs, hist)}
 
 
 def signature(v):

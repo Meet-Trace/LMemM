@@ -82,5 +82,41 @@ class SpeedTests(unittest.TestCase):
         self.assertLessEqual(len(v["side"]["tree"]), pm.SIDE_LIMIT + 2)         # the eight first, "Show more", the Archived folder
 
 
+class HistorySpeedTests(unittest.TestCase):
+    def test_a_day_pages_and_search_stay_quick_with_a_thousand_sessions_and_fifty_thousand_things(self):
+        import json
+        import os
+        import tempfile
+        from datetime import timedelta
+        import history_model as hm
+        reg, items, _ids = big(200, 50000)
+        with tempfile.TemporaryDirectory() as d:
+            for n in range(1000):
+                when = NOW - timedelta(days=n // 5, minutes=n)
+                events = [{"from": "10:00:00", "to": "10:30:00", "seconds": 1800, "item": f"i{(n * 7 + k) % 50000}"} for k in range(5)]
+                with open(os.path.join(d, when.strftime("%Y%m%d-%H%M%S") + ".json"), "w") as fh:
+                    json.dump({"timeline": events}, fh)
+            state = pm.new_state()
+            for scope in ("today", "week", "earlier"):
+                state["hist"]["scope"] = scope
+                start = time.perf_counter()
+                page = hm.view(reg, items, state, NOW, sessions_dir=d)
+                self.assertLess(time.perf_counter() - start, 0.15, scope)
+            state["hist"]["scope"] = "today"
+            seen = []
+            real = hm._load
+            hm._CACHE.clear()
+            try:
+                hm._load = lambda path: seen.append(path) or real(path)
+                hm.view(reg, items, state, NOW, sessions_dir=d)
+            finally:
+                hm._load = real
+            self.assertLessEqual(len(seen), 12)
+            state["hist"]["q"] = "Thing 49"
+            start = time.perf_counter()
+            hm.view(reg, items, state, NOW, sessions_dir=d)
+            self.assertLess(time.perf_counter() - start, 1.5, "search")
+
+
 if __name__ == "__main__":
     unittest.main()

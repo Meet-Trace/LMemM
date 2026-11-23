@@ -27,7 +27,7 @@ Revisions are immutable and store only the Moments added plus the evidence for t
 Forgetting an observation deletes every Activity that contained its Moment and everything the model said about that
 Moment; the surviving Moments are assigned again on the next pass.
 
-Not done yet: merging and splitting Activities, a confidence score, and a real description of each Moment (the default
+Not done yet: splitting Activities, a confidence score, and a real description of each Moment (the default
 `action` is the Moment's top words, not the vision-model description). Thresholds are untuned.
 
 ## Moment descriptions (vision)
@@ -61,3 +61,12 @@ values are untuned guesses.
 An observation whose screenshot is stored is not judged while its OCR is unfinished, for up to `ocr_wait_s` (5 min); after
 that it is judged with what exists. If OCR is done but GSA-1 structure is missing it waits only `ready_wait_s` (45 s),
 because structure is optional and may never arrive. Observations without a stored screenshot are never held.
+
+### Merging Activities
+
+When a new Moment qualifies for more than one Activity, the larger one is the candidate winner and each other one must
+pass a cross-check: the `cross_pairs` (4) most similar member pairs across the two (at least `cross_min_pairs`, 2) are
+judged, and at least `share` (75%) must be SAME; verdicts already stored count. A passing Activity is merged in one
+transaction: the winner takes its Moments and the new one, and the loser gets a closing `merged` revision pointing at the
+winner. If the cross-check fails the Moment simply joins the best Activity and the two stay separate. Splitting is not
+automatic. Merged Activities are never joined again.

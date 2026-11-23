@@ -57,7 +57,8 @@ def adopt_legacy(root, evidence_path):
         connection.execute("BEGIN IMMEDIATE")
         for table in tables:
             before = connection.execute(f"SELECT count(*) FROM main.{table}").fetchone()[0]
-            connection.execute(f"INSERT OR IGNORE INTO main.{table} SELECT * FROM legacy.{table}{ORDER.get(table, '')}")
+            columns = ", ".join(r[1] for r in connection.execute(f"PRAGMA legacy.table_info({table})"))
+            connection.execute(f"INSERT OR IGNORE INTO main.{table}({columns}) SELECT {columns} FROM legacy.{table}{ORDER.get(table, '')}")
             copied += connection.execute(f"SELECT count(*) FROM main.{table}").fetchone()[0] - before
         connection.execute("COMMIT")
     finally:

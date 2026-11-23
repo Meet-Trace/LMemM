@@ -78,3 +78,6 @@ present in at least half of its sampled observations are stored (`moment_identit
 compared by the judge, in addition to the nearest neighbours (up to `identity_extra`, 4), even when their purposes are
 far apart. The judge still decides, so an identity never joins anything by itself; the evidence records which pairs were
 compared "via same page or file". Window titles are not used. The three-segment rule is a guess.
+
+Decision (A4): a Moment whose purpose the model calls unclear, or that has no clear description, is left out of Activities
+for good. It is recorded (`activity_interpretations.status`) and never retried; no code changes were made for this.

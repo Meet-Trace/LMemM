@@ -26,6 +26,7 @@ scope the capture was taken with is recorded in the observation's privacy record
 import collections
 import json
 import logging
+from dataclasses import replace
 import threading
 import time
 import uuid
@@ -145,12 +146,15 @@ def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns
         except Exception:                        # noqa: BLE001 - an observer hook must not break capture
             log.exception("on_decision hook failed")
     batch = buffer.take(t)
+    reason = None
     if trigger is not None and not decision.withheld and hasattr(sources, "probe"):
-        if trigger.decide(t, context, _probe(sources), batch.events) is None:
+        reason = trigger.decide(t, context, _probe(sources), batch.events)
+        if reason is None:
             batch.restore()
             return None, None
     try:
-        return _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode)
+        draft, taken = _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode)
+        return (replace(draft, capture_reason=reason) if reason else draft), taken
     except BaseException:
         batch.restore()
         raise

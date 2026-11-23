@@ -141,6 +141,7 @@ class CaptureDraft:
     events_window: tuple = (None, None)    # (start_ns exclusive, end_ns inclusive)
     event_stats: dict = field(default_factory=dict)
     privacy: dict = field(default_factory=lambda: {"withheld": False})
+    capture_reason: object = None          # why the trigger took this capture (trigger.py); not stored, only steers dedup
 
     def validate(self):
         if not isinstance(self.capture_key, str) or not _KEY.fullmatch(self.capture_key):

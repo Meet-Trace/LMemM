@@ -44,6 +44,42 @@ def deleted(ts, oid):
     return r[0] if r else None
 
 
+class QuietCaptureTest(unittest.TestCase):
+    def take(self, ts, i, data, reason=None, app="com.example.editor"):
+        from dataclasses import replace
+        t = T0 + i * 3 * SEC
+        pending = ReaderResult("vision-ocr/1", "pending")
+        d = replace(draft(key=f"q:{i}", t=t, shot=shot(data, t), app=app, ocr=ocr_ok("first screen text") if i == 0 else pending),
+                    capture_reason=reason)
+        return ts.store.ingest(d).observation_id
+
+    def ocr_status(self, ts, oid):
+        return ts.store.db.execute("SELECT status, text FROM extractions WHERE observation_id=? AND reader='ocr' ORDER BY revision DESC LIMIT 1", (oid,)).fetchone()
+
+    def test_a_heartbeat_capture_reuses_the_file_and_the_text_without_a_new_scan(self):
+        with TempStore() as ts:
+            a = self.take(ts, 0, png())
+            b = self.take(ts, 1, png(box=(300, 300, 700, 440)), reason="heartbeat")
+            root = ts.store.assets.root
+            self.assertEqual(os.stat(root / row(ts, a)[1]).st_ino, os.stat(root / row(ts, b)[1]).st_ino)
+            self.assertEqual(self.ocr_status(ts, b), ("succeeded", "first screen text"))
+            self.assertEqual(ts.store.dedup_stats["quiet"], 1)
+            self.assertEqual(ts.store.db.execute("SELECT count(*) FROM ocr_jobs WHERE observation_id=?", (b,)).fetchone()[0], 0)
+
+    def test_a_real_change_is_scanned_normally(self):
+        with TempStore() as ts:
+            self.take(ts, 0, png())
+            b = self.take(ts, 1, png(box=(300, 300, 700, 440)), reason="screen")
+            self.assertEqual(self.ocr_status(ts, b)[0], "pending")
+            self.assertEqual(ts.store.dedup_stats.get("quiet", 0), 0)
+
+    def test_a_heartbeat_in_another_app_is_not_treated_as_quiet(self):
+        with TempStore() as ts:
+            self.take(ts, 0, png())
+            b = self.take(ts, 1, png(box=(300, 300, 700, 440)), reason="heartbeat", app="com.example.other")
+            self.assertEqual(self.ocr_status(ts, b)[0], "pending")
+
+
 class UnchangedTest(unittest.TestCase):
     def test_identical_screens_share_one_file(self):
         with TempStore() as ts:

@@ -173,6 +173,11 @@ class ObservationStore:
         plan = {"kind": "changed", "picture": picture}
         if picture is None or not self._dedup_recent:
             return plan
+        if draft.capture_reason in dedup.QUIET_REASONS:
+            quiet = self._dedup_recent[0]
+            if quiet["bundle"] == draft.context.application.get("bundle_id") and quiet["display"] == draft.context.display.get("id"):
+                plan["kind"], plan["match"], plan["quiet"] = "unchanged", quiet, True
+                return plan
         verdicts = []
         for entry in self._dedup_recent:
             if entry["picture"] is None:
@@ -199,6 +204,7 @@ class ObservationStore:
             self._dedup_recent.remove(entry)
             self._dedup_recent.insert(0, entry)
             self.dedup_stats["unchanged"] += 1
+            self.dedup_stats["quiet"] = self.dedup_stats.get("quiet", 0) + int(bool(plan.get("quiet")))
             self.dedup_stats["bytes_saved"] += shot_row.get("byte_size") or 0
             return
         entry = {

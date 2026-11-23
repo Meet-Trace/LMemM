@@ -77,3 +77,8 @@ def compare(before, after, params):
 
 def pressed_keys(events):
     return any(getattr(e, "type", None) == "keypress" for e in events)
+
+
+# A capture the trigger took only because time passed: nothing visible changed since the last full capture, so it
+# reuses that capture's file and OCR text instead of scanning the screen again.
+QUIET_REASONS = frozenset({"heartbeat", "idle_heartbeat"})

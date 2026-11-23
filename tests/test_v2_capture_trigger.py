@@ -119,6 +119,13 @@ class Decide(unittest.TestCase):
         self.assertIsNotNone(rig.tick(60))
         self.assertEqual(rig.trigger.counts["idle_heartbeat"], 1)
 
+    def test_the_draft_carries_the_reason_the_trigger_gave(self):
+        rig = Rig({"heartbeat_s": 30})
+        self.assertEqual(rig.tick().capture_reason, "first")
+        for _ in range(9):
+            rig.tick(3)
+        self.assertEqual(rig.tick(3).capture_reason, "heartbeat")
+
     def test_without_a_probe_or_with_a_failing_probe_every_tick_is_captured(self):
         plain = Rig(sources=Sources())
         self.assertIsNotNone(plain.tick())

@@ -275,3 +275,10 @@ stable Moment keep nothing. While vision descriptions are in use, a stable Momen
 screenshots for up to 7 more days so the model can still see them; the description worker falls back to the thumbnail when
 the original is gone. Forgetting an observation removes its thumbnail file and row. Text, structure, interaction events and
 all derived data are never thinned. Expected size: full-quality PNGs for 7 days, then roughly 30-60 KB per Moment.
+
+## Heartbeat captures reuse text
+
+A capture the trigger took only because time passed (`heartbeat`, `idle_heartbeat`) means nothing visible changed since the
+last full capture, so in the same application and display it is stored as a link to that capture's screenshot and reuses
+its OCR text instead of queueing a new scan. `capture_reason` travels on the draft only; it is not stored. This helps in
+async OCR mode (the default); in sync mode the OCR already ran during capture.

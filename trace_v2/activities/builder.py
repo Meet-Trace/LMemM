@@ -5,6 +5,7 @@ import uuid
 
 import numpy as np
 
+from ..observations.derived import derived_rollback
 from ..observations.store import now_iso
 
 ALGORITHM = "activities/1"
@@ -59,11 +60,11 @@ def interpret_pending(store, reader, interpreter, params, attempts):
                 failed += 1
                 continue
             out, status, vector = {"action": "", "purpose": "", "why": ""}, "failed", None
-        with store.lock:
-            store.db.execute("INSERT OR IGNORE INTO activity_interpretations VALUES (?,?,?,?,?,?,?,?,?)",
+        with store.derived_lock:
+            store.derived.execute("INSERT OR IGNORE INTO activity_interpretations VALUES (?,?,?,?,?,?,?,?,?)",
                              (moment_id, interpreter.model, interpreter.prompt_version, status, out.get("action", ""),
                               out.get("purpose", ""), out.get("why", ""), vector, now_iso()))
-            store.db.commit()
+            store.derived.commit()
         attempts.pop(moment_id, None)
         done += 1
     return done, failed
@@ -97,10 +98,10 @@ def verdict_for(store, reader, interpreter, a, b):
         return row[0], row[1]
     verdict, reason = interpreter.same(a, b)
     verdict = verdict if verdict in ("SAME", "DIFFERENT") else "UNKNOWN"
-    with store.lock:
-        store.db.execute("INSERT OR IGNORE INTO activity_verdicts VALUES (?,?,?,?,?,?,?)",
+    with store.derived_lock:
+        store.derived.execute("INSERT OR IGNORE INTO activity_verdicts VALUES (?,?,?,?,?,?,?)",
                          (first["moment_id"], second["moment_id"], interpreter.model, interpreter.prompt_version, verdict, reason, now_iso()))
-        store.db.commit()
+        store.derived.commit()
     return verdict, reason
 
 
@@ -133,27 +134,27 @@ def decide(store, reader, interpreter, moment, params):
 
 def append_revision(store, activity_id, added, start_ns, end_ns, evidence, params, state=None):
     now = now_iso()
-    with store.lock:
-        store.db.execute("BEGIN IMMEDIATE")
+    with store.derived_lock:
+        store.derived.execute("BEGIN IMMEDIATE")
         try:
-            last = store.db.execute("SELECT revision, state, start_ns, end_ns, moment_count FROM activity_revisions WHERE activity_id=? "
+            last = store.derived.execute("SELECT revision, state, start_ns, end_ns, moment_count FROM activity_revisions WHERE activity_id=? "
                                     "ORDER BY revision DESC LIMIT 1", (activity_id,)).fetchone()
             if last is None:
-                store.db.execute("INSERT INTO activities VALUES (?,?,?)", (activity_id, ALGORITHM, start_ns))
+                store.derived.execute("INSERT INTO activities VALUES (?,?,?)", (activity_id, ALGORITHM, start_ns))
                 revision, count, start, end = 1, len(added), start_ns, end_ns
             else:
                 revision, count = last[0] + 1, last[4] + len(added)
                 start, end = min(last[2], start_ns), max(last[3], end_ns)
                 if last[1] == "archived":
                     raise sqlite3.IntegrityError("activity is archived")
-            store.db.executemany("INSERT OR IGNORE INTO activity_member_index VALUES (?,?)", ((activity_id, m) for m in added))
+            store.derived.executemany("INSERT OR IGNORE INTO activity_member_index VALUES (?,?)", ((activity_id, m) for m in added))
             state = state or ("active" if count >= params["min_moments"] else "forming")
-            store.db.execute("INSERT INTO activity_revisions VALUES (?,?,?,?,?,?,?,?,?,?)",
+            store.derived.execute("INSERT INTO activity_revisions VALUES (?,?,?,?,?,?,?,?,?,?)",
                              (activity_id, revision, state, start, end, count, json.dumps(added), json.dumps(evidence, sort_keys=True),
                               json.dumps(params, sort_keys=True), now))
-            store.db.execute("COMMIT")
+            store.derived.execute("COMMIT")
         except BaseException:
-            store._rollback()
+            derived_rollback(store)
             raise
 
 

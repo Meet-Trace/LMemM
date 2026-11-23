@@ -46,7 +46,7 @@ class FakeInterpreter:
 
 
 def activity_rows(ts):
-    rows = ts.store.db.execute(
+    rows = ts.store.derived.execute(
         "SELECT r.activity_id, r.state, r.moment_count, r.revision FROM activity_revisions r WHERE r.revision="
         "(SELECT max(x.revision) FROM activity_revisions x WHERE x.activity_id=r.activity_id) ORDER BY r.start_ns").fetchall()
     return [tuple(r[1:]) for r in rows]
@@ -122,11 +122,11 @@ class ActivityTest(unittest.TestCase):
         with TempStore() as ts:
             build(ts)
             go(ts, FakeInterpreter())
-            victim = ts.store.db.execute(
+            victim = ts.store.derived.execute(
                 "SELECT i.observation_id FROM moment_member_index i JOIN activity_member_index a ON a.moment_id=i.moment_id "
                 "WHERE a.activity_id=(SELECT activity_id FROM activity_revisions WHERE moment_count=2 LIMIT 1) LIMIT 1").fetchone()[0]
             forget.forget(ts.store, {"observation_ids": [victim]})
-            db = ts.store.db
+            db = ts.store.derived
             self.assertEqual(db.execute("SELECT count(*) FROM activity_interpretations").fetchone()[0], 3)
             self.assertEqual(sorted(r[1] for r in activity_rows(ts)), [1, 1])
             go(ts, FakeInterpreter())
@@ -139,7 +139,7 @@ class ActivityTest(unittest.TestCase):
             for sql in ("UPDATE activity_revisions SET state='archived'", "DELETE FROM activities",
                         "DELETE FROM activity_interpretations", "DELETE FROM activity_verdicts"):
                 with self.assertRaises(Exception):
-                    ts.store.db.execute(sql)
+                    ts.store.derived.execute(sql)
 
 
 if __name__ == "__main__":

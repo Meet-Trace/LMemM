@@ -6,6 +6,7 @@ import uuid
 from collections import Counter
 
 from ..observations.queries import _decode
+from ..observations.derived import derived_rollback
 from ..observations.store import encode_raw, now_iso
 from . import features as F
 from .similarity import PARAMS, S, Rep, centroid, profile_of, rep_similarity, similarity
@@ -278,38 +279,38 @@ def write(store, reps, new_features, skips, idf, params, now_ns=None):
     now = now_iso()
     now_ns = now_ns if now_ns is not None else time.time_ns()
     written = []
-    with store.lock:
-        store.db.execute("BEGIN IMMEDIATE")
+    with store.derived_lock:
+        store.derived.execute("BEGIN IMMEDIATE")
         try:
             for oid, f, ocr_id, structure_id in new_features:
-                store.db.execute("INSERT INTO observation_features VALUES (?,?,?,?,?,?)",
+                store.derived.execute("INSERT INTO observation_features VALUES (?,?,?,?,?,?)",
                                  (oid, F.ALGORITHM, json.dumps(f, sort_keys=True, separators=(",", ":")), ocr_id, structure_id, now))
             for oid, reason in skips:
-                store.db.execute("INSERT INTO moment_skips VALUES (?,?,?,?)", (oid, F.ALGORITHM, reason, now))
+                store.derived.execute("INSERT INTO moment_skips VALUES (?,?,?,?)", (oid, F.ALGORITHM, reason, now))
             for rep in reps:
                 if not rep.dirty or not due(rep, now_ns, params):
                     continue
-                latest = store.db.execute("SELECT max(revision) FROM moment_revisions WHERE moment_id=?",
+                latest = store.derived.execute("SELECT max(revision) FROM moment_revisions WHERE moment_id=?",
                                           (rep.moment_id,)).fetchone()[0] or 0
                 if latest != rep.revision:
                     raise sqlite3.IntegrityError("stale moment revision")
                 if rep.revision == 0:
-                    store.db.execute("INSERT INTO moments VALUES (?,?,?,?,?)",
+                    store.derived.execute("INSERT INTO moments VALUES (?,?,?,?,?)",
                                      (rep.moment_id, ALGORITHM, rep.origin, rep.parent, rep.start))
                 merged = rep.state == "merged"
                 members = [] if merged else sorted(rep.members, key=lambda m: (m["t"], m["o"]))
                 enc, blob, sha, _ = encode_raw(members)
                 start, end = (rep.start, rep.end)
-                store.db.executemany("INSERT OR IGNORE INTO moment_member_index VALUES (?,?)",
+                store.derived.executemany("INSERT OR IGNORE INTO moment_member_index VALUES (?,?)",
                                      ((rep.moment_id, m["o"]) for m in rep.members))
-                store.db.execute("INSERT INTO moment_revisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                store.derived.execute("INSERT INTO moment_revisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                                  (rep.moment_id, rep.revision + 1, rep.state, rep.merged_into, start, end,
                                   len(members), json.dumps(params, sort_keys=True), json.dumps(summary(rep, idf), sort_keys=True),
                                   enc, blob, sha, now))
                 written.append(rep)
-            store.db.execute("COMMIT")
+            store.derived.execute("COMMIT")
         except BaseException:
-            store._rollback()
+            derived_rollback(store)
             raise
     for rep in written:
         rep.revision, rep.dirty, rep.structural, rep.written_ns = rep.revision + 1, False, False, now_ns

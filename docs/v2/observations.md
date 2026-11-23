@@ -242,3 +242,19 @@ the observer uses, so attribution is unchanged. The decision logic is platform i
 `tests/test_v2_inputs.py` (platform independent: sampler, clock, key classes, decoding) and `tests/test_v2_macos_{context,capture,ocr,ocr_vision,accessibility,accessibility_real,input}.py` (screenshot tests skip without Screen Recording; `ocr` uses
 a fake recognizer, `ocr_vision` renders synthetic PNGs and runs real Vision through `build_draft`, `accessibility` uses
 fake elements, `accessibility_real` reads a window owned by a subprocess and skips without Accessibility permission, `input` posts harmless synthetic events and skips without Input Monitoring; its key test also skips while secure keyboard entry is on), run with `./scripts/test.sh`.
+
+## Two database files
+
+Evidence (observations, screenshots, extractions, events, forget records) stays in `observations.sqlite3`. Everything
+derived from it (features, Moments, descriptions, Activities) lives in `derived.sqlite3`, with its own connection and lock
+(`store.derived`, `store.derived_lock`), so a slow derived write never blocks capture. The derived file has no foreign keys
+to evidence and keeps its own `deletion_grants`. Read-only connections (`read_connection`) attach both files, so queries
+that join them are unchanged.
+
+`forget` purges the derived file first, then the evidence. A crash between the two leaves observations whose derived rows
+are gone (rebuilt on the next pass), never derived rows of a forgotten observation. On open, `reconcile` also removes any
+derived row whose observation is missing from the evidence file.
+
+A database made before the split is carried over on open: the derived tables are copied into `derived.sqlite3`, then
+evidence migration 0009 drops them. Migration backups (`*.bak`) of the evidence file made earlier may still hold old
+derived rows until `forget everything` removes them.

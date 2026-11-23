@@ -26,10 +26,13 @@ class SchemaError(RuntimeError):
     """The database cannot be used safely with this version of the code."""
 
 
-def migrations():
+DERIVED_MIGRATIONS_DIR = Path(__file__).with_name("derived_migrations")
+
+
+def migrations(directory=None):
     """[(version, name, sql, sha256)] sorted by version. File names are NNNN_name.sql."""
     out = []
-    for path in sorted(MIGRATIONS_DIR.glob("[0-9][0-9][0-9][0-9]_*.sql")):
+    for path in sorted(Path(directory or MIGRATIONS_DIR).glob("[0-9][0-9][0-9][0-9]_*.sql")):
         sql = path.read_text(encoding="utf-8")
         out.append((int(path.name[:4]), path.stem, sql, hashlib.sha256(sql.encode()).hexdigest()))
     versions = [m[0] for m in out]
@@ -140,10 +143,10 @@ def migrate(connection, path=None, known=None):
     return done
 
 
-def open_database(path):
+def open_database(path, directory=None):
     connection = connect(path)
     try:
-        migrate(connection, path)
+        migrate(connection, path, migrations(directory) if directory else None)
     except BaseException:
         connection.close()
         raise

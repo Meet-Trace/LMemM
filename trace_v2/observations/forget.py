@@ -23,6 +23,8 @@ Tombstones keep the observation id so later layers can tell "forgotten on reques
 
 import uuid
 
+from . import derived
+
 from .store import canonical, now_iso
 
 MAX_IDS = 10_000
@@ -77,6 +79,7 @@ def forget(store, selector, dry_run=False):
         if dry_run:
             return {"dry_run": True, "matched": len(ids), "observation_ids": ids}
         request_id = str(uuid.uuid4())
+        derived.purge(store, ids, request_id)
         store.db.execute("PRAGMA secure_delete=ON")
         store.db.execute("BEGIN IMMEDIATE")
         try:
@@ -90,24 +93,6 @@ def forget(store, selector, dry_run=False):
                 "LEFT JOIN screenshot_deletions d USING (observation_id) WHERE g.request_id=?",
                 (request_id, request_id))
             granted = "observation_id IN (SELECT observation_id FROM deletion_grants WHERE request_id=?)"
-            affected = "moment_id IN (SELECT moment_id FROM moment_member_index WHERE " + granted + ")"
-            former = [r[0] for r in store.db.execute(
-                "SELECT DISTINCT observation_id FROM moment_member_index WHERE " + affected, (request_id,))]
-            held = ("activity_id IN (SELECT activity_id FROM activity_member_index WHERE moment_id IN "
-                    "(SELECT moment_id FROM moment_member_index WHERE " + granted + "))")
-            for table in ("activity_revisions", "activities", "activity_member_index"):
-                store.db.execute(f"DELETE FROM {table} WHERE {held}", (request_id,))
-            moment_held = "moment_id IN (SELECT moment_id FROM moment_member_index WHERE " + granted + ")"
-            store.db.execute(f"DELETE FROM activity_interpretations WHERE {moment_held}", (request_id,))
-            store.db.execute(f"DELETE FROM moment_descriptions WHERE {moment_held}", (request_id,))
-            store.db.execute(f"DELETE FROM activity_verdicts WHERE moment_a IN (SELECT moment_id FROM moment_member_index WHERE {granted}) "
-                             f"OR moment_b IN (SELECT moment_id FROM moment_member_index WHERE {granted})", (request_id, request_id))
-            store.db.execute(f"DELETE FROM activity_member_index WHERE {moment_held}", (request_id,))
-            for table in ("moment_revisions", "moments", "moment_member_index"):
-                store.db.execute(f"DELETE FROM {table} WHERE {affected}", (request_id,))
-            store.db.executemany("DELETE FROM observation_features WHERE observation_id=?", ((i,) for i in former))
-            store.db.execute(f"DELETE FROM observation_features WHERE {granted}", (request_id,))
-            store.db.execute(f"DELETE FROM moment_skips WHERE {granted}", (request_id,))
             for table in ("ocr_jobs", "interaction_events", "extractions", "screenshot_deletions", "screenshots", "observations"):
                 store.db.execute(f"DELETE FROM {table} WHERE {granted}", (request_id,))
             store.db.execute("DELETE FROM deletion_grants WHERE request_id=?", (request_id,))
@@ -117,6 +102,7 @@ def forget(store, selector, dry_run=False):
             raise
         result = _finish(store, request_id)
         store.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        derived.checkpoint(store)
         removed_backups = []
         if selector == {"everything": True}:
             for path in _backups(store):

@@ -16,14 +16,14 @@ def pending(conn, model, limit):
 
 
 def record(store, moment_id, model, result, status):
-    with store.lock:
-        store.db.execute(
+    with store.derived_lock:
+        store.derived.execute(
             "INSERT OR IGNORE INTO moment_descriptions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (moment_id, model, PROMPT_VERSION, status, result.get("description") if status == "ok" else None,
              float(result.get("confidence") or 0.0), result.get("alternative"), json.dumps(result.get("evidence") or []),
              json.dumps(result.get("observation_ids") or []), int(result.get("images_used") or 0), result.get("seconds"),
              json.dumps(result.get("errors") or []), now_iso()))
-        store.db.commit()
+        store.derived.commit()
 
 
 def run_pass(store, reader, client, model, params=PARAMS, state=None, gate=None, options=None):

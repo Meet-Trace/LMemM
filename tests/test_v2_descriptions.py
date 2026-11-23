@@ -34,7 +34,7 @@ def step(ts, client, params=PARAMS, state=None, gate=None):
 
 
 def rows(ts):
-    return ts.store.db.execute("SELECT status, description FROM moment_descriptions ORDER BY recorded_at").fetchall()
+    return ts.store.derived.execute("SELECT status, description FROM moment_descriptions ORDER BY recorded_at").fetchall()
 
 
 class DescriptionTest(unittest.TestCase):
@@ -97,7 +97,7 @@ class DescriptionTest(unittest.TestCase):
             build(ts)
             for _ in range(4):
                 step(ts, FakeClient())
-            victim = ts.store.db.execute("SELECT observation_id FROM moment_member_index LIMIT 1").fetchone()[0]
+            victim = ts.store.derived.execute("SELECT observation_id FROM moment_member_index LIMIT 1").fetchone()[0]
             forget.forget(ts.store, {"observation_ids": [victim]})
             self.assertEqual(len(rows(ts)), 3)
 
@@ -107,7 +107,7 @@ class DescriptionTest(unittest.TestCase):
             step(ts, FakeClient())
             for sql in ("UPDATE moment_descriptions SET description='x'", "DELETE FROM moment_descriptions"):
                 with self.assertRaises(Exception):
-                    ts.store.db.execute(sql)
+                    ts.store.derived.execute(sql)
 
     def test_gate_reads_macos_output(self):
         self.assertEqual(parse_battery("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1) 12%; discharging")["percent"], 12)

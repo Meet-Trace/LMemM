@@ -78,7 +78,11 @@ def content_hash(draft):
 class ObservationStore:
     def __init__(self, root, legacy_archive=paths.LEGACY_ARCHIVE):
         self.root = paths.check_data_dir(root, legacy_archive)
+        from . import derived
+        derived.adopt_legacy(self.root, paths.database_path(self.root))
         self.db = open_database(paths.database_path(self.root))
+        self.derived = derived.open_derived(self.root)
+        self.derived_lock = threading.RLock()
         self.assets = ScreenshotStore(paths.assets_dir(self.root))
         self.lock = threading.RLock()
         self.clock_ns = time.time_ns
@@ -87,9 +91,11 @@ class ObservationStore:
         self.dedup_stats = {"unchanged": 0, "typing": 0, "changed": 0, "bytes_saved": 0}
         from .forget import resume_pending     # finish any forget interrupted after its commit
         resume_pending(self)
+        derived.reconcile(self)
 
     def close(self):
         self.db.close()
+        self.derived.close()
 
     # ---------------------------------------------------------------- writes
 

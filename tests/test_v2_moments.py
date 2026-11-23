@@ -53,7 +53,7 @@ def run(ts, now, **overrides):
 
 
 def moments(ts):
-    rows = ts.store.db.execute(
+    rows = ts.store.derived.execute(
         "SELECT r.moment_id, r.revision, r.state, r.observation_count, r.start_ns, r.end_ns, r.members_encoding, r.members, "
         "m.origin, m.parent_moment_id, r.merged_into FROM moment_revisions r JOIN moments m USING (moment_id) "
         "WHERE r.revision=(SELECT max(x.revision) FROM moment_revisions x WHERE x.moment_id=r.moment_id) ORDER BY r.start_ns").fetchall()
@@ -114,7 +114,7 @@ class FormationTest(unittest.TestCase):
             held = add(ts.store, 51, T0 + 32 * S, "com.apple.Xcode", "shader.cpp", text(CODE, 3), withheld=True)
             out = run(ts, T0 + 300 * S)
             self.assertEqual(out["skipped"], 2)
-            skips = dict(ts.store.db.execute("SELECT observation_id, reason FROM moment_skips"))
+            skips = dict(ts.store.derived.execute("SELECT observation_id, reason FROM moment_skips"))
             self.assertEqual(skips, {empty: "no_evidence", held: "withheld"})
             self.assertTrue(all(empty not in m["members"] and held not in m["members"] for m in live(ts)))
 
@@ -142,11 +142,11 @@ class LifecycleTest(unittest.TestCase):
             m = live(ts)[0]
             self.assertEqual((m["state"], m["n"]), ("stable", 10))
             with self.assertRaises(sqlite3.DatabaseError):
-                ts.store.db.execute("INSERT INTO moment_revisions SELECT moment_id, revision+1, 'provisional', NULL, start_ns, end_ns, "
+                ts.store.derived.execute("INSERT INTO moment_revisions SELECT moment_id, revision+1, 'provisional', NULL, start_ns, end_ns, "
                                     "observation_count, params_json, summary_json, members_encoding, members, members_sha256, recorded_at "
                                     "FROM moment_revisions WHERE moment_id=?", (m["id"],))
             with self.assertRaises(sqlite3.DatabaseError):
-                ts.store.db.execute("UPDATE moment_revisions SET state='provisional'")
+                ts.store.derived.execute("UPDATE moment_revisions SET state='provisional'")
 
     def test_late_evidence_after_stability_forms_a_new_moment(self):
         with TempStore() as ts:
@@ -173,12 +173,12 @@ class LifecycleTest(unittest.TestCase):
                 sequence(ts.store, 0, 12, "com.apple.Xcode", "shader.cpp", CODE, 0)
                 sequence(ts.store, 40, 12, "com.apple.Numbers", "budget", MONEY, 100)
                 run(ts, T0 + 300 * S)
-                before = ts.store.db.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
+                before = ts.store.derived.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
                 again = run(ts, T0 + 300 * S)
-                after = ts.store.db.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
+                after = ts.store.derived.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
                 self.assertEqual((again["processed"], again["revisions"], before), (0, 0, after))
                 return [[m["id"], m["members"] == m["members"], m["n"]] for m in live(ts)], [
-                    [r[0] for r in ts.store.db.execute("SELECT moment_id FROM moments ORDER BY created_at_ns")]]
+                    [r[0] for r in ts.store.derived.execute("SELECT moment_id FROM moments ORDER BY created_at_ns")]]
         first, second = build(), build()
         self.assertEqual(first[0][0][2:], second[0][0][2:])
         self.assertEqual(len(first[0]), len(second[0]))
@@ -201,7 +201,7 @@ class LifecycleTest(unittest.TestCase):
             run(ts, T0 + 300 * S, secondary=0.1, join=0.6)
             rows = ts.store.db.execute("SELECT count(*) FROM observations").fetchone()[0]
             self.assertEqual(rows, 17)
-            holders = ts.store.db.execute("SELECT count(*) FROM moment_member_index WHERE observation_id=?", (bridge,)).fetchone()[0]
+            holders = ts.store.derived.execute("SELECT count(*) FROM moment_member_index WHERE observation_id=?", (bridge,)).fetchone()[0]
             self.assertGreaterEqual(holders, 1)
             self.assertEqual(ts.store.db.execute("SELECT count(*) FROM screenshots").fetchone()[0], 17)
 
@@ -252,8 +252,8 @@ class RobustnessTest(unittest.TestCase):
                 builder.write = real
                 reader.close()
             self.assertEqual(out["stale"], 1)
-            self.assertEqual(ts.store.db.execute("SELECT count(*) FROM moment_revisions").fetchone()[0], 0)
-            self.assertEqual(ts.store.db.execute("SELECT count(*) FROM observation_features").fetchone()[0], 0)
+            self.assertEqual(ts.store.derived.execute("SELECT count(*) FROM moment_revisions").fetchone()[0], 0)
+            self.assertEqual(ts.store.derived.execute("SELECT count(*) FROM observation_features").fetchone()[0], 0)
             self.assertEqual(run(ts, T0 + 100 * S)["processed"], 6)
 
     def test_survives_restart_without_reprocessing(self):
@@ -278,11 +278,11 @@ class RobustnessTest(unittest.TestCase):
             oid = add(ts.store, 0, T0, "com.apple.Xcode", "shader.cpp", text(CODE, 1))
             run(ts, T0 + 100 * S)
             ocr = ts.store.db.execute("SELECT extraction_id FROM extractions WHERE observation_id=? AND reader='ocr'", (oid,)).fetchone()[0]
-            row = ts.store.db.execute("SELECT algorithm, ocr_extraction_id FROM observation_features WHERE observation_id=?", (oid,)).fetchone()
+            row = ts.store.derived.execute("SELECT algorithm, ocr_extraction_id FROM observation_features WHERE observation_id=?", (oid,)).fetchone()
             self.assertEqual(row, ("moment-features/1", ocr))
-            params = json.loads(ts.store.db.execute("SELECT params_json FROM moment_revisions").fetchone()[0])
+            params = json.loads(ts.store.derived.execute("SELECT params_json FROM moment_revisions").fetchone()[0])
             self.assertEqual(params["join"], PARAMS["join"])
-            self.assertEqual(ts.store.db.execute("SELECT algorithm FROM moments").fetchone()[0], ALGORITHM)
+            self.assertEqual(ts.store.derived.execute("SELECT algorithm FROM moments").fetchone()[0], ALGORITHM)
 
     def test_processor_thread_runs_and_stops(self):
         with TempStore() as ts:
@@ -318,14 +318,14 @@ class ForgetTest(unittest.TestCase):
             forget.forget(ts.store, {"observation_ids": [a[3]]}, dry_run=False)
             self.assertEqual([m["members"] for m in live(ts)], [b])
             for table in ("observation_features", "moment_skips", "moment_member_index"):
-                n = ts.store.db.execute(f"SELECT count(*) FROM {table} WHERE observation_id=?", (a[3],)).fetchone()[0]
+                n = ts.store.derived.execute(f"SELECT count(*) FROM {table} WHERE observation_id=?", (a[3],)).fetchone()[0]
                 self.assertEqual(n, 0)
             out = run(ts, T0 + 300 * S)
             self.assertEqual(out["processed"], 7)
             self.assertEqual(sorted(len(m["members"]) for m in live(ts)), [7, 8])
             forget.forget(ts.store, {"everything": True}, dry_run=False)
             for table in ("moments", "moment_revisions", "moment_member_index", "observation_features", "moment_skips"):
-                self.assertEqual(ts.store.db.execute(f"SELECT count(*) FROM {table}").fetchone()[0], 0)
+                self.assertEqual(ts.store.derived.execute(f"SELECT count(*) FROM {table}").fetchone()[0], 0)
 
     def test_derived_rows_cannot_be_deleted_without_forget(self):
         with TempStore() as ts:
@@ -333,7 +333,7 @@ class ForgetTest(unittest.TestCase):
             run(ts, T0 + 100 * S)
             for table in ("moment_revisions", "moments", "moment_member_index", "observation_features"):
                 with self.assertRaises(sqlite3.DatabaseError):
-                    ts.store.db.execute(f"DELETE FROM {table}")
+                    ts.store.derived.execute(f"DELETE FROM {table}")
 
 
 if __name__ == "__main__":
@@ -370,7 +370,7 @@ class IncrementalTest(unittest.TestCase):
                     run_pass(ts.store, reader, T0 + (i * 3 + 60) * S, PARAMS, state=state)
             finally:
                 reader.close()
-            revisions = ts.store.db.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
+            revisions = ts.store.derived.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
             self.assertLess(revisions, 6)
             self.assertEqual(len(live(ts)), 1)
 

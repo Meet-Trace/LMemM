@@ -4,6 +4,7 @@ import threading
 import time
 
 from .. import paths
+from ..observations.derived import derived_path
 from ..observations.models import ReaderResult, short_error
 from ..observations.queries import ScreenshotUnavailable, _decode
 from .analyze import ALGORITHM, StructureError, analyze
@@ -41,6 +42,7 @@ def needed(store, now_ns, wait_for_ocr_s=30.0, since_ns=0, limit=16, connection=
 def read_connection(store):
     connection = sqlite3.connect(f"file:{paths.database_path(store.root)}?mode=ro", uri=True, check_same_thread=False)
     connection.execute("PRAGMA busy_timeout=5000")
+    connection.execute("ATTACH DATABASE ? AS derived", (f"file:{derived_path(store.root)}?mode=ro",))
     return connection
 
 

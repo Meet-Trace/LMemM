@@ -296,3 +296,9 @@ is empty and `extraction_links` points at the extraction that holds the raw outp
 (`queries.raw_of`). Forgetting the observation that holds the raw output first copies it to one of the pointing rows
 (`extraction_raw_copies`) and repoints the rest, so forgetting one frame never removes another frame's data. The link
 and copy tables are not append-only. Rows written before this change keep their own copy.
+
+### Typing replace checks only the replaced frames (S5)
+
+When typing makes a new screenshot replace the previous one, the store asks the OCR queue whether just those
+observations are still queued or pending (`ocr_queue.protected(store, oids)`) instead of listing every pending OCR in the
+database. Retention still uses the full list.

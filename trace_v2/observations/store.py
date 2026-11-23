@@ -228,7 +228,7 @@ class ObservationStore:
     def _supersede(self, oids):
         """Remove the files of earlier screenshots that a later one makes redundant; audited like a retention run."""
         from . import ocr_queue
-        held = ocr_queue.protected(self)
+        held = ocr_queue.protected(self, oids)
         rows = []
         for oid in oids:
             if oid in held:

@@ -316,9 +316,16 @@ def stats(store, now_ns):
             "retried_jobs": retried, "failed_by_code": failed}
 
 
-def protected(store):
-    """Observations whose screenshot must not be deleted yet: a job is queued or processing, or the OCR is still pending."""
+def protected(store, oids=None):
+    """Observations whose screenshot must not be deleted yet: a job is queued or processing, or the OCR is still pending.
+    With `oids` only those observations are checked."""
     with store.lock:
+        if oids is not None:
+            return {oid for oid in oids if store.db.execute(
+                "SELECT 1 FROM ocr_jobs WHERE observation_id=? AND state IN ('queued','processing') UNION ALL "
+                "SELECT 1 FROM extractions e WHERE e.observation_id=? AND e.reader='ocr' AND e.status='pending' AND NOT EXISTS "
+                "(SELECT 1 FROM extractions n WHERE n.observation_id=e.observation_id AND n.reader='ocr' AND n.revision>e.revision) "
+                "LIMIT 1", (oid, oid)).fetchone()}
         return {r[0] for r in store.db.execute(
             "SELECT observation_id FROM ocr_jobs WHERE state IN ('queued','processing') UNION "
             "SELECT e.observation_id FROM extractions e WHERE e.reader='ocr' AND e.status='pending' AND NOT EXISTS "

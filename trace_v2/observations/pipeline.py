@@ -32,6 +32,7 @@ import time
 import uuid
 
 from . import privacy
+from .dedup import QUIET_REASONS
 from .models import (READERS, CaptureDraft, Context, ReaderResult, ScopeUnavailable, ScreenshotCapture,
                      ScreenshotFailure, ScreenshotWithheld, short_error)
 from .settings import DEFAULT_CAPTURE_INTERVAL_S
@@ -152,15 +153,17 @@ def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns
         if reason is None:
             batch.restore()
             return None, None
+    memory = getattr(trigger, "ax_memory", None) if trigger is not None else None
     try:
-        draft, taken = _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode)
+        draft, taken = _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode,
+                              memory, reason in QUIET_REASONS)
         return (replace(draft, capture_reason=reason) if reason else draft), taken
     except BaseException:
         batch.restore()
         raise
 
 
-def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode):
+def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode, memory=None, quiet=False):
     if decision.withheld:
         return _withheld_draft(sources, capture_key, t, context, decision.reason, batch)
     scope = getattr(sources, "screenshot_scope", None)          # read once: the scope this capture is taken with
@@ -179,7 +182,12 @@ def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, 
         ocr = run_reader(sources.ocr, clock_ns, shot, context)
     else:
         ocr = _not_run(sources.ocr, "skipped", "no_screenshot")
-    ax = run_reader(sources.accessibility, clock_ns, context)
+    if quiet and memory and memory.get("last") is not None:
+        ax = memory["last"]                      # nothing visible changed since that read: do not walk the tree again
+    else:
+        ax = run_reader(sources.accessibility, clock_ns, context)
+        if memory is not None and ax.status == "succeeded":
+            memory["last"] = ax
     counts, reader_counts = {}, {}
     if policy.redact_secrets:
         ocr, ax = _redact_result(ocr, reader_counts), _redact_result(ax, reader_counts)

@@ -119,6 +119,21 @@ class Decide(unittest.TestCase):
         self.assertIsNotNone(rig.tick(60))
         self.assertEqual(rig.trigger.counts["idle_heartbeat"], 1)
 
+    def test_a_heartbeat_reuses_the_accessibility_read_and_a_real_change_reads_again(self):
+        rig = Rig({"heartbeat_s": 30})
+        reads = []
+        real = rig.sources.accessibility.read
+        rig.sources.accessibility.read = lambda *a: (reads.append(1), real(*a))[1]
+        rig.tick()
+        for _ in range(9):
+            rig.tick(3)
+        beat = rig.tick(3)
+        self.assertEqual((beat.capture_reason, len(reads)), ("heartbeat", 1))
+        self.assertEqual(beat.accessibility.status, "succeeded")
+        rig.sources.frame = png(shade=200)
+        self.assertEqual(rig.tick(3).capture_reason, "screen")
+        self.assertEqual(len(reads), 2)
+
     def test_the_draft_carries_the_reason_the_trigger_gave(self):
         rig = Rig({"heartbeat_s": 30})
         self.assertEqual(rig.tick().capture_reason, "first")

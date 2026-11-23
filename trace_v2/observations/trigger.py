@@ -79,6 +79,7 @@ class CaptureTrigger:
     def __init__(self, params=None):
         self.params = normalise(params or {})
         self.counts = {}
+        self.ax_memory = {}                    # the last accessibility read, reused by heartbeat captures (pipeline.py)
         self._last_at = self._active_at = self._signature = self._picture = None
 
     def set_params(self, params):

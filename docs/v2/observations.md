@@ -282,3 +282,9 @@ A capture the trigger took only because time passed (`heartbeat`, `idle_heartbea
 last full capture, so in the same application and display it is stored as a link to that capture's screenshot and reuses
 its OCR text instead of queueing a new scan. `capture_reason` travels on the draft only; it is not stored. This helps in
 async OCR mode (the default); in sync mode the OCR already ran during capture.
+
+## Accessibility on heartbeats
+
+A heartbeat capture reuses the previous accessibility read (kept on the trigger, `ax_memory`) instead of walking the tree
+again; every capture taken for a real reason (first, context, input, screen) reads it fresh. The reused result is stored as
+that capture's own accessibility extraction, so later stages see no difference.

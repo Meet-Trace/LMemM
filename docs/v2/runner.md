@@ -252,3 +252,22 @@ permission report (`unknown` by design).
 
 `--moments` also starts the GSA-1 layout step, because Moments use the layout as a signal. `--structure` alone still
 starts it without Moments.
+
+## Why OCR has a queue, a worker and three modes (O2, decision)
+
+Decision: keep all of it. The audit asked whether this is a component that only fixes a problem another component made
+(OCR placed next to capture). It is kept because each piece does a separate job:
+
+- **Durable job queue (`ocr_queue.py`).** OCR is slow (about 0.8 CPU-s a capture, stalls of 40 s measured) and capture must
+  keep its tick. The queue lets capture finish first and survive a restart: jobs are retried, expire after an hour and are
+  capped (`QueueFull`). It also carries the privacy scan: a screenshot sits in quarantine until the OCR secret scan has run,
+  and removal of unscanned pixels is driven by queue state, so the queue cannot be dropped without redesigning that gate.
+- **Killable worker process (`ocr_isolation=process`, default).** Vision can hang and cannot be interrupted from a thread.
+  A separate process can be killed and restarted, and its memory growth is bounded by restarting it. This is what the app uses.
+- **`sync` mode.** OCR inside the capture call. Used by one-shot runs (`--once`) and tests, where there is no queue worker.
+- **`async` mode.** The queue plus worker described above. The app's mode.
+- **`inprocess` isolation.** The previous behaviour (Vision on a thread). Kept as a fallback and for machines where the
+  worker cannot start; it has no kill-on-stall, so it is not the default.
+
+What would justify removing a piece: if OCR is ever moved off the capture path for good, `sync` and `inprocess` can go; the
+queue would remain because of the privacy scan and restart safety. Not measured: how many people ever run `inprocess`.

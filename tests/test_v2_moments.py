@@ -295,6 +295,17 @@ class RobustnessTest(unittest.TestCase):
             self.assertEqual(len(live(ts)), 1)
             self.assertEqual(proc.stats()["processed"], 6)
 
+    def test_processor_catches_up_two_days_but_not_further(self):
+        with TempStore() as ts:
+            day = 86400
+            now = T0 + 5 * day * S
+            old = sequence(ts.store, 5 * day - 60 * 3600, 6, "com.apple.Numbers", "budget", MONEY, 100)
+            recent = sequence(ts.store, 5 * day - 10 * 3600, 6, "com.apple.Xcode", "shader.cpp", CODE, 0)
+            out = MomentProcessor(ts.store, clock_ns=lambda: now).run_once()
+            self.assertEqual(out["processed"], 6)
+            members = {i for m in live(ts) for i in m["members"]}
+            self.assertEqual(members, set(recent))
+
     def test_large_history_pass_is_fast(self):
         import time as _time
         with TempStore() as ts:

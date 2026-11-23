@@ -81,3 +81,9 @@ compared "via same page or file". Window titles are not used. The three-segment 
 
 Decision (A4): a Moment whose purpose the model calls unclear, or that has no clear description, is left out of Activities
 for good. It is recorded (`activity_interpretations.status`) and never retried; no code changes were made for this.
+
+### Catching up after a gap (M5)
+
+A pass looks back 48 hours (`lookback_s`), oldest first, 300 observations at a time, and the processor keeps going
+without pausing while batches are full. After a long gap (laptop shut, app off) everything from the last two days is
+processed; anything older is skipped for good.

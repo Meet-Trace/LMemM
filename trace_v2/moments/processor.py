@@ -10,7 +10,7 @@ log = logging.getLogger("trace_v2.moments")
 
 
 class MomentProcessor:
-    def __init__(self, store, params=PARAMS, interval_s=60.0, lookback_s=6 * 3600, clock_ns=time.time_ns):
+    def __init__(self, store, params=PARAMS, interval_s=60.0, lookback_s=48 * 3600, clock_ns=time.time_ns):
         self.store, self.params, self.interval_s = store, params, interval_s
         self.lookback_s, self.clock_ns = lookback_s, clock_ns
         self.counts = {}

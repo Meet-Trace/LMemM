@@ -46,3 +46,12 @@ the Moment is recorded as `failed`. When `--vision-model` is set, Activities int
 description, and use it as the action text.
 
 Untested on a Mac with a real model; the model call, image path and gate readings are covered by fakes only.
+
+## Closing long Moments
+
+A Moment no longer stays provisional for as long as work continues. When the next observation arrives it is closed
+(stable) instead of joined if: the Moment is at least `min_length_s` (20 min) long and work paused for `pause_s` (2 min)
+before the observation; or it reached `max_length_s` (60 min) and the gap is at least `cap_pause_s` (20 s); or it is past
+`max_length_s + hard_slack_s` (70 min), whatever the gap. The observation then starts or joins another Moment, so
+continuous work becomes a chain of Moments that Activities can link. Every Moment therefore gets described. All five
+values are untuned guesses.

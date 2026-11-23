@@ -122,11 +122,30 @@ def new_rep(moment_id, params, origin="formed", parent=None):
     return rep
 
 
+def sealed(rep, t, params):
+    """True when an observation arriving at `t` should not join `rep`: the Moment is long enough and work paused before it,
+    or it reached the maximum length and any short pause will do, or it is far past the maximum."""
+    length, gap = (rep.end - rep.start) / S, (t - rep.end) / S
+    if length >= params["max_length_s"] + params["hard_slack_s"]:
+        return True
+    if length >= params["max_length_s"]:
+        return gap >= params["cap_pause_s"]
+    return length >= params["min_length_s"] and gap >= params["pause_s"]
+
+
+def seal(rep, params):
+    rep.state = "stable" if len(rep.core()) >= params["min_members"] else "insufficient"
+    rep.dirty = rep.structural = True
+
+
 def assign(reps, oid, f, idf, params):
     horizon = params["candidate_horizon_s"] * S
     scored = []
     for rep in reps:
         if rep.state != "provisional" or not rep.has_core() or rep.end < f["t"] - horizon:
+            continue
+        if sealed(rep, f["t"], params):
+            seal(rep, params)
             continue
         score, ctx = rep.score(f, idf)
         scored.append((score, rep))

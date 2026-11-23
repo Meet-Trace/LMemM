@@ -22,6 +22,11 @@ PARAMS = {
     "text_gate": 0.3,
     "gate_floor": 0.2,
     "revision_every_s": 600.0,
+    "min_length_s": 1200.0,
+    "pause_s": 120.0,
+    "max_length_s": 3600.0,
+    "cap_pause_s": 20.0,
+    "hard_slack_s": 600.0,
 }
 S = 1_000_000_000
 

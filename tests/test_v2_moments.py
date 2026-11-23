@@ -373,3 +373,33 @@ class IncrementalTest(unittest.TestCase):
             revisions = ts.store.db.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
             self.assertLess(revisions, 6)
             self.assertEqual(len(live(ts)), 1)
+
+
+class LongMomentTest(unittest.TestCase):
+    PARAMS = {"min_length_s": 120.0, "pause_s": 30.0, "max_length_s": 300.0, "cap_pause_s": 6.0, "hard_slack_s": 60.0}
+
+    def test_a_pause_after_a_long_stretch_closes_the_moment(self):
+        with TempStore() as ts:
+            sequence(ts.store, 0, 60, "com.apple.dt.Xcode", "shader.cpp", CODE, 0, step=3)
+            sequence(ts.store, 180 + 60, 20, "com.apple.dt.Xcode", "shader.cpp", CODE, 100, step=3)
+            run(ts, T0 + 400 * S, **self.PARAMS)
+            ms = live(ts)
+            self.assertEqual(len(ms), 2)
+            self.assertEqual(ms[0]["state"], "stable")
+            self.assertLess(ms[0]["end"], ms[1]["start"])
+
+    def test_without_a_long_stretch_a_pause_does_not_split(self):
+        with TempStore() as ts:
+            sequence(ts.store, 0, 10, "com.apple.dt.Xcode", "shader.cpp", CODE, 0, step=3)
+            sequence(ts.store, 30 + 60, 10, "com.apple.dt.Xcode", "shader.cpp", CODE, 100, step=3)
+            run(ts, T0 + 400 * S, **self.PARAMS)
+            self.assertEqual(len(live(ts)), 1)
+
+    def test_a_never_ending_moment_is_cut_at_the_maximum_even_without_a_pause(self):
+        with TempStore() as ts:
+            sequence(ts.store, 0, 130, "com.apple.dt.Xcode", "shader.cpp", CODE, 0, step=3)
+            run(ts, T0 + 500 * S, **self.PARAMS)
+            ms = live(ts)
+            self.assertGreaterEqual(len(ms), 2)
+            self.assertEqual(ms[0]["state"], "stable")
+            self.assertLessEqual((ms[0]["end"] - ms[0]["start"]) / S, 300 + 60 + 3)

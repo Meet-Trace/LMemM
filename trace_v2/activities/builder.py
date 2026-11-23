@@ -6,12 +6,13 @@ import uuid
 import numpy as np
 
 from ..observations.derived import derived_rollback
+from .identity import identities_of
 from ..observations.store import now_iso
 
 ALGORITHM = "activities/1"
 NAMESPACE = uuid.UUID("0b8f6a2e-5d1c-4c0e-9a77-3e5b1c2d4f60")
 S = 1_000_000_000
-PARAMS = {"cross_pairs": 4, "cross_min_pairs": 2, "cross_members": 30, "floor": 0.35, "neighbours": 6, "share": 0.75, "min_moments": 2, "horizon_s": 7 * 86400.0,
+PARAMS = {"identity_extra": 4, "cross_pairs": 4, "cross_min_pairs": 2, "cross_members": 30, "floor": 0.35, "neighbours": 6, "share": 0.75, "min_moments": 2, "horizon_s": 7 * 86400.0,
           "archive_after_s": 7 * 86400.0, "interpret_per_pass": 4, "assign_per_pass": 8, "max_attempts": 3}
 
 
@@ -60,7 +61,9 @@ def interpret_pending(store, reader, interpreter, params, attempts):
                 failed += 1
                 continue
             out, status, vector = {"action": "", "purpose": "", "why": ""}, "failed", None
+        found = identities_of(reader, moment_id)
         with store.derived_lock:
+            store.derived.executemany("INSERT OR IGNORE INTO moment_identities VALUES (?,?,?)", ((moment_id, k, v) for k, v in found))
             store.derived.execute("INSERT OR IGNORE INTO activity_interpretations VALUES (?,?,?,?,?,?,?,?,?)",
                              (moment_id, interpreter.model, interpreter.prompt_version, status, out.get("action", ""),
                               out.get("purpose", ""), out.get("why", ""), vector, now_iso()))
@@ -87,6 +90,20 @@ def neighbours_of(conn, model, version, start_ns, horizon_ns):
         "WHERE i.status='clear' AND i.model=? AND i.prompt_version=? AND r.end_ns >= ? "
         "AND (SELECT state FROM activity_revisions q WHERE q.activity_id=m.activity_id ORDER BY revision DESC LIMIT 1) NOT IN ('archived', 'merged')",
         (model, version, start_ns - horizon_ns)).fetchall()
+
+
+def identity_neighbours(conn, model, version, moment_id, horizon_start, limit):
+    """Assigned Moments that share an exact identity (same page or file) with this one, newest first."""
+    return conn.execute(
+        "SELECT DISTINCT j.moment_id, m.activity_id, r.start_ns, r.end_ns, n.action, n.purpose, n.why, n.vector FROM moment_identities i "
+        "JOIN moment_identities j ON j.kind=i.kind AND j.value=i.value AND j.moment_id != i.moment_id "
+        "JOIN activity_member_index m ON m.moment_id=j.moment_id "
+        "JOIN activity_interpretations n ON n.moment_id=j.moment_id AND n.model=? AND n.prompt_version=? AND n.status='clear' "
+        "JOIN moment_revisions r ON r.moment_id=j.moment_id AND r.revision=(SELECT max(x.revision) FROM moment_revisions x WHERE x.moment_id=j.moment_id) "
+        "WHERE i.moment_id=? AND r.end_ns >= ? "
+        "AND (SELECT state FROM activity_revisions q WHERE q.activity_id=m.activity_id ORDER BY revision DESC LIMIT 1) NOT IN ('archived', 'merged') "
+        "ORDER BY r.end_ns DESC LIMIT ?",
+        (model, version, moment_id, horizon_start, limit)).fetchall()
 
 
 def verdict_for(store, reader, interpreter, a, b):
@@ -116,12 +133,22 @@ def decide(store, reader, interpreter, moment, params):
         if sim >= params["floor"]:
             pool.append((sim, row))
     pool.sort(key=lambda p: -p[0])
+    chosen = [(sim, row, False) for sim, row in pool[:params["neighbours"]]]
+    taken = {row[0] for _, row, _ in chosen}
+    horizon_start = moment["start_ns"] - int(params["horizon_s"] * S)
+    for row in identity_neighbours(reader, interpreter.model, interpreter.prompt_version, moment["moment_id"], horizon_start,
+                                   params["identity_extra"] + len(taken)):
+        if row[0] not in taken and len(chosen) < params["neighbours"] + params["identity_extra"]:
+            chosen.append((float(own @ unpack(row[7])), row, True))
+            taken.add(row[0])
     checked = {}
-    for sim, row in pool[:params["neighbours"]]:
+    for sim, row, by_identity in chosen:
         other = dict(zip(("moment_id", "activity_id", "start_ns", "end_ns", "action", "purpose", "why"), row[:7]))
         verdict, reason = verdict_for(store, reader, interpreter, moment, other)
-        checked.setdefault(other["activity_id"], []).append(
-            {"moment": other["moment_id"], "similarity": round(sim, 3), "verdict": verdict, "reason": reason})
+        entry = {"moment": other["moment_id"], "similarity": round(sim, 3), "verdict": verdict, "reason": reason}
+        if by_identity:
+            entry["via"] = "same page or file"
+        checked.setdefault(other["activity_id"], []).append(entry)
     qualifying = []
     for activity_id, entries in checked.items():
         same = sum(1 for e in entries if e["verdict"] == "SAME")

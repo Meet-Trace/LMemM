@@ -214,3 +214,50 @@ class MergeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IdentityInterpreter(FakeInterpreter):
+    """Two orthogonal purposes, so similarity alone never puts these Moments side by side; the judge says SAME to everything."""
+
+    def interpret(self, moment):
+        out = super().interpret(moment)
+        return {**out, "purpose": f"finish the {self.topic(moment)} work"}
+
+    def embed(self, texts):
+        names = list(TOPICS)
+        return [np.eye(4, dtype=np.float32)[[i for i, n in enumerate(names) if n in t][0]] for t in texts]
+
+    def same(self, a, b):
+        self.judged += 1
+        return "SAME", "the same document"
+
+
+class IdentityTest(unittest.TestCase):
+    URL = "https://example.com/docs/plan?tab=1#top"
+
+    def build(self, ts, other_url):
+        sequence(ts.store, 0, 8, "com.google.Chrome", "Plan", CODE, 0, url=self.URL)
+        sequence(ts.store, 3000, 8, "com.google.Chrome", "Plan", MONEY, 100, url=other_url)
+        run(ts, NOW)
+
+    def test_moments_on_the_same_page_are_compared_even_when_their_purposes_differ(self):
+        with TempStore() as ts:
+            self.build(ts, "https://example.com/docs/plan?tab=2")
+            fake = IdentityInterpreter()
+            go(ts, fake)
+            self.assertEqual(sorted(r[1] for r in activity_rows(ts)), [2])
+            row = ts.store.derived.execute("SELECT evidence_json FROM activity_revisions WHERE revision=2").fetchone()[0]
+            self.assertIn("same page or file", row)
+
+    def test_a_different_page_is_not_compared(self):
+        with TempStore() as ts:
+            self.build(ts, "https://example.com/docs/other")
+            go(ts, IdentityInterpreter())
+            self.assertEqual(sorted(r[1] for r in activity_rows(ts)), [1, 1])
+
+    def test_normalisation_keeps_the_page_and_drops_query_fragment_and_bare_hosts(self):
+        from trace_v2.activities.identity import normalise_document, normalise_url
+        self.assertEqual(normalise_url("https://www.GitHub.com/org/repo/blob/main/x.py?plain=1#L3"), "github.com/org/repo/blob")
+        self.assertIsNone(normalise_url("https://example.com/"))
+        self.assertEqual(normalise_document("file:///Users/a/Budget.xlsx"), ("document", "/Users/a/Budget.xlsx"))
+        self.assertIsNone(normalise_document("Untitled"))

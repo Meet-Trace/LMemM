@@ -70,3 +70,11 @@ judged, and at least `share` (75%) must be SAME; verdicts already stored count. 
 transaction: the winner takes its Moments and the new one, and the loser gets a closing `merged` revision pointing at the
 winner. If the cross-check fails the Moment simply joins the best Activity and the two stay separate. Splitting is not
 automatic. Merged Activities are never joined again.
+
+### Exact identity picks candidates
+
+When a Moment is interpreted, the pages (URL: host plus the first three path segments) and files (accessibility document)
+present in at least half of its sampled observations are stored (`moment_identities`). Moments that share one are always
+compared by the judge, in addition to the nearest neighbours (up to `identity_extra`, 4), even when their purposes are
+far apart. The judge still decides, so an identity never joins anything by itself; the evidence records which pairs were
+compared "via same page or file". Window titles are not used. The three-segment rule is a guess.

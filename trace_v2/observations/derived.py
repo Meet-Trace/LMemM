@@ -85,6 +85,7 @@ def purge(store, observation_ids, request_id="purge"):
                 db.execute(f"DELETE FROM {table} WHERE {held}", (request_id,))
             db.execute(f"DELETE FROM activity_interpretations WHERE {moment_held}", (request_id,))
             db.execute(f"DELETE FROM moment_descriptions WHERE {moment_held}", (request_id,))
+            db.execute(f"DELETE FROM moment_identities WHERE {moment_held}", (request_id,))
             affected = "(SELECT moment_id FROM moment_member_index WHERE " + granted + ")"
             db.execute(f"DELETE FROM activity_verdicts WHERE moment_a IN {affected} OR moment_b IN {affected}", (request_id, request_id))
             db.execute(f"DELETE FROM activity_member_index WHERE {moment_held}", (request_id,))

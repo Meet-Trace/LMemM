@@ -87,3 +87,10 @@ for good. It is recorded (`activity_interpretations.status`) and never retried; 
 A pass looks back 48 hours (`lookback_s`), oldest first, 300 observations at a time, and the processor keeps going
 without pausing while batches are full. After a long gap (laptop shut, app off) everything from the last two days is
 processed; anything older is skipped for good.
+
+### Long Moments and the vision sample (V3)
+
+The description packet still holds at most 8 steps (`SAMPLE`), but when a Moment has more observations than that the
+steps are no longer evenly spaced: the cuts go where neighbouring observations differ most (shared words from app, title,
+URL and OCR text), so a short detour gets its own step. Short Moments are unchanged. The similarity measure is a simple
+word-overlap guess and untuned.

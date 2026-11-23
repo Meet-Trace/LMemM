@@ -119,3 +119,22 @@ class DescriptionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SegmentTest(unittest.TestCase):
+    def test_cuts_fall_where_the_screen_changed(self):
+        from test_v2_moments import CODE, MONEY, sequence
+        from trace_v2.descriptions import read
+        with TempStore() as ts:
+            ids = sequence(ts.store, 0, 20, "com.apple.Xcode", "shader.cpp", CODE, 0)
+            ids += sequence(ts.store, 70, 3, "com.apple.Numbers", "budget", MONEY, 100)
+            ids += sequence(ts.store, 90, 17, "com.apple.Xcode", "shader.cpp", CODE, 200)
+            reader = read_connection(ts.store)
+            spans = read.segments(reader, ids, 8)
+            reader.close()
+            self.assertEqual(len(spans), 8)
+            self.assertEqual(spans[0][0], 0)
+            self.assertEqual(spans[-1][1], len(ids))
+            starts = {lo for lo, _ in spans}
+            self.assertIn(20, starts)
+            self.assertIn(23, starts)

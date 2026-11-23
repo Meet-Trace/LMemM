@@ -49,12 +49,35 @@ def neighbours(conn, start_ns, end_ns, members, count=1):
     return [r[0] for r in reversed(before)], [r[0] for r in after]
 
 
+def signature(conn, oid):
+    row = conn.execute("SELECT app_name, window_title FROM observations WHERE observation_id=?", (oid,)).fetchone() or ()
+    record = record_of(conn, oid)
+    words = {w for part in (*row, record and record["url"]) if part for w in str(part).lower().split()}
+    words.update(w.lower() for line in ocr_of(conn, oid)["lines"] for w in line["text"].split() if len(w) > 3)
+    return words
+
+
+def segments(conn, members, k):
+    """-> k (start, end) index ranges; cuts sit where the screen changed most between neighbouring observations."""
+    n = len(members)
+    if k <= 1 or n <= k:
+        return [(i * n // k, (i + 1) * n // k) for i in range(k)]
+    sigs = [signature(conn, oid) for oid in members]
+    gaps = []
+    for i in range(1, n):
+        union = sigs[i - 1] | sigs[i]
+        gaps.append((1 - len(sigs[i - 1] & sigs[i]) / len(union) if union else 0.0, i))
+    cuts = sorted(i for _, i in sorted(gaps, key=lambda g: (-g[0], g[1]))[:k - 1])
+    edges = [0, *cuts, n]
+    return list(zip(edges, edges[1:]))
+
+
 def steps(conn, members, sample=SAMPLE):
     n = len(members)
     k = max(1, min(sample, n))
     out = []
-    for i in range(k):
-        chunk = members[i * n // k:(i + 1) * n // k]
+    for lo, hi in segments(conn, members, k):
+        chunk = members[lo:hi]
         records = [r for r in (record_of(conn, oid) for oid in chunk) if r]
         if not records:
             continue

@@ -57,6 +57,15 @@ class UnchangedTest(unittest.TestCase):
             self.assertEqual(ts.store.screenshot_bytes(b), data)
             self.assertEqual(ts.store.dedup_stats["unchanged"], 1)
 
+    def test_flipping_between_two_screens_reuses_the_earlier_files(self):
+        with TempStore() as ts:
+            one, two = png(), png(box=(300, 300, 700, 440))
+            oids = [capture(ts, i, one if i % 2 == 0 else two, app=f"com.example.app{i % 2}") for i in range(6)]
+            inodes = {os.stat(ts.store.assets.root / row(ts, o)[1]).st_ino for o in oids}
+            self.assertEqual(len(inodes), 2)
+            self.assertEqual(ts.store.dedup_stats["unchanged"], 4)
+            self.assertEqual(ts.store.screenshot_bytes(oids[4]), one)
+
     def test_small_noise_counts_as_unchanged(self):
         with TempStore() as ts:
             a = capture(ts, 0, png())

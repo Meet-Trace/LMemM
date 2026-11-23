@@ -258,3 +258,10 @@ derived row whose observation is missing from the evidence file.
 A database made before the split is carried over on open: the derived tables are copied into `derived.sqlite3`, then
 evidence migration 0009 drops them. Migration backups (`*.bak`) of the evidence file made earlier may still hold old
 derived rows until `forget everything` removes them.
+
+## Repeated screens
+
+A new screenshot is compared with the last 8 distinct screens (`DEDUP_MEMORY`), not only the previous one. An unchanged match
+with any of them is stored as a link to that file and reuses its OCR, so flipping between two windows stores two files, not
+one per capture. "Only the typing box changed" still applies to the previous screen only, because it replaces that
+screenshot.

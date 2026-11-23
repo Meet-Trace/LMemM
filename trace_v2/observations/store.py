@@ -29,6 +29,7 @@ from .models import (READERS, InvalidCapture, ReaderResult, ScreenshotCapture, S
 from .. import paths
 
 log = logging.getLogger("trace_v2.observations")
+DEDUP_MEMORY = 8
 
 
 class DuplicateObservation(RuntimeError):
@@ -87,7 +88,7 @@ class ObservationStore:
         self.lock = threading.RLock()
         self.clock_ns = time.time_ns
         self.ocr_max_attempts = 4
-        self._dedup_last = None
+        self._dedup_recent = []
         self.dedup_stats = {"unchanged": 0, "typing": 0, "changed": 0, "bytes_saved": 0}
         from .forget import resume_pending     # finish any forget interrupted after its commit
         resume_pending(self)
@@ -125,7 +126,7 @@ class ObservationStore:
                 self._dedup_after(oid, draft, shot_row, decision)
             except Exception:                    # noqa: BLE001 - housekeeping must never fail a stored capture
                 log.exception("screenshot de-duplication failed")
-                self._dedup_last = None
+                self._dedup_recent = []
         return IngestResult(oid, True)
 
     def add_extraction(self, observation_id, reader, result):
@@ -170,35 +171,49 @@ class ObservationStore:
             return {"kind": "none"}
         picture = dedup.picture(bytes(shot.data))
         plan = {"kind": "changed", "picture": picture}
-        last = self._dedup_last
-        if last is None or picture is None or last["picture"] is None:
+        if picture is None or not self._dedup_recent:
             return plan
-        verdict, _, _ = dedup.compare(last["picture"][0], picture[0], params)
+        verdicts = []
+        for entry in self._dedup_recent:
+            if entry["picture"] is None:
+                verdicts.append(None)
+                continue
+            verdict = dedup.compare(entry["picture"][0], picture[0], params)[0]
+            verdicts.append(verdict)
+            if verdict == "unchanged":
+                plan["kind"], plan["match"] = "unchanged", entry
+                return plan
+        last = self._dedup_recent[0]
         same_place = last["bundle"] == draft.context.application.get("bundle_id") and last["display"] == draft.context.display.get("id")
-        if verdict == "unchanged":
-            plan["kind"] = "unchanged"
-        elif verdict == "typing" and same_place and dedup.pressed_keys(draft.events):
-            plan["kind"] = "typing"
+        if verdicts[0] == "typing" and same_place and dedup.pressed_keys(draft.events):
+            plan["kind"], plan["previous"] = "typing", last
         return plan
 
     def _dedup_after(self, oid, draft, shot_row, plan):
-        last = self._dedup_last
         if plan["kind"] == "none" or shot_row.get("status") != "stored":
-            self._dedup_last = None
+            self._dedup_recent = []
             return
         if plan.get("linked"):
-            last["oids"].append(oid)
+            entry = plan["match"]
+            entry["oids"].append(oid)
+            self._dedup_recent.remove(entry)
+            self._dedup_recent.insert(0, entry)
             self.dedup_stats["unchanged"] += 1
             self.dedup_stats["bytes_saved"] += shot_row.get("byte_size") or 0
             return
-        self._dedup_last = {
+        entry = {
             "oids": [oid], "rel": shot_row["relative_path"], "picture": plan.get("picture"),
             "bundle": draft.context.application.get("bundle_id"), "display": draft.context.display.get("id"),
             "sha": shot_row["sha256"], "byte_size": shot_row["byte_size"], "format": shot_row["format"],
             "width": shot_row["width"], "height": shot_row["height"]}
-        if plan["kind"] == "typing" and last is not None:
+        previous = plan.get("previous") if plan["kind"] == "typing" else None
+        if previous is not None and previous in self._dedup_recent:
+            self._dedup_recent.remove(previous)
+        self._dedup_recent.insert(0, entry)
+        del self._dedup_recent[DEDUP_MEMORY:]
+        if previous is not None:
             self.dedup_stats["typing"] += 1
-            self.dedup_stats["bytes_saved"] += self._supersede(last["oids"])
+            self.dedup_stats["bytes_saved"] += self._supersede(previous["oids"])
         else:
             self.dedup_stats["changed"] += 1
 
@@ -246,8 +261,8 @@ class ObservationStore:
         if not isinstance(shot, ScreenshotCapture) or draft.ocr.status != "pending":
             return shot, None
         reuse = None
-        if plan.get("kind") == "unchanged" and self._dedup_last is not None:
-            reuse = self._reused_ocr(self._dedup_last["oids"][0])
+        if plan.get("kind") == "unchanged" and plan.get("match") is not None:
+            reuse = self._reused_ocr(plan["match"]["oids"][0])
         from . import ocr_queue
         from .settings import get_ocr_queue_cap
         if reuse is None and ocr_queue.depth(self) >= get_ocr_queue_cap(self):
@@ -266,7 +281,7 @@ class ObservationStore:
     def _store_screenshot(self, oid, shot, plan=None, scan_pending=False, reused=False):
         """-> (row values for the screenshots table, relative path written or None). With `scan_pending` the file is
         stored in quarantine, except a link to an earlier frame whose clean OCR text is reused (`reused`)."""
-        last = self._dedup_last
+        last = plan.get("match") if plan else None
         if plan and plan["kind"] == "unchanged" and last is not None and isinstance(shot, ScreenshotCapture):
             rel = self.assets.relative_path(oid, shot.captured_at_ns, last["format"])
             try:

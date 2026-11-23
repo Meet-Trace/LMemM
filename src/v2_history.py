@@ -18,9 +18,12 @@ Moments, the vision description of each stable Moment, its purpose and the Activ
 
 import os
 import sqlite3
+import threading
 from datetime import datetime
 
 _CACHE = {}
+_APPS = {}
+_LOCK = threading.Lock()
 
 _MOMENTS = """
 SELECT r.moment_id, r.start_ns, r.end_ns,
@@ -51,30 +54,54 @@ def _stamp(path):
         return None
 
 
-def read(data=None):
-    """Events for history_model, oldest first, or None when there is no V2 data to show (V2)."""
+def read(data=None, wait=False):
+    """Events for history_model, oldest first, or None when there is no V2 data to show (V2).
+
+    The window asks on every refresh and the read can take seconds on a big store, so it never waits for one: a changed
+    store starts a read on a background thread and the last finished answer (None the first time) is returned until
+    it is done. `wait=True` runs the read inline (tests)."""
     data = data or data_dir()
     db, derived = os.path.join(data, "observations.sqlite3"), os.path.join(data, "derived.sqlite3")
-    key = (db, derived, _stamp(db), _stamp(db + "-wal"), _stamp(derived), _stamp(derived + "-wal"))
-    hit = _CACHE.get("read")
-    if hit and hit[0] == key:
-        return hit[1]                                           # the window asks on every refresh; the files change rarely
-    out = _read(db, derived)
-    _CACHE["read"] = (key, out)
-    return out
+    key = (db, derived, _stamp(derived), _stamp(derived + "-wal"))     # not the evidence file: capture writes it every few seconds
+    with _LOCK:
+        hit = _CACHE.get("read")
+        if hit and hit[0] == key:
+            return hit[1]
+        if wait:
+            pass
+        elif _CACHE.get("busy"):
+            return hit[1] if hit and hit[2] == (db, derived) else None
+        else:
+            _CACHE["busy"] = True
+            threading.Thread(target=_refresh, args=(key, db, derived), name="v2-history", daemon=True).start()
+            return hit[1] if hit and hit[2] == (db, derived) else None
+    _refresh(key, db, derived)
+    return _CACHE["read"][1]
+
+
+def _refresh(key, db, derived):
+    try:
+        out = _read(db, derived)
+    except Exception:                                           # noqa: BLE001 - history must never break the window
+        out = None
+    with _LOCK:
+        _CACHE["read"] = (key, out, (db, derived))
+        _CACHE["busy"] = False
 
 
 def _read(db, derived):
     if not (os.path.exists(db) and os.path.exists(derived)):
         return None
     try:
-        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=1)
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=0.3)
         try:
             conn.execute("ATTACH DATABASE ? AS derived", (f"file:{derived}?mode=ro",))
             rows = conn.execute(_MOMENTS).fetchall()
             members = dict(conn.execute(_ACTIVITIES).fetchall())
-            apps = {}
+            apps = _APPS.setdefault(db, {})
             for mid, *_ in rows:
+                if mid in apps:
+                    continue                                       # the app of a Moment's observations does not change once it is stable
                 app = conn.execute("SELECT o.app_name FROM moment_member_index i JOIN observations o USING (observation_id) "
                                    "WHERE i.moment_id=? GROUP BY o.app_name ORDER BY count(*) DESC LIMIT 1", (mid,)).fetchone()
                 apps[mid] = app[0] if app and app[0] else ""

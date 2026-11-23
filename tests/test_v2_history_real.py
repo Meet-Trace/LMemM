@@ -16,7 +16,7 @@ class RealStoreTest(unittest.TestCase):
             build(ts)
             go(ts, FakeInterpreter())
             v2_history._CACHE.clear()
-            events = v2_history.read(str(ts.store.root))
+            events = v2_history.read(str(ts.store.root), wait=True)
             self.assertEqual(len(events), 4)
             self.assertEqual(sorted(e["v2"]["title"] for e in events), ["finish the code work"] * 2 + ["finish the money work", "finish the read work"])
             groups = [e["v2"]["activity"] for e in events if e["v2"]["title"] == "finish the code work"]
@@ -32,11 +32,11 @@ class RealStoreTest(unittest.TestCase):
             build(ts)
             go(ts, FakeInterpreter())
             v2_history._CACHE.clear()
-            before = v2_history.read(str(ts.store.root))
+            before = v2_history.read(str(ts.store.root), wait=True)
             oid = ts.store.derived.execute("SELECT observation_id FROM moment_member_index LIMIT 1").fetchone()[0]
             forget.forget(ts.store, {"observation_ids": [oid]}, dry_run=False)
             v2_history._CACHE.clear()
-            after = v2_history.read(str(ts.store.root))
+            after = v2_history.read(str(ts.store.root), wait=True)
             self.assertLess(len(after or []), len(before))
 
 

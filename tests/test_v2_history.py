@@ -26,7 +26,7 @@ class V2(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.data = os.path.join(self.tmp.name, "d")
         os.makedirs(self.data)
-        v2_history._CACHE.clear()
+        v2_history._CACHE.clear(); v2_history._APPS.clear()
         self.db = sqlite3.connect(os.path.join(self.data, "observations.sqlite3"))
         self.db.execute("CREATE TABLE observations(observation_id TEXT, app_name TEXT)")
         self.dv = sqlite3.connect(os.path.join(self.data, "derived.sqlite3"))
@@ -61,7 +61,7 @@ class V2(unittest.TestCase):
     def page(self, v2="read", **hist):
         s = pm.new_state()
         s["hist"].update(hist)
-        events = v2_history.read(self.data) if v2 == "read" else v2
+        events = v2_history.read(self.data, wait=True) if v2 == "read" else v2
         return hm.view(projects.empty(), {}, s, NOW, v2=events)
 
     def rows_of(self, page):
@@ -93,17 +93,17 @@ class V2(unittest.TestCase):
         self.assertEqual([r["id"] for r in self.rows_of(self.page())], ["keep"])
 
     def test_no_files_no_database_or_nothing_described_is_no_v2_data(self):
-        self.assertIsNone(v2_history.read(self.data))
+        self.assertIsNone(v2_history.read(self.data, wait=True))
         self.moment("m1", "09:00:00", "09:05:00", what="", why="")
         self.save()
-        self.assertIsNone(v2_history.read(self.data))
-        self.assertIsNone(v2_history.read(os.path.join(self.tmp.name, "missing")))
+        self.assertIsNone(v2_history.read(self.data, wait=True))
+        self.assertIsNone(v2_history.read(os.path.join(self.tmp.name, "missing"), wait=True))
 
     def test_an_app_you_never_remember_is_hidden(self):
         self.moment("m1", "09:00:00", "09:05:00", app="Terminal")
         self.save()
         s = pm.new_state()
-        page = hm.view(projects.empty(), {}, s, NOW, skip=[{"name": "Terminal"}], v2=v2_history.read(self.data))
+        page = hm.view(projects.empty(), {}, s, NOW, skip=[{"name": "Terminal"}], v2=v2_history.read(self.data, wait=True))
         self.assertEqual(self.rows_of(page), [])
 
     def test_search_reads_the_moment_text_and_old_days_are_not_cut_at_48_hours(self):
@@ -112,7 +112,7 @@ class V2(unittest.TestCase):
         page = self.page(q="launch")
         self.assertEqual([r["id"] for r in self.rows_of(page)], ["m1"])
         self.assertEqual(self.rows_of(self.page(q="zzz")), [])
-        events = v2_history.read(self.data)
+        events = v2_history.read(self.data, wait=True)
         for e in events:
             e["start"] = e["start"].replace(day=1)
             e["end"] = e["end"].replace(day=1)
@@ -133,14 +133,26 @@ class V2(unittest.TestCase):
         self.assertEqual(sorted(r["title"] for r in self.rows_of(page)), ["Fresh doc", "Old purpose"])
         self.assertEqual([r["visits"] for r in self.rows_of(page)], [1, 1])
 
+    def test_the_window_never_waits_for_a_read(self):
+        import time
+        self.moment("m1", "09:00:00", "09:05:00")
+        self.save()
+        self.assertIsNone(v2_history.read(self.data))              # first ask: the read starts in the background
+        for _ in range(100):
+            events = v2_history.read(self.data)
+            if events:
+                break
+            time.sleep(0.02)
+        self.assertEqual(len(events), 1)
+
     def test_the_cache_follows_the_files(self):
         self.moment("m1", "09:00:00", "09:05:00")
         self.save()
-        self.assertEqual(len(v2_history.read(self.data)), 1)
+        self.assertEqual(len(v2_history.read(self.data, wait=True)), 1)
         self.moment("m2", "10:00:00", "10:05:00")
         self.save()
         os.utime(os.path.join(self.data, "derived.sqlite3"), (1, 1))
-        self.assertEqual(len(v2_history.read(self.data)), 2)
+        self.assertEqual(len(v2_history.read(self.data, wait=True)), 2)
 
 
 if __name__ == "__main__":

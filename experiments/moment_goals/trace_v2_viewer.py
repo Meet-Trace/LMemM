@@ -275,7 +275,7 @@ def build_handler(store, data_dir, queries, goals_dir=None):
 
     def moment_rows():
         try:
-            return store.db.execute(
+            return store.derived.execute(
                 "SELECT r.moment_id, r.revision, r.state, r.start_ns, r.end_ns, r.observation_count, r.summary_json, m.origin, "
                 "m.parent_moment_id FROM moment_revisions r JOIN moments m USING (moment_id) WHERE r.state != 'merged' AND "
                 "r.revision=(SELECT max(x.revision) FROM moment_revisions x WHERE x.moment_id=r.moment_id) "
@@ -300,12 +300,12 @@ def build_handler(store, data_dir, queries, goals_dir=None):
         return out
 
     def moment_detail(mid):
-        revs = store.db.execute(
+        revs = store.derived.execute(
             "SELECT revision, state, merged_into, start_ns, end_ns, observation_count, recorded_at, params_json, summary_json, "
             "members_encoding, members FROM moment_revisions WHERE moment_id=? ORDER BY revision", (mid,)).fetchall()
         if not revs:
             raise KeyError(mid)
-        meta = store.db.execute("SELECT algorithm, origin, parent_moment_id FROM moments WHERE moment_id=?", (mid,)).fetchone()
+        meta = store.derived.execute("SELECT algorithm, origin, parent_moment_id FROM moments WHERE moment_id=?", (mid,)).fetchone()
         history = [{"revision": r[0], "state": r[1], "merged_into": r[2], "start_ns": r[3], "end_ns": r[4],
                     "count": r[5], "recorded_at": r[6]} for r in revs]
         cur = revs[-1]
@@ -319,8 +319,8 @@ def build_handler(store, data_dir, queries, goals_dir=None):
                                    "WHERE o.observation_id=?", (m["o"],)).fetchone()
             members.append({"id": m["o"], "t": m["t"], "role": m["role"], "score": m["s"], "app": row[0] if row else None,
                             "window": row[1] if row else None, "screenshot": row[2] if row else "gone"})
-        absorbed = [r[0] for r in store.db.execute("SELECT DISTINCT moment_id FROM moment_revisions WHERE merged_into=?", (mid,))]
-        children = [r[0] for r in store.db.execute("SELECT moment_id FROM moments WHERE parent_moment_id=?", (mid,))]
+        absorbed = [r[0] for r in store.derived.execute("SELECT DISTINCT moment_id FROM moment_revisions WHERE merged_into=?", (mid,))]
+        children = [r[0] for r in store.derived.execute("SELECT moment_id FROM moments WHERE parent_moment_id=?", (mid,))]
         return {"moment_id": mid, "algorithm": meta[0], "origin": meta[1], "parent_moment_id": meta[2],
                 "absorbed_moments": absorbed, "split_children": children,
                 "current": {"revision": cur[0], "state": cur[1], "start_ns": cur[3], "end_ns": cur[4],

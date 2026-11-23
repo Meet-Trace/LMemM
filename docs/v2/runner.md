@@ -247,3 +247,8 @@ error codes.
 
 Not exercised for real: sleep/wake and lock/unlock notifications (covered with fakes; the Mac was in use), the Automation
 permission report (`unknown` by design).
+
+### Layout runs with Moments (G1)
+
+`--moments` also starts the GSA-1 layout step, because Moments use the layout as a signal. `--structure` alone still
+starts it without Moments.

@@ -350,7 +350,7 @@ class Runner:
                 self.store, self.sources.ocr, getattr(self.sources.ocr, "timeout_s", 10.0),
                 **({"policy": self._ocr_queue_policy} if self._ocr_queue_policy else {}), clock_ns=self._clock_ns)
             self.ocr_processor.start()
-        if self.structure and not once:
+        if (self.structure or self.moments) and not once:
             self.structure_processor = StructureProcessor(self.store, clock_ns=self._clock_ns)
             self.structure_processor.start()
         if self.moments and not once:

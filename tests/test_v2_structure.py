@@ -431,3 +431,11 @@ class StructureCliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_turning_moments_on_also_runs_the_layout_step(self):
+        from test_v2_runner import make_runner
+        with TempStore() as ts:
+            runner = make_runner(ts.store, moments=True)
+            stats = runner.run(duration_s=0.5)
+            self.assertIsNotNone(stats["structure"])
+            self.assertIsNotNone(runner.structure_processor)

@@ -36,7 +36,7 @@ from pathlib import Path
 
 from .inputs import InputGate
 from .macos.ocr_client import native_rss_mb
-from .observations import privacy, retention, settings, trigger
+from .observations import privacy, retention, settings, trigger, trim
 from .observations.events import EventBuffer
 from .observations.ocr_processor import OcrProcessor
 from .observations.trigger import CaptureTrigger
@@ -328,6 +328,9 @@ class Runner:
         try:
             retention.run(self.store, self._clock_ns())
             self.retention_runs += 1
+            while trim.run(self.store, self._clock_ns())["trimmed"]:
+                if self._stop.is_set():
+                    break
         except Exception:                            # noqa: BLE001 - retention must never stop observation
             log.exception("retention run failed")
 

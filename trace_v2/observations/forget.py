@@ -96,6 +96,7 @@ def _release_links(store, request_id):
         db.executemany("UPDATE extraction_links SET target_extraction_id=? WHERE extraction_id=?", ((first, h) for h in heirs[1:]))
     db.execute(f"DELETE FROM extraction_links WHERE extraction_id IN ({mine})", (request_id,))
     db.execute(f"DELETE FROM extraction_raw_copies WHERE extraction_id IN ({mine})", (request_id,))
+    db.execute(f"DELETE FROM raw_trims WHERE extraction_id IN ({mine})", (request_id,))
 
 
 def forget(store, selector, dry_run=False):

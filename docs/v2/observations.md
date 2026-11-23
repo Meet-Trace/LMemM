@@ -310,3 +310,14 @@ Deduplication already decodes each new screenshot. That decoded image is now kep
 still stored. The layout step uses it instead of decoding the PNG again and falls back to the file otherwise (restart,
 evicted, deleted). It costs up to two decoded screenshots of memory (about 15 MB each at 2880x1800) and results are the
 same. Thumbnails and the vision model still read the file; only the layout step shares the capture-time decode.
+
+### Raw output is trimmed after 30 days (X4, structured-data retention)
+
+Setting `raw_retention_days` (default 30, `null` keeps everything; `trim.set_days`). A retention run in the runner (at start
+and with the screenshot retention schedule) empties the bulky `raw` column of OCR, accessibility and layout extractions of
+observations older than that, in batches of 500. The extraction row, status, plain `text`, observation, events and
+screenshot metadata stay, and so do Moments, descriptions and Activities. Each trimmed row is written to `raw_trims`
+(size and checksum of what was removed) first, and the extractions update trigger now allows exactly this change and no other.
+A frame that a younger observation still links to (S4) is kept until that observation is old too. Forgetting an observation
+removes its trim records. Not measured: how much of the 35 MB/h this saves; the raw columns are the bulk but the figure
+comes from the audit's estimate.

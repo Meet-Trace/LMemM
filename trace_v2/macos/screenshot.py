@@ -33,6 +33,7 @@ from . import displays
 
 TIMEOUT_S = 10.0
 _PNG = "public.png"
+PROBE_WIDTH = 96
 
 
 def _load_sck():
@@ -108,6 +109,20 @@ class ScreenshotSource:
                  else self._capture_cgdisplay(display_id))
         width, height = Quartz.CGImageGetWidth(image), Quartz.CGImageGetHeight(image)
         return ScreenshotCapture(encode_png(image), "png", width, height, t, scope)
+
+    def probe(self, display_id=None, scope=DEFAULT_SCREENSHOT_SCOPE, pid=None, bundle_id=None, width=PROBE_WIDTH):
+        """-> PNG bytes of a tiny picture (`width` pixels wide) of the same region a full screenshot would show.
+        Only for telling whether the screen changed; never stored. Same permission and scope rules as screenshot()."""
+        if scope not in SCREENSHOT_SCOPES:
+            raise ValueError(f"unknown screenshot scope {scope!r}")
+        if not Quartz.CGPreflightScreenCaptureAccess():
+            raise PermissionError("Screen Recording is not granted")
+        if not self._sck:
+            raise ScopeUnavailable("the probe needs ScreenCaptureKit, which is not available")
+        display_id = int(display_id or Quartz.CGMainDisplayID())
+        full = displays.display_info(display_id)["pixel_size"]
+        size = (width, max(1, round(width * full[1] / full[0])))
+        return encode_png(self._capture_sck(display_id, size, scope, pid, bundle_id))
 
     @staticmethod
     def _front_application(content, pid, bundle_id):

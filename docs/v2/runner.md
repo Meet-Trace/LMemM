@@ -47,6 +47,18 @@ by anything here.
 6. the observer thread (a capture every interval); the main thread pumps notifications every 0.25 s, refreshes settings
    every 5 s, reconciles the front app, writes stats and runs retention
 
+## Change-triggered capture (`observations/trigger.py`, setting `capture_trigger`)
+
+The 3 s interval is now a probe interval. Each tick reads the context, runs the privacy gate and, if the gate allows,
+takes a 96 px probe picture (ScreenCaptureKit, same region and scope as the full screenshot, never stored). A full capture
+(screenshot, OCR, accessibility, observation row) happens only on: `first`, `context` (app, title, URL or display changed),
+`input` (click, key, scroll; cursor movement alone does not count), `screen` (more than `change_fraction` = 0.4 % of probe
+pixels differ by more than `pixel_delta` = 12 from the last full capture), or a `heartbeat` (30 s without anything; 120 s
+after 300 s with no change or input). Skipped ticks keep their events in the buffer for the next observation. A withheld
+tick is always recorded and never probed. No `probe()` source, a failing probe or `enabled: false` captures every tick as
+before; the shutdown observation is always taken. Stats: `skipped_ticks` and `capture_trigger` (counts by reason).
+Defaults are untuned; the macOS probe (`ScreenshotSource.probe`) has not been run on a Mac yet.
+
 ## Lifecycle
 
 | notification | effect |

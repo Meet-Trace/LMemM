@@ -36,9 +36,10 @@ from pathlib import Path
 
 from .inputs import InputGate
 from .macos.ocr_client import native_rss_mb
-from .observations import privacy, retention, settings
+from .observations import privacy, retention, settings, trigger
 from .observations.events import EventBuffer
 from .observations.ocr_processor import OcrProcessor
+from .observations.trigger import CaptureTrigger
 from .moments.processor import MomentProcessor
 from .structure.processor import StructureProcessor
 from .observations.pipeline import ContinuousObserver
@@ -313,6 +314,8 @@ class Runner:
             self.gate.set_excluded(self.policy.all_excluded_apps())
             if self.observer is not None:
                 self.observer.policy = self.policy
+                if getattr(self.observer, "trigger", None) is not None:
+                    self.observer.trigger.set_params(trigger.get_params(self.store))
             if hasattr(self.sources, "screenshot_scope"):
                 self.sources.screenshot_scope = settings.get_screenshot_scope(self.store)
         except Exception:                            # noqa: BLE001
@@ -350,6 +353,8 @@ class Runner:
         if self.moments and not once:
             self.moment_processor = MomentProcessor(self.store, clock_ns=self._clock_ns)
             self.moment_processor.start()
+        if not once:
+            extra["trigger"] = CaptureTrigger(trigger.get_params(self.store))
         self.observer = self._observer_factory(self.store, self.sources, self.buffer, interval_s=self.interval_s,
                                                clock_ns=self._clock_ns, on_decision=self._on_decision,
                                                policy=self.policy, final_always=True, **extra)
@@ -485,7 +490,9 @@ class Runner:
                 "interval_s": self.interval_s, "uptime_s": round(uptime, 1), "cpu_s": round(cpu, 2),
                 "cpu_pct_avg": round(cpu / uptime * 100, 1), "rss_mb": self._rss(),
                 "peak_rss_mb": round(_peak_rss_mb(), 1), "observations": observer.get("observations", 0),
-                "failures": observer.get("failures", 0), "missed_ticks": observer.get("missed_ticks", 0),
+                "failures": observer.get("failures", 0), "skipped_ticks": observer.get("skipped_ticks", 0),
+                "capture_trigger": dict(self.observer.trigger.counts) if self.observer and self.observer.trigger else {},
+                "missed_ticks": observer.get("missed_ticks", 0),
                 "events_left_at_stop": observer.get("events_left_at_stop", 0),
                 "capture_timing": self.observer.timing() if self.observer else {},
                 "withheld_by_reason": evidence.get("withheld_by_reason", {}), "evidence": evidence,

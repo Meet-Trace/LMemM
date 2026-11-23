@@ -50,3 +50,8 @@ class MacSources:
         privacy gates judged, even if the user switched apps in between."""
         return self._screenshot.screenshot(self._display_id or int(Quartz.CGMainDisplayID()), scope=self._scope,
                                            pid=self._application.get("pid"), bundle_id=self._application.get("bundle_id"))
+
+    def probe(self):
+        """Tiny PNG of what screenshot() would capture now, to tell whether the screen changed (see observations.trigger)."""
+        return self._screenshot.probe(self._display_id or int(Quartz.CGMainDisplayID()), scope=self._scope,
+                                      pid=self._application.get("pid"), bundle_id=self._application.get("bundle_id"))

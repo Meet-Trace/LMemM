@@ -113,8 +113,24 @@ def _withheld_draft(sources, key, t, context, reason, batch):
                         {"withheld": True, "reason": reason, "policy_version": privacy.POLICY_VERSION}), batch
 
 
-def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns, on_decision=None, ocr_mode="sync"):
+def _probe(sources):
+    """The tiny probe picture, or None when there is no probe source or it failed (then the tick is captured)."""
+    probe = getattr(sources, "probe", None)
+    if probe is None:
+        return None
+    try:
+        return probe()
+    except Exception:                            # noqa: BLE001 - a failed probe only means "cannot tell": capture
+        return None
+
+
+def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns, on_decision=None, ocr_mode="sync",
+                trigger=None):
     """-> (CaptureDraft, Batch). Commit the batch once the draft is stored, restore it on failure.
+
+    With a `trigger` (trigger.CaptureTrigger) and a source that has `probe()`, a tick where nothing happened since the
+    last full capture is skipped: the events stay in the buffer and the result is (None, None). A withheld tick is never
+    skipped (it is cheap and records that a gated app was in front).
 
     `on_decision(decision, context)` is called with the privacy gate's decision before anything is read or captured, so a
     runner can react to it (for example drop input events while a gated app is in front). It never changes the draft;
@@ -129,6 +145,10 @@ def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns
         except Exception:                        # noqa: BLE001 - an observer hook must not break capture
             log.exception("on_decision hook failed")
     batch = buffer.take(t)
+    if trigger is not None and not decision.withheld and hasattr(sources, "probe"):
+        if trigger.decide(t, context, _probe(sources), batch.events) is None:
+            batch.restore()
+            return None, None
     try:
         return _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, ocr_mode)
     except BaseException:
@@ -175,8 +195,11 @@ def _draft(sources, capture_key, policy, clock_ns, t, context, decision, batch, 
 
 
 def observe_once(store, sources, buffer, capture_key, policy=None, clock_ns=time.time_ns, on_decision=None,
-                 ocr_mode="sync"):
-    draft, batch = build_draft(sources, buffer, capture_key, policy, clock_ns, on_decision, ocr_mode)
+                 ocr_mode="sync", trigger=None):
+    """-> IngestResult, or None when the trigger skipped the tick."""
+    draft, batch = build_draft(sources, buffer, capture_key, policy, clock_ns, on_decision, ocr_mode, trigger)
+    if draft is None:
+        return None
     try:
         result = store.ingest(draft)
     except BaseException:
@@ -188,26 +211,29 @@ def observe_once(store, sources, buffer, capture_key, policy=None, clock_ns=time
 
 class ContinuousObserver:
     def __init__(self, store, sources, buffer, interval_s=DEFAULT_CAPTURE_INTERVAL_S, clock_ns=time.time_ns,
-                 monotonic=time.monotonic, session_id=None, policy=None, on_decision=None, final_always=False, ocr_mode="sync"):
+                 monotonic=time.monotonic, session_id=None, policy=None, on_decision=None, final_always=False, ocr_mode="sync",
+                 trigger=None):
         if interval_s <= 0:
             raise ValueError("interval_s must be positive")
         self.store, self.sources, self.buffer = store, sources, buffer
         self.interval_s, self.clock_ns, self.monotonic = interval_s, clock_ns, monotonic
         self.session_id = session_id or uuid.uuid4().hex
         self.policy, self.on_decision, self.final_always = policy, on_decision, final_always
-        self.ocr_mode = ocr_mode
+        self.ocr_mode, self.trigger = ocr_mode, trigger
         self._paused = threading.Event()
         self._timings = collections.deque(maxlen=5000)       # (process CPU s, wall s) per capture attempt
         self.seq = 0
-        self.stats = {"observations": 0, "failures": 0, "missed_ticks": 0, "events_left_at_stop": 0}
+        self.stats = {"observations": 0, "failures": 0, "missed_ticks": 0, "skipped_ticks": 0, "events_left_at_stop": 0}
 
-    def tick(self):
+    def tick(self, force=False):
+        """One probe-and-maybe-capture. `force` takes a full capture whatever the trigger says (the shutdown one)."""
         key = f"{self.session_id}:{self.seq}"
         self.seq += 1
         cpu0, wall0 = time.process_time(), time.perf_counter()
         try:
-            observe_once(self.store, self.sources, self.buffer, key, self.policy, self.clock_ns, self.on_decision, self.ocr_mode)
-            self.stats["observations"] += 1
+            stored = observe_once(self.store, self.sources, self.buffer, key, self.policy, self.clock_ns, self.on_decision,
+                                  self.ocr_mode, None if force else self.trigger)
+            self.stats["skipped_ticks" if stored is None else "observations"] += 1
             return True
         except Exception as e:                   # noqa: BLE001 - keep observing; the failure is counted and logged
             self.stats["failures"] += 1
@@ -264,7 +290,7 @@ class ContinuousObserver:
                 next_at += missed * self.interval_s
             stop.wait(max(0.0, next_at - self.monotonic()))
         if (self.final_always or self.buffer.pending()) and not self._paused.is_set():
-            self.tick()                          # the shutdown Observation (none while paused, e.g. asleep)
+            self.tick(force=True)                # the shutdown Observation (none while paused, e.g. asleep)
         self.stats["events_left_at_stop"] = self.buffer.pending()
         return self.stats
 

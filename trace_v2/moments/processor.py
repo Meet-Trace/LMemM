@@ -19,6 +19,7 @@ class MomentProcessor:
         self._stop = threading.Event()
         self._thread = None
         self._reader = None
+        self._state = {}
 
     def _count(self, name, n=1):
         with self._lock:
@@ -52,7 +53,7 @@ class MomentProcessor:
         now = self.clock_ns()
         since = 0 if self.lookback_s is None else now - int(self.lookback_s * S)
         started = time.perf_counter()
-        out = run_pass(self.store, self._reader, now, self.params, since_ns=since)
+        out = run_pass(self.store, self._reader, now, self.params, since_ns=since, state=self._state)
         with self._lock:
             self.timing_ms = (self.timing_ms + [(time.perf_counter() - started) * 1000])[-500:]
         for key, value in out.items():
@@ -66,6 +67,7 @@ class MomentProcessor:
                 out = self.run_once()
                 busy = out.get("processed", 0) + out.get("skipped", 0) >= 300
             except Exception:
+                self._state = {}
                 log.exception("moment processor iteration failed")
                 busy = False
             if not busy:

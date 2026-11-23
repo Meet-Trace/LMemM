@@ -240,11 +240,11 @@ class RobustnessTest(unittest.TestCase):
             sequence(ts.store, 0, 6, "com.apple.Xcode", "shader.cpp", CODE, 0)
             reader = read_connection(ts.store)
             real = builder.write
-            def racing(store, reps, new_features, skips, idf, params):
+            def racing(store, reps, new_features, skips, idf, params, now_ns=None):
                 for rep in reps:
                     if rep.dirty:
                         rep.revision += 5
-                return real(store, reps, new_features, skips, idf, params)
+                return real(store, reps, new_features, skips, idf, params, now_ns)
             builder.write = racing
             try:
                 out = run_pass(ts.store, reader, T0 + 100 * S)
@@ -338,3 +338,38 @@ class ForgetTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IncrementalTest(unittest.TestCase):
+    def passes(self, ts, times, state):
+        reader = read_connection(ts.store)
+        try:
+            params = {**PARAMS, "revision_every_s": 0.0}
+            return [run_pass(ts.store, reader, T0 + t * S, params, state=state) for t in times]
+        finally:
+            reader.close()
+
+    def test_cached_passes_match_database_passes(self):
+        results = []
+        for cached in (False, True):
+            with TempStore() as ts:
+                sequence(ts.store, 0, 10, "com.apple.dt.Xcode", "shader.cpp", CODE, 0)
+                sequence(ts.store, 40, 10, "com.apple.Numbers", "budget.numbers", MONEY, 100)
+                state = {} if cached else None
+                self.passes(ts, (100, 200, 300), state)
+                results.append([(m["n"], len(m["members"]), m["state"]) for m in live(ts)])
+        self.assertEqual(results[0], results[1])
+
+    def test_growth_revisions_are_throttled(self):
+        with TempStore() as ts:
+            state = {}
+            reader = read_connection(ts.store)
+            try:
+                for i in range(12):
+                    add(ts.store, i, T0 + i * 3 * S, "com.apple.dt.Xcode", "shader.cpp", text(CODE, i))
+                    run_pass(ts.store, reader, T0 + (i * 3 + 60) * S, PARAMS, state=state)
+            finally:
+                reader.close()
+            revisions = ts.store.db.execute("SELECT count(*) FROM moment_revisions").fetchone()[0]
+            self.assertLess(revisions, 6)
+            self.assertEqual(len(live(ts)), 1)

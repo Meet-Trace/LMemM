@@ -1,6 +1,7 @@
 import json
 import math
 import sqlite3
+import time
 import uuid
 from collections import Counter
 
@@ -52,30 +53,66 @@ def ready_batch(conn, now_ns, params, since_ns, limit):
     return out
 
 
-def load_active(conn, params):
-    rows = conn.execute(
+LOAD_CHUNK = 500
+
+
+def features_of(conn, oids):
+    out = {}
+    for i in range(0, len(oids), LOAD_CHUNK):
+        chunk = oids[i:i + LOAD_CHUNK]
+        rows = conn.execute("SELECT observation_id, features_json FROM observation_features WHERE algorithm=? AND "
+                            f"observation_id IN ({','.join('?' * len(chunk))})", (F.ALGORITHM, *chunk))
+        out.update({oid: json.loads(blob) for oid, blob in rows})
+    return out
+
+
+def load_rep(conn, params, moment_id, revision, enc, blob):
+    rep = Rep(moment_id, params)
+    rep.revision, rep.origin, rep.parent, rep.created = revision, None, None, None
+    rep.state, rep.merged_into, rep.dirty = "provisional", None, False
+    members = _decode(enc, blob)
+    feats = features_of(conn, [m["o"] for m in members])
+    for m in members:
+        if m["o"] in feats:
+            rep.add(m["o"], feats[m["o"]], m["role"], m["s"])
+    return rep
+
+
+def active_rows(conn):
+    return conn.execute(
         "SELECT r.moment_id, r.revision, r.members_encoding, r.members FROM moment_revisions r JOIN moments m USING (moment_id) "
         "WHERE m.algorithm=? AND r.state='provisional' AND r.revision=(SELECT max(x.revision) FROM moment_revisions x "
         "WHERE x.moment_id=r.moment_id) ORDER BY r.moment_id", (ALGORITHM,)).fetchall()
-    reps = []
-    for moment_id, revision, enc, blob in rows:
-        rep = Rep(moment_id, params)
-        rep.revision, rep.origin, rep.parent, rep.created = revision, None, None, None
-        rep.state, rep.merged_into = "provisional", None
-        rep.dirty = False
-        members = _decode(enc, blob)
-        feats = {}
-        for m in members:
-            row = conn.execute("SELECT features_json FROM observation_features WHERE observation_id=? AND algorithm=?",
-                               (m["o"], F.ALGORITHM)).fetchone()
-            if row is None:
-                continue
-            feats[m["o"]] = json.loads(row[0])
-        for m in members:
-            if m["o"] in feats:
-                rep.add(m["o"], feats[m["o"]], m["role"], m["s"])
-        reps.append(rep)
-    return reps
+
+
+def load_active(conn, params, cache=None):
+    """The provisional Moments, latest revision each. With a `cache` (moment_id -> Rep kept between passes) only Moments
+    that are not in it, or whose stored revision differs from the cached one, are read from the database; a cached Moment
+    that was never written yet is kept as it is."""
+    if cache is None:
+        return [load_rep(conn, params, *row[:2], *row[2:]) for row in active_rows(conn)]
+    stored = {r[0]: r for r in conn.execute(
+        "SELECT r.moment_id, r.revision FROM moment_revisions r JOIN moments m USING (moment_id) WHERE m.algorithm=? "
+        "AND r.state='provisional' AND r.revision=(SELECT max(x.revision) FROM moment_revisions x "
+        "WHERE x.moment_id=r.moment_id)", (ALGORITHM,))}
+    for moment_id in list(cache):
+        rep = cache[moment_id]
+        if rep.revision > 0 and (moment_id not in stored or stored[moment_id][1] != rep.revision):
+            del cache[moment_id]
+    for moment_id, (_, revision) in stored.items():
+        if moment_id not in cache:
+            row = conn.execute("SELECT moment_id, revision, members_encoding, members FROM moment_revisions WHERE moment_id=? "
+                               "AND revision=?", (moment_id, revision)).fetchone()
+            cache[moment_id] = load_rep(conn, params, *row)
+    return [cache[k] for k in sorted(cache)]
+
+
+def unassigned(conn, since_ns):
+    """Observations with stored features that no Moment holds: left by a pass that stopped before its revisions were written."""
+    return [r[0] for r in conn.execute(
+        "SELECT f.observation_id FROM observation_features f JOIN observations o USING (observation_id) "
+        "LEFT JOIN moment_member_index i ON i.observation_id=f.observation_id WHERE f.algorithm=? AND i.observation_id IS NULL "
+        "AND o.captured_at_ns >= ? ORDER BY o.captured_at_ns, o.observation_id", (F.ALGORITHM, since_ns))]
 
 
 def new_rep(moment_id, params, origin="formed", parent=None):
@@ -89,7 +126,7 @@ def assign(reps, oid, f, idf, params):
     horizon = params["candidate_horizon_s"] * S
     scored = []
     for rep in reps:
-        if rep.state != "provisional" or not rep.core() or rep.end < f["t"] - horizon:
+        if rep.state != "provisional" or not rep.has_core() or rep.end < f["t"] - horizon:
             continue
         score, ctx = rep.score(f, idf)
         scored.append((score, rep))
@@ -116,7 +153,7 @@ def merge_pass(reps, touched, idf, params):
     changed = True
     while changed:
         changed = False
-        live = sorted((r for r in reps if r.state == "provisional" and r.core()), key=lambda r: (r.start, r.moment_id))
+        live = sorted((r for r in reps if r.state == "provisional" and r.has_core()), key=lambda r: (r.start, r.moment_id))
         for i, a in enumerate(live):
             for b in live[i + 1:]:
                 if a.state != "provisional" or b.state != "provisional":
@@ -130,11 +167,10 @@ def merge_pass(reps, touched, idf, params):
                     for m in sorted(b.members, key=lambda m: (m["t"], m["o"])):
                         if m["o"] in have:
                             if m["role"] == "core" and have[m["o"]]["role"] != "core":
-                                have[m["o"]]["role"], have[m["o"]]["s"] = "core", m["s"]
-                                a._centroid = None
+                                a.promote(m["o"], m["s"])
                             continue
                         a.add(m["o"], b.features[m["o"]], m["role"], m["s"])
-                    a.dirty = True
+                    a.dirty = a.structural = True
                     b.state, b.merged_into, b.dirty = "merged", a.moment_id, True
                     touched.add(a)
                     changed = True
@@ -180,11 +216,10 @@ def split_pass(reps, touched, idf, params):
         suffix_id = moment_uuid(rep.moment_id, core[best[1]]["o"])
         tail = _slice_rep(rep, move, suffix_id, params, "split", rep.moment_id)
         head = _slice_rep(rep, keep, rep.moment_id, params, "formed", None)
-        rep.members, rep.features, rep._centroid = [], {}, None
-        rep.start = rep.end = None
+        rep.clear()
         for m in keep:
             rep.add(m["o"], head.features[m["o"]], m["role"], m["s"])
-        rep.dirty = True
+        rep.dirty = rep.structural = True
         reps.append(tail)
         touched.add(tail)
         queue.extend([rep, tail])
@@ -192,7 +227,7 @@ def split_pass(reps, touched, idf, params):
 
 def stabilise(reps, now_ns, params):
     for rep in reps:
-        if rep.state != "provisional" or not rep.core():
+        if rep.state != "provisional" or not rep.has_core():
             continue
         if now_ns - rep.end >= params["stabilise_s"] * S:
             rep.state = "stable" if len(rep.core()) >= params["min_members"] else "insufficient"
@@ -211,8 +246,19 @@ def summary(rep, idf):
             "secondary": len(rep.members) - len(core), "duration_s": round(((rep.end or 0) - (rep.start or 0)) / S, 1)}
 
 
-def write(store, reps, new_features, skips, idf, params):
+def due(rep, now_ns, params):
+    """A provisional Moment that only grew is written at most every `revision_every_s`; a new one, a state change, a merge
+    or a split is written at once. What is not written yet is not lost: its observations have stored features, and the
+    next process assigns them again (`unassigned`)."""
+    if rep.state != "provisional" or rep.structural or rep.written_ns is None:
+        return True
+    return now_ns - rep.written_ns >= params["revision_every_s"] * S
+
+
+def write(store, reps, new_features, skips, idf, params, now_ns=None):
     now = now_iso()
+    now_ns = now_ns if now_ns is not None else time.time_ns()
+    written = []
     with store.lock:
         store.db.execute("BEGIN IMMEDIATE")
         try:
@@ -221,9 +267,8 @@ def write(store, reps, new_features, skips, idf, params):
                                  (oid, F.ALGORITHM, json.dumps(f, sort_keys=True, separators=(",", ":")), ocr_id, structure_id, now))
             for oid, reason in skips:
                 store.db.execute("INSERT INTO moment_skips VALUES (?,?,?,?)", (oid, F.ALGORITHM, reason, now))
-            written = 0
             for rep in reps:
-                if not rep.dirty:
+                if not rep.dirty or not due(rep, now_ns, params):
                     continue
                 latest = store.db.execute("SELECT max(revision) FROM moment_revisions WHERE moment_id=?",
                                           (rep.moment_id,)).fetchone()[0] or 0
@@ -242,20 +287,34 @@ def write(store, reps, new_features, skips, idf, params):
                                  (rep.moment_id, rep.revision + 1, rep.state, rep.merged_into, start, end,
                                   len(members), json.dumps(params, sort_keys=True), json.dumps(summary(rep, idf), sort_keys=True),
                                   enc, blob, sha, now))
-                written += 1
+                written.append(rep)
             store.db.execute("COMMIT")
         except BaseException:
             store._rollback()
             raise
-    return written
+    for rep in written:
+        rep.revision, rep.dirty, rep.structural, rep.written_ns = rep.revision + 1, False, False, now_ns
+    return len(written)
 
 
-def run_pass(store, reader, now_ns, params=PARAMS, limit=300, since_ns=0):
+def run_pass(store, reader, now_ns, params=PARAMS, limit=300, since_ns=0, state=None):
+    """One pass. `state` (a dict kept by the caller between passes) holds the provisional Moments in memory, so a pass
+    reads only what is new; without it every pass starts from the database."""
+    cache = None if state is None else state.setdefault("reps", {})
+    first = state is None or not state.get("recovered")
     batch = ready_batch(reader, now_ns, params, since_ns, limit)
-    reps = load_active(reader, params)
+    reps = load_active(reader, params, cache)
     idf = Idf(r[0] for r in reader.execute(
         "SELECT features_json FROM observation_features WHERE algorithm=? ORDER BY rowid DESC LIMIT ?", (F.ALGORITHM, DF_WINDOW)))
     new_features, skips, touched = [], [], set()
+    if first:
+        lost = unassigned(reader, since_ns)
+        stored = features_of(reader, lost)
+        for oid in lost:
+            if oid in stored:
+                touched.add(assign(reps, oid, stored[oid], idf, params))
+        if state is not None:
+            state["recovered"] = True
     for oid, inputs in batch:
         f, reason = F.extract(inputs)
         if f is None or reason is not None:
@@ -272,7 +331,13 @@ def run_pass(store, reader, now_ns, params=PARAMS, limit=300, since_ns=0):
         if rep.state == "merged":
             rep.dirty = True
     try:
-        written = write(store, reps, new_features, skips, idf, params)
+        written = write(store, reps, new_features, skips, idf, params, now_ns)
     except sqlite3.IntegrityError:
+        if cache is not None:
+            cache.clear()
+            state["recovered"] = False
         return {"stale": 1, "processed": 0, "skipped": 0, "revisions": 0}
+    if cache is not None:
+        cache.clear()
+        cache.update({r.moment_id: r for r in reps if r.state == "provisional"})
     return {"processed": len(new_features), "skipped": len(skips), "revisions": written}

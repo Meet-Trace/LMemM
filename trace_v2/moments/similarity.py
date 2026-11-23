@@ -21,6 +21,7 @@ PARAMS = {
     "cell_presence": 0.25,
     "text_gate": 0.3,
     "gate_floor": 0.2,
+    "revision_every_s": 600.0,
 }
 S = 1_000_000_000
 
@@ -118,33 +119,95 @@ def time_factor(gap_s, tau):
 
 
 class Rep:
+    """A Moment being built. The centroid of its core members is kept as running sums, so adding an observation costs
+    the size of that observation and building the centroid costs the size of the vocabulary, never the member count."""
+
     def __init__(self, moment_id, params):
         self.moment_id, self.params = moment_id, params
         self.members = []
         self.features = {}
         self.start = self.end = None
+        self._recent = []
+        self.written_ns = None           # when the latest revision was written by this process (None: never)
+        self.structural = False          # a merge or split changed it: the next revision is written at once
+        self._n_core = 0
+        self._reset_sums()
+
+    def _reset_sums(self):
+        self._tok, self._title, self._apps, self._hosts, self._cells = Counter(), Counter(), Counter(), Counter(), Counter()
+        self._n = 0
         self._centroid = None
+        self._stale = False
+
+    def clear(self):
+        self.members, self.features, self.start, self.end, self._recent = [], {}, None, None, []
+        self._reset_sums()
+
+    def has_core(self):
+        return self._n_core > 0
+
+    def _note_core(self, oid, f):
+        self._n_core += 1
+        self._recent = sorted(self._recent + [(f["t"], oid)])[-self.params["recent"]:]
+
+    def _add_sums(self, f):
+        self._tok.update(f["tok"])
+        self._title.update(f["title"])
+        if f["app"]:
+            self._apps[f["app"]] += 1
+        if f["host"]:
+            self._hosts[f["host"]] += 1
+        self._cells.update(frozenset(f["text_cells"]) | frozenset(c + 1000 for c in f["elem_cells"]))
+        self._n += 1
 
     def add(self, oid, f, role, score):
+        """Core members move the Moment's start and end and the centroid; secondary members (overlap) do neither."""
         self.members.append({"o": oid, "t": f["t"], "role": role, "s": round(score, 4)})
         self.features[oid] = f
-        self.start = f["t"] if self.start is None else min(self.start, f["t"])
-        self.end = f["t"] if self.end is None else max(self.end, f["t"])
-        self._centroid = None
+        if role == "core":
+            self.start = f["t"] if self.start is None else min(self.start, f["t"])
+            self.end = f["t"] if self.end is None else max(self.end, f["t"])
+            self._note_core(oid, f)
+            if not self._stale:
+                self._add_sums(f)
+            self._centroid = None
+
+    def promote(self, oid, score):
+        """A secondary member became core (after a merge): the sums are rebuilt on the next use."""
+        for m in self.members:
+            if m["o"] == oid and m["role"] != "core":
+                m["role"], m["s"] = "core", score
+                f = self.features[oid]
+                self.start = f["t"] if self.start is None else min(self.start, f["t"])
+                self.end = f["t"] if self.end is None else max(self.end, f["t"])
+                self._note_core(oid, f)
+                self._stale = True
+                self._centroid = None
 
     def core(self):
         return [m for m in self.members if m["role"] == "core"]
 
     def centroid(self):
+        if self._stale:
+            self._reset_sums()
+            for m in self.core():
+                self._add_sums(self.features[m["o"]])
         if self._centroid is None:
-            self._centroid = centroid([self.features[m["o"]] for m in self.core()], self.params["cell_presence"])
+            n, presence = self._n, self.params["cell_presence"]
+            if n == 0:
+                self._centroid = Profile()
+            else:
+                self._centroid = Profile(
+                    Counter(self._tok), frozenset(k for k, v in self._title.items() if v / n >= presence),
+                    {k: v / n for k, v in self._apps.items()}, {k: v / n for k, v in self._hosts.items()},
+                    frozenset(k for k, v in self._cells.items() if v / n >= presence))
         return self._centroid
 
     def score(self, f, idf):
         p = self.params
         prof = profile_of(f)
         c = similarity(prof, self.centroid(), idf, p)
-        recent = [self.features[m["o"]] for m in sorted(self.core(), key=lambda m: (m["t"], m["o"]))[-p["recent"]:]]
+        recent = [self.features[o] for _, o in self._recent]
         r = max((similarity(prof, profile_of(x), idf, p) for x in recent), default=0.0)
         ctx = p["centroid_share"] * c + (1 - p["centroid_share"]) * r
         return ctx * time_factor((f["t"] - self.end) / S, p["tau_s"]), ctx

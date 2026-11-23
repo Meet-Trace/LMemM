@@ -386,6 +386,10 @@ class ObservationStore:
         with self.lock:
             return queries.extractions(self, observation_id, reader, include_raw=True)
 
+    def thumbnail_bytes(self, observation_id):
+        with self.lock:
+            return queries.thumbnail_bytes(self, observation_id)
+
     def screenshot_bytes(self, observation_id):
         with self.lock:
             return queries.screenshot_bytes(self, observation_id)

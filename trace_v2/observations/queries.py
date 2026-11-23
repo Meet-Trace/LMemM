@@ -141,6 +141,17 @@ def screenshot_bytes(store, oid):
         raise ScreenshotUnavailable("corrupt", str(error)) from None
 
 
+def thumbnail_bytes(store, oid):
+    """The small JPEG kept for this observation when its full screenshot was thinned out."""
+    row = store.db.execute("SELECT relative_path, sha256 FROM screenshot_thumbnails WHERE observation_id=?", (oid,)).fetchone()
+    if row is None:
+        raise ScreenshotUnavailable("no_thumbnail")
+    try:
+        return store.assets.read(row[0], row[1])
+    except FileNotFoundError:
+        raise ScreenshotUnavailable("missing") from None
+
+
 def audit(store):
     """Files on disk without a row (left by a crash between file write and commit), and rows whose file is gone
     without a recorded deletion. Read-only: reports, never deletes."""

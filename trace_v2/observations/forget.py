@@ -88,12 +88,13 @@ def forget(store, selector, dry_run=False):
             store.db.executemany("INSERT INTO deletion_grants VALUES (?,?)", ((i, request_id) for i in ids))
             store.db.execute(
                 "INSERT INTO forget_tombstones SELECT s.observation_id, ?, "
-                "CASE WHEN s.status='stored' AND d.observation_id IS NULL THEN s.relative_path END "
+                "CASE WHEN s.status='stored' AND d.observation_id IS NULL THEN s.relative_path END, "
+                "(SELECT t.relative_path FROM screenshot_thumbnails t WHERE t.observation_id = s.observation_id) "
                 "FROM screenshots s JOIN deletion_grants g USING (observation_id) "
                 "LEFT JOIN screenshot_deletions d USING (observation_id) WHERE g.request_id=?",
                 (request_id, request_id))
             granted = "observation_id IN (SELECT observation_id FROM deletion_grants WHERE request_id=?)"
-            for table in ("ocr_jobs", "interaction_events", "extractions", "screenshot_deletions", "screenshots", "observations"):
+            for table in ("ocr_jobs", "interaction_events", "extractions", "screenshot_deletions", "screenshot_thumbnails", "screenshots", "observations"):
                 store.db.execute(f"DELETE FROM {table} WHERE {granted}", (request_id,))
             store.db.execute("DELETE FROM deletion_grants WHERE request_id=?", (request_id,))
             store.db.execute("COMMIT")
@@ -114,12 +115,16 @@ def forget(store, selector, dry_run=False):
 
 def _finish(store, request_id):
     removed = missing = 0
-    for (rel,) in store.db.execute("SELECT screenshot_path FROM forget_tombstones WHERE request_id=? "
-                                   "AND screenshot_path IS NOT NULL ORDER BY observation_id", (request_id,)).fetchall():
-        if store.assets.delete(rel):
-            removed += 1
-        else:
-            missing += 1
+    for (rel, thumb) in store.db.execute("SELECT screenshot_path, thumbnail_path FROM forget_tombstones WHERE request_id=? "
+                                         "AND (screenshot_path IS NOT NULL OR thumbnail_path IS NOT NULL) ORDER BY observation_id",
+                                         (request_id,)).fetchall():
+        for path in (rel, thumb):
+            if path is None:
+                continue
+            if store.assets.delete(path):
+                removed += 1
+            else:
+                missing += 1
     store.db.execute("INSERT INTO forget_finishes VALUES (?,?,?,?)", (request_id, now_iso(), removed, missing))
     return {"files_removed": removed, "files_missing": missing}
 

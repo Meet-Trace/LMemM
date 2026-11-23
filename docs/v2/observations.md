@@ -265,3 +265,13 @@ A new screenshot is compared with the last 8 distinct screens (`DEDUP_MEMORY`), 
 with any of them is stored as a link to that file and reuses its OCR, so flipping between two windows stores two files, not
 one per capture. "Only the typing box changed" still applies to the previous screen only, because it replaces that
 screenshot.
+
+## Thinning (default retention)
+
+The default screenshot policy is `{"mode": "thin", "seconds": 7 days, "grace_seconds": 7 days}` (`permanent` and fixed
+durations still exist). Hourly, screenshots older than 7 days are deleted as before, but first one 640 px JPEG is kept per
+stable Moment (`screenshot_thumbnails`, the member nearest the middle whose file still exists). Screenshots that belong to no
+stable Moment keep nothing. While vision descriptions are in use, a stable Moment without a description keeps its
+screenshots for up to 7 more days so the model can still see them; the description worker falls back to the thumbnail when
+the original is gone. Forgetting an observation removes its thumbnail file and row. Text, structure, interaction events and
+all derived data are never thinned. Expected size: full-quality PNGs for 7 days, then roughly 30-60 KB per Moment.

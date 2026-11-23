@@ -31,7 +31,11 @@ def pick_screenshot(store, conn, ids):
             try:
                 return ids[i], store.assets.read(row[1])
             except Exception:
-                continue
+                pass
+        try:
+            return ids[i], store.thumbnail_bytes(ids[i])
+        except Exception:
+            continue
     return None, None
 
 

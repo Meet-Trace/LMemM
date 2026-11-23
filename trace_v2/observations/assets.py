@@ -44,6 +44,10 @@ class ScreenshotStore:
         day = datetime.fromtimestamp(captured_at_ns / 1e9, tz=timezone.utc)
         return f"screenshots/{day:%Y/%m/%d}/{observation_id}.{EXTENSIONS[fmt]}"
 
+    def thumbnail_path(self, observation_id, captured_at_ns):
+        day = datetime.fromtimestamp(captured_at_ns / 1e9, tz=timezone.utc)
+        return f"thumbnails/{day:%Y/%m/%d}/{observation_id}.jpg"
+
     def _resolve(self, relative, base=None):
         base = self.root if base is None else base
         path = (base / relative).resolve()

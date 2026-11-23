@@ -16,10 +16,22 @@ def fill(store, ages_days):
 
 
 class PolicyTest(unittest.TestCase):
-    def test_default_is_permanent_and_deletes_nothing(self):
+    def test_default_thins_after_seven_days_and_keeps_structured_evidence(self):
         with TempStore() as ts:
             now, ids = fill(ts.store, [400, 40, 1])
-            self.assertEqual(retention.get_policy(ts.store), {"mode": "permanent"})
+            self.assertEqual(retention.get_policy(ts.store), retention.THIN)
+            result = retention.run(ts.store, now)
+            self.assertEqual((result["examined"], result["deleted"]), (2, 2))
+            ts.store.screenshot_bytes(ids[2])
+            for oid in ids[:2]:
+                with self.assertRaises(ScreenshotUnavailable):
+                    ts.store.screenshot_bytes(oid)
+                self.assertIsNotNone(ts.store.get(oid)["evidence"]["ocr"])
+
+    def test_permanent_policy_deletes_nothing(self):
+        with TempStore() as ts:
+            retention.set_policy(ts.store, {"mode": "permanent"})
+            now, ids = fill(ts.store, [400, 40, 1])
             result = retention.run(ts.store, now)
             self.assertEqual((result["examined"], result["deleted"], result["cutoff_ns"]), (0, 0, None))
             for oid in ids:
@@ -43,7 +55,14 @@ class PolicyTest(unittest.TestCase):
             for policy in bad:
                 with self.subTest(policy), self.assertRaises(retention.InvalidPolicy):
                     retention.set_policy(ts.store, policy)
-            self.assertEqual(retention.get_policy(ts.store), {"mode": "permanent"})
+            self.assertEqual(retention.get_policy(ts.store), retention.THIN)
+
+    def test_thin_policy_values_are_checked(self):
+        with TempStore() as ts:
+            for bad in ({"mode": "thin", "seconds": 10}, {"mode": "thin", "grace_seconds": -1}, {"mode": "thin", "extra": 1}):
+                with self.subTest(bad), self.assertRaises(retention.InvalidPolicy):
+                    retention.set_policy(ts.store, bad)
+            self.assertEqual(retention.set_policy(ts.store, {"mode": "thin", "seconds": 86400})["grace_seconds"], 7 * 86400)
 
 
 class CleanupTest(unittest.TestCase):

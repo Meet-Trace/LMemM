@@ -94,3 +94,9 @@ The description packet still holds at most 8 steps (`SAMPLE`), but when a Moment
 steps are no longer evenly spaced: the cuts go where neighbouring observations differ most (shared words from app, title,
 URL and OCR text), so a short detour gets its own step. Short Moments are unchanged. The similarity measure is a simple
 word-overlap guess and untuned.
+
+### Transparent captures (C3)
+
+A front-app capture is transparent outside the front window. The vision model gets the screenshot cropped to the pixels
+that are not transparent (`vision.visible_part`), so it sees the window and no black margins. Opaque captures are sent
+whole. How well the model reads the cropped image has not been measured.

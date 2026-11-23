@@ -138,3 +138,28 @@ class SegmentTest(unittest.TestCase):
             starts = {lo for lo, _ in spans}
             self.assertIn(20, starts)
             self.assertIn(23, starts)
+
+
+class TransparentCropTest(unittest.TestCase):
+    def png(self, mode, box):
+        import io
+        from PIL import Image
+        image = Image.new(mode, (400, 300), (0, 0, 0, 0) if mode == "RGBA" else (255, 255, 255))
+        if mode == "RGBA":
+            image.paste((200, 30, 30, 255), box)
+        buffer = io.BytesIO()
+        image.save(buffer, "PNG")
+        return buffer.getvalue()
+
+    def decode(self, text):
+        import base64, io
+        from PIL import Image
+        return Image.open(io.BytesIO(base64.b64decode(text)))
+
+    def test_a_front_window_capture_is_cropped_to_the_window(self):
+        out = self.decode(vision.encode_image(self.png("RGBA", (100, 50, 300, 250)), 896))
+        self.assertEqual(out.size, (200, 200))
+
+    def test_an_opaque_capture_is_unchanged(self):
+        out = self.decode(vision.encode_image(self.png("RGB", None), 896))
+        self.assertEqual(out.size, (400, 300))

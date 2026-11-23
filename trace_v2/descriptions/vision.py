@@ -39,10 +39,18 @@ def pick_screenshot(store, conn, ids):
     return None, None
 
 
+def visible_part(image):
+    """Crop a capture that is transparent outside the front window to the area that has pixels."""
+    if image.mode not in ("RGBA", "LA", "PA") and "transparency" not in image.info:
+        return image
+    box = image.convert("RGBA").getchannel("A").point(lambda v: 255 if v > 8 else 0).getbbox()
+    return image.crop(box) if box and box != (0, 0, *image.size) else image
+
+
 def encode_image(data, side):
     from PIL import Image
     with Image.open(io.BytesIO(data)) as image:
-        image = image.convert("RGB")
+        image = visible_part(image).convert("RGB")
         image.thumbnail((side, side))
         buffer = io.BytesIO()
         image.save(buffer, "JPEG", quality=80)

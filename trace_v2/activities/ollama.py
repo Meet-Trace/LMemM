@@ -76,7 +76,7 @@ class OllamaInterpreter:
 
     def _chat(self, prompt, num_predict):
         body = {"model": self.model, "messages": [{"role": "user", "content": prompt}], "stream": False, "think": False,
-                "keep_alive": "10m", "options": {"num_ctx": 4096, "num_predict": num_predict, "temperature": 0}}
+                "keep_alive": "2m", "options": {"num_ctx": 4096, "num_predict": num_predict, "temperature": 0}}
         return (self._post("/api/chat", body).get("message", {}).get("content") or "").strip()
 
     def interpret(self, moment):

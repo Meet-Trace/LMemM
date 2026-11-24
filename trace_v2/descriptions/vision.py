@@ -63,7 +63,7 @@ class OllamaVision:
         self.options = {**DESCRIBE, **(options or {})}
 
     def chat(self, text, images):
-        body = {"model": self.model, "stream": False, "think": False, "keep_alive": "10m",
+        body = {"model": self.model, "stream": False, "think": False, "keep_alive": "2m",
                 "messages": [{"role": "user", "content": text, "images": images}],
                 "options": {"num_ctx": self.options["num_ctx"], "num_predict": self.options["num_predict"]}}
         request = urllib.request.Request(self.host + "/api/chat", json.dumps(body).encode(), {"Content-Type": "application/json"})

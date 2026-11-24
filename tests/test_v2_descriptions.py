@@ -113,7 +113,7 @@ class DescriptionTest(unittest.TestCase):
         self.assertEqual(parse_battery("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1) 12%; discharging")["percent"], 12)
         self.assertEqual(parse_memory_free("System-wide memory free percentage: 7%"), 7)
         reply = {"pmset": "Now drawing from 'Battery Power' 50%", "memory_pressure": "free percentage: 7%"}
-        self.assertEqual(pause_reason(runner=lambda c: reply[c[0]]), "only 7% memory free")
+        self.assertEqual(pause_reason(runner=lambda c: reply.get(c[0], "")), "only 7% memory free")
         self.assertIsNone(pause_reason(runner=lambda c: ""))
 
 
@@ -163,3 +163,30 @@ class TransparentCropTest(unittest.TestCase):
     def test_an_opaque_capture_is_unchanged(self):
         out = self.decode(vision.encode_image(self.png("RGB", None), 896))
         self.assertEqual(out.size, (400, 300))
+
+
+class IdleGateTest(unittest.TestCase):
+    IDLE = '| |   "HIDIdleTime" = %d'
+
+    def test_model_work_waits_while_you_are_working(self):
+        from trace_v2.descriptions.gate import parse_idle_s
+        self.assertEqual(parse_idle_s(self.IDLE % 5_000_000_000), 5.0)
+        self.assertIsNone(parse_idle_s("nothing here"))
+        busy = lambda c: self.IDLE % 5_000_000_000 if c[0] == "ioreg" else ""
+        away = lambda c: self.IDLE % 90_000_000_000 if c[0] == "ioreg" else ""
+        self.assertIn("you are working", pause_reason(runner=busy))
+        self.assertIsNone(pause_reason(runner=away))
+        self.assertIsNone(pause_reason(min_idle_s=0, runner=busy))
+
+    def test_the_activity_processor_does_nothing_while_the_gate_says_wait(self):
+        from test_v2_activities import FakeInterpreter, build
+        from trace_v2.activities.processor import ActivityProcessor
+        with TempStore() as ts:
+            build(ts)
+            fake = FakeInterpreter()
+            proc = ActivityProcessor(ts.store, fake, gate=lambda: "you are working", clock_ns=lambda: build.__globals__["NOW"])
+            self.assertEqual(sum(proc.run_once().values()), 0)
+            self.assertEqual(fake.interpreted, 0)
+            self.assertEqual(proc.stats()["paused"], "you are working")
+            proc.gate = lambda: None
+            self.assertGreater(proc.run_once()["interpreted"], 0)

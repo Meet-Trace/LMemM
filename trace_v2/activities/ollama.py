@@ -1,8 +1,10 @@
 import json
 import re
-import urllib.request
 
 import numpy as np
+
+from ..descriptions.call import post_json
+from ..descriptions.gate import user_active
 
 PROMPT_VERSION = "purpose-match/1"
 
@@ -65,14 +67,12 @@ def text_action(moment):
 class OllamaInterpreter:
     prompt_version = PROMPT_VERSION
 
-    def __init__(self, model, host="http://127.0.0.1:11434", embed_model="embeddinggemma", describe=text_action, timeout=300, description_model=None):
-        self.description_model = description_model
+    def __init__(self, model, host="http://127.0.0.1:11434", embed_model="embeddinggemma", describe=text_action, timeout=300, description_model=None, abort_when=user_active):
+        self.description_model, self.abort_when = description_model, abort_when
         self.model, self.host, self.embed_model, self.describe, self.timeout = model, host, embed_model, describe, timeout
 
     def _post(self, path, body):
-        request = urllib.request.Request(self.host + path, json.dumps(body).encode(), {"Content-Type": "application/json"})
-        with urllib.request.urlopen(request, timeout=self.timeout) as response:
-            return json.loads(response.read())
+        return post_json(self.host + path, body, self.timeout, self.abort_when)
 
     def _chat(self, prompt, num_predict):
         body = {"model": self.model, "messages": [{"role": "user", "content": prompt}], "stream": False, "think": False,

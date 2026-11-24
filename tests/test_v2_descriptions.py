@@ -190,3 +190,57 @@ class IdleGateTest(unittest.TestCase):
             self.assertEqual(proc.stats()["paused"], "you are working")
             proc.gate = lambda: None
             self.assertGreater(proc.run_once()["interpreted"], 0)
+
+
+class InterruptedCallTest(unittest.TestCase):
+    def serve(self, delay):
+        import http.server, threading, time as _t
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                _t.sleep(delay)
+                try:
+                    body = b'{"message": {"content": "ok"}}'
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except OSError:
+                    pass
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_address[1]}/api/chat"
+
+    def test_a_call_is_cut_when_the_user_comes_back(self):
+        import time as _t
+        from trace_v2.descriptions.call import Interrupted, post_json
+        url = self.serve(5)
+        started = _t.perf_counter()
+        with self.assertRaises(Interrupted):
+            post_json(url, {}, 30, abort_when=lambda: True, poll_s=0.1)
+        self.assertLess(_t.perf_counter() - started, 3)
+
+    def test_a_call_that_is_left_alone_returns_its_answer(self):
+        from trace_v2.descriptions.call import post_json
+        self.assertEqual(post_json(self.serve(0.2), {}, 30, abort_when=lambda: False, poll_s=0.1)["message"]["content"], "ok")
+
+    def test_an_interrupted_description_is_not_recorded_or_counted_as_a_failure(self):
+        from trace_v2.descriptions.call import Interrupted
+
+        class Client:
+            def chat(self, text, images):
+                raise Interrupted()
+
+        with mock.patch.object(vision, "encode_image", lambda data, side: "img"), TempStore() as ts:
+            build(ts)
+            state = {}
+            with self.assertRaises(Interrupted):
+                step(ts, Client(), state=state)
+            self.assertEqual(state.get("attempts", {}), {})
+            self.assertEqual(ts.store.derived.execute("SELECT count(*) FROM moment_descriptions").fetchone()[0], 0)

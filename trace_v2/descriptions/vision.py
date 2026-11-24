@@ -2,8 +2,9 @@ import base64
 import io
 import json
 import time
-import urllib.request
 
+from .call import post_json
+from .gate import user_active
 from .parse import build_prompt, parse_output
 from .read import packet
 
@@ -58,17 +59,15 @@ def encode_image(data, side):
 
 
 class OllamaVision:
-    def __init__(self, model, host="http://127.0.0.1:11434", options=None):
-        self.model, self.host = model, host
+    def __init__(self, model, host="http://127.0.0.1:11434", options=None, abort_when=user_active):
+        self.model, self.host, self.abort_when = model, host, abort_when
         self.options = {**DESCRIBE, **(options or {})}
 
     def chat(self, text, images):
         body = {"model": self.model, "stream": False, "think": False, "keep_alive": "2m",
                 "messages": [{"role": "user", "content": text, "images": images}],
                 "options": {"num_ctx": self.options["num_ctx"], "num_predict": self.options["num_predict"]}}
-        request = urllib.request.Request(self.host + "/api/chat", json.dumps(body).encode(), {"Content-Type": "application/json"})
-        with urllib.request.urlopen(request, timeout=self.options["timeout"]) as response:
-            return (json.loads(response.read()).get("message") or {}).get("content") or ""
+        return (post_json(self.host + "/api/chat", body, self.options["timeout"], self.abort_when).get("message") or {}).get("content") or ""
 
 
 def describe(store, conn, client, moment_id, start_ns, end_ns, options=None):

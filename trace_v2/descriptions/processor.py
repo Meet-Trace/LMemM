@@ -4,6 +4,7 @@ import time
 
 from ..structure.processor import read_connection
 from .builder import PARAMS, run_pass
+from .call import Interrupted
 from .gate import pause_reason
 
 log = logging.getLogger("trace_v2.descriptions")
@@ -53,6 +54,8 @@ class DescriptionProcessor:
             try:
                 out = self.run_once()
                 busy = bool(out["described"] or out["insufficient"] or out["failed"])
+            except Interrupted:
+                self._state["paused"] = "you are back"
             except Exception:
                 log.exception("description processor iteration failed")
             if not busy:

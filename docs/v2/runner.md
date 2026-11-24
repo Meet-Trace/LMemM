@@ -281,3 +281,10 @@ description and the activity processors share one gate (`descriptions/gate.py`):
 (`ioreg -c IOHIDSystem`, no permission needed). A call already running is not interrupted. Loaded models are released
 after 2 minutes (`keep_alive`), not 10. Unreadable values never pause, so other platforms are unaffected.
 Not yet confirmed: that the model was the cause of the timeouts; a run without model flags is the control.
+
+### A running model call stops when you come back
+
+The idle gate only stops a call from starting. `descriptions/call.py` also watches each model call while it runs: when
+the keyboard or mouse is used (idle under 3 s, polled every second) it cuts the connection, Ollama stops generating, and
+`Interrupted` is raised. It is a BaseException so it is not counted as a failed attempt and nothing is written; the Moment
+is tried again the next time you are away. Embeddings run on the CPU and are cut the same way.

@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 
+from ..descriptions.call import Interrupted
 from ..descriptions.gate import pause_reason
 from ..structure.processor import read_connection
 from .builder import PARAMS, run_pass
@@ -59,6 +60,8 @@ class ActivityProcessor:
             try:
                 out = self.run_once()
                 busy = out["interpreted"] + out["joined"] + out["created"] >= 4
+            except Interrupted:
+                self._state["paused"] = "you are back"
             except Exception:
                 log.exception("activity processor iteration failed")
             if not busy:

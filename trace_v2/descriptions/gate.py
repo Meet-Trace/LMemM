@@ -39,3 +39,9 @@ def pause_reason(min_battery=20, min_free_pct=10, min_idle_s=60, runner=run):
     if free is not None and free < min_free_pct:
         return f"only {free}% memory free"
     return None
+
+
+def user_active(within_s=3, runner=run):
+    """True when the keyboard or mouse was used in the last `within_s` seconds. Unreadable means not active."""
+    idle = parse_idle_s(runner(["ioreg", "-c", "IOHIDSystem"]))
+    return idle is not None and idle < within_s

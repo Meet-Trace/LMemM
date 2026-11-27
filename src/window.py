@@ -30,6 +30,7 @@ import notes
 import keynav
 import page_model
 import palette
+import v2_history
 import project_actions
 import rules
 import setup_kit as kit
@@ -286,6 +287,7 @@ class MainWindow:
 
     def __init__(self, on_press, data, on_tick=None, on_add_note=None, on_project=None, on_project_undo=None, suggest=None, prefs=None, on_memory=None, memory_view=None, history=None):
         self.on_memory=on_memory or (lambda action,payload:None)
+        self.v2_seen = 0                                               # v2_history.version() when the page was last drawn
         self.history = history or (lambda: None)                     # where Work History reads from (history_model.py)
         self.memory_view=memory_view
         self.memory_pane=None
@@ -694,6 +696,9 @@ class MainWindow:
         if self.visible():
             if self.flow_signature() != self.flow_sig:
                 self.render()
+            elif self.nav["view"] == "history" and v2_history.version() != self.v2_seen:
+                self.v2_seen = v2_history.version()          # the background V2 read finished after the page was drawn
+                self.render_now()
 
     def flow_signature(self):
         """Everything that changes with the clock: a ticked note's hold, and the line at the bottom."""
@@ -778,6 +783,7 @@ class MainWindow:
     def _render(self):
         reg, items = self.data()
         now = time.time()
+        self.v2_seen = v2_history.version() if self.nav["view"] == "history" else self.v2_seen
         page = page_model.view(reg, items, self.nav, fading=self.flow.holding(now), sugg=self.suggest(),
                                prefs=self.prefs(self.nav["sec"]) if self.nav["view"] == "settings" else None,
                                hist=self.history() if self.nav["view"] == "history" else None)

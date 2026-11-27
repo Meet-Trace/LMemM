@@ -92,6 +92,24 @@ class V2(unittest.TestCase):
         self.save()
         self.assertEqual([r["id"] for r in self.rows_of(self.page())], ["keep"])
 
+    def test_a_finished_background_read_is_announced_and_forgotten_moments_leave_the_name_cache(self):
+        self.moment("m1", "09:00:00", "09:05:00")
+        self.moment("m2", "09:10:00", "09:15:00")
+        self.save()
+        before = v2_history.version()
+        v2_history.read(self.data, wait=True)
+        self.assertEqual(v2_history.version(), before + 1)
+        self.assertEqual(set(v2_history._APPS[os.path.join(self.data, "observations.sqlite3")]), {"m1", "m2"})
+        self.dv.execute("DELETE FROM moment_revisions WHERE moment_id='m2'")
+        self.dv.commit()
+        v2_history._CACHE.pop("read")
+        v2_history.read(self.data, wait=True)
+        self.assertEqual(set(v2_history._APPS[os.path.join(self.data, "observations.sqlite3")]), {"m1"})
+
+    def test_the_window_asks_again_when_the_background_read_finishes(self):
+        window = open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")).read()
+        self.assertIn("v2_history.version() != self.v2_seen", window)
+
     def test_no_files_no_database_or_nothing_described_is_no_v2_data(self):
         self.assertIsNone(v2_history.read(self.data, wait=True))
         self.moment("m1", "09:00:00", "09:05:00", what="", why="")

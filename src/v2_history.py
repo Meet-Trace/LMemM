@@ -87,6 +87,12 @@ def _refresh(key, db, derived):
     with _LOCK:
         _CACHE["read"] = (key, out, (db, derived))
         _CACHE["busy"] = False
+        _CACHE["version"] = _CACHE.get("version", 0) + 1
+
+
+def version():
+    """Counts finished background reads, so a window that got None the first time can tell when to ask again."""
+    return _CACHE.get("version", 0)
 
 
 def _read(db, derived):
@@ -99,6 +105,8 @@ def _read(db, derived):
             rows = conn.execute(_MOMENTS).fetchall()
             members = dict(conn.execute(_ACTIVITIES).fetchall())
             apps = _APPS.setdefault(db, {})
+            for gone in set(apps) - {r[0] for r in rows}:          # a forgotten or merged Moment's name is not kept
+                del apps[gone]
             for mid, *_ in rows:
                 if mid in apps:
                     continue                                       # the app of a Moment's observations does not change once it is stable

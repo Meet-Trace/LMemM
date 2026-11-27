@@ -15,3 +15,9 @@ exist. `src/v2_history.py` reads them directly from the V2 store, read only: `ob
 - Without a derived file, or with no described Moments, the page falls back to the rule-based Moments as before.
 
 Not verified on a Mac: the page itself (AppKit); only the model, bridge and tests ran here.
+
+### First open and caches
+
+`read()` never waits, so the first call returns None while a background read runs. `v2_history.version()` counts finished
+reads; the window's tick (a few times a second) redraws the History page once when it changes, so Moments appear without
+a click. The per-Moment app-name cache drops Moments that are no longer shown (forgotten or merged).

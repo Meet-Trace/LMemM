@@ -550,6 +550,9 @@ class Tracker:
         """Screenshot the front window's display and queue it. Returns its metadata."""
         if self.manual_paused or any(self.flags.values()):
             return None
+        if not config.OWN_CAPTURE and trigger not in ("note", "pin"):
+            self.last_capture = time.time()          # V2 is the engine; the pill and window do not grab the screen
+            return None
         self.last_capture = time.time()
         f = macos.front()
         if f is None:

@@ -698,7 +698,7 @@ class MainWindow:
                 self.render()
             elif self.nav["view"] == "history" and v2_history.version() != self.v2_seen:
                 self.v2_seen = v2_history.version()          # the background V2 read finished after the page was drawn
-                self.render_now()
+                self.render()
 
     def flow_signature(self):
         """Everything that changes with the clock: a ticked note's hold, and the line at the bottom."""

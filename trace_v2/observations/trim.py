@@ -12,7 +12,7 @@ from .store import now_iso
 
 KEY = "raw_retention_days"
 DEFAULT_DAYS = 30
-BATCH = 500
+BATCH = 100
 
 
 def get_days(store):

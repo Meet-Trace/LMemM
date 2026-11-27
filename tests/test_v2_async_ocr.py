@@ -650,6 +650,21 @@ class Migration0002Test(unittest.TestCase):
             self.assertEqual([p.name for p in Path(tmp).glob("*.bak")], ["o.sqlite3.pre-v2.bak"])
             conn.close()
 
+    def test_a_failed_migration_renames_its_backup_so_a_retry_is_not_blocked_and_a_good_one_keeps_only_the_newest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "o.sqlite3"
+            conn = db.connect(path)
+            db.migrate(conn, path, db.migrations()[:1])
+            bad = db.migrations()[:2]
+            bad[1] = (bad[1][0], bad[1][1], "SELECT * FROM no_such_table", bad[1][3])
+            with self.assertRaises(Exception):
+                db.migrate(conn, path, bad)
+            self.assertEqual([p.name for p in Path(tmp).glob("*.bak")], ["o.sqlite3.failed-v2.bak"])
+            (Path(tmp) / "o.sqlite3.pre-v1.bak").write_bytes(b"old")
+            db.migrate(conn, path)                                # the retry works
+            self.assertEqual(sorted(p.name for p in Path(tmp).glob("*.bak")), ["o.sqlite3.failed-v2.bak", "o.sqlite3.pre-v2.bak"])
+            conn.close()
+
     def test_a_leftover_backup_still_blocks_migration(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "o.sqlite3"

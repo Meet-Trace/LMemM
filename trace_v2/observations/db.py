@@ -122,10 +122,10 @@ def migrate(connection, path=None, known=None):
     """Apply every pending migration. Returns the list of versions applied."""
     known = known if known is not None else migrations()
     version = _check(connection, known)
-    done = []
+    done, backup = [], None
     for v, name, sql, sha in known[version:]:
-        if path is not None and not done:        # one backup per run, before the first pending step
-            _backup(connection, path, v)
+        if path is not None and backup is None:  # one backup per run, before the first pending step
+            backup = _backup(connection, path, v)
         connection.execute("BEGIN IMMEDIATE")
         try:
             connection.execute("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, "
@@ -138,8 +138,14 @@ def migrate(connection, path=None, known=None):
             connection.execute("COMMIT")
         except BaseException:
             connection.execute("ROLLBACK")
+            if backup is not None:               # keep the copy for inspection, but not under the name that blocks the next start
+                backup.replace(backup.with_name(backup.name.replace(".pre-v", ".failed-v")))
             raise
         done.append(v)
+    if backup is not None:                       # keep only the newest backup, so updates do not pile up copies
+        for old in backup.parent.glob(Path(path).name + ".pre-v*.bak"):
+            if old != backup:
+                old.unlink(missing_ok=True)
     return done
 
 

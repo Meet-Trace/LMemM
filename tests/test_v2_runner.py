@@ -314,6 +314,17 @@ class StartupSteps(unittest.TestCase):
             self.assertEqual(runner.retention_runs, 1)
             self.assertEqual(len(t.store.list(limit=10)), 1)
 
+    def test_trim_stops_after_its_time_budget_and_continues_next_run(self):
+        from unittest import mock
+        clock = iter(range(0, 1000, 1))                       # each _monotonic() call is one second later
+        with TempStore() as t:
+            runner = make_runner(t.store, monotonic=lambda: next(clock))
+            calls = []
+            with mock.patch("trace_v2.runner.retention.run"), mock.patch(
+                    "trace_v2.runner.trim.run", lambda *a, **k: calls.append(1) or {"trimmed": 5}):
+                runner._run_retention()
+            self.assertEqual(len(calls), 3)                   # deadline = 1 + 2 s; stops once past it, not after "all rows"
+
 
 class StatsRecord(unittest.TestCase):
     def test_periodic_stats_are_written_outside_the_evidence_tables(self):

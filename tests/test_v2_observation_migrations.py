@@ -63,7 +63,7 @@ class MigrationTest(unittest.TestCase):
             db.migrate(conn, self.path, broken)
         self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], db.LATEST_VERSION)
         self.assertIsNone(conn.execute("SELECT 1 FROM sqlite_master WHERE name='extra'").fetchone())
-        backup = self.path.with_name(self.path.name + f".pre-v{db.LATEST_VERSION + 1}.bak")
+        backup = self.path.with_name(self.path.name + f".failed-v{db.LATEST_VERSION + 1}.bak")   # renamed so a retry is not blocked
         copy = sqlite3.connect(backup)
         self.assertEqual(copy.execute("SELECT value_json FROM settings").fetchone()[0], "1")
         copy.close()

@@ -294,4 +294,7 @@ is tried again the next time you are away. Embeddings run on the CPU, are short,
 
 One retention run spends at most `TRIM_BUDGET_S` (2 s) trimming raw data; the rest waits for the next hourly run, so a
 first run on a big database no longer holds up capture. A migration run writes one backup before its first pending
-step (not one per step), so several new migrations on a large database cost one copy of disk, not several.
+step (not one per step), so several new migrations on a large database cost one copy of disk, not several. A failed run
+renames its backup to `.failed-vN.bak` (kept for inspection; under the old name it would block every later start);
+a good run keeps only the newest `.pre-vN.bak`. Trim works in
+batches of 100 rows.

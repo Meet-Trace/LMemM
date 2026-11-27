@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from unittest import mock
 
@@ -209,6 +210,31 @@ class IdleGateTest(unittest.TestCase):
             self.assertEqual(proc.stats()["paused"], "you are working")
             proc.gate = lambda: None
             self.assertGreater(proc.run_once()["interpreted"], 0)
+
+    def test_an_interrupted_activity_call_stops_the_loop_cleanly_and_counts_nothing(self):
+        from test_v2_activities import FakeInterpreter, build
+        from trace_v2.activities.processor import ActivityProcessor
+        from trace_v2.descriptions.call import Interrupted
+
+        class Back(FakeInterpreter):
+            def interpret(self, moment):
+                raise Interrupted()
+
+        with TempStore() as ts:
+            build(ts)
+            proc = ActivityProcessor(ts.store, Back(), gate=lambda: None, clock_ns=lambda: build.__globals__["NOW"], interval_s=0.05)
+            proc.start()
+            time.sleep(0.5)
+            proc.stop()
+            self.assertEqual(proc.stats()["paused"], "you are back")
+            self.assertFalse(proc._state.get("attempts"))
+
+    def test_embeddings_skip_the_cancel_check(self):
+        from trace_v2.activities import ollama
+        seen = []
+        with mock.patch.object(ollama, "post_json", lambda url, body, timeout, abort: seen.append(abort) or {"embeddings": [[1.0, 0.0]]}):
+            ollama.OllamaInterpreter("m", abort_when=lambda: True).embed(["a"])
+        self.assertEqual(seen, [None])
 
 
 class InterruptedCallTest(unittest.TestCase):

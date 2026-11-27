@@ -288,7 +288,7 @@ Not yet confirmed: that the model was the cause of the timeouts; a run without m
 The idle gate only stops a call from starting. `descriptions/call.py` also watches each model call while it runs: when
 the keyboard or mouse is used or the screen changes (under 3 s, polled every second) it cuts the connection, Ollama stops generating, and
 `Interrupted` is raised. It is a BaseException so it is not counted as a failed attempt and nothing is written; the Moment
-is tried again the next time you are away. Embeddings run on the CPU and are cut the same way.
+is tried again the next time you are away. Embeddings run on the CPU, are short, and are not watched (no `ioreg` poll).
 
 ### Trim and migration backups are bounded
 

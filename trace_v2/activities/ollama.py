@@ -71,8 +71,8 @@ class OllamaInterpreter:
         self.description_model, self.abort_when = description_model, abort_when
         self.model, self.host, self.embed_model, self.describe, self.timeout = model, host, embed_model, describe, timeout
 
-    def _post(self, path, body):
-        return post_json(self.host + path, body, self.timeout, self.abort_when)
+    def _post(self, path, body, abort=True):
+        return post_json(self.host + path, body, self.timeout, self.abort_when if abort else None)
 
     def _chat(self, prompt, num_predict):
         body = {"model": self.model, "messages": [{"role": "user", "content": prompt}], "stream": False, "think": False,
@@ -85,7 +85,8 @@ class OllamaInterpreter:
         return {"action": action, **parsed}
 
     def embed(self, texts):
-        reply = self._post("/api/embed", {"model": self.embed_model, "input": texts, "keep_alive": "5m", "options": {"num_gpu": 0}})
+        # CPU and short: not worth a cancel check (an ioreg run every second)
+        reply = self._post("/api/embed", {"model": self.embed_model, "input": texts, "keep_alive": "5m", "options": {"num_gpu": 0}}, abort=False)
         vectors = np.asarray(reply["embeddings"], dtype=np.float32)
         return vectors / np.maximum(np.linalg.norm(vectors, axis=1, keepdims=True), 1e-9)
 

@@ -200,6 +200,19 @@ class IdleGateTest(unittest.TestCase):
         t._remember(45 * 10**9, context, None, "no_probe")           # a failing screen probe is not activity
         self.assertEqual(t.screen_idle_s(50 * 10**9), 50.0)
 
+    def test_idle_heartbeats_wait_while_a_model_call_runs_but_real_changes_do_not(self):
+        from types import SimpleNamespace as NS
+        from trace_v2.observations.trigger import CaptureTrigger
+        context = NS(application={}, window={}, display={})
+        t = CaptureTrigger()
+        for reason, held in (("heartbeat", None), ("idle_heartbeat", None), ("screen", "screen"), ("input", "input")):
+            t._reason = lambda *a, reason=reason: reason
+            t.hold = lambda: True
+            self.assertEqual(t.decide(1, context, None, []), held)
+        t._reason = lambda *a: "heartbeat"
+        t.hold = lambda: False
+        self.assertEqual(t.decide(1, context, None, []), "heartbeat")
+
     def test_the_activity_processor_does_nothing_while_the_gate_says_wait(self):
         from test_v2_activities import FakeInterpreter, build
         from trace_v2.activities.processor import ActivityProcessor

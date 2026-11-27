@@ -81,6 +81,7 @@ class CaptureTrigger:
         self.counts = {}
         self.ax_memory = {}                    # the last accessibility read, reused by heartbeat captures (pipeline.py)
         self._last_at = self._active_at = self._signature = self._picture = None
+        self.hold = None                       # () -> True while a model call runs: idle heartbeats wait (a screenshot would time out)
         self._changed_at = None                # last capture caused by a real change or input (not a heartbeat or a failed probe)
 
     def set_params(self, params):
@@ -89,6 +90,8 @@ class CaptureTrigger:
     def decide(self, t_ns, context, probe_png, events):
         """-> the reason to capture now, or None to skip this tick."""
         reason = self._reason(t_ns, context, probe_png, events)
+        if reason in ("heartbeat", "idle_heartbeat") and self.hold is not None and self.hold():
+            reason = None
         if reason is not None:
             self._remember(t_ns, context, probe_png, reason)
             self.counts[reason] = self.counts.get(reason, 0) + 1

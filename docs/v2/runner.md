@@ -298,3 +298,10 @@ step (not one per step), so several new migrations on a large database cost one 
 renames its backup to `.failed-vN.bak` (kept for inspection; under the old name it would block every later start);
 a good run keeps only the newest `.pre-vN.bak`. Trim works in
 batches of 100 rows.
+
+### Screenshots wait while a model call runs
+
+A model call holds the GPU, and a screenshot asked for meanwhile can time out (on a real Mac: 6 of 14 failed with the
+vision model on, 1 of 32 with it off). `descriptions/call.py` counts running calls (`busy()`); the capture trigger holds
+back heartbeat captures (`heartbeat`, `idle_heartbeat`) while one runs. Captures caused by a change or input are not held:
+those also cancel the call (see above).

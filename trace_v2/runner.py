@@ -383,6 +383,8 @@ class Runner:
                 self.activity_processor.start()
         if not once:
             extra["trigger"] = CaptureTrigger(trigger.get_params(self.store))
+            from .descriptions.call import busy
+            extra["trigger"].hold = busy
         self.observer = self._observer_factory(self.store, self.sources, self.buffer, interval_s=self.interval_s,
                                                clock_ns=self._clock_ns, on_decision=self._on_decision,
                                                policy=self.policy, final_always=True, **extra)

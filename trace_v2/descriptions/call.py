@@ -19,7 +19,27 @@ class Interrupted(BaseException):
     pass
 
 
+_in_flight = 0
+_in_flight_lock = threading.Lock()
+
+
+def busy():
+    """True while any model call is running: it holds the GPU, and a screenshot asked for meanwhile can time out."""
+    return _in_flight > 0
+
+
 def post_json(url, body, timeout, abort_when=user_active, poll_s=1.0):
+    global _in_flight
+    with _in_flight_lock:
+        _in_flight += 1
+    try:
+        return _post_json(url, body, timeout, abort_when, poll_s)
+    finally:
+        with _in_flight_lock:
+            _in_flight -= 1
+
+
+def _post_json(url, body, timeout, abort_when, poll_s):
     parts = urllib.parse.urlsplit(url)
     conn = http.client.HTTPConnection(parts.hostname, parts.port or 80, timeout=timeout)
     state, done = {"aborted": False}, threading.Event()

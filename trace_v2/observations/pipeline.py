@@ -32,6 +32,7 @@ import time
 import uuid
 
 from . import privacy
+from . import trigger as trigger_module
 from .dedup import QUIET_REASONS
 from .models import (READERS, CaptureDraft, Context, ReaderResult, ScopeUnavailable, ScreenshotCapture,
                      ScreenshotFailure, ScreenshotWithheld, short_error)
@@ -149,6 +150,9 @@ def build_draft(sources, buffer, capture_key, policy=None, clock_ns=time.time_ns
     batch = buffer.take(t)
     reason = None
     if trigger is not None and not decision.withheld and hasattr(sources, "probe"):
+        if trigger.hold is not None and trigger.hold() and not trigger_module.has_input(batch.events):
+            batch.restore()                      # a model call holds the GPU: no probe or screenshot (they time out) until it ends or you act
+            return None, None
         reason = trigger.decide(t, context, _probe(sources), batch.events)
         if reason is None:
             batch.restore()

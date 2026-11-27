@@ -213,6 +213,23 @@ class IdleGateTest(unittest.TestCase):
         t.hold = lambda: False
         self.assertEqual(t.decide(1, context, None, []), "heartbeat")
 
+    def test_no_probe_or_screenshot_is_taken_while_a_model_call_runs_unless_you_give_input(self):
+        from trace_v2.observations import pipeline
+        from trace_v2.observations.trigger import CaptureTrigger
+        from types import SimpleNamespace as NS
+        probed = []
+        sources = NS(probe=lambda: probed.append(1))
+        trig = CaptureTrigger()
+        trig.hold = lambda: True
+        batch = NS(events=[], restore=lambda: None)
+        buffer = NS(take=lambda t: batch)
+        with mock.patch.object(pipeline, "_read_context", lambda s: NS(application={}, window={}, display={})), \
+                mock.patch.object(pipeline.privacy, "gate", lambda *a: NS(withheld=False, reason=None)), \
+                mock.patch.object(pipeline, "_secure_input", lambda s: False), \
+                mock.patch.object(pipeline, "_probe", lambda s: probed.append(1)):
+            self.assertEqual(pipeline.build_draft(sources, buffer, "k", trigger=trig), (None, None))
+        self.assertEqual(probed, [])
+
     def test_the_activity_processor_does_nothing_while_the_gate_says_wait(self):
         from test_v2_activities import FakeInterpreter, build
         from trace_v2.activities.processor import ActivityProcessor

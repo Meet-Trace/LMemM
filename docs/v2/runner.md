@@ -303,5 +303,6 @@ batches of 100 rows.
 
 A model call holds the GPU, and a screenshot asked for meanwhile can time out (on a real Mac: 6 of 14 failed with the
 vision model on, 1 of 32 with it off). `descriptions/call.py` counts running calls (`busy()`); the capture trigger holds
-back heartbeat captures (`heartbeat`, `idle_heartbeat`) while one runs. Captures caused by a change or input are not held:
-those also cancel the call (see above).
+back heartbeat captures (`heartbeat`, `idle_heartbeat`) while one runs. A second run on a Mac still timed out (27 of 29),
+because the tiny probe picture also waits behind the model and a failed probe forces a full capture. So while a call runs
+the observer takes no probe and no screenshot at all, unless you give input (which also cancels the call).

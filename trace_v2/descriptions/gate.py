@@ -26,12 +26,16 @@ def parse_idle_s(text):
     return int(idle.group(1)) / 1e9 if idle else None
 
 
-def pause_reason(min_battery=20, min_free_pct=10, min_idle_s=60, runner=run):
+def pause_reason(min_battery=20, min_free_pct=10, min_idle_s=60, runner=run, screen_idle=None):
     """-> why heavy work should wait, or None. Unknown readings never pause (so this is harmless off macOS).
-    Model work waits until you have not touched the keyboard or mouse for `min_idle_s`, so it never competes with you."""
+    Model work waits until you have not touched the keyboard or mouse, and the screen has not changed, for `min_idle_s`,
+    so it never competes with you (reading or watching a video counts as working). `screen_idle()` -> seconds or None."""
     idle = parse_idle_s(runner(["ioreg", "-c", "IOHIDSystem"]))
     if min_idle_s and idle is not None and idle < min_idle_s:
         return f"you are working (idle {int(idle)} s)"
+    seen = screen_idle() if screen_idle else None
+    if min_idle_s and seen is not None and seen < min_idle_s:
+        return f"the screen is changing (still {int(seen)} s)"
     battery = parse_battery(runner(["pmset", "-g", "batt"]))
     if battery["source"] == "battery" and battery["percent"] is not None and battery["percent"] < min_battery:
         return f"battery at {battery['percent']}%"
@@ -41,7 +45,11 @@ def pause_reason(min_battery=20, min_free_pct=10, min_idle_s=60, runner=run):
     return None
 
 
-def user_active(within_s=3, runner=run):
-    """True when the keyboard or mouse was used in the last `within_s` seconds. Unreadable means not active."""
+def user_active(within_s=3, runner=run, screen_idle=None):
+    """True when the keyboard or mouse was used, or the screen changed, in the last `within_s` seconds.
+    Unreadable means not active."""
     idle = parse_idle_s(runner(["ioreg", "-c", "IOHIDSystem"]))
-    return idle is not None and idle < within_s
+    if idle is not None and idle < within_s:
+        return True
+    seen = screen_idle() if screen_idle else None
+    return seen is not None and seen < within_s

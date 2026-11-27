@@ -26,6 +26,7 @@ Stats are not evidence: `runner_stats.json` in the data dir is rewritten atomica
 """
 
 import errno
+import functools
 import json
 import logging
 import os
@@ -299,6 +300,11 @@ class Runner:
     def _on_decision(self, decision, context):
         self.gate.capture_decision(decision.withheld, (context.application or {}).get("bundle_id"))
 
+    def _screen_idle_s(self):
+        """Seconds since the screen last changed or you gave input, as the capture trigger saw it; None if unknown."""
+        trigger = getattr(self.observer, "trigger", None)
+        return trigger.screen_idle_s(self._clock_ns()) if trigger is not None else None
+
     def _reconcile_front_app(self):
         """Feed the current front app to the input gate, as an activation notification would. Covers the start (before
         any notification) and a notification that was missed. A failed read blocks input until the next good one."""
@@ -361,12 +367,17 @@ class Runner:
             self.moment_processor.start()
             if self.vision_model:
                 from .descriptions import DescriptionProcessor, OllamaVision
-                self.description_processor = DescriptionProcessor(self.store, OllamaVision(self.vision_model), self.vision_model)
+                from .descriptions.gate import pause_reason, user_active
+                self.description_processor = DescriptionProcessor(
+                    self.store, OllamaVision(self.vision_model, abort_when=functools.partial(user_active, screen_idle=self._screen_idle_s)),
+                    self.vision_model, gate=functools.partial(pause_reason, screen_idle=self._screen_idle_s))
                 self.description_processor.start()
             if self.activities_model:
                 from .activities.ollama import OllamaInterpreter
                 interpreter = OllamaInterpreter(self.activities_model, description_model=self.vision_model)
-                self.activity_processor = ActivityProcessor(self.store, interpreter, clock_ns=self._clock_ns)
+                from .descriptions.gate import pause_reason
+                self.activity_processor = ActivityProcessor(self.store, interpreter, clock_ns=self._clock_ns,
+                                                            gate=functools.partial(pause_reason, screen_idle=self._screen_idle_s))
                 self.activity_processor.start()
         if not once:
             extra["trigger"] = CaptureTrigger(trigger.get_params(self.store))

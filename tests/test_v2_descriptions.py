@@ -178,6 +178,25 @@ class IdleGateTest(unittest.TestCase):
         self.assertIsNone(pause_reason(runner=away))
         self.assertIsNone(pause_reason(min_idle_s=0, runner=busy))
 
+    def test_a_changing_screen_counts_as_working_even_without_input(self):
+        from trace_v2.descriptions.gate import user_active
+        away = lambda c: self.IDLE % 90_000_000_000 if c[0] == "ioreg" else ""
+        self.assertIn("screen is changing", pause_reason(runner=away, screen_idle=lambda: 5.0))
+        self.assertIsNone(pause_reason(runner=away, screen_idle=lambda: 200.0))
+        self.assertIsNone(pause_reason(runner=away, screen_idle=lambda: None))
+        self.assertTrue(user_active(runner=away, screen_idle=lambda: 1.0))
+        self.assertFalse(user_active(runner=away, screen_idle=lambda: 30.0))
+
+    def test_the_trigger_ignores_heartbeats_when_timing_screen_idleness(self):
+        from trace_v2.observations.trigger import CaptureTrigger
+        from types import SimpleNamespace as NS
+        context = NS(application={}, window={}, display={})
+        t = CaptureTrigger()
+        self.assertIsNone(t.screen_idle_s(10 * 10**9))
+        t._remember(0, context, None, "screen")
+        t._remember(40 * 10**9, context, None, "heartbeat")
+        self.assertEqual(t.screen_idle_s(50 * 10**9), 50.0)
+
     def test_the_activity_processor_does_nothing_while_the_gate_says_wait(self):
         from test_v2_activities import FakeInterpreter, build
         from trace_v2.activities.processor import ActivityProcessor

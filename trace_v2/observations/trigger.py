@@ -117,6 +117,10 @@ class CaptureTrigger:
             return "idle_heartbeat" if idle else "heartbeat"
         return None
 
+    def screen_idle_s(self, now_ns):
+        """Seconds since the last capture caused by a change or input (heartbeats do not count); None before the first."""
+        return None if self._active_at is None else max(0.0, (now_ns - self._active_at) / S)
+
     def _remember(self, t_ns, context, probe_png, reason):
         self._last_at, self._signature = t_ns, signature(context)
         if probe_png is not None:

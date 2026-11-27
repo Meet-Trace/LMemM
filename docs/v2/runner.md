@@ -278,13 +278,14 @@ First Mac run (4 minutes, vision and activity model on): 12 of 14 screenshots ti
 missed and the desktop lagged. The model had no idle rule, and the activity step had no gate at all. Now both the
 description and the activity processors share one gate (`descriptions/gate.py`): they wait while the battery is under
 20%, free memory is under 10%, or the last keyboard or mouse input was less than `min_idle_s` (60) seconds ago
-(`ioreg -c IOHIDSystem`, no permission needed). A call already running is not interrupted. Loaded models are released
+(`ioreg -c IOHIDSystem`, no permission needed), or the screen changed in the last 60 s (the capture trigger's last
+non-heartbeat capture), so reading or watching a video counts as working. Loaded models are released
 after 2 minutes (`keep_alive`), not 10. Unreadable values never pause, so other platforms are unaffected.
 Not yet confirmed: that the model was the cause of the timeouts; a run without model flags is the control.
 
 ### A running model call stops when you come back
 
 The idle gate only stops a call from starting. `descriptions/call.py` also watches each model call while it runs: when
-the keyboard or mouse is used (idle under 3 s, polled every second) it cuts the connection, Ollama stops generating, and
+the keyboard or mouse is used or the screen changes (under 3 s, polled every second) it cuts the connection, Ollama stops generating, and
 `Interrupted` is raised. It is a BaseException so it is not counted as a failed attempt and nothing is written; the Moment
 is tried again the next time you are away. Embeddings run on the CPU and are cut the same way.

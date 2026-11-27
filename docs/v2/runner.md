@@ -289,3 +289,9 @@ The idle gate only stops a call from starting. `descriptions/call.py` also watch
 the keyboard or mouse is used or the screen changes (under 3 s, polled every second) it cuts the connection, Ollama stops generating, and
 `Interrupted` is raised. It is a BaseException so it is not counted as a failed attempt and nothing is written; the Moment
 is tried again the next time you are away. Embeddings run on the CPU and are cut the same way.
+
+### Trim and migration backups are bounded
+
+One retention run spends at most `TRIM_BUDGET_S` (2 s) trimming raw data; the rest waits for the next hourly run, so a
+first run on a big database no longer holds up capture. A migration run writes one backup before its first pending
+step (not one per step), so several new migrations on a large database cost one copy of disk, not several.

@@ -6,8 +6,8 @@ Contract:
     - foreign_keys=ON, WAL journal, synchronous=FULL (evidence must survive a power cut once committed).
     - Migrations are the numbered files in ./migrations, applied in order inside one BEGIN IMMEDIATE
       transaction each, recorded in schema_migrations with their sha256, and mirrored in PRAGMA user_version.
-    - Before migrating a database that already holds data, an online backup is written beside it
-      (<name>.pre-v<N>.bak). A failed migration rolls back and leaves the database at its previous version.
+    - Before migrating a database that already holds data, one online backup is written beside it
+      per run, before the first pending step (<name>.pre-v<N>.bak, N = the first version applied). A failed migration rolls back and leaves the database at its previous version.
     - Refuses (SchemaError): a database newer than this code, an applied migration whose file changed,
       user_version disagreeing with schema_migrations, or a failed integrity check.
 Connections use autocommit mode (isolation_level=None); callers open transactions explicitly.
@@ -124,7 +124,7 @@ def migrate(connection, path=None, known=None):
     version = _check(connection, known)
     done = []
     for v, name, sql, sha in known[version:]:
-        if path is not None:
+        if path is not None and not done:        # one backup per run, before the first pending step
             _backup(connection, path, v)
         connection.execute("BEGIN IMMEDIATE")
         try:

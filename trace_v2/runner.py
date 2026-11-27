@@ -53,6 +53,7 @@ STATS_FILE = "runner_stats.json"
 PERMISSIONS_KEY = "permissions_report"
 DEFAULT_STATS_EVERY_S = 300.0
 RETENTION_EVERY_S = 3600.0
+TRIM_BUDGET_S = 2.0                  # most time one retention run may spend trimming raw data, so capture is not held up
 PUMP_S = 0.25
 
 
@@ -334,8 +335,9 @@ class Runner:
         try:
             retention.run(self.store, self._clock_ns())
             self.retention_runs += 1
+            deadline = self._monotonic() + TRIM_BUDGET_S      # the rest is trimmed on the next hourly run
             while trim.run(self.store, self._clock_ns())["trimmed"]:
-                if self._stop.is_set():
+                if self._stop.is_set() or self._monotonic() > deadline:
                     break
         except Exception:                            # noqa: BLE001 - retention must never stop observation
             log.exception("retention run failed")

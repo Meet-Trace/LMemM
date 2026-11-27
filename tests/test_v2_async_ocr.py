@@ -641,6 +641,15 @@ class Migration0002Test(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_one_backup_per_run_however_many_steps_are_pending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "o.sqlite3"
+            conn = db.connect(path)
+            db.migrate(conn, path, db.migrations()[:1])
+            db.migrate(conn, path)
+            self.assertEqual([p.name for p in Path(tmp).glob("*.bak")], ["o.sqlite3.pre-v2.bak"])
+            conn.close()
+
     def test_a_leftover_backup_still_blocks_migration(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "o.sqlite3"

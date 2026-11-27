@@ -10,6 +10,8 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 try:
     import objc
@@ -183,9 +185,29 @@ def _frame_from_cg(cg):
     return Frame(Quartz.CGBitmapContextCreateImage(ctx), buf, w, h)
 
 
+GRAB_WAIT_S, GRAB_BACKOFF_S = 2.0, 15.0
+_grab_stuck_until = 0.0
+
+
 def grab(display):
-    """The display as an in-memory Frame (~25 ms), or None if the OS won't give it to us.
-    Uses the screen-image API at nominal (1x) resolution, so no resize step is needed."""
+    """The display as an in-memory Frame, or None if the OS won't give it to us, or does not within GRAB_WAIT_S.
+    The caller is the main thread, and a starved window server once held it for 30 s (the app hung), so the grab runs
+    on a helper thread and is abandoned when slow; after that no grab is tried for GRAB_BACKOFF_S."""
+    global _grab_stuck_until
+    if time.monotonic() < _grab_stuck_until:
+        return None
+    box = []
+    worker = threading.Thread(target=lambda: box.append(_grab(display)), name="grab", daemon=True)
+    worker.start()
+    worker.join(GRAB_WAIT_S)
+    if worker.is_alive():
+        _grab_stuck_until = time.monotonic() + GRAB_BACKOFF_S
+        return None
+    return box[0] if box else None
+
+
+def _grab(display):
+    """The display as an in-memory Frame (~25 ms). Uses the screen-image API at nominal (1x) resolution."""
     try:
         import Quartz
         b = display_bounds(display)
@@ -220,14 +242,18 @@ def grab_with_screencapture(display):
     """Fallback if the in-process API is unavailable: the old subprocess route, still
     returned as an in-memory Frame (the temp file is deleted at once)."""
     import Quartz
+    if time.monotonic() < _grab_stuck_until:             # grab() just gave up on a starved window server: do not wait on it again
+        return None
     path = os.path.join(tempfile.mkdtemp(prefix="lmemm-"), "frame.png")
     try:
-        subprocess.run(["screencapture", "-x", "-o", "-t", "png", "-D", str(display), path], check=False)
+        subprocess.run(["screencapture", "-x", "-o", "-t", "png", "-D", str(display), path], check=False, timeout=5)
         if not os.path.exists(path):
             return None
         source = Quartz.CGImageSourceCreateWithURL(Foundation.NSURL.fileURLWithPath_(path), None)
         cg = Quartz.CGImageSourceCreateImageAtIndex(source, 0, None) if source else None
         return _frame_from_cg(cg) if cg is not None else None
+    except subprocess.TimeoutExpired:
+        return None
     finally:
         try:
             os.remove(path)

@@ -81,6 +81,7 @@ class CaptureTrigger:
         self.counts = {}
         self.ax_memory = {}                    # the last accessibility read, reused by heartbeat captures (pipeline.py)
         self._last_at = self._active_at = self._signature = self._picture = None
+        self._changed_at = None                # last capture caused by a real change or input (not a heartbeat or a failed probe)
 
     def set_params(self, params):
         self.params = normalise(params)
@@ -119,7 +120,7 @@ class CaptureTrigger:
 
     def screen_idle_s(self, now_ns):
         """Seconds since the last capture caused by a change or input (heartbeats do not count); None before the first."""
-        return None if self._active_at is None else max(0.0, (now_ns - self._active_at) / S)
+        return None if self._changed_at is None else max(0.0, (now_ns - self._changed_at) / S)
 
     def _remember(self, t_ns, context, probe_png, reason):
         self._last_at, self._signature = t_ns, signature(context)
@@ -127,3 +128,5 @@ class CaptureTrigger:
             self._picture = picture(probe_png)
         if reason not in ("heartbeat", "idle_heartbeat"):
             self._active_at = t_ns
+        if reason in ("context", "input", "screen"):
+            self._changed_at = t_ns

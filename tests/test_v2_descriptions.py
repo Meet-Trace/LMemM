@@ -197,6 +197,8 @@ class IdleGateTest(unittest.TestCase):
         t._remember(0, context, None, "screen")
         t._remember(40 * 10**9, context, None, "heartbeat")
         self.assertEqual(t.screen_idle_s(50 * 10**9), 50.0)
+        t._remember(45 * 10**9, context, None, "no_probe")           # a failing screen probe is not activity
+        self.assertEqual(t.screen_idle_s(50 * 10**9), 50.0)
 
     def test_the_activity_processor_does_nothing_while_the_gate_says_wait(self):
         from test_v2_activities import FakeInterpreter, build

@@ -587,11 +587,11 @@ class Tracker:
             return None                  # two captures in one second
         capture_start_ns = time.monotonic_ns()
         started = time.perf_counter()
-        shot = macos.grab(display) or macos.grab_with_screencapture(display)   # in memory: no files
+        shot = macos.grab(display, patient=trigger in ("note", "pin")) or macos.grab_with_screencapture(display)   # in memory: no files
         self.timed("capture", started)
         capture_end_ns = time.monotonic_ns()
         if shot is None:
-            say("  ! screenshot failed (Screen Recording permission?)")
+            say("  ! screenshot failed (Screen Recording permission, or the screen was busy: try again)")
             self.screen_ok, self.screen_checked = False, time.time()
             return None
         after = macos.front()

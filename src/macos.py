@@ -185,21 +185,22 @@ def _frame_from_cg(cg):
     return Frame(Quartz.CGBitmapContextCreateImage(ctx), buf, w, h)
 
 
-GRAB_WAIT_S, GRAB_BACKOFF_S = 2.0, 15.0
+GRAB_WAIT_S, GRAB_PATIENT_S, GRAB_BACKOFF_S = 4.0, 12.0, 15.0
 _grab_stuck_until = 0.0
 
 
-def grab(display):
+def grab(display, patient=False):
     """The display as an in-memory Frame, or None if the OS won't give it to us, or does not within GRAB_WAIT_S.
+    `patient` (a note or pin you asked for) waits longer and ignores the back-off.
     The caller is the main thread, and a starved window server once held it for 30 s (the app hung), so the grab runs
     on a helper thread and is abandoned when slow; after that no grab is tried for GRAB_BACKOFF_S."""
     global _grab_stuck_until
-    if time.monotonic() < _grab_stuck_until:
+    if time.monotonic() < _grab_stuck_until and not patient:
         return None
     box = []
     worker = threading.Thread(target=lambda: box.append(_grab(display)), name="grab", daemon=True)
     worker.start()
-    worker.join(GRAB_WAIT_S)
+    worker.join(GRAB_PATIENT_S if patient else GRAB_WAIT_S)
     if worker.is_alive():
         _grab_stuck_until = time.monotonic() + GRAB_BACKOFF_S
         return None
@@ -242,8 +243,6 @@ def grab_with_screencapture(display):
     """Fallback if the in-process API is unavailable: the old subprocess route, still
     returned as an in-memory Frame (the temp file is deleted at once)."""
     import Quartz
-    if time.monotonic() < _grab_stuck_until:             # grab() just gave up on a starved window server: do not wait on it again
-        return None
     path = os.path.join(tempfile.mkdtemp(prefix="lmemm-"), "frame.png")
     try:
         subprocess.run(["screencapture", "-x", "-o", "-t", "png", "-D", str(display), path], check=False, timeout=5)

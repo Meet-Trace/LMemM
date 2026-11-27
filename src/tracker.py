@@ -1733,7 +1733,8 @@ class Tracker:
 
         macos.quiet_system_logs()
         say(f"LMemM is watching  ·  captures on app/tab switches, else every {self.every}s"
-            f"  ·  pauses after {config.IDLE}s idle")
+            f"  ·  pauses after {config.IDLE}s idle" if config.OWN_CAPTURE else
+            "LMemM is showing Trace V2  ·  it does not capture here; run  python -m trace_v2.run --moments --vision-model lfm3-vl:latest")
         say((f"{dictation.HOTKEY_LABEL} dictate a note" if hotkey_ok
              else f"(couldn't register {dictation.HOTKEY_LABEL}: use  python3 lmemm.py note)")
             + "  ·  Ctrl-C stop\n")

@@ -1109,7 +1109,7 @@ class Tracker:
                 seen = self.trail.wait_change(seen, 1.0)    # event-driven: wake when macOS says you moved (1 s at most)
                 time.sleep(0.06)                            # let a burst of changes settle
             except Exception:
-                time.sleep(0.1)
+                time.sleep(0.1 if config.OWN_CAPTURE else 1.0)   # no trail: poll the front app's accessibility once a second, not ten times
             try:
                 app = macos.NSWorkspace.sharedWorkspace().frontmostApplication()
                 if app is None:
@@ -1723,7 +1723,7 @@ class Tracker:
         self.thread = threading.Thread(target=self.worker, daemon=True)
         self.thread.start()
         threading.Thread(target=self.quick_worker, daemon=True).start()
-        if self.use_trail:
+        if self.use_trail and config.OWN_CAPTURE:      # the trail reads the screen (Vision OCR) too: with V2 capturing it only competes
             try:
                 import trail_mac
                 self.trail = trail_mac.Trail(watch_apps=self.watch_apps,

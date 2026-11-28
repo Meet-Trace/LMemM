@@ -141,14 +141,15 @@ class Decide(unittest.TestCase):
             rig.tick(3)
         self.assertEqual(rig.tick(3).capture_reason, "heartbeat")
 
-    def test_without_a_probe_or_with_a_failing_probe_every_tick_is_captured(self):
+    def test_without_a_probe_every_tick_is_captured_and_a_failing_probe_waits_for_the_heartbeat(self):
         plain = Rig(sources=Sources())
         self.assertIsNotNone(plain.tick())
         self.assertIsNotNone(plain.tick())
-        broken = Rig()
+        broken = Rig({"heartbeat_s": 30})
         broken.tick()
         broken.sources.probe_error = RuntimeError("no screen recording")
-        self.assertIsNotNone(broken.tick())
+        self.assertIsNone(broken.tick(3))
+        self.assertIsNotNone(broken.tick(30))
         self.assertEqual(broken.trigger.counts["no_probe"], 1)
 
     def test_disabled_captures_every_tick(self):

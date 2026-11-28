@@ -9,7 +9,8 @@ is taken only when something happened:
     heartbeat    nothing happened for `heartbeat_s`; after `idle_after_s` without any change or input the heartbeat
                  slows to `idle_heartbeat_s`
 Compared with the last full capture, not the previous probe, so slow drift adds up and is not missed.
-A source without a `probe()` method, a failing probe or `enabled: false` means every tick is captured, as before.
+A source without a `probe()` method or `enabled: false` means every tick is captured, as before. A failing probe (the screen
+did not answer) captures only on the heartbeat schedule: on a Mac a stuck screen-capture service made every tick wait 20 s.
 """
 
 import io
@@ -109,15 +110,16 @@ class CaptureTrigger:
             return "context"
         if has_input(events):
             return "input"
-        if probe_png is None:
-            return "no_probe"
+        idle = (t_ns - self._active_at) / S >= p["idle_after_s"]
+        due = (t_ns - self._last_at) / S >= (p["idle_heartbeat_s"] if idle else p["heartbeat_s"])
+        if probe_png is None:                  # the screen did not answer: a full capture would wait the same, so only on schedule
+            return "no_probe" if due else None
         now, before = picture(probe_png), self._picture
         if now is None or before is None or now.shape != before.shape:
             return "screen"
         if float((np.abs(now - before) > p["pixel_delta"]).mean()) > p["change_fraction"]:
             return "screen"
-        idle = (t_ns - self._active_at) / S >= p["idle_after_s"]
-        if (t_ns - self._last_at) / S >= (p["idle_heartbeat_s"] if idle else p["heartbeat_s"]):
+        if due:
             return "idle_heartbeat" if idle else "heartbeat"
         return None
 

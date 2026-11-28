@@ -35,7 +35,7 @@ class RealScreenshot(unittest.TestCase):
         self.assertEqual(shot.format, "png")
         self.assertTrue(shot.data.startswith(PNG_SIGNATURE))
         self.assertEqual([shot.width, shot.height], ctx.display["pixel_size"])
-        self.assertIn(sources._screenshot.last_path, ("screencapturekit", "cgdisplay"))
+        self.assertIn(sources._screenshot.last_path, ("screencapturekit", "coregraphics"))
 
     def test_observe_once_stores_a_screenshot_through_the_real_pipeline(self):
         sources = real_sources()

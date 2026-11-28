@@ -1,9 +1,11 @@
 """Lossless full-resolution screenshot of one display, as PNG.
 
-Path 1 (preferred, macOS 14+): ScreenCaptureKit SCScreenshotManager. The PyObjC ScreenCaptureKit wrapper package is
+Path 1 (preferred, macOS 14+): ScreenCaptureKit SCScreenshotManager. Path 2, CoreGraphics (CGWindowListCreateImage /
+...FromArray), is used when SCK is missing or has just timed out (3 s), for SCK_BACKOFF_S: on a Mac SCK hung while a model
+ran and every capture waited 20 s. Both paths honour the scope. The PyObjC ScreenCaptureKit wrapper package is
 optional and absent here, so the framework is loaded with objc.loadBundle and the two completion-handler block
-signatures are registered by hand (`_sck_blocks`). Path 2: CGDisplayCreateImage, only when SCK cannot be loaded.
-`ScreenshotSource.last_path` records which one produced the latest image ("screencapturekit" | "cgdisplay").
+signatures are registered by hand (`_sck_blocks`).
+`ScreenshotSource.last_path` records which one produced the latest image ("screencapturekit" | "coregraphics").
 
 Never prompts: Screen Recording must already be granted (CGPreflightScreenCaptureAccess) or PermissionError is
 raised. No downscaling and the cursor is not drawn. The PNG's size is the display's pixel size.
@@ -15,8 +17,8 @@ Scope (what the pixels may contain):
                            still the full display size; everything that is not the front app is left as the stream's
                            background. Needs the front app's pid (from the context); if SCK has no running application
                            for it, ScopeUnavailable is raised and the pipeline withholds the screenshot (never a silent
-                           fall-back to the whole display). SCK only (path 2 cannot filter), so without SCK the same
-                           ScopeUnavailable is raised.
+                           fall-back to the whole display). Path 2 composites only that pid's on-screen layer-0 windows
+                           (CGWindowListCreateImageFromArray); none is the same ScopeUnavailable.
     "display"              the whole display: every visible window and banner on it. Weaker privacy: the gates judge only
                            the front app.
 """
@@ -31,7 +33,8 @@ from trace_v2.observations.settings import DEFAULT_SCREENSHOT_SCOPE, SCREENSHOT_
 
 from . import displays
 
-TIMEOUT_S = 10.0
+TIMEOUT_S = 3.0                      # ScreenCaptureKit answers in ~50 ms; on a Mac it has hung instead (every call 10+ s)
+SCK_BACKOFF_S = 600.0                # after a hang, use the CoreGraphics path for this long before trying SCK again
 _PNG = "public.png"
 PROBE_WIDTH = 96
 
@@ -92,6 +95,17 @@ class ScreenshotSource:
             _sck_blocks()
         except (objc.error, ImportError, KeyError):
             self._sck = None
+        self._sck_stuck_until = 0.0
+
+    def _image(self, display_id, pixels, scope, pid, bundle_id):
+        """ScreenCaptureKit, or CoreGraphics when SCK is missing or has just hung (it did on a Mac, once a model ran,
+        and every capture waited 20 s). Both honour the scope: front_app composites only that app's windows."""
+        if self._sck and time.monotonic() >= self._sck_stuck_until:
+            try:
+                return self._capture_sck(display_id, pixels, scope, pid, bundle_id)
+            except TimeoutError:
+                self._sck_stuck_until = time.monotonic() + SCK_BACKOFF_S
+        return self._capture_cg(display_id, scope, pid)
 
     def screenshot(self, display_id=None, scope=DEFAULT_SCREENSHOT_SCOPE, pid=None, bundle_id=None):
         """-> ScreenshotCapture of `display_id` (default: the main display), limited to `scope` (see the module doc).
@@ -102,11 +116,8 @@ class ScreenshotSource:
             raise PermissionError("Screen Recording is not granted")
         display_id = int(display_id or Quartz.CGMainDisplayID())
         pixels = displays.display_info(display_id)["pixel_size"]
-        if scope == "front_app" and not self._sck:
-            raise ScopeUnavailable("front_app scope needs ScreenCaptureKit, which is not available")
         t = self.clock_ns()
-        image = (self._capture_sck(display_id, pixels, scope, pid, bundle_id) if self._sck
-                 else self._capture_cgdisplay(display_id))
+        image = self._image(display_id, pixels, scope, pid, bundle_id)
         width, height = Quartz.CGImageGetWidth(image), Quartz.CGImageGetHeight(image)
         return ScreenshotCapture(encode_png(image), "png", width, height, t, scope)
 
@@ -117,12 +128,10 @@ class ScreenshotSource:
             raise ValueError(f"unknown screenshot scope {scope!r}")
         if not Quartz.CGPreflightScreenCaptureAccess():
             raise PermissionError("Screen Recording is not granted")
-        if not self._sck:
-            raise ScopeUnavailable("the probe needs ScreenCaptureKit, which is not available")
         display_id = int(display_id or Quartz.CGMainDisplayID())
         full = displays.display_info(display_id)["pixel_size"]
         size = (width, max(1, round(width * full[1] / full[0])))
-        return encode_png(self._capture_sck(display_id, size, scope, pid, bundle_id))
+        return encode_png(_scaled(self._image(display_id, size, scope, pid, bundle_id), size))
 
     @staticmethod
     def _front_application(content, pid, bundle_id):
@@ -159,9 +168,32 @@ class ScreenshotSource:
         self.last_path = "screencapturekit"
         return image
 
-    def _capture_cgdisplay(self, display_id):
-        image = Quartz.CGDisplayCreateImage(display_id)
+    def _capture_cg(self, display_id, scope="display", pid=None):
+        """CoreGraphics capture of the display. front_app: only the on-screen windows of `pid` are composited (the
+        same privacy as the SCK filter); no such window is ScopeUnavailable, never a wider picture."""
+        rect = Quartz.CGDisplayBounds(display_id)
+        options = Quartz.kCGWindowImageBoundsIgnoreFraming
+        if scope == "front_app":
+            windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID) or []
+            ids = [w["kCGWindowNumber"] for w in windows
+                   if pid is not None and int(w.get("kCGWindowOwnerPID", -1)) == int(pid) and w.get("kCGWindowLayer") == 0]
+            if not ids:
+                raise ScopeUnavailable("the front application has no on-screen windows")
+            image = Quartz.CGWindowListCreateImageFromArray(rect, ids, options)
+        else:
+            image = Quartz.CGWindowListCreateImage(rect, Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID, options)
         if image is None:
-            raise RuntimeError("CGDisplayCreateImage returned no image")
-        self.last_path = "cgdisplay"
+            raise RuntimeError("CoreGraphics returned no image")
+        self.last_path = "coregraphics"
         return image
+
+
+def _scaled(image, size):
+    """`image` drawn at `size` pixels (the probe is tiny; SCK already returns that size, CoreGraphics does not)."""
+    w, h = int(size[0]), int(size[1])
+    if Quartz.CGImageGetWidth(image) == w and Quartz.CGImageGetHeight(image) == h:
+        return image
+    ctx = Quartz.CGBitmapContextCreate(None, w, h, 8, 0, Quartz.CGColorSpaceCreateDeviceRGB(),
+                                       Quartz.kCGImageAlphaPremultipliedLast)
+    Quartz.CGContextDrawImage(ctx, Quartz.CGRectMake(0, 0, w, h), image)
+    return Quartz.CGBitmapContextCreateImage(ctx)

@@ -28,9 +28,9 @@ AMBIENT_GRAIN = 0.012                # extra static grain over the artwork (0 = 
 if os.environ.get("LMEMM_AMBIENT_FAST"):                 # a test aid: LMEMM_AMBIENT_FAST=1 makes the light move in seconds, not minutes
     AMBIENT_MOVE_SECONDS, AMBIENT_PULSE_SECONDS, AMBIENT_FADE_SECONDS = (8.0, 14.0), (6.0, 10.0), 4.0
 AMBIENT_MOTION = True                # False: the artwork stays still (Reduce Motion in System Settings does this too)
-FIND_PROJECTS = True    # notice projects in what you did and suggest them (project_finder.py); never files anything
+FIND_PROJECTS = bool(os.environ.get('LMEMM_OWN_CAPTURE'))   # only with the old capture (it reads its items): notice projects in what you did and suggest them (project_finder.py); never files anything
 FIND_EVERY = 30 * 60    # seconds between looks, taken only while you are idle
-SUMMARIZE = True        # write a short AI summary of what was on screen and what you were trying to do (screen_summary.py)
+SUMMARIZE = bool(os.environ.get('LMEMM_OWN_CAPTURE'))       # only with the old capture: write a short AI summary of what was on screen and what you were trying to do (screen_summary.py)
 SUMMARY_EVERY = 5 * 60  # seconds between summary passes, taken only while you are idle
 SUMMARY_BATCH = 4       # things summarised per pass
 FINDER_METHOD = "ai"    # "ai": local models read and decide (project_finder_ai.py); "assign": the rules-only method

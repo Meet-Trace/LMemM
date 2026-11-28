@@ -475,12 +475,14 @@ class Tracker:
         if reason:
             self.close_interval()
             if self.paused != reason:
-                line(now_hms(), "", f"paused ({reason})")
+                if config.OWN_CAPTURE:                  # with V2 capturing, this app's idle pauses mean nothing
+                    line(now_hms(), "", f"paused ({reason})")
                 self.paused = reason
             self.pending = None
             return
         if self.paused:
-            line(now_hms(), "", "resumed")
+            if config.OWN_CAPTURE:
+                line(now_hms(), "", "resumed")
             self.paused = None
             self.trigger("resume")
 

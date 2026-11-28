@@ -11,11 +11,12 @@ Moments, the vision description of each stable Moment, its purpose and the Activ
     V1  Only Moments that still exist count. A forgotten Moment is deleted from the derived file with its description
         and purpose; a Moment merged into another is not shown. Nothing here writes to either file.
     V2  Both files are opened read only. A missing, locked or older database is "no V2 data" (None), never an error.
-    V3  Only described Moments appear. A Moment is stable after a quiet gap or a long run, so the latest minutes have
-        no entry yet. Nothing about it is made up.
+    V3  Every current Moment appears, stable or still growing. Until the vision model has described it, its title is the
+        window title it was seen in most (or the app) and there is no line under it; nothing about it is made up.
     V4  The app is the one most of the Moment's observations came from (its display name, not the bundle id).
 """
 
+import json
 import os
 import sqlite3
 import threading
@@ -30,9 +31,10 @@ SELECT r.moment_id, r.start_ns, r.end_ns,
        (SELECT d.description FROM moment_descriptions d WHERE d.moment_id = r.moment_id AND d.status = 'ok'
          AND d.description IS NOT NULL AND d.description != '' ORDER BY d.recorded_at DESC LIMIT 1),
        (SELECT i.purpose FROM activity_interpretations i WHERE i.moment_id = r.moment_id AND i.status = 'clear'
-         ORDER BY i.recorded_at DESC LIMIT 1)
+         ORDER BY i.recorded_at DESC LIMIT 1),
+       r.state
 FROM moment_revisions r
-WHERE r.state = 'stable' AND r.revision = (SELECT max(x.revision) FROM moment_revisions x WHERE x.moment_id = r.moment_id)
+WHERE r.state IN ('stable', 'provisional') AND r.revision = (SELECT max(x.revision) FROM moment_revisions x WHERE x.moment_id = r.moment_id)
 ORDER BY r.start_ns, r.moment_id"""
 
 _ACTIVITIES = """
@@ -90,6 +92,16 @@ def _refresh(key, db, derived):
         _CACHE["version"] = _CACHE.get("version", 0) + 1
 
 
+def paused(data=None):
+    """Why V2's descriptions wait right now ("battery at 17%"), from its runner_stats.json, or None."""
+    try:
+        with open(os.path.join(data or data_dir(), "runner_stats.json")) as fh:
+            stats = json.load(fh)
+        return None if stats.get("final") else (stats.get("descriptions") or {}).get("paused")
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 def version():
     """Counts finished background reads, so a window that got None the first time can tell when to ask again."""
     return _CACHE.get("version", 0)
@@ -107,25 +119,27 @@ def _read(db, derived):
             apps = _APPS.setdefault(db, {})
             for gone in set(apps) - {r[0] for r in rows}:          # a forgotten or merged Moment's name is not kept
                 del apps[gone]
-            for mid, *_ in rows:
-                if mid in apps:
-                    continue                                       # the app of a Moment's observations does not change once it is stable
-                app = conn.execute("SELECT o.app_name FROM moment_member_index i JOIN observations o USING (observation_id) "
-                                   "WHERE i.moment_id=? GROUP BY o.app_name ORDER BY count(*) DESC LIMIT 1", (mid,)).fetchone()
-                apps[mid] = app[0] if app and app[0] else ""
+            for mid, _s, _e, _what, _why, state in rows:
+                if mid in apps and apps[mid][2] == "stable":
+                    continue                                       # a stable Moment's members do not change
+                top = conn.execute("SELECT o.app_name, o.window_title FROM moment_member_index i JOIN observations o "
+                                   "USING (observation_id) WHERE i.moment_id=? GROUP BY o.app_name, o.window_title "
+                                   "ORDER BY count(*) DESC LIMIT 1", (mid,)).fetchone()
+                apps[mid] = ((top[0] or "") if top else "", (top[1] or "") if top else "", state)
         finally:
             conn.close()
     except sqlite3.Error:
         return None
     number = {}
     out = []
-    for mid, start_ns, end_ns, what, why in rows:
+    for mid, start_ns, end_ns, what, why, _state in rows:
         what, why = " ".join((what or "").split()), " ".join((why or "").split())
-        if not (what or why):
-            continue                                              # nothing usable was written: no entry, nothing made up
+        app, window = apps[mid][0], " ".join(apps[mid][1].split())
+        if not (what or why or window or app):
+            continue                                              # nothing to call it by: no entry, nothing made up
         start, end = start_ns / 1e9, end_ns / 1e9
         group = members.get(mid)
-        out.append({"v2": {"id": mid, "title": why or what, "line": what if why else "", "app": apps[mid],
+        out.append({"v2": {"id": mid, "title": why or what or window or app, "line": what if why else "", "app": app,
                            "activity": None if group is None else number.setdefault(group, len(number))},
                     "item": mid, "start": datetime.fromtimestamp(start), "end": datetime.fromtimestamp(end),
                     "seconds": max(0, int(end - start))})

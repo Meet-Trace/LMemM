@@ -11,7 +11,7 @@ from .read import packet
 PROMPT_VERSION = "moment-vision/1"
 NOTE = ("The attached screenshots show observations {tags} of the sequence below, in that order. "
         "Use them as visual evidence for those observations only.\n\n")
-DESCRIBE = {"max_images": 4, "image_side": 896, "num_ctx": 6144, "num_predict": 450, "budget": 4500, "timeout": 900}
+DESCRIBE = {"max_images": 4, "image_side": 896, "num_ctx": 6144, "num_predict": 450, "budget": 4500, "timeout": 120}
 
 
 def choose_tags(tags, limit):

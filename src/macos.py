@@ -72,8 +72,21 @@ def pointer_on(display_frame):
     return None
 
 
-def front():
-    """Frontmost app + its front window: name, bundle id, pid, window id, title, bounds."""
+_front = (0.0, None)
+
+
+def front(max_age=0.2):
+    """Frontmost app + its front window: name, bundle id, pid, window id, title, bounds. The main loop asks several
+    times per pass and each read lists every window from the window server (slow while a model holds the GPU), so a
+    read younger than `max_age` seconds is reused."""
+    global _front
+    if time.monotonic() - _front[0] < max_age:
+        return _front[1]
+    _front = (time.monotonic(), _read_front())
+    return _front[1]
+
+
+def _read_front():
     app = NSWorkspace.sharedWorkspace().frontmostApplication()
     if app is None:
         return None
@@ -91,27 +104,15 @@ def front():
     }
 
 
-_SCRIPTS = {}
-
-
-def browser_info(app):
-    """(URL, tab title, private?) of the front tab, or (None, None, False)."""
-    if app not in config.BROWSERS:
+def browser_info(app, bundle_id=None):
+    """(URL, tab title, private?) of the front tab, or (None, None, False). Runs osascript with a 0.3 s limit
+    (trace_v2.macos.browser): an in-process AppleScript has a 2 minute default and froze the pill on a busy browser.
+    The tab title is not read: the window title already is the tab's."""
+    if app not in config.BROWSERS or not bundle_id:
         return None, None, False
-    if app not in _SCRIPTS:
-        if app == "Safari":
-            src = 'tell application "Safari" to get {URL, name} of front document'
-        else:
-            src = (f'tell application "{app}" to get {{URL, title}} of active tab of front window'
-                   f' & {{mode of front window}}')
-        _SCRIPTS[app] = Foundation.NSAppleScript.alloc().initWithSource_(src)
-    res, _err = _SCRIPTS[app].executeAndReturnError_(None)
-    if res is None:
-        return None, None, False
-    vals = [res.descriptorAtIndex_(i).stringValue() for i in range(1, res.numberOfItems() + 1)]
-    url, title = vals[0], vals[1] if len(vals) > 1 else None
-    private = len(vals) > 2 and vals[2] == "incognito"
-    return url, title, private
+    from trace_v2.macos.browser import browser_state
+    state = browser_state(bundle_id)
+    return state.get("url"), None, bool(state.get("private"))
 
 
 def display_for(bounds):

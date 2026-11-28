@@ -561,7 +561,7 @@ class Tracker:
             self.skipped_place, self.skip_kind = (f["app"], f["window"]), "unwatched"
             self.close_interval()
             return None
-        url, tab_title, private = macos.browser_info(f["app"])
+        url, tab_title, private = macos.browser_info(f["app"], f["bundle_id"])
         site = re.sub(r"^https?://", "", url or "").split("/")[0] or None
         title = tab_title or f["window"]
 
@@ -594,7 +594,7 @@ class Tracker:
             say("  ! screenshot failed (Screen Recording permission, or the screen was busy: try again)")
             self.screen_ok, self.screen_checked = False, time.time()
             return None
-        after = macos.front()
+        after = macos.front(max_age=0)
         if after and (after["pid"], after["win_id"]) != (f["pid"], f["win_id"]):
             # you switched while we were capturing: picture and context no longer match
             shot.release()
@@ -606,7 +606,7 @@ class Tracker:
                 self.trigger("window_change")
                 return None
             # a tab can switch without changing the containing window's id/title
-            if macos.browser_info(f["app"]) != (url, tab_title, private):
+            if macos.browser_info(f["app"], f["bundle_id"]) != (url, tab_title, private):
                 shot.release()
                 self.trigger("tab_change")
                 return None
@@ -820,7 +820,7 @@ class Tracker:
         return {"sessions_dir": config.paths().sessions_dir, "live": live,
                 "skip": apps.clean((store.load_user() or {}).get("skip_apps")),
                 "moments": self.moments.history() if self.moments else None,
-                "v2": v2_history.read()}
+                "v2": v2_history.read(), "v2_paused": v2_history.paused()}
 
     def widget_history(self):
         self.open_window()
@@ -1015,7 +1015,7 @@ class Tracker:
                 self.set_now((f["app"], f["window"]), None)
             self.last_widget_refresh = 0.0
             return
-        url, tab_title, _private = macos.browser_info(f["app"])
+        url, tab_title, _private = macos.browser_info(f["app"], f["bundle_id"])
         meta = {"app": f["app"], "bundle_id": f["bundle_id"], "window": f["window"], "url": url,
                 "site": re.sub(r"^https?://", "", url or "").split("/")[0] or None, "tab_title": tab_title,
                 "ts": "quick", "image": "quick", "quick": True}
@@ -1042,6 +1042,8 @@ class Tracker:
             self.start_read(front)
 
     def start_read(self, front, clear=True):
+        if not config.OWN_CAPTURE:
+            return                    # V2 reads the screen; a second grab + OCR here only competes with it
         self.quick_seq += 1
         if clear:                                               # never show the chat you just left
             self.set_now((front["app"], front["window"]), None)
@@ -1732,9 +1734,11 @@ class Tracker:
         self.click_monitor = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(1 << 1, self.on_click)
 
         macos.quiet_system_logs()
+        if not config.OWN_CAPTURE:
+            self.start_v2()
         say(f"LMemM is watching  ·  captures on app/tab switches, else every {self.every}s"
             f"  ·  pauses after {config.IDLE}s idle" if config.OWN_CAPTURE else
-            "LMemM is showing Trace V2  ·  it does not capture here; run  python -m trace_v2.run --moments --vision-model lfm3-vl:latest")
+            f"LMemM is watching through Trace V2  ·  its log: {self.v2_log}")
         say((f"{dictation.HOTKEY_LABEL} dictate a note" if hotkey_ok
              else f"(couldn't register {dictation.HOTKEY_LABEL}: use  python3 lmemm.py note)")
             + "  ·  Ctrl-C stop\n")
@@ -1774,6 +1778,29 @@ class Tracker:
             argv = launch_argv(sys.argv[1:])
         subprocess.Popen(argv)
 
+    def start_v2(self):
+        """Trace V2 is the engine: run it as a child, so one command starts everything and Ctrl-C stops both.
+        One already running (its lock is held) is left alone and this child exits at once."""
+        data = v2_history.data_dir()
+        os.makedirs(data, exist_ok=True)
+        self.v2_log = os.path.join(data, "runner.log")
+        argv = [sys.executable, "-m", "trace_v2.run", "--moments"]
+        if config.V2_VISION_MODEL:
+            argv += ["--vision-model", config.V2_VISION_MODEL]
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(self.v2_log, "ab") as log:
+            self.v2 = subprocess.Popen(argv, cwd=root, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+
+    def stop_v2(self):
+        if getattr(self, "v2", None) is None:
+            return
+        self.v2.terminate()                         # V2 takes its final observation and writes stats
+        try:
+            self.v2.wait(15)
+        except subprocess.TimeoutExpired:
+            self.v2.kill()
+        self.v2 = None
+
     def start_memory(self):
         if self.memory_client is None:
             from memory_client import MemoryClient
@@ -1783,6 +1810,7 @@ class Tracker:
 
     def finish(self):
         p = config.paths()
+        self.stop_v2()
         if self.memory_client:
             self.memory_client.stop()
         if self.input_monitor:

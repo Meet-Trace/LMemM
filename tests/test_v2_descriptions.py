@@ -118,6 +118,17 @@ class DescriptionTest(unittest.TestCase):
         self.assertIsNone(pause_reason(runner=lambda c: ""))
 
 
+class NewestFirstTest(unittest.TestCase):
+    def test_the_newest_stable_moment_is_described_first(self):
+        import sqlite3
+        from trace_v2.descriptions.builder import pending
+        conn = sqlite3.connect(":memory:")
+        conn.executescript("CREATE TABLE moment_revisions(moment_id, revision, state, start_ns, end_ns);"
+                           "CREATE TABLE moment_descriptions(moment_id, model, prompt_version);"
+                           "INSERT INTO moment_revisions VALUES ('old',1,'stable',1,2),('new',1,'stable',5,6);")
+        self.assertEqual([r[0] for r in pending(conn, "m", 2)], ["new", "old"])
+
+
 if __name__ == "__main__":
     unittest.main()
 

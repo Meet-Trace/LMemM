@@ -12,7 +12,7 @@ def pending(conn, model, limit):
         "SELECT r.moment_id, r.start_ns, r.end_ns FROM moment_revisions r WHERE r.state='stable' "
         "AND r.revision=(SELECT max(x.revision) FROM moment_revisions x WHERE x.moment_id=r.moment_id) "
         "AND NOT EXISTS (SELECT 1 FROM moment_descriptions d WHERE d.moment_id=r.moment_id AND d.model=? AND d.prompt_version=?) "
-        "ORDER BY r.end_ns, r.moment_id LIMIT ?", (model, PROMPT_VERSION, limit)).fetchall()
+        "ORDER BY r.end_ns DESC, r.moment_id LIMIT ?", (model, PROMPT_VERSION, limit)).fetchall()
 
 
 def record(store, moment_id, model, result, status):

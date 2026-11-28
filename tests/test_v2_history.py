@@ -28,7 +28,7 @@ class V2(unittest.TestCase):
         os.makedirs(self.data)
         v2_history._CACHE.clear(); v2_history._APPS.clear()
         self.db = sqlite3.connect(os.path.join(self.data, "observations.sqlite3"))
-        self.db.execute("CREATE TABLE observations(observation_id TEXT, app_name TEXT)")
+        self.db.execute("CREATE TABLE observations(observation_id TEXT, app_name TEXT, window_title TEXT)")
         self.dv = sqlite3.connect(os.path.join(self.data, "derived.sqlite3"))
         self.dv.executescript("""
             CREATE TABLE moment_revisions(moment_id TEXT, revision INTEGER, state TEXT, start_ns INTEGER, end_ns INTEGER);
@@ -38,12 +38,12 @@ class V2(unittest.TestCase):
             CREATE TABLE activity_revisions(activity_id TEXT, revision INTEGER, state TEXT, moment_count INTEGER);
             CREATE TABLE activity_member_index(activity_id TEXT, moment_id TEXT);""")
 
-    def moment(self, mid, a, b, state="stable", app="Terminal", what="User reads output.", why="Explore the repo.", obs=2):
+    def moment(self, mid, a, b, state="stable", app="Terminal", what="User reads output.", why="Explore the repo.", obs=2, title="zsh"):
         self.dv.execute("INSERT INTO moment_revisions VALUES (?,1,?,?,?)", (mid, state, ns(a), ns(b)))
         for k in range(obs):
             oid = f"{mid}-{k}"
             self.dv.execute("INSERT INTO moment_member_index VALUES (?,?)", (mid, oid))
-            self.db.execute("INSERT INTO observations VALUES (?,?)", (oid, app))
+            self.db.execute("INSERT INTO observations VALUES (?,?,?)", (oid, app, title))
         if what:
             self.dv.execute("INSERT INTO moment_descriptions VALUES (?,?,?,?)", (mid, "ok", what, "t"))
         if why:
@@ -110,9 +110,26 @@ class V2(unittest.TestCase):
         window = open(os.path.join(os.path.dirname(__file__), "..", "src", "window.py")).read()
         self.assertIn("v2_history.version() != self.v2_seen", window)
 
+    def test_a_moment_not_yet_described_or_still_growing_shows_under_its_window_title(self):
+        self.moment("m1", "09:00:00", "09:05:00", state="provisional", what="", why="", title="report.md - VS Code")
+        self.save()
+        row, = self.rows_of(self.page())
+        self.assertEqual((row["title"], row["doing"], row["app"]), ("report.md - VS Code", None, "Terminal"))
+
+    def test_the_summary_says_why_descriptions_wait(self):
+        import json
+        with open(os.path.join(self.data, "runner_stats.json"), "w") as fh:
+            json.dump({"final": False, "descriptions": {"paused": "battery at 17%"}}, fh)
+        self.assertEqual(v2_history.paused(self.data), "battery at 17%")
+        self.moment("m1", "09:00:00", "09:05:00")
+        self.save()
+        s = pm.new_state()
+        page = hm.view(projects.empty(), {}, s, NOW, v2=v2_history.read(self.data, wait=True), v2_paused="battery at 17%")
+        self.assertIn("Descriptions paused: battery at 17%", page["summary"])
+
     def test_no_files_no_database_or_nothing_described_is_no_v2_data(self):
         self.assertIsNone(v2_history.read(self.data, wait=True))
-        self.moment("m1", "09:00:00", "09:05:00", what="", why="")
+        self.moment("m1", "09:00:00", "09:05:00", what="", why="", app="", title="")
         self.save()
         self.assertIsNone(v2_history.read(self.data, wait=True))
         self.assertIsNone(v2_history.read(os.path.join(self.tmp.name, "missing"), wait=True))

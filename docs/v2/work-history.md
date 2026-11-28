@@ -21,3 +21,11 @@ Not verified on a Mac: the page itself (AppKit); only the model, bridge and test
 `read()` never waits, so the first call returns None while a background read runs. `v2_history.version()` counts finished
 reads; the window's tick (a few times a second) redraws the History page once when it changes, so Moments appear without
 a click. The per-Moment app-name cache drops Moments that are no longer shown (forgotten or merged).
+
+### One command, live entries (2026-11-28)
+
+`lmemm.py start` now starts Trace V2 itself (`python -m trace_v2.run --moments --vision-model $LMEMM_V2_VISION_MODEL`,
+default `lfm3-vl:latest`, log in the V2 data dir as `runner.log`) and stops it on exit; the old app no longer captures
+(`LMEMM_OWN_CAPTURE=1` brings that back). History shows every current Moment, stable or still growing: until the vision
+model describes it, the title is the window title it was seen in most. Descriptions go newest first, so today's work is
+described before an older backlog. When descriptions wait (battery, memory, you are working) the summary line says why.

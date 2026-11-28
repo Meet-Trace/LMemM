@@ -394,8 +394,16 @@ def _jump(sessions_dir, live, today, moments=()):
     return [{"day": d.isoformat(), "title": label(d, today)} for d in days(sessions_dir, live, moments)[:JUMP_DAYS]]
 
 
-def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=None, v2=None):
-    """The history page for state["hist"]. A failure to read never raises (a file that cannot be read is skipped)."""
+def view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=None, v2=None, v2_paused=None):
+    """The history page for state["hist"]. A failure to read never raises (a file that cannot be read is skipped).
+    `v2_paused`: why Trace V2's descriptions wait right now (battery, memory, you are working), said in the summary."""
+    page = _view(reg, items, state, now, sessions_dir, live, skip, moments, v2)
+    if v2_paused:
+        page["summary"] = " · ".join(b for b in (page.get("summary"), f"Descriptions paused: {v2_paused}") if b)
+    return page
+
+
+def _view(reg, items, state, now, sessions_dir=None, live=None, skip=(), moments=None, v2=None):
     hist = state["hist"]
     today = now.date()
     hide = hidden_apps(skip)
